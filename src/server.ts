@@ -11,7 +11,7 @@ const io = new Server(httpServer);
 const PORT = process.env.PORT || 3000;
 
 const clientBuildPath = path.join(__dirname, '../client/dist');
-const isDevelopment = false;// process.env.NODE_ENV !== 'production';
+const isDevelopment =  process.env.NODE_ENV !== 'production';
 
 if (!isDevelopment && fs.existsSync(clientBuildPath)) {
   app.use(express.static(clientBuildPath));
@@ -48,8 +48,8 @@ io.on('connection', (socket) => {
 
 // Replace app.listen with httpServer.listen
 httpServer.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`Production mode Server is running on port ${PORT}`);
   if (isDevelopment) {
-    console.log(`Access the React app at http://localhost:3001`);
+    console.log(`Access the React app at http://localhost:5173`);
   }
 });
