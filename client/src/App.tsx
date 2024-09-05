@@ -1,10 +1,15 @@
 import { useState, useEffect } from "react";
 import "./App.css";
 import { useSearchParam } from "react-use";
+import { io } from 'socket.io-client';
+
+// Define isDevelopment
+// const isDevelopment = import.meta.env.DEV;
 
 function App() {
   const [message, setMessage] = useState("");
   const edit = useSearchParam("edit");
+  const [connected,setConnected] = useState(false)
 
   useEffect(() => {
     fetch("/api/hello")
@@ -12,9 +17,26 @@ function App() {
       .then((data) => setMessage(data.message));
   }, []);
 
+  useEffect(() => {
+    // Connect to the current host
+    const socket = io();
+
+    socket.on('connect', () => {
+      setConnected(true)
+      console.log('Connected to server');
+    });
+
+    // Add more socket event listeners here
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+
   return (
     <div className="App">
       <div>
+        <h1> {connected ? "Connected":"not"}</h1>
         <div>edit: {edit || "🤷‍♂️"}</div>
         <div>
           <button

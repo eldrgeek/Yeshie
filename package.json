@@ -18,11 +18,12 @@
   "description": "",
   "dependencies": {
     "express": "^4.19.2",
-    "react-use": "^17.5.1"
+    "socket.io": "^4.7.5"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^22.5.4",
+    "@types/socket.io": "^3.0.1",
     "concurrently": "^8.2.2",
     "nodemon": "^3.1.4",
     "ts-node": "^10.9.2",
