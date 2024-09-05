@@ -50,6 +50,6 @@ io.on('connection', (socket) => {
 httpServer.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   if (isDevelopment) {
-    console.log(`Access the React app at http://localhost:5173`);
+    console.log(`Access the React app at http://localhost:3001`);
   }
 });

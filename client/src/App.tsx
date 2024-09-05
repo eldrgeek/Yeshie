@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import "./App.css";
 import { useSearchParam } from "react-use";
-import { io } from 'socket.io-client';
+import { io, Socket } from 'socket.io-client';
+import Rewind from "./Components/Rewind";
 
 // Define isDevelopment
 // const isDevelopment = import.meta.env.DEV;
@@ -9,7 +10,8 @@ import { io } from 'socket.io-client';
 function App() {
   const [message, setMessage] = useState("");
   const edit = useSearchParam("edit");
-  const [connected,setConnected] = useState(false)
+  const [connected, setConnected] = useState(false);
+  const [socket, setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
     fetch("/api/hello")
@@ -18,23 +20,30 @@ function App() {
   }, []);
 
   useEffect(() => {
-    // Connect to the current host
-    const socket = io();
+    const newSocket = io('http://localhost:3000', {
+      transports: ['websocket', 'polling']
+    });
 
-    socket.on('connect', () => {
-      setConnected(true)
+    newSocket.on('connect', () => {
+      setConnected(true);
       console.log('Connected to server');
     });
 
-    // Add more socket event listeners here
+    newSocket.on('connect_error', (error) => {
+      console.error('Connection error:', error);
+      setConnected(false);
+    });
+
+    setSocket(newSocket);
 
     return () => {
-      socket.disconnect();
+      newSocket.disconnect();
     };
   }, []);
 
   return (
     <div className="App">
+      <Rewind socket={socket} />
       <div>
         <h1> {connected ? "Connected":"not"}</h1>
         <div>edit: {edit || "🤷‍♂️"}</div>
