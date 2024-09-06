@@ -2,7 +2,8 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { createServer } from 'http';
-import { Server } from 'socket.io';
+import { Server,Socket } from 'socket.io';
+import { v4 as uuidv4 } from 'uuid';
 
 const app = express();
 const httpServer = createServer(app);
@@ -34,11 +35,24 @@ if (isDevelopment) {
     res.status(404).send('Not found');
   });
 }
+interface SessionInfo {
+  componentType: string;
+  socket: Socket;
+}
+
+  const sessions = new Map<string, SessionInfo>();
 
 // Add Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('A user connected');
-
+  
+  socket.on("session?",(componentType)=>{
+    console.log("session request")
+    const sessionId = uuidv4();
+    sessions.set(sessionId, { componentType, socket });
+    socket.emit('session:', sessionId);
+    console.log("Session created", sessionId)
+  })
   socket.on('disconnect', () => {
     console.log('User disconnected');
   });
