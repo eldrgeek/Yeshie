@@ -1,0 +1,12 @@
+start rewind
+click three dots
+click moment
+click speed change
+click zoom out
+click zoom in
+drag right
+drag left
+click timeline
+press delete
+click confirm
+press ESC
