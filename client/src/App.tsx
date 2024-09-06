@@ -9,18 +9,19 @@ import Rewind from "./Components/Rewind";
 
 function App() {
   const [message, setMessage] = useState("");
-  const edit = useSearchParam("edit");
   const urlSession = useSearchParam("session");
   const [session, setSession] = useState(urlSession);
   const [connected, setConnected] = useState(false);
   const [socket, setSocket] = useState<Socket | null>(null);
+  const [serverLogs, setServerLogs] = useState<string[]>([]);
+
   useEffect(() => {
-    console.log("USE EFFECT CALLED")
     const oldLog = console.log
     console.log = (...args)=>{
       if(socket) socket.emit('clientLog',args)
       oldLog(...args)
     }
+    return ()=>{console.log = oldLog }
   }, []);
   useEffect(() => {
     fetch("/api/hello")
@@ -32,8 +33,6 @@ function App() {
     const newSocket = io("http://localhost:3000", {
       transports: ["websocket", "polling"],
     });
-
-  
 
     newSocket.on("connect", () => {
       setConnected(true);
@@ -48,9 +47,14 @@ function App() {
     });
 
     newSocket.on("session:", (session) => {
+      newSocket.emit("session:",session,"client")
       history.pushState({}, "", location.pathname + `?session=${session}`)
 
       setSession(session);
+    });
+    newSocket.on("serverLog", (message) => {
+      console.log("serverLogs",...message)
+      setServerLogs((prevLogs) => [...prevLogs, ...message]);
     });
 
     newSocket.on("connect_error", (error) => {
@@ -68,35 +72,15 @@ function App() {
   return (
     <div className="App">
       <Rewind socket={socket} />
-      <div>
-        <h1> {connected ? "Connected" : "not"}</h1>
-        <div>edit: {edit || "🤷‍♂️"}</div>
-        <div>
-          <button
-            onClick={() =>
-              history.pushState({}, "", location.pathname + "?edit=123")
-            }
-          >
-            Edit post 123 (?edit=123)
-          </button>
-        </div>
-        <div>
-          <button
-            onClick={() =>
-              history.pushState({}, "", location.pathname + "?edit=999")
-            }
-          >
-            Edit post 999 (?edit=999)
-          </button>
-        </div>
-        <div>
-          <button onClick={() => history.pushState({}, "", location.pathname)}>
-            Close modal
-          </button>
-        </div>
-      </div>
-      <h1>Vite + React</h1>
+      <h3> {connected ? "Connected" : "not"}</h3>
       <p>Message given from server: {message}</p>
+      
+      <div className="server-logs">
+        <h4>Server Logs:</h4>
+        {serverLogs.map((log, index) => (
+          <p key={index}>{log}</p>
+        ))}
+      </div>
     </div>
   );
 }

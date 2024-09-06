@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { createServer } from 'http';
-import { Server,Socket } from 'socket.io';
+import { Server, Socket } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 
 const app = express();
@@ -12,7 +12,7 @@ const io = new Server(httpServer);
 const PORT = process.env.PORT || 3000;
 
 const clientBuildPath = path.join(__dirname, '../client/dist');
-const isDevelopment =  process.env.NODE_ENV !== 'production';
+const isDevelopment = process.env.NODE_ENV !== 'production';
 
 if (!isDevelopment && fs.existsSync(clientBuildPath)) {
   app.use(express.static(clientBuildPath));
@@ -38,23 +38,52 @@ if (isDevelopment) {
 interface SessionInfo {
   componentType: string;
   socket: Socket;
+  sessionNo: number;
 }
 
-  const sessions = new Map<string, SessionInfo>();
+const sessions = new Map<string, SessionInfo>();
+let sessionNo = 0
+
+// Create a new version of console.log
+const originalConsoleLog = console.log;
+console.log = (...args: any[]) => {
+  // Call the original console.log
+  originalConsoleLog("serverLog",...args);
+
+  //Iterate over the sessions and send a "consoleLog" message to each socket
+  sessions.forEach((sessionInfo) => {
+    sessionInfo.socket.emit('serverLog', args);
+    originalConsoleLog("emit serverLog")
+  });
+};
 
 // Add Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('A user connected');
-  
-  socket.on("session?",(componentType)=>{
+
+  socket.on("session?", (componentType) => {
     console.log("session request")
     const sessionId = uuidv4();
-    sessions.set(sessionId, { componentType, socket });
+   
     socket.emit('session:', sessionId);
     console.log("Session created", sessionId)
   })
+
+  socket.on('session:', (sessionId, componentType) => {
+    sessions.set(sessionId, { componentType, socket, sessionNo });
+    sessionNo++;
+    console.log('User disconnected');
+  });
   socket.on('disconnect', () => {
     console.log('User disconnected');
+    // Remove the disconnected socket from the sessions Map
+    for (const [sessionId, sessionInfo] of sessions.entries()) {
+      if (sessionInfo.socket === socket) {
+        sessions.delete(sessionId);
+        console.log(`Removed session: ${sessionId}`);
+        break;
+      }
+    }
   });
 
   // Add more socket event handlers here
