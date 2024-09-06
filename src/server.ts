@@ -53,7 +53,6 @@ console.log = (...args: any[]) => {
   //Iterate over the sessions and send a "consoleLog" message to each socket
   sessions.forEach((sessionInfo) => {
     sessionInfo.socket.emit('serverLog', args);
-    originalConsoleLog("emit serverLog")
   });
 };
 
@@ -62,17 +61,24 @@ io.on('connection', (socket) => {
   console.log('A user connected');
 
   socket.on("session?", (componentType) => {
-    console.log("session request")
     const sessionId = uuidv4();
-   
-    socket.emit('session:', sessionId);
-    console.log("Session created", sessionId)
-  })
-
-  socket.on('session:', (sessionId, componentType) => {
     sessions.set(sessionId, { componentType, socket, sessionNo });
     sessionNo++;
-    console.log('User disconnected');
+    socket.emit('session:', sessionId);
+    console.log("Session created", sessionId)
+    socket.emit('serverLog', [`Session created`]);
+
+  })
+  
+  socket.on('session:', (sessionId, componentType) => {
+    if(sessions.get(sessionId)){
+      console.log("Session confirmed")
+    } else {
+      sessions.set(sessionId, { componentType, socket, sessionNo });
+      sessionNo++;
+      console.log('Session restored:',sessionId);
+    }
+   
   });
   socket.on('disconnect', () => {
     console.log('User disconnected');
@@ -91,7 +97,7 @@ io.on('connection', (socket) => {
 
 // Replace app.listen with httpServer.listen
 httpServer.listen(PORT, () => {
-  console.log(`Production mode Server is running on port ${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
   if (isDevelopment) {
     console.log(`Access the React app at http://localhost:5173`);
   }

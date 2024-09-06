@@ -40,10 +40,8 @@ function App() {
         console.log("no session");
         newSocket.emit("session?", "client");
       } else {
-        console.log("EXISTING session");
         newSocket.emit("session:",session)
       }
-      console.log("Connected to server");
     });
 
     newSocket.on("session:", (session) => {

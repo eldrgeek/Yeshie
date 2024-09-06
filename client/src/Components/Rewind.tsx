@@ -37,7 +37,6 @@ const Rewind: React.FC<RewindProps> = ({ socket }) => {
   const handleButtonClick = () => {
     if (socket) { // Check if socket is not null
       socket.emit("moment", timestamp);
-      console.log("sent moment")
       openRewindMoment(timestamp);
     } else {
       console.error("Socket is not connected");
