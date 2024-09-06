@@ -160,6 +160,7 @@ class TaskDisplay:
         self.root = None
         self.messagebox = None
         self.task_label = None
+        self.current_dialog_type = None  # New attribute to store the current dialog type
 
     def create_dialog(self, type):
         if not self.root:
@@ -167,7 +168,7 @@ class TaskDisplay:
             self.root.withdraw()
         
         self.messagebox = tk.Toplevel(self.root)
-        self.messagebox.protocol("WM_DELETE_WINDOW", self.root.quit)
+        self.messagebox.protocol("WM_DELETE_WINDOW", self.on_dialog_close)  # Set the close callback
         
         self.messagebox.title("Tasks" if type == "tasks" else "Status")
         
@@ -192,10 +193,26 @@ class TaskDisplay:
             status_label = tk.Label(frame, text="Monitoring...", font=("Arial", 20), bg='#f0f0f0')
             status_label.pack(pady=10)
 
+        self.current_dialog_type = type  # Store the current dialog type
+
+    def on_dialog_close(self):
+        print(f"Dialog of type '{self.current_dialog_type}' was closed")
+        # You can add any additional logic here based on the dialog type
+        type = self.current_dialog_type
+        self.close_current_dialog()
+        if type == "tasks":
+            # Handle tasks dialog closure
+            task_display.display_task("status")
+        elif type == "status":
+             task_display.display_task("status")
+        
+     
+
     def close_current_dialog(self):
         if self.messagebox and self.messagebox.winfo_exists():
             self.messagebox.destroy()
         self.messagebox = None
+        self.current_dialog_type = None  # Reset the current dialog type
 
     def display_task(self, type):
         global task_index
