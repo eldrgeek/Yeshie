@@ -1,3 +1,8 @@
+bidict==0.23.1
+certifi==2024.8.30
+charset-normalizer==3.3.2
+h11==0.14.0
+idna==3.8
 pynput==1.7.7
 pyobjc-core==10.3.1
 pyobjc-framework-ApplicationServices==10.3.1
@@ -5,5 +10,12 @@ pyobjc-framework-Cocoa==10.3.1
 pyobjc-framework-CoreText==10.3.1
 pyobjc-framework-Quartz==10.3.1
 python-dotenv==1.0.1
+python-engineio==4.9.1
+python-socketio==5.11.4
+requests==2.32.3
+simple-websocket==1.0.0
 six==1.16.0
+urllib3==2.2.2
 watchdog==5.0.2
+websocket-client==1.8.0
+wsproto==1.2.0

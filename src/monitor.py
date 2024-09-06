@@ -4,7 +4,23 @@ from pynput import keyboard, mouse # type: ignore
 import tkinter as tk
 from tkinter import messagebox
 from pynput.keyboard import Key # type: ignore
-from pynput.mouse import Controller  # type: ignore # Add this import at the top
+from pynput.mouse import Controller  # type: ignore
+import socketio # type: ignore
+import os
+import builtins
+
+# Redefine print function
+oldprint = builtins.print
+
+def custom_print(*args, **kwargs):
+    oldprint("mon:", *args, **kwargs)
+
+# Replace built-in print with custom print
+builtins.print = custom_print
+
+
+
+
 
 # Global variables
 key_buffer = []
@@ -196,8 +212,40 @@ class TaskDisplay:
                 self.root.quit()
             return False
         
+def setupSockets():
+    sio = socketio.Client()
 
+    # Get the port from environment variable or use default
+    PORT = os.environ.get('PORT', 3000)
 
+    @sio.event
+    def connect():
+        print('Connected to server')
+        sio.emit('session?', 'monitor')
+
+    @sio.on('session:')
+    def session(session_id):
+        print("Session created", session_id)
+
+    @sio.event
+    def disconnect():
+        print('Disconnected from server')
+
+    @sio.on('calibrate')
+    def on_calibrate(data):
+        print('Received calibrate message:', data)
+        with open(ACTIONS_FILE, 'w', encoding="utf-8") as f:
+            f.write("####start\n")
+
+        task_display = TaskDisplay()
+        task_display.display_task()
+        if task_display.root:
+            task_display.root.mainloop()
+
+        print("All tasks completed. Exiting.")
+
+    # Connect to the server
+    sio.connect(f'http://localhost:{PORT}')
 def main():
     load_tasks()
 
@@ -209,6 +257,8 @@ def main():
 
     heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
     heartbeat_thread.start()
+    print("ready to set")
+    setupSockets()
 
     with open(ACTIONS_FILE, 'w', encoding="utf-8") as f:
         f.write("####start\n")

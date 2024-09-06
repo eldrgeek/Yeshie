@@ -48,7 +48,7 @@ let sessionNo = 0
 const originalConsoleLog = console.log;
 console.log = (...args: any[]) => {
   // Call the original console.log
-  originalConsoleLog("serverLog",...args);
+  originalConsoleLog("serv:",...args);
 
   //Iterate over the sessions and send a "consoleLog" message to each socket
   sessions.forEach((sessionInfo) => {
