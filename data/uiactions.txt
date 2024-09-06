@@ -1,17 +1,13 @@
 ####start
 ## start rewind
-click Button.left 663.58203125, 445.04296875
-with mouse(Button.left)
-    start (421.41015625, 76.87890625)
-    end (354.984375, 11.890625)
-    time 1.4
-click Button.left 589.4296875, 161.23046875
-with mouse(Button.left)
-    start (582.8125, 160.7734375)
-    end (646.18359375, 164.8046875)
-    time 1.9
-click Button.left 819.39453125, 161.00390625
-click Button.left 986.70703125, 359.875
-click Button.left 360.42578125, 644.2109375
-click Button.left 423.8125, 697.65234375
-click Button.left 965.453125, 370.46484375
+## click three dots
+## click moment
+## click speed change
+## click zoom out
+## click zoom in
+## drag right
+## drag left
+## click timeline
+## press delete
+## click confirm
+## press ESC

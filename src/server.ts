@@ -67,6 +67,7 @@ io.on('connection', (socket) => {
     socket.emit('session:', sessionId);
     console.log("Session created", sessionId)
     socket.emit('serverLog', [`Session created`]);
+    setTimeout(() => socket.emit('calibrate', "data"), 1000);
 
   })
   

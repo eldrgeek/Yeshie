@@ -161,58 +161,75 @@ class TaskDisplay:
         self.messagebox = None
         self.task_label = None
 
-    def display_task(self):
-        global task_index, task_display
-        task_display = self
-        if self.messagebox:
-            self.messagebox.lift()
-            self.messagebox.attributes('-topmost', True)
-            return True
-        if task_index < len(tasks):
-            task = tasks[task_index]
-            if not self.root:
-                self.root = tk.Tk()
-                self.root.withdraw()
-            
-            def update_task():
-                global task_index
-                task_index += 1
-             
-                if task_index < len(tasks):
-                    new_task = tasks[task_index]
-                    self.task_label.config(text=new_task)
-                    log_action(f"## {new_task}",False)
-                    print("update task ", task_index)
-                else:
-                    log_action("All tasks completed")
-                    self.root.quit()
-            
-            self.messagebox = tk.Toplevel(self.root)
-            self.messagebox.protocol("WM_DELETE_WINDOW", self.root.quit)
-            self.messagebox.title("Task")
-            self.messagebox.geometry("500x250")
-            self.messagebox.configure(bg='#f0f0f0')
-            self.messagebox.attributes('-topmost', True)
-            
-            frame = tk.Frame(self.messagebox, bg='#ffffff', padx=10, pady=10)
-            frame.pack(expand=True, fill='both')
-            
+    def create_dialog(self, type):
+        if not self.root:
+            self.root = tk.Tk()
+            self.root.withdraw()
+        
+        self.messagebox = tk.Toplevel(self.root)
+        self.messagebox.protocol("WM_DELETE_WINDOW", self.root.quit)
+        
+        self.messagebox.title("Tasks" if type == "tasks" else "Status")
+        
+        self.messagebox.geometry("500x250")
+        self.messagebox.configure(bg='#f0f0f0')
+        self.messagebox.attributes('-topmost', True)
+        self.messagebox.lift()
+    
+        frame = tk.Frame(self.messagebox, bg='#ffffff', padx=10, pady=10)
+        frame.pack(expand=True, fill='both')
+        
+        if type == "tasks":
             tk.Label(frame, text="Current Task:", font=("Arial", 12, "bold"), bg='#f0f0f0').pack(pady=(0, 5))
-            self.task_label = tk.Label(frame, text=task, font=("Arial", 20), bg='#f0f0f0', wraplength=280)
+            self.task_label = tk.Label(frame, text=tasks[task_index], font=("Arial", 20), bg='#f0f0f0', wraplength=280)
             self.task_label.pack(pady=(0, 10))
             
-            tk.Button(frame, text="Next Task", command=update_task, 
+            tk.Button(frame, text="Next Task", command=self.update_task, 
                       bg='blue', fg='black', font=("Arial", 10),
                       activebackground='blue', relief=tk.FLAT).pack(pady=5)
-            
-            log_action(f"## {task}")
+        else:
+            # For "status" type, you might want to add a different label or widget
+            status_label = tk.Label(frame, text="Monitoring...", font=("Arial", 20), bg='#f0f0f0')
+            status_label.pack(pady=10)
+
+    def close_current_dialog(self):
+        if self.messagebox and self.messagebox.winfo_exists():
+            self.messagebox.destroy()
+        self.messagebox = None
+
+    def display_task(self, type):
+        global task_index
+      
+        self.close_current_dialog()
+        if type == "tasks" and task_index < len(tasks):
+            self.create_dialog(type)
+            log_action(f"## {tasks[task_index]}")
+            return True
+        elif type == "status":
+            self.create_dialog(type)
             return True
         else:
             if self.root:
                 self.root.quit()
             return False
+
+    def update_task(self):
+        global task_index, task_display
+        task_display = self
+        task_index += 1
         
+        if task_index < len(tasks):
+            new_task = tasks[task_index]
+            self.task_label.config(text=new_task)
+            log_action(f"## {new_task}", False)
+            print("update task ", task_index)
+        else:
+            log_action("All tasks completed")
+            self.close_current_dialog()
+            self.display_task("status")
+
 def setupSockets():
+    global task_display
     sio = socketio.Client()
 
     # Get the port from environment variable or use default
@@ -233,20 +250,22 @@ def setupSockets():
 
     @sio.on('calibrate')
     def on_calibrate(data):
+        global task_display
+        print("calibrate")
+
         print('Received calibrate message:', data)
         with open(ACTIONS_FILE, 'w', encoding="utf-8") as f:
             f.write("####start\n")
-
-        task_display = TaskDisplay()
-        task_display.display_task()
-        if task_display.root:
-            task_display.root.mainloop()
-
-        print("All tasks completed. Exiting.")
+        
+        if task_display is None:
+            task_display = TaskDisplay()
+        
+        task_display.display_task("tasks")
 
     # Connect to the server
     sio.connect(f'http://localhost:{PORT}')
 def main():
+    global task_display
     load_tasks()
 
     keyboard_listener = keyboard.Listener(on_press=on_press, on_release=on_release)
@@ -264,11 +283,10 @@ def main():
         f.write("####start\n")
 
     task_display = TaskDisplay()
-    task_display.display_task()
+    task_display.display_task("status")
     if task_display.root:
         task_display.root.mainloop()
 
     print("All tasks completed. Exiting.")
 if __name__ == "__main__":
     main()
-
