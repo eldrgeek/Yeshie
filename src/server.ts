@@ -42,7 +42,7 @@ interface SessionInfo {
 }
 
 const sessions = new Map<string, SessionInfo>();
-let sessionNo = 0
+let sessionNo = 0;
 
 // Create a new version of console.log
 const originalConsoleLog = console.log;
@@ -56,21 +56,37 @@ console.log = (...args: any[]) => {
   });
 };
 
+let monitorSocket: Socket | null = null;
+
 // Add Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('A user connected');
 
+
   socket.on("session?", (componentType) => {
+    if (componentType === "monitor") {
+      monitorSocket = socket;
+      console.log("Monitor connected");
+    }
     const sessionId = uuidv4();
     sessions.set(sessionId, { componentType, socket, sessionNo });
     sessionNo++;
     socket.emit('session:', sessionId);
-    console.log("Session created", sessionId)
+    console.log("Session created", sessionId);
     socket.emit('serverLog', [`Session created`]);
-    setTimeout(() => socket.emit('calibrate', "data"), 1000);
+    
+  });
 
-  })
-  
+  socket.on('monitor', (payload) => {
+    console.log("monitor", JSON.stringify(payload))
+    if (monitorSocket) {
+      const { op, ...data } = payload;
+      monitorSocket.emit(op, data);
+    } else {
+      console.log("Monitor not connected");
+    }
+  });
+
   socket.on('session:', (sessionId, componentType) => {
     if(sessions.get(sessionId)){
       console.log("Session confirmed")
