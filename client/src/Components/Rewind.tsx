@@ -43,6 +43,14 @@ const Rewind: React.FC<RewindProps> = ({ socket }) => {
     }
   };
 
+  const handleCalibrate = () => {
+    if (socket) {
+      socket.emit("monitor", { op: "calibrate" });
+    } else {
+      console.error("Socket is not connected");
+    }
+  };
+
   const handleDateTimeChange = (date: Date | null) => {
     if (date) { // Check if date is not null
       setSelectedDate(date);
@@ -96,9 +104,14 @@ const Rewind: React.FC<RewindProps> = ({ socket }) => {
               placeholder="Enter timestamp"
             />
           </Box>
-          <Button colorScheme="blue" onClick={handleButtonClick}>
-            Go
-          </Button>
+          <HStack spacing={4}>
+            <Button colorScheme="blue" onClick={handleButtonClick} flex={1}>
+              Go
+            </Button>
+            <Button colorScheme="green" onClick={handleCalibrate} flex={1}>
+              Calibrate
+            </Button>
+          </HStack>
         </VStack>
       </Box>
     </ChakraProvider>
