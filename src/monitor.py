@@ -9,14 +9,14 @@ import socketio # type: ignore
 import os
 import builtins
 
-# Redefine print function
+#/ Redefine print function
 oldprint = builtins.print
 
 def custom_print(*args, **kwargs):
     oldprint("mon:", *args, **kwargs,flush=True)
     
 
-# Replace built-in print with custom print
+# Replace built-in print with custom prinπt
 builtins.print = custom_print
 
 
