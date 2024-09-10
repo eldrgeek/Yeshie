@@ -13,7 +13,8 @@ import builtins
 oldprint = builtins.print
 
 def custom_print(*args, **kwargs):
-    oldprint("mon:", *args, **kwargs)
+    oldprint("mon:", *args, **kwargs,flush=True)
+    
 
 # Replace built-in print with custom print
 builtins.print = custom_print
@@ -44,7 +45,7 @@ glyph_map = {
     Key.shift: '⇧',
     Key.alt: '⌥',
     Key.ctrl: '⌃',
-    Key.enter: '⏎',
+    Key.enter: '↵',
     Key.backspace: '⌫',
     Key.delete: '⌦',
     Key.tab: '⇥',
@@ -85,9 +86,14 @@ def emit_keys():
 
 
 def on_press(key):
-    global key_buffer, shift_pressed, modifiers
-
+    global key_buffer, shift_pressed, modifiers, task_display
+    update_task = False
     try:
+        if task_display and task_display.current_dialog_type == "calibrate":
+            if isinstance(key, keyboard.KeyCode) and hasattr(key, 'char'):
+                update_task = True   
+            elif key == Key.esc or key == Key.delete:
+                update_task = True
         if key in (Key.shift, Key.ctrl, Key.alt, Key.cmd):
             if key not in modifiers:
                 modifiers.append(key)
@@ -103,9 +109,16 @@ def on_press(key):
         elif key in glyph_map:
             emit_keys()
             log_action(f"press {glyph_map.get(key)}")
+            if update_task:
+                task_display.update_task()
         elif hasattr(key, 'char'):
             char = key.char.upper() if shift_pressed else key.char
             key_buffer.append(char)
+            if task_display and task_display.current_dialog_type == "calibrate":
+                emit_keys()
+                if update_task:
+                    task_display.update_task()
+
         else:
             emit_keys()
             log_action(f"press {key}")
@@ -126,7 +139,8 @@ def on_release(key):
         print(f"KEYBOARD: Error on key release: {e}")
 
 def on_click(x, y, button, pressed):
-    global mouse_start, mouse_button, start_time
+    global mouse_start, mouse_button, start_time, task_display
+    print("click",task_display.current_dialog_type)
     if pressed:
         mouse_start = (x, y)
         mouse_button = button
@@ -139,13 +153,20 @@ def on_click(x, y, button, pressed):
             action = f"click {button} {mouse_start[0]}, {mouse_start[1]}"
         else:
             action = f"with mouse({button})\n    start {mouse_start}\n    end {(x, y)}\n    time {duration:.1f}"
+        
+        # Check if in calibrate mode and call update_task before logging action
+        if task_display and task_display.current_dialog_type == "calibrate":
+            task_display.update_task()
+        
         log_action(action)
         mouse_start = None
 
 def heartbeat():
+    minutes = 0
     while True:
-        print("I am here")
-        time.sleep(10)
+        time.sleep(60)
+        minutes += 1
+        print(f"Monitor up fo {minutes} minutes")
 
 def load_tasks():
     global tasks
@@ -155,13 +176,13 @@ def load_tasks():
     except FileNotFoundError:
         print(f"Error: {TASKS_FILE} not found")
 
+timesClosed = 0
 class TaskDisplay:
     def __init__(self):
         self.root = None
         self.messagebox = None
         self.task_label = None
         self.current_dialog_type = None  # New attribute to store the current dialog type
-
     def create_dialog(self, type):
         if not self.root:
             self.root = tk.Tk()
@@ -180,7 +201,7 @@ class TaskDisplay:
         frame = tk.Frame(self.messagebox, bg='#ffffff', padx=10, pady=10)
         frame.pack(expand=True, fill='both')
         
-        if type == "tasks":
+        if type == "calibrate":
             tk.Label(frame, text="Current Task:", font=("Arial", 12, "bold"), bg='#f0f0f0').pack(pady=(0, 5))
             self.task_label = tk.Label(frame, text=tasks[task_index], font=("Arial", 20), bg='#f0f0f0', wraplength=280)
             self.task_label.pack(pady=(0, 10))
@@ -194,19 +215,22 @@ class TaskDisplay:
             status_label.pack(pady=10)
 
         self.current_dialog_type = type  # Store the current dialog type
-
     def on_dialog_close(self):
+        global timesClosed, task_index
+        task_index = 0
+        timesClosed += 1  # Corrected variable name
         print(f"Dialog of type '{self.current_dialog_type}' was closed")
-        # You can add any additional logic here based on the dialog type
-        type = self.current_dialog_type
-        self.close_current_dialog()
-        if type == "tasks":
-            # Handle tasks dialog closure
-            task_display.display_task("status")
-        elif type == "status":
-             task_display.display_task("status")
         
-     
+        dialog_type = self.current_dialog_type
+        if dialog_type == "calibrate":
+             self.task_label.config("done")
+        self.close_current_dialog()
+        
+      
+        if dialog_type == "status":
+            self.display_task("calibrate")
+        else:
+            self.display_task("status")
 
     def close_current_dialog(self):
         if self.messagebox and self.messagebox.winfo_exists():
@@ -216,9 +240,8 @@ class TaskDisplay:
 
     def display_task(self, type):
         global task_index
-      
         self.close_current_dialog()
-        if type == "tasks" and task_index < len(tasks):
+        if type == "calibrate" and task_index < len(tasks):
             self.create_dialog(type)
             log_action(f"## {tasks[task_index]}")
             return True
@@ -242,8 +265,10 @@ class TaskDisplay:
             print("update task ", task_index)
         else:
             log_action("All tasks completed")
-            self.close_current_dialog()
+            # self.close_current_dialog()
+            task_index = 0
             self.display_task("status")
+        
 
 def setupSockets():
     global task_display
@@ -274,10 +299,10 @@ def setupSockets():
         with open(ACTIONS_FILE, 'w', encoding="utf-8") as f:
             f.write("####start\n")
         
-        if task_display is None:
-            task_display = TaskDisplay()
+        # if task_display is None:
+        #     task_display = TaskDisplay()
         
-        task_display.display_task("tasks")
+        task_display.display_task("calibrate")
 
     # Connect to the server
     sio.connect(f'http://localhost:{PORT}')
@@ -293,7 +318,6 @@ def main():
 
     heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
     heartbeat_thread.start()
-    print("ready to set")
     setupSockets()
 
     with open(ACTIONS_FILE, 'w', encoding="utf-8") as f:
@@ -301,6 +325,12 @@ def main():
 
     task_display = TaskDisplay()
     task_display.display_task("status")
+    
+    # Add this line to keep the main thread running
+    # while True:
+        # time.sleep(1)
+
+    # Remove or comment out the following lines
     if task_display.root:
         task_display.root.mainloop()
 

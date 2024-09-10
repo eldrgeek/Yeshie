@@ -7,10 +7,11 @@
     "build": "tsc",
     "dev:server": "nodemon --watch src -e ts,tsx --exec ts-node src/server.ts",
     "dev:client": "cd client && npm run dev",
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\" \"npm run dev:monitor\"",
+    "dev": "concurrently \"npm run dev:monitor\" \"npm run dev:server\" \"npm run dev:client\"",
     "build:client": "cd client && npm run build",
     "build:server": "tsc",
     "build:all": "npm run build:server && npm run build:client",
+    "dev:listener": "nodemon --watch src -e py --exec python src/listener.py",
     "dev:monitor": "nodemon --watch src -e py --exec python src/monitor.py"
   },
   "keywords": [],
