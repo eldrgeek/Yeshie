@@ -8,7 +8,7 @@ import builtins
 import listener
 
 # Redefine print function
-recorder = None
+inputMonitor = None
 oldprint = builtins.print
 
 def custom_print(*args, **kwargs):
@@ -29,10 +29,10 @@ learn = True
 
 def log_action(action, check=True):
     global task_display
-    global recorder
+    global inputMonitor
     try:
         # Get current mouse position
-        mouse_controller = recorder.Controller
+        mouse_controller = inputMonitor.Controller
         mouse_x, mouse_y = mouse_controller.position
 
         # Check if the mouse is within the messagebox region
@@ -210,10 +210,10 @@ def setupSockets():
 
 def main():
     global task_display
-    global recorder
+    global inputMonitor
     load_tasks()
 
-    recorder = listener.init(None)
+    inputMonitor = listener.init(None)
 
     heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
     heartbeat_thread.start()
