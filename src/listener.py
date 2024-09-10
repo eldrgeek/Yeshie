@@ -7,17 +7,17 @@ import signal  # Add this import
 import time  # Add this import
 
 # Redefine print function
-oldprint = builtins.print
+# oldprint = builtins.print
 
-def custom_print(*args, **kwargs):
-    oldprint("mon:", *args, **kwargs,flush=True)
+# def custom_print(*args, **kwargs):
+#     oldprint("mon:", *args, **kwargs,flush=True)
     
-builtins.print = custom_print
+# builtins.print = custom_print
 
 # Replace built-in print with custom print
-builtins.print = custom_print
 class InputRecorder:
     def __init__(self):
+        self.Controller = MouseController()
         self.recorded_actions = []
         self.pressed_keys = set()
         self.keyboard_listener = None
@@ -166,14 +166,22 @@ class InputRecorder:
 
     def record_action(self, action):
         self.recorded_actions.append(action)
+        if self.callback:
+            self.callback(action)
         print(action)  # Print the action message
 
-def init():
-   recorder = InputRecorder()
-   recorder.start_recording()
-   return recorder
+def setCallback(callback):
+    global recorder
+    recorder.setCallback(callback)
+
+def init(callback):
+    global recorder
+    recorder = InputRecorder()
+    recorder.setCallback(callback)
+    recorder.start_recording()
+    return recorder
 # Example usage
 if __name__ == "__main__":
-    init()
+    init(None)
  
 # this is a test

@@ -1,66 +1,38 @@
 import threading
 import time
-from pynput import keyboard, mouse # type: ignore
 import tkinter as tk
 from tkinter import messagebox
-from pynput.keyboard import Key # type: ignore
-from pynput.mouse import Controller  # type: ignore
-import socketio # type: ignore
+import socketio
 import os
 import builtins
+import listener
 
-#/ Redefine print function
+# Redefine print function
+recorder = None
 oldprint = builtins.print
 
 def custom_print(*args, **kwargs):
-    oldprint("mon:", *args, **kwargs,flush=True)
-    
+    oldprint("mon:", *args, **kwargs, flush=True)
 
-# Replace built-in print with custom prinπt
+# Replace built-in print with custom print
 builtins.print = custom_print
 
-
-
-
-
-# Global variables
-key_buffer = []
-tasks = []
-task_index = 0
-shift_pressed = False
-modifiers = []
-mouse_start = None
-mouse_button = None
-start_time = None
-task_display = None
-learn = True # Indicates that 
-
 # File paths
-TASKS_FILE = "./data/tasks.txt"  
+TASKS_FILE = "./data/tasks.txt"
 ACTIONS_FILE = "./data/uiactions.txt"
 
-# Glyph mapping for modifiers and special keys
-glyph_map = {
-    Key.cmd: '⌘',
-    Key.shift: '⇧',
-    Key.alt: '⌥',
-    Key.ctrl: '⌃',
-    Key.enter: '↵',
-    Key.backspace: '⌫',
-    Key.delete: '⌦',
-    Key.tab: '⇥',
-    Key.esc: '⎋',
-    Key.left: '←',
-    Key.right: '→',
-    Key.up: '↑',
-    Key.down: '↓',
-}
+# Global variables
+tasks = []
+task_index = 0
+task_display = None
+learn = True
 
-def log_action(action,check=True):
-    global task_display  # Ensure task_display is accessible
+def log_action(action, check=True):
+    global task_display
+    global recorder
     try:
         # Get current mouse position
-        mouse_controller = Controller()
+        mouse_controller = recorder.Controller
         mouse_x, mouse_y = mouse_controller.position
 
         # Check if the mouse is within the messagebox region
@@ -74,99 +46,16 @@ def log_action(action,check=True):
 
         with open(ACTIONS_FILE, "a", encoding="utf-8") as f:
             f.write(action + "\n")
-            print("Wrote action",action)
+            print("Wrote action", action)
     except Exception as e:
-        print(f"Error in log_action: {e}",False)
-
-def emit_keys():
-    global key_buffer
-    if key_buffer:
-        log_action(f'type "{("".join(key_buffer))}"')
-        key_buffer = []
-
-
-def on_press(key):
-    global key_buffer, shift_pressed, modifiers, task_display
-    update_task = False
-    try:
-        if task_display and task_display.current_dialog_type == "calibrate":
-            if isinstance(key, keyboard.KeyCode) and hasattr(key, 'char'):
-                update_task = True   
-            elif key == Key.esc or key == Key.delete:
-                update_task = True
-        if key in (Key.shift, Key.ctrl, Key.alt, Key.cmd):
-            if key not in modifiers:
-                modifiers.append(key)
-            if key == Key.shift:
-                shift_pressed = True
-        elif key == Key.space:
-            key_buffer.append(' ')
-            return
-        elif key == Key.enter:
-            print("Enter pressed")
-            key_buffer.append(glyph_map.get(Key.enter))
-            emit_keys()
-        elif key in glyph_map:
-            emit_keys()
-            log_action(f"press {glyph_map.get(key)}")
-            if update_task:
-                task_display.update_task()
-        elif hasattr(key, 'char'):
-            char = key.char.upper() if shift_pressed else key.char
-            key_buffer.append(char)
-            if task_display and task_display.current_dialog_type == "calibrate":
-                emit_keys()
-                if update_task:
-                    task_display.update_task()
-
-        else:
-            emit_keys()
-            log_action(f"press {key}")
-    except Exception as e:
-        log_action(f"KEYBOARD: Error on key press: {e}")
-
-
-def on_release(key):
-    global key_buffer, pressed_keys, shift_pressed, modifiers
-    try:
-        if key in (Key.shift, Key.ctrl, Key.alt, Key.cmd):
-            if key in modifiers:
-                modifiers.remove(key)
-            if key == Key.shift:
-                shift_pressed = False
-            return
-    except Exception as e:
-        print(f"KEYBOARD: Error on key release: {e}")
-
-def on_click(x, y, button, pressed):
-    global mouse_start, mouse_button, start_time, task_display
-    print("click",task_display.current_dialog_type)
-    if pressed:
-        mouse_start = (x, y)
-        mouse_button = button
-        start_time = time.time()
-        return
-
-    if mouse_start and mouse_button:
-        duration = time.time() - start_time
-        if duration < 0.5:
-            action = f"click {button} {mouse_start[0]}, {mouse_start[1]}"
-        else:
-            action = f"with mouse({button})\n    start {mouse_start}\n    end {(x, y)}\n    time {duration:.1f}"
-        
-        # Check if in calibrate mode and call update_task before logging action
-        if task_display and task_display.current_dialog_type == "calibrate":
-            task_display.update_task()
-        
-        log_action(action)
-        mouse_start = None
+        print(f"Error in log_action: {e}", False)
 
 def heartbeat():
     minutes = 0
     while True:
         time.sleep(60)
         minutes += 1
-        print(f"Monitor up fo {minutes} minutes")
+        print(f"Monitor up for {minutes} minutes")
 
 def load_tasks():
     global tasks
@@ -177,6 +66,7 @@ def load_tasks():
         print(f"Error: {TASKS_FILE} not found")
 
 timesClosed = 0
+
 class TaskDisplay:
     def __init__(self):
         self.root = None
@@ -268,7 +158,11 @@ class TaskDisplay:
             # self.close_current_dialog()
             task_index = 0
             self.display_task("status")
+            listener.setCallback(None)
         
+
+def callback(action):
+    task_display.update_task()
 
 def setupSockets():
     global task_display
@@ -277,6 +171,8 @@ def setupSockets():
     # Get the port from environment variable or use default
     PORT = os.environ.get('PORT', 3000)
 
+    # Connect to the server
+   
     @sio.event
     def connect():
         print('Connected to server')
@@ -292,48 +188,45 @@ def setupSockets():
 
     @sio.on('calibrate')
     def on_calibrate(data):
+        listener.setCallback(callback)
         global task_display
-        print("calibrate")
-
         print('Received calibrate message:', data)
         with open(ACTIONS_FILE, 'w', encoding="utf-8") as f:
             f.write("####start\n")
         
-        # if task_display is None:
-        #     task_display = TaskDisplay()
-        
         task_display.display_task("calibrate")
 
-    # Connect to the server
-    sio.connect(f'http://localhost:{PORT}')
+    timeout = 1  # Initial timeout
+    while True:
+        try:
+            sio.connect(f'http://localhost:{PORT}')
+            break  # Exit loop if connection is successful
+        except Exception as e:
+            if timeout != 1:
+                    print(f"Connection failed: {e}. Retrying in {timeout} seconds...")
+            time.sleep(timeout)
+            timeout += 1  # Increase timeout for next retry
+
+
 def main():
     global task_display
+    global recorder
     load_tasks()
 
-    keyboard_listener = keyboard.Listener(on_press=on_press, on_release=on_release)
-    mouse_listener = mouse.Listener(on_click=on_click)
-
-    keyboard_listener.start()
-    mouse_listener.start()
+    recorder = listener.init(None)
 
     heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
     heartbeat_thread.start()
     setupSockets()
 
-    with open(ACTIONS_FILE, 'w', encoding="utf-8") as f:
-        f.write("####start\n")
 
     task_display = TaskDisplay()
     task_display.display_task("status")
     
-    # Add this line to keep the main thread running
-    # while True:
-        # time.sleep(1)
-
-    # Remove or comment out the following lines
     if task_display.root:
         task_display.root.mainloop()
 
     print("All tasks completed. Exiting.")
+
 if __name__ == "__main__":
     main()
