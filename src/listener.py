@@ -6,6 +6,7 @@ import builtins
 import signal  # Add this import
 import time  # Add this import
 
+listener = None
 # Redefine print function
 # oldprint = builtins.print
 
@@ -171,14 +172,17 @@ class InputRecorder:
         print(action)  # Print the action message
 
 def setCallback(callback):
-    global recorder
-    recorder.setCallback(callback)
+    listener.setCallback(callback)
 
 def init(callback):
+    global listener
+    listener = InputRecorder()
+    listener.setCallback(callback)
+    listener.start_recording()
+    return listener
+
+def getMonitor():
     global recorder
-    recorder = InputRecorder()
-    recorder.setCallback(callback)
-    recorder.start_recording()
     return recorder
 # Example usage
 if __name__ == "__main__":

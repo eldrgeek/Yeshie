@@ -3,3 +3,4 @@ dist/*
 dist/server.js
 venv
 src/__pycache__/listener.cpython-312.pyc
+src/__pycache__/display.cpython-312.pyc
