@@ -16,7 +16,7 @@ listener = None
 # builtins.print = custom_print
 
 # Replace built-in print with custom print
-class InputRecorder:
+class Listener:
     def __init__(self):
         self.Controller = MouseController()
         self.recorded_actions = []
@@ -169,22 +169,22 @@ class InputRecorder:
         self.recorded_actions.append(action)
         if self.callback:
             self.callback(action)
-        print(action)  # Print the action message
+        # print(action)  # Print the action message
 
 def setCallback(callback):
     listener.setCallback(callback)
 
+def getLisstener():
+    global listener
+    return listener
+
 def init(callback):
     global listener
-    listener = InputRecorder()
+    listener = Listener()
     listener.setCallback(callback)
     listener.start_recording()
     return listener
 
-def getMonitor():
-    global recorder
-    return recorder
-# Example usage
 if __name__ == "__main__":
     init(None)
  

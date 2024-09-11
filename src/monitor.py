@@ -5,12 +5,13 @@ from tkinter import messagebox
 import socketio
 import os
 import builtins
-import listener
+import listeners
 from display import TaskDisplay
 import display
+import calibrate
 
 # Redefine print function
-inputMonitor = None
+listener = None
 oldprint = builtins.print
 
 def custom_print(*args, **kwargs):
@@ -27,6 +28,8 @@ task_index = 0
 task_display = None
 learn = True
 
+# Global flag for calibration
+calibrate_flag = False
 
 def heartbeat():
     minutes = 0
@@ -62,14 +65,13 @@ def setupSockets():
 
     @sio.on('calibrate')
     def on_calibrate(data):
-        display.load_tasks()
-        global task_display
-
-        listener.setCallback(task_display.update_task)
+        global calibrate_flag
+        calibrate_flag = True  # Set the flag to indicate calibration is requested
+        calibrate.Calibrate()  # Instantiate Calibrate
         print('Received calibrate message:', data)
-        display.clearFile()
+      
         
-        task_display.display_task("calibrate")
+        # task_display.display_task("calibrate")
 
     timeout = 1  # Initial timeout
     while True:
@@ -84,20 +86,24 @@ def setupSockets():
 
 
 def main():
-    global task_display
-   
-
-    inputMonitor = listener.init(None)
+    global calibrate_flag
+    listener = listeners.init(None)
 
     heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
     heartbeat_thread.start()
     setupSockets()
 
-    task_display = TaskDisplay(inputMonitor)
-    task_display.display_task("status")
-    
-    if task_display.root:
-        task_display.root.mainloop()
+    # Keep the main thread alive
+    try:
+        while True:
+            if calibrate_flag:
+                root = tk.Tk()
+                root.withdraw()  # Hide the root window
+                tk.Tk().mainloop()  # Start the main loop for the dialog
+                calibrate_flag = False  # Reset the flag after handling
+            time.sleep(1)  # Sleep to prevent busy waiting
+    except KeyboardInterrupt:
+        print("Shutting down...")  # Graceful shutdown message
 
     print("All tasks completed. Exiting.")
 

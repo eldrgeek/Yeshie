@@ -1,17 +1,20 @@
 import tkinter as tk
 from tkinter import messagebox
-import listener
+import listeners
+from pynput.mouse import Controller
+import dialogs
+
 # File paths
 TASKS_FILE = "./data/tasks.txt"
 ACTIONS_FILE = "./data/uiactions.txt"
 task_index = 0
-inputMonitor = None
+inputMonitor = Controller()
 def log_action(action, check=True):
     global task_display
-    global inputMonitor
+    global inputMonitorå
     try:
         # Get current mouse position
-        mouse_controller = inputMonitor.Controller
+        mouse_controller = Controller()
         mouse_x, mouse_y = mouse_controller.position
 
         # Check if the mouse is within the messagebox region
@@ -29,7 +32,7 @@ def log_action(action, check=True):
     except Exception as e:
         print(f"Error in log_action: {e}", False)
 
-class TaskDisplay:
+class TaskDisplay(dialogs.Dialog):
     def __init__(self,monitor):
         inputMonitor = monitor
         self.root = None
@@ -122,7 +125,7 @@ class TaskDisplay:
             # self.close_current_dialog()
             task_index = 0
             self.display_task("status")
-            listener.setCallback(None)
+            listeners.setCallback(None)
 def load_tasks():
     global tasks
     try:
@@ -130,6 +133,3 @@ def load_tasks():
             tasks = f.read().splitlines()
     except FileNotFoundError:
         print(f"Error: {TASKS_FILE} not found")
-def clearFile():
-    with open(ACTIONS_FILE, 'w', encoding="utf-8") as f:
-     f.write("####start\n")
