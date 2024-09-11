@@ -28,8 +28,8 @@ task_index = 0
 task_display = None
 learn = True
 
-# Global flag for calibration
-calibrate_flag = False
+# Global flag for calibration dialog
+calibrate_dialog_flag = False
 
 def heartbeat():
     minutes = 0
@@ -65,9 +65,8 @@ def setupSockets():
 
     @sio.on('calibrate')
     def on_calibrate(data):
-        global calibrate_flag
-        calibrate_flag = True  # Set the flag to indicate calibration is requested
-        calibrate.Calibrate()  # Instantiate Calibrate
+        global calibrate_dialog_flag
+        calibrate_dialog_flag = True  # Set the flag to indicate calibration is requested
         print('Received calibrate message:', data)
       
         
@@ -86,7 +85,7 @@ def setupSockets():
 
 
 def main():
-    global calibrate_flag
+    global calibrate_dialog_flag
     listener = listeners.init(None)
 
     heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
@@ -96,16 +95,23 @@ def main():
     # Keep the main thread alive
     try:
         while True:
-            if calibrate_flag:
-                root = tk.Tk()
-                root.withdraw()  # Hide the root window
-                tk.Tk().mainloop()  # Start the main loop for the dialog
-                calibrate_flag = False  # Reset the flag after handling
+            if calibrate_dialog_flag:
+                show_calibrate_dialog()  # Call the new method to show the dialog
             time.sleep(1)  # Sleep to prevent busy waiting
     except KeyboardInterrupt:
         print("Shutting down...")  # Graceful shutdown message
 
     print("All tasks completed. Exiting.")
+
+def show_calibrate_dialog():
+    ## This has to happen in the main thread
+    global calibrate_dialog_flag
+    calibrate_dialog_flag = False
+    calibrate.Calibrate()
+    print("will not return until mainloop closes")
+    # calibrate_instance.create_dialog()
+    # del calibrate_instance  # Ensure the instance is deleted after dialog closes
+  
 
 if __name__ == "__main__":
     main()
