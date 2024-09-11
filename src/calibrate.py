@@ -3,7 +3,6 @@ import tkinter as tk
 from tkinter import ttk
 import listeners
 from pynput.mouse import Controller
-import listeners
 
 
 TASKS_FILE = "./data/tasks.txt"
@@ -56,23 +55,28 @@ class Calibrate(Dialog):
         
         self.root.protocol("WM_DELETE_WINDOW", self.on_dialog_close)
         print("STARTING Mainloop")
+        listeners.getListener().setCallback(self.update_task)   
         self.root.mainloop()
         print("Started Mainloop closed")
 
-    def update_task(self):
+    def update_task(self, action):
         self.task_index += 1
 
         # Debugging3
         print(f"Updating task, index {self.task_index}")
 
         if self.task_index < len(self.tasks):
+            self.log_action(action)
             new_task = self.tasks[self.task_index]
             self.task_label.config(text=new_task)
             self.log_action(f"## {new_task}")
         else:
             self.log_action("All tasks completed")
             self.task_label.config(text="close the window")
-            # self.root.after(10, self.on_dialog_close)  # Schedule closure with after
+            listeners.getListener().setCallback(None)
+            self.root.geometry("200x100")  # Resizes the window to 400x300 pixels
+            self.task_index = 0
+            #self.root.after(10, self.on_dialog_close)  # Schedule closure with after
 
     def load_tasks(self):
         try:

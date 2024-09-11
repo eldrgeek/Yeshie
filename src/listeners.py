@@ -174,18 +174,15 @@ class Listener:
 def setCallback(callback):
     listener.setCallback(callback)
 
-def getLisstener():
+def getListener():
     global listener
     return listener
 
-def init(callback):
-    global listener
+if not listener:
     listener = Listener()
-    listener.setCallback(callback)
     listener.start_recording()
-    return listener
 
 if __name__ == "__main__":
-    init(None)
+    pass
  
 # this is a test

@@ -86,7 +86,6 @@ def setupSockets():
 
 def main():
     global calibrate_dialog_flag
-    listener = listeners.init(None)
 
     heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
     heartbeat_thread.start()
@@ -108,9 +107,6 @@ def show_calibrate_dialog():
     global calibrate_dialog_flag
     calibrate_dialog_flag = False
     calibrate.Calibrate()
-    print("will not return until mainloop closes")
-    # calibrate_instance.create_dialog()
-    # del calibrate_instance  # Ensure the instance is deleted after dialog closes
   
 
 if __name__ == "__main__":
