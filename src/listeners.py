@@ -114,6 +114,7 @@ class Listener:
         self.flush_string_buffer()
         button_name = self.get_modifier_prefix()  + button.name# Get the modified button name
         if pressed:
+            print("Pressed")
             self.click_start_time = time.time()  # Record the time when the button is pressed
             self.click_start_pos = (x, y)  # Record the starting position
         else:
@@ -167,11 +168,15 @@ class Listener:
 
     def record_action(self, action):
         self.recorded_actions.append(action)
-        if self.callback:
-            self.callback(action)
+        try:
+            if self.callback:
+                self.callback(action)
+        except Exception as e:
+            print(f"Error in recording action")
         # print(action)  # Print the action message
 
 def setCallback(callback):
+    global listener
     listener.setCallback(callback)
 
 def getListener():
