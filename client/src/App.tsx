@@ -1,11 +1,10 @@
-import { useState, useEffect } from "react";
+import React,{ useState, useEffect, useCallback, useRef } from "react";
 import "./App.css";
 import { useSearchParam } from "react-use";
 import { io, Socket } from "socket.io-client";
+import { ChakraProvider, Box, VStack, Heading, Text } from "@chakra-ui/react";
 import Rewind from "./Components/Rewind";
-
-// Define isDevelopment
-// const isDevelopment = import.meta.env.DEV;
+import ScriptEditor from "./Components/ScriptEditor";
 
 function App() {
   const [message, setMessage] = useState("");
@@ -14,15 +13,19 @@ function App() {
   const [connected, setConnected] = useState(false);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [serverLogs, setServerLogs] = useState<string[]>([]);
+  const scriptEditorRef = useRef<{ handleSave: () => void } | null>(null);
 
   useEffect(() => {
-    const oldLog = console.log
-    console.log = (...args)=>{
-      if(socket) socket.emit('clientLog',args)
-      oldLog(...args)
-    }
-    return ()=>{console.log = oldLog }
-  }, []);
+    const oldLog = console.log;
+    console.log = (...args) => {
+      if (socket) socket.emit("clientLog", args);
+      oldLog(...args);
+    };
+    return () => {
+      console.log = oldLog;
+    };
+  }, [socket]);
+
   useEffect(() => {
     fetch("/api/hello")
       .then((response) => response.json())
@@ -40,18 +43,18 @@ function App() {
         console.log("no session");
         newSocket.emit("session?", "client");
       } else {
-        newSocket.emit("session:",session)
+        newSocket.emit("session:", session);
       }
     });
 
     newSocket.on("session:", (session) => {
-      newSocket.emit("session:",session,"client")
-      history.pushState({}, "", location.pathname + `?session=${session}`)
-
+      newSocket.emit("session:", session, "client");
+      history.pushState({}, "", location.pathname + `?session=${session}`);
       setSession(session);
     });
+
     newSocket.on("serverLog", (message) => {
-      console.log("serverLogs",...message)
+      console.log("serverLogs", ...message);
       setServerLogs((prevLogs) => [...prevLogs, ...message]);
     });
 
@@ -67,19 +70,64 @@ function App() {
     };
   }, [session]);
 
+  const handleGlobalSave = useCallback(
+    (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "s") {
+        event.preventDefault();
+        if (scriptEditorRef.current) {
+          scriptEditorRef.current.handleSave();
+        }
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    document.addEventListener("keydown", handleGlobalSave);
+    return () => {
+      document.removeEventListener("keydown", handleGlobalSave);
+    };
+  }, [handleGlobalSave]);
+
   return (
-    <div className="App">
-      <Rewind socket={socket} />
-      <h3> {connected ? "Connected" : "not"}</h3>
-      <p>Message given from server: {message}</p>
-      
-      <div className="server-logs">
-        <h4>Server Logs:</h4>
-        {serverLogs.map((log, index) => (
-          <p key={index}>{log}</p>
-        ))}
-      </div>
-    </div>
+    <ChakraProvider>
+      <Box className="App" p={1}>
+        <VStack spacing={4} align="stretch">
+          <Box 
+            width="100%" 
+            height="100%" 
+            display="flex" 
+            justifyContent="center" 
+            alignItems="center"
+          >
+            <Box transform="scale(0.8)">
+              <Rewind socket={socket} />
+            </Box>
+          </Box>
+          <Heading as="h3" size="md">
+            {connected ? "Connected" : "Not Connected"}
+          </Heading>
+          <Text>Message given from server: {message}</Text>
+
+          {socket && session && (
+            <ScriptEditor
+              socket={socket}
+              sessionID={session}
+              ref={scriptEditorRef as React.RefObject<{ handleSave: () => void }>}
+            />
+          )}
+
+          <Box className="server-logs">
+            <Heading as="h4" size="sm">
+              Server Logs:
+            </Heading>
+            {serverLogs.map((log, index) => (
+              <Text key={index}>{log}</Text>
+            ))}
+          </Box>
+        </VStack>
+      </Box>
+    </ChakraProvider>
   );
 }
 
