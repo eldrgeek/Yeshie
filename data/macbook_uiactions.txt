@@ -1,24 +1,24 @@
 ####start
-type: Cmd-Shift-=
+press: Cmd-Shift-=
 ## click three dots
-click left (1454.9921875, 852.53125)
+click: left (1454.9921875, 852.53125)
 ## click moment
-click left (1329.41015625, 643.0859375)
+click: left (1329.41015625, 643.0859375)
 ## click speed change
-click left (1393.41796875, 842.54296875)
+click: left (1393.41796875, 842.54296875)
 ## click zoom out
-click left (1391.1328125, 840.06640625)
+click: left (1391.1328125, 840.06640625)
 ## click zoom in
-click left (1210.09375, 843.60546875)
+click: left (1210.09375, 843.60546875)
 ## drag right
-drag left from (712.40234375, 910.97265625) to (1052.02734375, 889.43359375) 1.6
+drag: left from (712.40234375, 910.97265625) to (1052.02734375, 889.43359375) 1.6
 ## drag left
-drag left from (837.734375, 926.05078125) to (510.703125, 909.89453125) 1.2
+drag: left from (837.734375, 926.05078125) to (510.703125, 909.89453125) 1.2
 ## click timeline
-click left (635.33203125, 892.08984375)
+click: left (635.33203125, 892.08984375)
 ## press delete
-type: BACKSPACE
+press: BACKSPACE
 ## click confirm
-click left (835.04296875, 314.9921875)
+click: left (835.04296875, 314.9921875)
 ## press ESC
-All tasks completed
+press: ESC

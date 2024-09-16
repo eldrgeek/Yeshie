@@ -1,22 +1,2 @@
 ####start
-## start rewind
-click Button.left 96.7578125, 549.89453125
-click Button.left 76.33203125, 102.7109375
-click Button.left 120.1796875, 208.82421875
-type "Gort "
-press ⌫
-press ⌫
-press ⌫
-press ⌫
-press ⌫
-type "Added logic to start calibration for"
-press ⌫
-press ⌫
-click Button.left 236.1796875, 320.80859375
-click Button.left 163.66796875, 321.24609375
-click Button.left 168.89453125, 267.5859375
-click Button.left 147.30078125, 327.18359375
-click Button.left 148.84765625, 253.62890625
-click Button.left 780.53125, 662.5703125
-click Button.left 235.76953125, 324.5625
-click Button.left 235.2265625, 348.65234375
+click left (47.6796875, 76.30078125)

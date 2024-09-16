@@ -5,7 +5,6 @@ from time import sleep
 import builtins
 import signal  # Add this import
 import time  # Add this import
-
 listener = None
 # Redefine print function
 # oldprint = builtins.print
@@ -124,47 +123,7 @@ class Listener:
             else:
                 self.record_action(f"click {button_name} {self.click_start_pos}")  # Record the click action
 
-    def play_back(self):
-        keyboard_controller = KeyboardController()
-        mouse_controller = MouseController()
-
-        for action in self.recorded_actions:
-            parts = action.split(': ')
-            action_type = parts[0]
-            value = parts[1]
-
-            if action_type == "type":
-                if '-' in value:
-                    # It's a key combination
-                    keys = value.split('-')
-                    for key in keys[:-1]:
-                        keyboard_controller.press(getattr(Key, key.lower()))
-                    last_key = keys[-1]
-                    if len(last_key) == 1:
-                        keyboard_controller.press(last_key)
-                        keyboard_controller.release(last_key)
-                    else:
-                        last_key = getattr(Key, last_key.lower(), last_key)
-                        keyboard_controller.press(last_key)
-                        keyboard_controller.release(last_key)
-                    for key in reversed(keys[:-1]):
-                        keyboard_controller.release(getattr(Key, key.lower()))
-                else:
-                    # It's a regular string
-                    keyboard_controller.type(value)
-            elif action_type.startswith("mouse"):
-                button_str, pos = value.split(' at ')
-                button = getattr(Button, button_str)
-                x, y = eval(pos)
-                mouse_controller.position = (x, y)
-                if "press" in action_type:
-                    mouse_controller.press(button)
-                else:
-                    mouse_controller.release(button)
-
-            sleep(0.1)  # Add a small delay between actions
-
-
+ 
 
     def record_action(self, action):
         self.recorded_actions.append(action)

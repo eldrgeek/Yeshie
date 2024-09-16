@@ -2,7 +2,6 @@
 import threading
 import time
 import tkinter as tk
-from tkinter import messagebox
 import socketio
 import os
 import builtins
@@ -10,6 +9,8 @@ import listeners
 from display import TaskDisplay
 import display
 import calibrate
+import rewind
+import controller
 # Redefine print function
 listener = None
 oldprint = builtins.print
@@ -53,6 +54,10 @@ class Application:
             print('Received calibrate message:', data)
             self.calibrate_dialog_flag = True
 
+        @self.sio.on('rewind')
+        def on_rewind(data):
+            print('Received Rewind message:', data)
+            controller.test()
         # Connect to the server
         timeout = 1
         while True:
@@ -91,7 +96,8 @@ def main():
     heartbeat_thread.start()
 
     app = Application()
-    app.run()
+    # controller.test()
 
+    app.run()
 if __name__ == "__main__":
     main()

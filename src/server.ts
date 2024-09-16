@@ -67,9 +67,9 @@ io.on('connection', (socket) => {
     if (componentType === "monitor") {
       monitorSocket = socket;
       console.log("Monitor connected");
-      setTimeout(() => {
-        socket.emit('calibrate', sessionId);
-      }, 1000);
+      // setTimeout(() => {
+      //   socket.emit('calibrate', sessionId);
+      // }, 1000);
     }
     const sessionId = uuidv4();
     sessions.set(sessionId, { componentType, socket, sessionNo });

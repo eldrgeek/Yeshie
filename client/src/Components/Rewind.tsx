@@ -34,9 +34,9 @@ const Rewind: React.FC<RewindProps> = ({ socket }) => {
     window.open(url, "_blank");
   };
 
-  const handleButtonClick = () => {
+  const handleGoClick = () => {
     if (socket) { // Check if socket is not null
-      socket.emit("moment", timestamp);
+      socket.emit("monitor", { op: "rewind"});
       openRewindMoment(timestamp);
     } else {
       console.error("Socket is not connected");
@@ -105,7 +105,7 @@ const Rewind: React.FC<RewindProps> = ({ socket }) => {
             />
           </Box>
           <HStack spacing={4}>
-            <Button colorScheme="blue" onClick={handleButtonClick} flex={1}>
+            <Button colorScheme="blue" onClick={handleGoClick} flex={1}>
               Go
             </Button>
             <Button colorScheme="green" onClick={handleCalibrate} flex={1}>

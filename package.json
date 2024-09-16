@@ -12,7 +12,10 @@
     "build:server": "tsc",
     "build:all": "npm run build:server && npm run build:client",
     "dev:listener": "nodemon --watch src -e py --exec python src/listener.py",
-    "dev:monitor": "nodemon --watch src -e py --exec python src/monitor.py"
+    "dev:monitor": "nodemon --watch src -e py --exec python src/monitor.py",
+    "dev:testkb": "nodemon --watch src -e py --exec python src/testkb.py",
+    "devx": "concurrently \"npm run dev:testkb\""
+  
   },
   "keywords": [],
   "author": "",
