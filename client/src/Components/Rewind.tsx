@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { forwardRef, useImperativeHandle, useState, useEffect } from "react";
 import {Socket } from 'socket.io-client';
 import {
   ChakraProvider,
@@ -14,9 +14,11 @@ import "react-datepicker/dist/react-datepicker.css";
 
 interface RewindProps {
   socket: Socket | null; // Add this line
+  sessionId: string;
 }
 
-const Rewind: React.FC<RewindProps> = ({ socket }) => {
+
+const Rewind = forwardRef<{ handleGoClick: () => void; handleKeyDown: (event: KeyboardEvent) => void }, RewindProps>(({ socket, sessionId }, ref) => {
   const [timestamp, setTimestamp] = useState("");
   const [message, setMessage] = useState("Message goes here");
   
@@ -36,7 +38,7 @@ const Rewind: React.FC<RewindProps> = ({ socket }) => {
 
   const handleGoClick = () => {
     if (socket) { // Check if socket is not null
-      socket.emit("monitor", { op: "rewind"});
+      socket.emit("monitor", { op: "rewind", sessionId, timestamp: timestamp });
       openRewindMoment(timestamp);
     } else {
       console.error("Socket is not connected");
@@ -66,6 +68,17 @@ const Rewind: React.FC<RewindProps> = ({ socket }) => {
       setSelectedDate(date);
     }
   };
+
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      handleGoClick();
+    }
+  };
+
+  useImperativeHandle(ref, () => ({
+    handleGoClick,
+    handleKeyDown,
+  }));
 
   return (
     <ChakraProvider>
@@ -116,7 +129,7 @@ const Rewind: React.FC<RewindProps> = ({ socket }) => {
       </Box>
     </ChakraProvider>
   );
-};
+});
 
 export default Rewind;
 

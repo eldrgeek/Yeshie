@@ -14,6 +14,7 @@ function App() {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [serverLogs, setServerLogs] = useState<string[]>([]);
   const scriptEditorRef = useRef<{ handleSave: () => void } | null>(null);
+  const rewindRef = useRef<{ handleGoClick: () => void; handleKeyDown: (event: KeyboardEvent) => void } | null>(null);
 
   useEffect(() => {
     const oldLog = console.log;
@@ -70,12 +71,17 @@ function App() {
     };
   }, [session]);
 
-  const handleGlobalSave = useCallback(
+  const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key === "s") {
         event.preventDefault();
         if (scriptEditorRef.current) {
           scriptEditorRef.current.handleSave();
+        }
+      } else if ((event.metaKey || event.ctrlKey) && event.key === "g") {
+        event.preventDefault();
+        if (rewindRef.current) {
+          rewindRef.current.handleGoClick(); // Pass the event here
         }
       }
     },
@@ -83,11 +89,11 @@ function App() {
   );
 
   useEffect(() => {
-    document.addEventListener("keydown", handleGlobalSave);
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.removeEventListener("keydown", handleGlobalSave);
+      document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [handleGlobalSave]);
+  }, [handleKeyDown]);
 
   return (
     <ChakraProvider>
@@ -101,7 +107,7 @@ function App() {
             alignItems="center"
           >
             <Box transform="scale(0.8)">
-              <Rewind socket={socket} />
+              <Rewind socket={socket} sessionId={session || ''} ref={rewindRef as React.RefObject<{ handleGoClick: () => void; handleKeyDown: (event: KeyboardEvent) => void }>} />
             </Box>
           </Box>
           <Heading as="h3" size="md">
