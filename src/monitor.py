@@ -29,7 +29,7 @@ class Application:
     def __init__(self):
         self.root = tk.Tk()
         self.root.withdraw()  # Hide the main window
-        self.calibrate_dialog_flag = False
+        self.action = False
         self.sio = socketio.Client()
         self.setup_sockets()
 
@@ -52,12 +52,12 @@ class Application:
         @self.sio.on('calibrate')
         def on_calibrate(data):
             print('Received calibrate message:', data)
-            self.calibrate_dialog_flag = True
+            self.action = "calibrate"
 
         @self.sio.on('rewind')
         def on_rewind(data):
             print('Received Rewind message:', data)
-            controller.test()
+            self.action = "rewind"
         # Connect to the server
         timeout = 1
         while True:
@@ -71,12 +71,15 @@ class Application:
                 timeout += 1
 
     def check_calibrate(self):
-        if self.calibrate_dialog_flag:
+        if self.action == "calibrate":
             self.show_calibrate_dialog()
+        if self.action == "rewind":
+            self.action = ""
+            rewind.doRewind()
         self.root.after(1000, self.check_calibrate)  # Check every second
 
     def show_calibrate_dialog(self):
-        self.calibrate_dialog_flag = False
+        self.action = ""
         cal = calibrate.Calibrate(self.root)
         cal.create_dialog()
 
