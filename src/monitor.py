@@ -31,7 +31,13 @@ class Application:
         self.root.withdraw()  # Hide the main window
         self.action = False
         self.sio = socketio.Client()
+        self.requestorSessionId = None
         self.setup_sockets()
+    
+    def forward(self, message):
+        if self.requestorSessionId:
+            message['sessionId'] = self.requestorSessionId  
+        self.sio.emit('forward_message', message)
 
     def setup_sockets(self):
         PORT = os.environ.get('PORT', 3000)
@@ -51,13 +57,16 @@ class Application:
 
         @self.sio.on('calibrate')
         def on_calibrate(data):
+            self.requestorSessionId = data.get("")
             print('Received calibrate message:', data)
             self.action = "calibrate"
 
         @self.sio.on('rewind')
         def on_rewind(data):
+            self.requestorSessionId = data.get("sessionId")
             print('Received Rewind message:', data)
             self.action = "rewind"
+            rewind.getRewind().setSessionId(data.get("sessionId"))
         # Connect to the server
         timeout = 1
         while True:
@@ -70,13 +79,19 @@ class Application:
                 time.sleep(timeout)
                 timeout += 1
 
-    def check_calibrate(self):
+    def checkCallback(self):
         if self.action == "calibrate":
-            self.show_calibrate_dialog()
+            self.action = ""
+            print("CALIBRATING")
+            cal = calibrate.Calibrate(self.root)
+            cal.create_dialog()
         if self.action == "rewind":
             self.action = ""
             rewind.doRewind()
-        self.root.after(1000, self.check_calibrate)  # Check every second
+        if self.action == "test":
+            self.action = ""
+            controller.test()
+        self.root.after(1000, self.checkCallback)  # Check every second
 
     def show_calibrate_dialog(self):
         self.action = ""
@@ -84,7 +99,7 @@ class Application:
         cal.create_dialog()
 
     def run(self):
-        self.check_calibrate()
+        self.checkCallback()
         self.root.mainloop()
 
 def heartbeat():
@@ -94,13 +109,14 @@ def heartbeat():
         minutes += 1
         print(f"Monitor up for {minutes} minutes")
 
+
+
 def main():
     heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
     heartbeat_thread.start()
 
     app = Application()
-    # controller.test()
-
+    app.action = "test"
     app.run()
 if __name__ == "__main__":
     main()

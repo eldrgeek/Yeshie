@@ -1,5 +1,5 @@
 ####start
-press: Cmd-Shift-=
+press: cmd-shift-=
 ## click three dots
 click: left (1454.9921875, 852.53125)
 ## click moment
@@ -17,8 +17,8 @@ drag: left from (837.734375, 926.05078125) to (510.703125, 909.89453125) 1.2
 ## click timeline
 click: left (635.33203125, 892.08984375)
 ## press delete
-press: BACKSPACE
+press: backspace
 ## click confirm
 click: left (835.04296875, 314.9921875)
 ## press ESC
-press: ESC
+press: esc

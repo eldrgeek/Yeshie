@@ -4,6 +4,7 @@ import fs from 'fs';
 import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
+import { channel } from 'diagnostics_channel';
 
 const app = express();
 const httpServer = createServer(app);
@@ -35,6 +36,7 @@ if (isDevelopment) {
     res.status(404).send('Not found');
   });
 }
+
 interface SessionInfo {
   componentType: string;
   socket: Socket;
@@ -48,7 +50,7 @@ let sessionNo = 0;
 const originalConsoleLog = console.log;
 console.log = (...args: any[]) => {
   // Call the original console.log
-  originalConsoleLog("serv:",...args);
+  originalConsoleLog("serv:", ...args);
 
   //Iterate over the sessions and send a "consoleLog" message to each socket
   sessions.forEach((sessionInfo) => {
@@ -61,8 +63,6 @@ let monitorSocket: Socket | null = null;
 // Add Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('A user connected');
-
-
   socket.on("session?", (componentType) => {
     if (componentType === "monitor") {
       monitorSocket = socket;
@@ -78,6 +78,8 @@ io.on('connection', (socket) => {
     console.log("Session created", sessionId);
     socket.emit('serverLog', [`Session created`]);
     
+    // Notify all clients about the new connection
+    // io.emit('client_connected', { client_id: sessionId, client_type: componentType });
   });
 
   socket.on('monitor', (payload) => {
@@ -90,16 +92,18 @@ io.on('connection', (socket) => {
     }
   });
 
+ 
+
   socket.on('session:', (sessionId, componentType) => {
     if(sessions.get(sessionId)){
       console.log("Session confirmed")
     } else {
       sessions.set(sessionId, { componentType, socket, sessionNo });
       sessionNo++;
-      console.log('Session restored:',sessionId);
+      console.log('Session restored:', sessionId);
     }
-   
   });
+
   socket.on('disconnect', () => {
     console.log('User disconnected');
     // Remove the disconnected socket from the sessions Map
@@ -112,6 +116,25 @@ io.on('connection', (socket) => {
     }
   });
 
+  // New event handler for forwarding messages
+  socket.on('forward_message', (message) => {
+    console.log('Forwarding message:', message);
+    if (message.to) {
+      const targetSession = sessions.get(message.to);
+      if (targetSession) {
+        targetSession.socket.emit(message.type, message.payload);
+      } else {
+        console.log(`Error: Client ${message.to} not found`);
+      }
+    } else {
+      // Broadcast to all clients except the sender
+      sessions.forEach((sessionInfo, sessionId) => {
+        if (sessionInfo.socket !== socket) {
+          sessionInfo.socket.emit(message.type, message.payload);
+        }
+      });
+    }
+  });
   // Add more socket event handlers here
 });
 

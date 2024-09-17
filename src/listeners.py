@@ -53,16 +53,17 @@ class Listener:
     def get_modifier_prefix(self):
         mods = []
         if Key.ctrl in self.pressed_keys:
-            mods.append("Ctrl")
+            mods.append("ctrl")
         if Key.cmd in self.pressed_keys:
-            mods.append("Cmd")
+            mods.append("cmd")
         if Key.alt in self.pressed_keys:
-            mods.append("Alt")
+            mods.append("alt")
         if Key.shift in self.pressed_keys:
-            mods.append("Shift")
+            mods.append("shift")
         return "-".join(mods) + "-" if mods else ""
 
     def on_key_press(self, key):
+        # print("on_key_press", key)
         if not self.is_recording:
             return
 
@@ -78,7 +79,7 @@ class Listener:
                 if(len(self.pressed_keys) > 0):
                     self.flush_string_buffer()
                     modifier_prefix = self.get_modifier_prefix()
-                    self.record_action(f"type: {modifier_prefix}{char}")
+                    self.record_action(f"press: {modifier_prefix}{char}")
                     return
             else: #
                 char = key.char
@@ -88,16 +89,16 @@ class Listener:
                     modifier_prefix = self.get_modifier_prefix()
                     if Key.shift in self.pressed_keys:
                         char = char.upper()
-                    self.record_action(f"type: {modifier_prefix}{char}")
+                    self.record_action(f"press: {modifier_prefix}{char}")
                 else:
                     if Key.shift in self.pressed_keys:
                         char = char.upper()
                     self.string_buffer += char
         else:
             modifier_prefix = self.get_modifier_prefix()
-            key_name = str(key).split('.')[-1].upper()
+            key_name = str(key).split('.')[-1]
             self.flush_string_buffer()
-            self.record_action(f"type: {modifier_prefix}{key_name}")
+            self.record_action(f"press: {modifier_prefix}{key_name}")
 
     def on_key_release(self, key):
         if not self.is_recording:
@@ -119,9 +120,9 @@ class Listener:
         else:
             click_duration = time.time() - self.click_start_time  # Calculate the duration
             if click_duration > 1:  # If the button was held for more than 1 second
-                self.record_action(f"drag {button_name} from {self.click_start_pos} to ({x}, {y}) {click_duration:.1f}")
+                self.record_action(f"drag: {button_name} from {self.click_start_pos} to ({x}, {y}) {click_duration:.1f}")
             else:
-                self.record_action(f"click {button_name} {self.click_start_pos}")  # Record the click action
+                self.record_action(f"click: {button_name} {self.click_start_pos}")  # Record the click action
 
  
 
@@ -149,4 +150,3 @@ if not listener:
 if __name__ == "__main__":
     pass
  
-# this is a test
