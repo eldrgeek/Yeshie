@@ -75,6 +75,7 @@ class Calibrate(Dialog):
             listeners.getListener().setCallback(None)
             self.dialog.geometry("200x100")  # Resizes the window to 200x100 pixels
             self.task_index = 0
+            self.on_dialog_close()
 
     def load_tasks(self):
         try:
