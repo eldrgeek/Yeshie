@@ -4,6 +4,7 @@ import time
 import psutil
 import threading
 from typing import Dict, List, Callable
+from AppKit import NSWorkspace, NSApplicationActivationPolicyRegular
 
 class WindowMonitor:
     def __init__(self, debug=False):
@@ -33,65 +34,65 @@ class WindowMonitor:
             self.listeners.clear()
 
     def top_window(self) -> Dict[str, str]:
-        workspace = Cocoa.NSWorkspace.sharedWorkspace()
-        active_app = workspace.activeApplication()
+        workspace = NSWorkspace.sharedWorkspace()
+        active_app = workspace.frontmostApplication()
         
         if active_app is None:
-            return {"app": None, "title": None}
+            return {"app": None, "title": None, "pid": None}
 
-        pid = active_app['NSApplicationProcessIdentifier']
-        app_name = active_app['NSApplicationName']
+        pid = active_app.processIdentifier()
+        app_name = active_app.localizedName()
 
-        windows = Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionOnScreenOnly | Quartz.kCGWindowListExcludeDesktopElements, Quartz.kCGNullWindowID)
+        windows = Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID)
         
         for window in windows:
             if window['kCGWindowOwnerPID'] == pid:
                 window_title = window.get('kCGWindowName', None)
                 return {"app": app_name, "title": window_title, "pid": pid}
 
-        return {"app": app_name, "title": None}
+        # If no window is found, it might be a menu or system UI element
+        return {"app": app_name, "title": "System UI", "pid": pid}
 
     def all_windows(self) -> List[Dict]:
-        windows = Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionOnScreenOnly | Quartz.kCGWindowListExcludeDesktopElements, Quartz.kCGNullWindowID)
+        windows = Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID)
         window_list = []
 
         for i, window in enumerate(windows):
             pid = window['kCGWindowOwnerPID']
             try:
-                # Use NSRunningApplication to get the correct application name
                 ns_running_app = Cocoa.NSRunningApplication.runningApplicationWithProcessIdentifier_(pid)
-                app_name = None
                 app_name = ns_running_app.localizedName()
                 if app_name is None:
                     app_name = ns_running_app.bundleIdentifier()
                 if app_name is None:
                     process = psutil.Process(pid)
                     app_name = process.name()
-            except Exception as e:
-                app_name = "Unknown"
-                print(f"Error getting application name for PID {pid}: {e}")
-            window_info = {
-                "app": app_name,
-                "title": window.get('kCGWindowName', None),
-                "zOrder": i,
-                "top": window['kCGWindowBounds']['Y'],
-                "left": window['kCGWindowBounds']['X'],
-                "height": window['kCGWindowBounds']['Height'],
-                "width": window['kCGWindowBounds']['Width'],
-                "pid": pid
-            }
-            if app_name != "Unknown":
+           
+                window_info = {
+                    "app": app_name,
+                    "title": window.get('kCGWindowName', None),
+                    "zOrder": i,
+                    "top": window['kCGWindowBounds']['Y'],
+                    "left": window['kCGWindowBounds']['X'],
+                    "height": window['kCGWindowBounds']['Height'],
+                    "width": window['kCGWindowBounds']['Width'],
+                    "pid": pid
+                }
                 window_list.append(window_info)
+            except Exception as e:
+                pass
+                # app_name = "Unknown"
+                # print(f"Error getting application name for PID {pid}: {e}")
+            
 
         return window_list
+
     def findWindow(self, x: int, y: int) -> Dict:
         windows = self.all_windows()
         
         for window in windows:
-            if (window['app'] != "WindowServer" and window['left'] <= x < window['left'] + window['width'] and
+            if (window['left'] <= x < window['left'] + window['width'] and
                 window['top'] <= y < window['top'] + window['height']):
-                print("\n\n",x, "between", window['left'], window['left'] + window['width'])
-                print(y, "between", window['top'], window['top'] + window['height'])
                 return window
         return None
 
@@ -101,7 +102,7 @@ class WindowMonitor:
             if window:
                 print(f"Clicked on window: {window}")
             else:
-                print(f"No window found at coordinates ({x}, {y})")
+                print(f"Clicked on system UI element at coordinates ({x}, {y})")
 
     def _check_window_changes(self):
         while self.running:
@@ -111,7 +112,7 @@ class WindowMonitor:
                 self.current_top_window = new_top_window
                 self._notify_listeners()
 
-            time.sleep(1)
+            time.sleep(0.1)  # Reduced sleep time for more responsive detection
 
     def _notify_listeners(self):
         with self.lock:
@@ -140,6 +141,7 @@ if __name__ == "__main__":
         oldprint("mon:", *args, **kwargs, flush=True)
 
     builtins.print = custom_print
+
     def print_top_window(window_info):
         print(f"Top Window Changed: {window_info}")
 
@@ -147,8 +149,9 @@ if __name__ == "__main__":
         print("All Windows:")
         for window in windows:
             print(f"{window}")
+
     print("Starting the monitor...")
-    monitor = WindowMonitor(debug=True)  # Set debug to True to enable mouse listener
+    monitor = WindowMonitor(debug=True)
     monitor.add_listener("top_listener", "topwindow", print_top_window)
     # monitor.add_listener("all_listener", "allwindows", print_all_windows)
     

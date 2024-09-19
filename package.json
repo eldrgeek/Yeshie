@@ -14,7 +14,8 @@
     "dev:listener": "nodemon --watch src -e py --exec python src/listener.py",
     "dev:monitor": "nodemon --watch src -e py --exec python src/monitor.py",
     "dev:testkb": "nodemon --watch src -e py --exec python src/testkb.py",
-    "devx": "concurrently \"npm run dev:testkb\""
+    "dev:winmonitor": "nodemon --watch src -e py --exec python src/winmonitor.py",
+    "devx": "concurrently \"npm run dev:winmonitor\""
   
   },
   "keywords": [],
