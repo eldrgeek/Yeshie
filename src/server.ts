@@ -9,9 +9,9 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer);
 
-const PORT = process.env.PORT || 3000;
-const CLIENT_BUILD_PATH = path.join(__dirname, '../client/dist');
 const IS_DEVELOPMENT = process.env.NODE_ENV !== 'production';
+const PORT = IS_DEVELOPMENT ? 3001 : (process.env.PORT || 3000);
+const CLIENT_BUILD_PATH = path.join(__dirname, '../client/dist');
 
 interface SessionInfo {
   componentType: string;
@@ -35,7 +35,8 @@ _setupLogging();
 httpServer.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   if (IS_DEVELOPMENT) {
-    console.log(`Access the React app at http://localhost:5173`);
+    console.log(`Vite dev server is expected to run on http://localhost:3000`);
+    console.log(`Make sure to start the Vite dev server separately`);
   }
 });
 
@@ -43,27 +44,28 @@ httpServer.listen(PORT, () => {
 function _setupServer() {
   if (!IS_DEVELOPMENT && fs.existsSync(CLIENT_BUILD_PATH)) {
     app.use(express.static(CLIENT_BUILD_PATH));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(CLIENT_BUILD_PATH, 'index.html'));
+    });
   }
 
   app.get('/api/hello', (req, res) => {
     res.json({ message: 'Hello there from server!' });
   });
 
-  if (IS_DEVELOPMENT) {
-    app.get('/', (req, res) => {
-      res.send('Server is running in development mode. Please access the React app through the Vite dev server.');
-    });
-  } else if (fs.existsSync(path.join(CLIENT_BUILD_PATH, 'index.html'))) {
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(CLIENT_BUILD_PATH, 'index.html'));
-    });
-  } else {
-    app.get('*', (req, res) => {
-      res.status(404).send('Not found');
-    });
-  }
+  _setupLogging();
+}
 
-
+function _setupDevelopmentProxy() {
+  const { createProxyMiddleware } = require('http-proxy-middleware');
+  
+  app.use(
+    createProxyMiddleware({
+      target: 'http://localhost:5173',
+      changeOrigin: true,
+      ws: true,
+    })
+  );
 }
 
 function _setupSocketIO() {
