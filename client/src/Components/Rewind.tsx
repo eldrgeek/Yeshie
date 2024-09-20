@@ -13,7 +13,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
 interface RewindProps {
-  socket: Socket | null; // Add this line
+  socket: Socket | null;
   sessionId: string;
 }
 
@@ -28,7 +28,17 @@ const Rewind = forwardRef<{ handleGoClick: () => void; handleKeyDown: (event: Ke
       const date = new Date()
       setSelectedDate(new Date())
       handleDateTimeChange(date)
-  }, []);
+
+      // Add socket event listener for "testgo"
+      if (socket) {
+        socket.on("testgo", handleGoClick);
+        
+        // Clean up the event listener when component unmounts
+        return () => {
+          socket.off("testgo", handleGoClick);
+        };
+      }
+  }, [socket]); // Add socket to dependency array
 
   const openRewindMoment = (timestamp: string) => {
     setMessage(`Open ${timestamp}`);
@@ -39,6 +49,7 @@ const Rewind = forwardRef<{ handleGoClick: () => void; handleKeyDown: (event: Ke
   const handleGoClick = () => {
     if (socket) { // Check if socket is not null
       socket.emit("monitor", { op: "rewind", sessionId, timestamp: timestamp });
+      console.log("ABOUT TO OPEN")
       openRewindMoment(timestamp);
     } else {
       console.error("Socket is not connected");

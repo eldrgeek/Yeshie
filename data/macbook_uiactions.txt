@@ -1,4 +1,4 @@
-####start
+##start
 press: cmd-shift-=
 ## click three dots
 click: left (1454.9921875, 852.53125)

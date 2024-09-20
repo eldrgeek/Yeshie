@@ -1,2 +1,24 @@
 ####start
-click left (47.6796875, 76.30078125)
+press: cmd-shift-=
+## click three dots
+press: cmd-shift-=
+## click moment
+press: cmd-shift-=
+## click speed change
+press: cmd-shift-=
+## click zoom out
+press: cmd-shift-=
+## click zoom in
+press: cmd-shift-=
+## drag right
+press: cmd-shift-=
+## drag left
+press: cmd-shift-=
+## click timeline
+press: cmd-shift-=
+## press delete
+press: cmd-shift-=
+## click confirm
+press: cmd-shift-=
+## press ESC
+All tasks completed

@@ -1,13 +1,12 @@
 # monitor.py
+## import libraries
 import threading
 import time
 import tkinter as tk
 import socketio
 import os
 import builtins
-import listeners
-from display import TaskDisplay
-import display
+## import modules
 import calibrate
 import rewind
 import controller
@@ -15,15 +14,8 @@ import controller
 listener = None
 oldprint = builtins.print
 
-def custom_print(*args, **kwargs):
-    oldprint("mon:", *args, **kwargs, flush=True)
-
-# Replace built-in print with custom print
-builtins.print = custom_print
 
 
-
-# ... (keep the existing imports and print redefinition)
 
 class Application:
     def __init__(self):
@@ -33,6 +25,10 @@ class Application:
         self.sio = socketio.Client()
         self.requestorSessionId = None
         self.setup_sockets()
+    def run(self): 
+        self.checkCallback()
+        self.root.mainloop()
+
     
     def forward(self, message):
         if self.requestorSessionId:
@@ -90,7 +86,9 @@ class Application:
             rewind.doRewind()
         if self.action == "test":
             self.action = ""
-            controller.test()
+            # Uncomment this linie to test controller
+            # controller.test()
+            rewind.doRewind()
         self.root.after(1000, self.checkCallback)  # Check every second
 
     def show_calibrate_dialog(self):
@@ -98,10 +96,7 @@ class Application:
         cal = calibrate.Calibrate(self.root)
         cal.create_dialog()
 
-    def run(self):
-        self.checkCallback()
-        self.root.mainloop()
-
+ 
 def heartbeat():
     minutes = 0
     while True:
@@ -109,9 +104,15 @@ def heartbeat():
         minutes += 1
         print(f"Monitor up for {minutes} minutes")
 
-
+def forward(message):
+    global app
+    app.forward(message)
 
 def main():
+    def custom_print(*args, **kwargs):
+        oldprint("mon:", *args, **kwargs, flush=True)
+    builtins.print = custom_print
+    global app
     heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
     heartbeat_thread.start()
 

@@ -1,7 +1,7 @@
 import pyautogui
 import builtins
 import time
-
+import debug
 oldprint = builtins.print
 
 def custom_print(*args, **kwargs):
@@ -61,7 +61,6 @@ def playOne(message):
         else:
             # It's a key combination
             keys = [translate_key(key) for key in value.split('-')]
-            print("PRESSING", keys)
             pyautogui.hotkey(*keys)
     elif action_type == "type":
         print("GOING TO TYPE", value)
@@ -126,6 +125,7 @@ press: ESC
 """
 
 def test():
+    print("Starting CONTROLLER test...")
     pyautogui.press('esc')
     time.sleep(1)
     # pyautogui.hotkey('command','shift','=')
