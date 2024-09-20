@@ -97,6 +97,9 @@ function App() {
 
   return (
     <ChakraProvider>
+      <div id="aiaugie" data-server="http://localhost:3000" 
+      data-session={session}
+style={{display: "none"}}></div>
       <Box className="App" p={1}>
         <VStack spacing={4} align="stretch">
           <Box 
