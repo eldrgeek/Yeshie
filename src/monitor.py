@@ -104,9 +104,9 @@ def heartbeat():
         minutes += 1
         print(f"Monitor up for {minutes} minutes")
 
-def forward(message):
+def forward(op, data):
     global app
-    app.forward(message)
+    app.forward({"op": op, "data": data})
 
 def main():
     def custom_print(*args, **kwargs):

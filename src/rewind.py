@@ -6,27 +6,27 @@ import re
 import pyperclip
 import monitor
 
+
 class Rewind:
     def __init__(self):
         self.actions = self._parse_uiactions()
         self.listener = listeners.getListener()
         self.sessionId = None
 
-
     def _parse_uiactions(self):
         actions = {}
         current_key = None
-        with open("./data/macbook_uiactions.txt", 'r') as file:
+        with open("./data/macbook_uiactions.txt", "r") as file:
             for line in file:
                 line = line.strip()
-                if line.startswith('##'):
+                if line.startswith("##"):
                     current_key = line[2:].strip()
                     actions[current_key] = ""
                 else:
                     actions[current_key] = line
         print("actions", actions)
         return actions
-    
+
     def setSessionId(self, sessionId):
         self.sessionId = sessionId
 
@@ -44,7 +44,6 @@ class Rewind:
         elif message.startswith("click:") or message.startswith("drag:"):
             pass  # Ignore click and drag messages
 
- 
     def doAction(self, action):
         print("doAction has been called with action:", action)
         if action in self.actions:
@@ -57,7 +56,7 @@ class Rewind:
             "left": self._scrubLeft,
             "up": self._scrubFaster,
             "down": self._scrubSlower,
-            "cmd-x": self._exitRewind
+            "cmd-x": self._exitRewind,
         }
         action = dispatcher.get(key.lower())
         if action:
@@ -66,36 +65,17 @@ class Rewind:
 
     def _captureMoment(self):
         print("captureMoment has been called")
-        print(
-            self.actions["click three dots"],
-            self.actions["click moment"]
-        )
-        play([
-            self.actions["click three dots"],
-            self.actions["click moment"]
-        ])
-        
+        print(self.actions["click three dots"], self.actions["click moment"])
+        play([self.actions["click three dots"], self.actions["click moment"]])
+
         clipboard_content = pyperclip.paste()
-        match = re.search(r'timestamp=(\d+\.\d+)', clipboard_content)
+        match = re.search(r"timestamp=(\d+\.\d+)", clipboard_content)
         if match:
             timestamp = match.group(1)
-            editor_message = {
-                "type": "editor/append",
-                "payload": {
-                    "timestamp": timestamp
-                }
-            }
-            rewind_message = {
-                "type": "rewind/moment",
-                "payload": {
-                    "timestamp": timestamp
-                }
-            }
-            
-            if monitor.forward:
-                print("forwarding to editor")
-                monitor.forward (editor_message)
-                monitor.forward(rewind_message)
+
+            print("forwarding to editor")
+            monitor.forward("editor/append", {"timestamp": timestamp})
+            monitor.forward("rewind/moment", {"timestamp": timestamp})
 
     def _scrubRight(self):
         print("scrubRight has been called")
@@ -114,10 +94,12 @@ class Rewind:
         pass
 
     def _exitRewind(self):
-        play([
-            "press: esc"
-            # self.actions["press ESC"]
-        ])
+        play(
+            [
+                "press: esc"
+                # self.actions["press ESC"]
+            ]
+        )
         print("exitRewind has been called")
         pass
 
@@ -125,15 +107,20 @@ class Rewind:
         print("stopRewind METHOD has been called")
         self.listener.setCallback(None)
 
+
 def stopRewind():
     print("stopRewind has been called")
     _rewind_instance.stop()
     pass
 
+
 _rewind_instance = Rewind()
+
 
 def getRewind():
     return _rewind_instance
+
+
 def doRewind():
     print("rewind has been called")
     _rewind_instance.start()
