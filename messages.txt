@@ -1,0 +1,47 @@
+extcomms.ts:17: listener.emit(type, data, sender, sendResponse);
+extcomms.ts:39: listener.on("pageInfo", (data, sender) => {
+extcomms.ts:56: socket.on("extension", (msg) => {
+extcomms.ts:63: listener.on("navto", (data) => {
+extcomms.ts:67: listener.on("focusTab", (data) => {
+extcomms.ts:71: listener.on("socketMessage", (data) => {
+extcomms.ts:73: socket.emit(data.event, data.payload);
+extcomms.ts:135: listener.emit(type, data, sender, sendResponse);
+extcomms.ts:140: listener.on('click', (data) => {
+extcomms.ts:144: listener.on('select', (data) => {
+extcomms.ts:149: listener.on('enable', (data) => {
+extcomms.ts:153: listener.on('setvalue', (data) => {
+extcomms.ts:158: listener.on('screenshot', (data) => {
+App.tsx:22: if (socket) socket.emit("clientLog", args);
+App.tsx:41: newSocket.on("connect", () => {
+App.tsx:45: newSocket.emit("session?", "client");
+App.tsx:47: newSocket.emit("session:", session);
+App.tsx:51: newSocket.on("session:", (session) => {
+App.tsx:52: newSocket.emit("session:", session, "client");
+App.tsx:57: newSocket.on("serverLog", (message) => {
+App.tsx:62: newSocket.on("connect_error", (error) => {
+Rewind.tsx:34: socket.on("testgo", handleGoClick);
+Rewind.tsx:51: socket.emit("monitor", { op: "rewind", sessionId, timestamp: timestamp });
+Rewind.tsx:61: socket.emit("monitor", { op: "calibrate" });
+save", sessionID, contents });
+ScriptEditor.tsx:108: socket.emit("monitor", { op: "save", sessionID, contents });
+append", handleAppend);
+load", handleLoad);
+monitor.py:36: self.sio.emit('forward_message', message)
+monitor.py:44: self.sio.emit('session?', 'monitor')
+monitor.py:46: @self.sio.on('session:')
+monitor.py:54: @self.sio.on('calibrate')
+monitor.py:60: @self.sio.on('rewind')
+append", {"timestamp": timestamp})
+moment", {"timestamp": timestamp})
+server.ts:72: io.on('connection', (socket) => {
+server.ts:75: socket.on("session?", (componentType) => _handleSessionRequest(socket, componentType));
+server.ts:76: socket.on('session:', (sessionId, componentType) => _handleSessionConfirmation(socket, sessionId, componentType));
+server.ts:77: socket.on('disconnect', () => _handleDisconnect(socket));
+server.ts:78: socket.on('forward_message', (message) => _handleForwardMessage(socket, message));
+server.ts:79: socket.on('monitor', (payload) => _handleMonitorMessage(payload));
+server.ts:88: sessionInfo.socket.emit('serverLog', args);
+server.ts:100: socket.emit('session:', sessionId);
+server.ts:102: socket.emit('serverLog', [`Session created`]);
+server.ts:130: targetSession.socket.emit(message.type, message.payload);
+server.ts:137: sessionInfo.socket.emit(message.type, message.payload);
+server.ts:147: monitorSocket.emit(op, data);
