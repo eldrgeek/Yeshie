@@ -3,3 +3,36 @@ dist/*
 dist/server.js
 venv
 src/__pycache__/
+extension/.pnp
+extension/.pnp.js
+# testing
+extension/coverage
+#cache
+extension/.turbo
+
+# misc
+extension/.DS_Store
+extension/*.pem
+
+# debug
+extension/npm-debug.log*
+extension/yarn-debug.log*
+extension/yarn-error.log*
+extension/.pnpm-debug.log*
+
+# local env files
+extension/.env*
+
+extension/out/
+extension/build/
+extension/dist/
+
+# plasmo - https://www.plasmo.com
+extension/.plasmo
+
+# bpp - http://bpp.browser.market/
+extension/keys.json
+
+# typescript
+extension/.tsbuildinfo
+extension/pnpm-lock.yaml
