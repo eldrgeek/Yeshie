@@ -36,3 +36,7 @@ extension/keys.json
 # typescript
 extension/.tsbuildinfo
 extension/pnpm-lock.yaml
+.DS_Store
+.env
+file_tracker.json
+persistent_index/

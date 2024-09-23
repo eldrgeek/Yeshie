@@ -11,17 +11,18 @@ extcomms.ts:144: listener.on('select', (data) => {
 extcomms.ts:149: listener.on('enable', (data) => {
 extcomms.ts:153: listener.on('setvalue', (data) => {
 extcomms.ts:158: listener.on('screenshot', (data) => {
-App.tsx:22: if (socket) socket.emit("clientLog", args);
-App.tsx:41: newSocket.on("connect", () => {
-App.tsx:45: newSocket.emit("session?", "client");
-App.tsx:47: newSocket.emit("session:", session);
-App.tsx:51: newSocket.on("session:", (session) => {
-App.tsx:52: newSocket.emit("session:", session, "client");
-App.tsx:57: newSocket.on("serverLog", (message) => {
-App.tsx:62: newSocket.on("connect_error", (error) => {
+App.tsx:32: newSocket.on("connect", () => {
+App.tsx:36: newSocket.emit("session?", "client");
+App.tsx:38: newSocket.emit("session:", session);
+App.tsx:42: newSocket.on("session:", (session) => {
+App.tsx:43: newSocket.emit("session:", session, "client");
+App.tsx:50: newSocket.on("connect_error", (error) => {
+CollaborationPage.tsx:21: socket.emit("collaboration", { to: "llm", name: "any", from: sessionID, contents });
+CollaborationPage.tsx:50: socket.on('response', ({ from, cmd, contents }) => {
 Rewind.tsx:34: socket.on("testgo", handleGoClick);
 Rewind.tsx:51: socket.emit("monitor", { op: "rewind", sessionId, timestamp: timestamp });
 Rewind.tsx:61: socket.emit("monitor", { op: "calibrate" });
+Logging.tsx:16: socket.on('log', (log: string) => {
 save", sessionID, contents });
 ScriptEditor.tsx:108: socket.emit("monitor", { op: "save", sessionID, contents });
 append", handleAppend);
@@ -31,6 +32,8 @@ monitor.py:44: self.sio.emit('session?', 'monitor')
 monitor.py:46: @self.sio.on('session:')
 monitor.py:54: @self.sio.on('calibrate')
 monitor.py:60: @self.sio.on('rewind')
+llmserver.py:69: @self.socket.on('collaboration')
+llmserver.py:79: self.socket.emit('response', {
 append", {"timestamp": timestamp})
 moment", {"timestamp": timestamp})
 server.ts:72: io.on('connection', (socket) => {

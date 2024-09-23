@@ -17,7 +17,8 @@
     "dev:winmonitor": "nodemon --watch src -e py --exec python src/winmonitor.py",
     "dev:extension": "cd extension && npm run dev",
     "dev:messages": "nodemon -watch scripts/messages.sh --exec ./scripts/messages.sh",
-    "devx": "concurrently \"npm run dev:winmonitor\" \"npm run dev:extension\""
+    "devx": "concurrently \"npm run dev:winmonitor\" \"npm run dev:extension\"",
+    "dev1": "concurrently $(npm run --silent | grep '^dev:' | awk '{print $1}')"
   },
   "keywords": [],
   "author": "",
