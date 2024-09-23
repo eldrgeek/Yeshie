@@ -8,14 +8,17 @@ import ScriptEditor from "./Components/ScriptEditor";
 
 function App() {
   const [message, setMessage] = useState("");
+  //this gets the session from the url- if there is no session, it will be null
   const urlSession = useSearchParam("session");
   const [session, setSession] = useState(urlSession);
+
   const [connected, setConnected] = useState(false);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [serverLogs, setServerLogs] = useState<string[]>([]);
   const scriptEditorRef = useRef<{ handleSave: () => void } | null>(null);
   const rewindRef = useRef<{ handleGoClick: () => void; handleKeyDown: (event: KeyboardEvent) => void } | null>(null);
 
+  //this overrides the console.log to send to the server as well as the console
   useEffect(() => {
     const oldLog = console.log;
     console.log = (...args) => {
@@ -27,12 +30,14 @@ function App() {
     };
   }, [socket]);
 
+  //this is a test to see if proxying the messages works
   useEffect(() => {
     fetch("/api/hello")
       .then((response) => response.json())
       .then((data) => setMessage(data.message));
   }, []);
 
+  //this is the socket connection to the server
   useEffect(() => {
     const newSocket = io("http://localhost:3000", {
       transports: ["websocket", "polling"],
@@ -40,6 +45,7 @@ function App() {
 
     newSocket.on("connect", () => {
       setConnected(true);
+      //if there is no session, it will ask the server to create one
       if (!session) {
         console.log("no session");
         newSocket.emit("session?", "client");
@@ -48,12 +54,14 @@ function App() {
       }
     });
 
+    //this is the callback for when the server creates a session
     newSocket.on("session:", (session) => {
       newSocket.emit("session:", session, "client");
       history.pushState({}, "", location.pathname + `?session=${session}`);
       setSession(session);
     });
 
+    //this is the callback for when the server logs something
     newSocket.on("serverLog", (message) => {
       console.log("serverLogs", ...message);
       setServerLogs((prevLogs) => [...prevLogs, ...message]);
@@ -71,6 +79,8 @@ function App() {
     };
   }, [session]);
 
+  //this is a keyboard shortcut to allow the user to save the script or go
+  // by typing ctrl+s or cmd+s and ctrl+g or cmd+g anywhere on the page
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key === "s") {
@@ -88,6 +98,7 @@ function App() {
     []
   );
 
+  //this adds the keyboard shortcut to the document
   useEffect(() => {
     document.addEventListener("keydown", handleKeyDown);
     return () => {
