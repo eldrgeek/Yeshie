@@ -40,3 +40,4 @@ extension/pnpm-lock.yaml
 .env
 file_tracker.json
 persistent_index/
+extension.plasmo/

@@ -1,75 +1,87 @@
+
+
 import os
-import time
 from pathlib import Path
 import json
 from dotenv import load_dotenv
-from llama_index.core import VectorStoreIndex, Document, ServiceContext, StorageContext, load_index_from_storage, Settings  # New import
-from llama_index.llms.openai import OpenAI
-from llama_index.core.llms import ChatMessage
+from llama_index.core import VectorStoreIndex, Document, StorageContext, load_index_from_storage
+from llama_index.core.settings import Settings
 from llama_index.embeddings.openai import OpenAIEmbedding
-
-# from llama_index.llms.openai import OpenAI
+from llama_index.llms.openai import OpenAI
+from llama_index.core.query_engine import RetrieverQueryEngine
+from llama_index.core.retrievers import VectorIndexRetriever
+import llama_index
+print("CORE VERSION: ", llama_index.core.__version__)
 
 class LLMServer:
     def __init__(self):
         load_dotenv()
         self.index_name = "persistent_index"
         self.file_tracker_path = "file_tracker.json"
-        self.index = self._update_or_create_index()
         self.openai_api_key = os.environ.get("OPENAI_API_KEY")
         if not self.openai_api_key:
             raise ValueError("OPENAI_API_KEY environment variable is not set")
-        print("API Key: ", self.openai_api_key)
-        
+        Settings.llm = OpenAI(model="gpt-3.5-turbo", temperature=0)
+        Settings.embed_model = OpenAIEmbedding(model="text-embedding-3-small")
+        self.index = self._update_or_create_index()
+        self.retriever = self._create_retriever()
+
     def _update_or_create_index(self):
-        if False and os.path.exists(self.index_name):
-            # Load existing index
+        if os.path.exists(self.index_name):
             storage_context = StorageContext.from_defaults(persist_dir=self.index_name)
             index = load_index_from_storage(storage_context)
-            
-            # Update index with new documents
             documents = self._get_documents()
-    
-            index.insert_nodes(index.build_nodes_from_documents(documents))
-            index.storage_context.persist(persist_dir=self.index_name)  # Persist changes
-            return index
+            for doc in documents:
+                print("Inserting document: ", doc.metadata["file_path"])
+                index.insert(doc)
+            index.storage_context.persist(persist_dir=self.index_name)
         else:
-            # Create new index
             documents = self._get_documents()
-            llm_instance = OpenAI(model="gpt-3.5-turbo", temperature=0)  # Create an instance of OpenAI
-            Settings.llm = llm_instance  # Updated to use the instance
-            embed_model = OpenAIEmbedding(model="text-embedding-3-small")  # Use the correct embedding model
-            index = VectorStoreIndex.from_documents(documents, embed_model=embed_model)  # Use the embedding model
+            index = VectorStoreIndex.from_documents(documents)
             index.storage_context.persist(persist_dir=self.index_name)
             print("Index created")
-            return index
+        return index
+
+    def _create_retriever(self):
+        return VectorIndexRetriever(index=self.index, similarity_top_k=20)
 
     def _get_documents(self):
         documents = []
         file_tracker = self._load_file_tracker()
-
         for root, dirs, files in os.walk('.', topdown=True):
-            dirs[:] = [d for d in dirs if not self._is_ignored(d)]
+            dirs[:] = [d for d in dirs if not self._is_ignored(os.path.join(root, d))]
             for file in files:
-                if file.endswith(('.ts', '.tsx', '.py', '.sh')) or file == 'package.json':
-                    file_path = os.path.join(root, file)
+                file_path = os.path.join(root, file)
+                if not self._is_ignored(file_path) and (file.endswith(('.ts', '.tsx', '.py', '.sh')) or file == 'package.json'):
                     last_modified = os.path.getmtime(file_path)
-                    
                     if file_path not in file_tracker or file_tracker[file_path] < last_modified:
                         with open(file_path, 'r') as f:
                             content = f.read()
-                        documents.append(Document(text=content, metadata={"file_path": file_path}))
+                        documents.append(Document(text=content, metadata=self._get_file_metadata(file_path)))
                         file_tracker[file_path] = last_modified
-
+                        print(f"Added {file_path} to index")
         self._save_file_tracker(file_tracker)
         return documents
+
+    def _get_file_metadata(self, file_path):
+        return {
+            "file_path": file_path,
+            "creation_time": os.path.getctime(file_path),
+            "last_modified_time": os.path.getmtime(file_path)
+        }
 
     def _is_ignored(self, path):
         gitignore_path = '.gitignore'
         if os.path.exists(gitignore_path):
             with open(gitignore_path, 'r') as f:
                 ignored = [line.strip() for line in f if line.strip() and not line.startswith('#')]
-            return any(Path(path).match(pattern) for pattern in ignored)
+            path_obj = Path(path)
+            for pattern in ignored:
+                if pattern.endswith('/'):
+                    if path_obj.is_dir() and (path_obj.match(pattern) or any(parent.match(pattern) for parent in path_obj.parents)):
+                        return True
+                elif path_obj.match(pattern) or any(parent.match(pattern) for parent in path_obj.parents):
+                    return True
         return False
 
     def _load_file_tracker(self):
@@ -83,10 +95,16 @@ class LLMServer:
             json.dump(tracker, f)
 
     def process_message(self, message):
-        query_engine = self.index.as_query_engine(llm=Settings.llm)  # Updated to use Settings
-        response = query_engine.query(message)
-        return str(response)
-
+        query_engine = RetrieverQueryEngine.from_args(
+            self.retriever,
+            node_postprocessors=[],
+            verbose=True
+        )
+        modified_query = f"List all the Python (.py) files in the project based on the indexed documents. Query: {message}"
+        response = query_engine.query(modified_query)
+        python_files = [node.metadata['file_path'] for node in response.source_nodes if node.metadata['file_path'].endswith('.py')]
+        formatted_response = "The Python files in the project are:\n" + "\n".join(python_files)
+        return formatted_response
 def main():
     print("Initializing LLM Server...")
     server = LLMServer()
@@ -94,6 +112,7 @@ def main():
 
 
     user_input = "What are the names of the project's python files"
+    print(f"User Input: {user_input}")
     response = server.process_message(user_input)
     print("\nLLM Response:")
     print(response)
