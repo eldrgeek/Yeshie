@@ -63,10 +63,18 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({ socket, sessionID
   }, [socket]);
 
   return (
-    <Box p={4}>
-      <VStack spacing={4} align="stretch">
+    <Box p={0} width="100hw" height="100vh" display="flex" flexDirection="column">
+      <VStack width="100hw" spacing={2} align="stretch" flex="1" overflow="hidden">
         <Heading as="h2" size="lg">Collaboration Page</Heading>
-        <Box ref={editorRef} height="400px" border="1px solid" borderColor="gray.200" />
+        <Box 
+          ref={editorRef} 
+          flex="1"
+          border="1px solid" 
+          borderColor="gray.200" 
+          width="100%"
+          overflow="auto"
+          padding="2px"
+        />
       </VStack>
     </Box>
   );

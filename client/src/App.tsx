@@ -6,6 +6,8 @@ import { ChakraProvider, Box } from "@chakra-ui/react";
 import CollaborationPage from "./Components/CollaborationPage";
 import Logging from "./Components/Logging";
 import RewindWrapper from "./Components/RewindWrapper";
+import theme from './styles/theme';
+
 
 function App() {
   const [message, setMessage] = useState("");
@@ -105,13 +107,13 @@ function App() {
   }, [handleKeyDown]);
 
   return (
-    <ChakraProvider>
+    <ChakraProvider theme={theme}>
       <div id="aiaugie" data-server="http://localhost:3000" 
       data-session={session}
       style={{display: "none"}}></div>
-      <Box className="App" p={1}>
+      <Box className="App" p={0} width="100%"> 
         {currentView === 'collaboration' && (
-          <CollaborationPage socket={socket} />
+          <CollaborationPage socket={socket} sessionID={session || ''} />
         )}
         {currentView === 'logging' && (
           <Logging 
