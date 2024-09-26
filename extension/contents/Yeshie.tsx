@@ -66,8 +66,19 @@ const Yeshie = () => {
       subtree: true
     })
 
+    // Add keyboard shortcut listener
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === 'y') {
+        event.preventDefault()
+        setIsOpen(prevIsOpen => !prevIsOpen)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyPress)
+
     return () => {
       observer.disconnect()
+      document.removeEventListener('keydown', handleKeyPress)
     }
   }, [])
 
