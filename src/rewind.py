@@ -24,7 +24,6 @@ class Rewind:
                     actions[current_key] = ""
                 else:
                     actions[current_key] = line
-        print("actions", actions)
         return actions
 
     def setSessionId(self, sessionId):
