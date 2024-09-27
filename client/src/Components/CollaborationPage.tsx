@@ -1,10 +1,14 @@
 import React, { useEffect, useRef, useCallback } from 'react';
-import { Box, VStack, Heading } from "@chakra-ui/react";
+import { Box, VStack, Heading, useToast  } from "@chakra-ui/react";
 import { Socket } from "socket.io-client";
 import { EditorView, basicSetup } from "codemirror";
-import { EditorState } from "@codemirror/state";
+import { EditorState, Prec } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
-import { defaultKeymap } from "@codemirror/commands";
+import { defaultKeymap, indentWithTab } from "@codemirror/commands";
+import { markdown } from "@codemirror/lang-markdown";
+import { history } from "@codemirror/commands";
+// import { oneDark } from "@codemirror/theme-one-dark";
+import { Compartment } from "@codemirror/state";
 
 interface CollaborationPageProps {
   socket: Socket | null;
@@ -14,25 +18,72 @@ interface CollaborationPageProps {
 const CollaborationPage: React.FC<CollaborationPageProps> = ({ socket, sessionID }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const themeCompartment = useRef(new Compartment());
+  const toast = useToast(); 
   
   const sendContent = useCallback(() => {
-    if (viewRef.current && socket) {
-      const contents = viewRef.current.state.doc.toString();
-      socket.emit("collaboration", { to: "llm", name: "any", from: sessionID, contents });
+    console.log("send content ")
+    const content = viewRef.current?.state.doc.toString() || "";
+      
+    if (socket && socket.connected) {
+      // Send message via socket if available and connected
+      socket.emit("llm", { sessionID, content });
+      toast({
+        title: "LLM message sent via socket",
+        status: "info",
+        duration: 2000,
+        isClosable: true,
+      });
+    } else {
+      // Send message via postMessage if socket is not available
+      window.parent.postMessage({ type: "llm", sessionID, content }, "*");
+      toast({
+        title: "LLM message sent via postMessage",
+        status: "info",
+        duration: 2000,
+        isClosable: true,
+      });
     }
+  
   }, [socket, sessionID]);
 
   useEffect(() => {
     if (!editorRef.current) return;
 
     const state = EditorState.create({
-      doc: "Let's start collaborating!",
+      doc: "Mike:",
       extensions: [
         basicSetup,
-        keymap.of([
-          ...defaultKeymap,
-          { key: "Mod-Enter", run: () => { sendContent(); return true; } }
-        ])
+        Prec.highest(keymap.of([
+          {
+            key: "Mod-s",
+            preventDefault: true,
+            run: () => {
+              console.log("Save shortcut triggered");
+              sendContent();
+              return true;
+            }
+          },
+          { 
+            key: "Mod-Enter", 
+            preventDefault: true,
+            run: () => { 
+              console.log("Mod-Enter triggered"); 
+              sendContent();
+              return true; 
+            } 
+          },
+        ])),
+        keymap.of([...defaultKeymap, indentWithTab]),
+        markdown(),
+        EditorView.lineWrapping,
+        history(),
+        themeCompartment.current.of([]),
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged) {
+            // Handle document changes if needed
+          }
+        }),
       ]
     });
 
@@ -63,6 +114,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({ socket, sessionID
   }, [socket]);
 
   return (
+    
     <Box p={0} width="100hw" height="100vh" display="flex" flexDirection="column">
       <VStack width="100hw" spacing={2} align="stretch" flex="1" overflow="hidden">
         <Heading as="h2" size="lg">Collaboration Page</Heading>
