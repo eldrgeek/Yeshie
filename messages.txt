@@ -11,20 +11,20 @@ extcomms.ts:144: listener.on('select', (data) => {
 extcomms.ts:149: listener.on('enable', (data) => {
 extcomms.ts:153: listener.on('setvalue', (data) => {
 extcomms.ts:158: listener.on('screenshot', (data) => {
-App.tsx:32: newSocket.on("connect", () => {
-App.tsx:36: newSocket.emit("session?", "client");
-App.tsx:38: newSocket.emit("session:", session);
-App.tsx:42: newSocket.on("session:", (session) => {
-App.tsx:43: newSocket.emit("session:", session, "client");
-App.tsx:50: newSocket.on("connect_error", (error) => {
-CollaborationPage.tsx:21: socket.emit("collaboration", { to: "llm", name: "any", from: sessionID, contents });
-CollaborationPage.tsx:50: socket.on('response', ({ from, cmd, contents }) => {
+App.tsx:34: newSocket.on("connect", () => {
+App.tsx:38: newSocket.emit("session?", "client");
+App.tsx:40: newSocket.emit("session:", session);
+App.tsx:44: newSocket.on("session:", (session) => {
+App.tsx:45: newSocket.emit("session:", session, "client");
+App.tsx:52: newSocket.on("connect_error", (error) => {
+CollaborationPage.tsx:30: socket.emit("llm", { sessionID, content });
+CollaborationPage.tsx:101: socket.on('response', ({ from, cmd, contents }) => {
 Rewind.tsx:34: socket.on("testgo", handleGoClick);
 Rewind.tsx:51: socket.emit("monitor", { op: "rewind", sessionId, timestamp: timestamp });
 Rewind.tsx:61: socket.emit("monitor", { op: "calibrate" });
 Logging.tsx:16: socket.on('log', (log: string) => {
 save", sessionID, contents });
-ScriptEditor.tsx:108: socket.emit("monitor", { op: "save", sessionID, contents });
+ScriptEditor.tsx:48: socket.emit("monitor", { op: "save", sessionID, contents });
 append", handleAppend);
 load", handleLoad);
 monitor.py:36: self.sio.emit('forward_message', message)
@@ -32,8 +32,8 @@ monitor.py:44: self.sio.emit('session?', 'monitor')
 monitor.py:46: @self.sio.on('session:')
 monitor.py:54: @self.sio.on('calibrate')
 monitor.py:60: @self.sio.on('rewind')
-llmserver.py:69: @self.socket.on('collaboration')
-llmserver.py:79: self.socket.emit('response', {
+llmserver.py:189: self.socket.emit('llm_response', message)
+llmserver.py:197: @self.socket.on('llm')
 append", {"timestamp": timestamp})
 moment", {"timestamp": timestamp})
 server.ts:72: io.on('connection', (socket) => {

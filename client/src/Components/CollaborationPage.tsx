@@ -27,7 +27,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({ socket, sessionID
       
     if (socket && socket.connected) {
       // Send message via socket if available and connected
-      socket.emit("llm", { sessionID, content });
+      socket.emit("monitor", { op: "llm", from: sessionID, content });
       toast({
         title: "LLM message sent via socket",
         status: "info",
@@ -36,7 +36,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({ socket, sessionID
       });
     } else {
       // Send message via postMessage if socket is not available
-      window.parent.postMessage({ type: "llm", sessionID, content }, "*");
+      window.parent.postMessage({ type: "monitor", op: "llm", from: sessionID, content }, "*");
       toast({
         title: "LLM message sent via postMessage",
         status: "info",

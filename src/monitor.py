@@ -5,14 +5,15 @@ import time
 import tkinter as tk
 import socketio
 import os
-import builtins
 ## import modules
 import calibrate
 import rewind
-import controller
+import llmdebug
+import customprint
+import llmserver
+customprint.makeCustomPrint("out")
 # Redefine print function
 listener = None
-oldprint = builtins.print
 
 
 
@@ -25,11 +26,13 @@ class Application:
         self.sio = socketio.Client()
         self.requestorSessionId = None
         self.setup_sockets()
+        self.llm_server = llmserver.makeServer(self.sio)
     def run(self): 
         self.checkCallback()
+        
         self.root.mainloop()
 
-    
+
     def forward(self, message):
         if self.requestorSessionId:
             message['sessionId'] = self.requestorSessionId  
@@ -56,6 +59,10 @@ class Application:
             self.requestorSessionId = data.get("")
             print('Received calibrate message:', data)
             self.action = "calibrate"
+        
+        @self.sio.on('llm')
+        def on_llm(data):
+            self.requestorSessionId = data.get("sessionId")
 
         @self.sio.on('rewind')
         def on_rewind(data):
@@ -109,9 +116,6 @@ def forward(op, data):
     app.forward({"op": op, "data": data})
 
 def main():
-    def custom_print(*args, **kwargs):
-        oldprint("mon:", *args, **kwargs, flush=True)
-    builtins.print = custom_print
     global app
     heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
     heartbeat_thread.start()

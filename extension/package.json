@@ -1,9 +1,9 @@
 {
-  "name": "yesh-ai",
-  "displayName": "Yesh ai",
+  "name": "yeshie",
+  "displayName": "Yeshie AI",
   "version": "0.0.1",
-  "description": "Yesh AI extension",
-  "author": "mike@yeshai.com",
+  "description": "Yeshie Chrome Extension",
+  "author": "Mike Wolf",
   "scripts": {
     "dev": "plasmo dev",
     "build": "plasmo build",
@@ -36,15 +36,19 @@
     "typescript": "5.3.3"
   },
   "manifest": {
+    "web_accessible_resources": [
+      {
+        "resources": ["sidebar.html"],
+        "matches": ["https://chat.openai.com/*"]
+      }
+    ],
     "host_permissions": [
-      "http://*/*",
-      "https://*/*"
+      "<all_urls>"
     ],
     "content_security_policy": {
       "extension_pages": "script-src 'self'; object-src 'self';"
     },
     "permissions": [
-      "tabs",
       "activeTab"
     ]
   }

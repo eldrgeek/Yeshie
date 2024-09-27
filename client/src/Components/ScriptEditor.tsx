@@ -12,11 +12,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { history, redo, undo } from "@codemirror/commands";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { Compartment } from "@codemirror/state";
-
-interface ScriptEditorProps {
-  socket: Socket;
-  sessionID: string;
-}
+import { defaultKeymap } from "@codemirror/commands";
 
 interface ScriptEditorProps {
   socket: Socket;
@@ -28,65 +24,9 @@ const ScriptEditor = forwardRef<unknown, ScriptEditorProps>(({ socket, sessionID
   const editorRef = useRef<HTMLDivElement>(null);
   const editorViewRef = useRef<EditorView | null>(null);
   const themeCompartment = useRef(new Compartment());
-  const debugging = false; // Set to true to enable debug component
+  const debugging = false;
   const toast = useToast();
   const lastSaveTimeRef = useRef<number>(0);
-
-  useEffect(() => {
-    if (editorRef.current && !editorViewRef.current) {
-      const savedContent = sessionStorage.getItem(`editorContent_${sessionID}`);
-      const state = EditorState.create({
-        doc: savedContent || "this is a test",
-        extensions: [
-          basicSetup,
-          
-          keymap.of([
-            indentWithTab,
-            {
-                key: "Mod-s",
-                run: () => {
-                  handleSave();
-                  return true; // Indicate that the key event was handled
-                }
-            }
-          ]),
-          markdown(),
-          EditorView.lineWrapping,
-          history(),
-          themeCompartment.current.of(isDarkTheme ? oneDark : []),
-          EditorView.updateListener.of((update) => {
-            if (update.docChanged) {
-   
-                
-                const currentTime = Date.now();
-                const newContent = update.state.doc.toString();
-                // setContent(newContent);
-                if (currentTime - lastSaveTimeRef.current >= 1000) {
-                  sessionStorage.setItem(`editorContent_${sessionID}`, newContent);
-                  lastSaveTimeRef.current = currentTime;
-                }
-              }
-          }),
-        ],
-      });
-
-      editorViewRef.current = new EditorView({
-        state: state,
-        parent: editorRef.current,
-      });
-
-      // Ensure the editor gets focused
-      editorViewRef.current.focus();
-    }
-  }, [sessionID]);
-
-  useEffect(() => {
-    if (editorViewRef.current) {
-      editorViewRef.current.dispatch({
-        effects: themeCompartment.current.reconfigure(isDarkTheme ? oneDark : []),
-      });
-    }
-  }, [isDarkTheme]);
 
   const handleSave = () => {
     if (editorViewRef.current) {
@@ -115,6 +55,62 @@ const ScriptEditor = forwardRef<unknown, ScriptEditorProps>(({ socket, sessionID
       }
     }
   };
+
+  useEffect(() => {
+    if (editorRef.current && !editorViewRef.current) {
+      const savedContent = sessionStorage.getItem(`editorContent_${sessionID}`);
+      const state = EditorState.create({
+        doc: savedContent || "this is a test",
+        extensions: [
+          basicSetup,
+          keymap.of([
+            ...defaultKeymap,
+            indentWithTab,
+            {
+              mac: "Cmd-s",
+              win: "Ctrl-s",
+              linux: "Ctrl-s",
+              preventDefault: true,
+              run: () => {
+                console.log("Save shortcut triggered");
+                handleSave();
+                return true;
+              }
+            }
+          ]),
+          markdown(),
+          EditorView.lineWrapping,
+          history(),
+          themeCompartment.current.of(isDarkTheme ? oneDark : []),
+          EditorView.updateListener.of((update) => {
+            if (update.docChanged) {
+              const currentTime = Date.now();
+              const newContent = update.state.doc.toString();
+              if (currentTime - lastSaveTimeRef.current >= 1000) {
+                sessionStorage.setItem(`editorContent_${sessionID}`, newContent);
+                lastSaveTimeRef.current = currentTime;
+              }
+            }
+          }),
+        ],
+      });
+
+      editorViewRef.current = new EditorView({
+        state: state,
+        parent: editorRef.current,
+      });
+
+      editorViewRef.current.focus();
+    }
+  }, [sessionID, handleSave, isDarkTheme]);
+
+  useEffect(() => {
+    if (editorViewRef.current) {
+      editorViewRef.current.dispatch({
+        effects: themeCompartment.current.reconfigure(isDarkTheme ? oneDark : []),
+      });
+    }
+  }, [isDarkTheme]);
 
   useImperativeHandle(ref, () => ({
     handleSave
@@ -167,19 +163,9 @@ const ScriptEditor = forwardRef<unknown, ScriptEditorProps>(({ socket, sessionID
     };
   }, [socket, handleAppend, handleLoad]);
 
-  //   const handleKeyDown = useCallback(
-  //     (event: React.KeyboardEvent) => {
-  //       if (event.key === "s" && (event.metaKey || event.ctrlKey)) {
-  //         event.preventDefault();
-  //         handleSave();
-  //       }
-  //     },
-  //     [handleSave]
-  //   );
-
   return (
-    <VStack spacing={4} align="stretch">
-      <HStack spacing={1} alignItems="flex-start">
+    <VStack spacing={4} align="stretch"> 
+      <HStack spacing={1} alignItems="flex-start"> 
         <Button size="sm" leftIcon={<FaUndo />} onClick={() => undo(editorViewRef.current!)}>
           Undo
         </Button>
@@ -200,7 +186,7 @@ const ScriptEditor = forwardRef<unknown, ScriptEditorProps>(({ socket, sessionID
         </Button>
       </HStack>
       <div
-        id="MMMMM"
+        id="CodeMirrorEditor"
         ref={editorRef}
         style={{
           backgroundColor: isDarkTheme ? "#282c34" : "white",
