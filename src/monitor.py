@@ -15,7 +15,7 @@ customprint.makeCustomPrint("out")
 # Redefine print function
 listener = None
 
-
+app = None
 
 
 class Application:
@@ -31,12 +31,6 @@ class Application:
         self.checkCallback()
         
         self.root.mainloop()
-
-
-    def forward(self, message):
-        if self.requestorSessionId:
-            message['sessionId'] = self.requestorSessionId  
-        self.sio.emit('forward_message', message)
 
     def setup_sockets(self):
         PORT = os.environ.get('PORT', 3000)
@@ -111,9 +105,6 @@ def heartbeat():
         minutes += 1
         print(f"Monitor up for {minutes} minutes")
 
-def forward(op, data):
-    global app
-    app.forward({"op": op, "data": data})
 
 def main():
     global app

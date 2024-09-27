@@ -75,7 +75,7 @@ function _setupSocketIO() {
     socket.on("session?", (componentType) => _handleSessionRequest(socket, componentType));
     socket.on('session:', (sessionId, componentType) => _handleSessionConfirmation(socket, sessionId, componentType));
     socket.on('disconnect', () => _handleDisconnect(socket));
-    socket.on('forward_message', (message) => _handleForwardMessage(socket, message));
+    socket.on('forward', (message) => _handleForwardMessage(socket, message));
     socket.on('monitor', (payload) => _handleMonitorMessage(payload));
   });
 }
@@ -127,7 +127,8 @@ function _handleForwardMessage(socket: Socket, message: any) {
   if (message.to) {
     const targetSession = sessions.get(message.to);
     if (targetSession) {
-      targetSession.socket.emit(message.type, message.payload);
+      const { op, ...data } = message;
+      targetSession.socket.emit(op, data);
     } else {
       console.log(`Error: Client ${message.to} not found`);
     }

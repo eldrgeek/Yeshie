@@ -98,12 +98,12 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({ socket, sessionID
   useEffect(() => {
     if (!socket) return;
 
-    socket.on('response', ({ from, cmd, contents }) => {
-      console.log("response", from, cmd, contents);
+    socket.on('response', ({ from, cmd, request, response }) => {
+      console.log("response", from, cmd, request, response);
       if (cmd === "append" && viewRef.current) {
         const doc = viewRef.current.state.doc;
         viewRef.current.dispatch({
-          changes: { from: doc.length, insert: "\n" + contents }
+          changes: { from: doc.length, insert: "\n" + response }
         });
       }
     });

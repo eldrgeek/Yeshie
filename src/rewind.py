@@ -36,7 +36,7 @@ class Rewind:
         controller.play("press: cmd-shift-=")
 
     def handleMessage(self, message):
-        print("Message", message)
+        # print("Message", message)
         if message.startswith("press:"):
             key = message.split(":")[1].strip()
             self._dispatch(key)

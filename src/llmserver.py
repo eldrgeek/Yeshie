@@ -40,6 +40,7 @@ class LLMServer:
         @self.sio.on('llm')
         def on_llm(data):
             print("Received LLM message:", data)
+            self.process_message(data)
 
     def create_project_files_vector_store(self):
         documents = self._get_documents()
@@ -129,23 +130,24 @@ class LLMServer:
         self.query_engine = query_engine
 
     def process_message(self, message):
-        source = message.get("source")
-        prompt = message.get("prompt")
-        from_identity = message.get("from")
+        source = message.get("from")
+        prompt = message.get("content")
 
         response = self.query_engine.query(prompt)
         formatted_response = str(response)
 
         # Return the response via the 'forward' function
         result_message = {
-            "to": from_identity,
+            "op": "response",
+            "cmd": "append",
+            "to": source,
             "request": prompt,
-            "result": formatted_response
+            "response": formatted_response
         }
         return self.forward(result_message)
 
     def forward(self, message):
-        monitor.forward(message)
+        self.sio.emit("forward", message)
 
     def start_listening(self):
         if self.socket:
