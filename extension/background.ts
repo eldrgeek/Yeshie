@@ -76,3 +76,15 @@ const captureScreenshotToClipboard = (sendResponse) => {
 chrome.runtime.onInstalled.addListener(() => {
   console.log("Extension installed");
 });
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (sender.tab && sender.tab.id) {
+    // Forward the message to the specific tab that sent it
+    chrome.tabs.sendMessage(sender.tab.id, message);
+  }
+});
+
+// Function to send a message to a specific tab
+function sendMessageToTab(tabId, message) {
+  chrome.tabs.sendMessage(tabId, message);
+}

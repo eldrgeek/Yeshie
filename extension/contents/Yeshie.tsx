@@ -1,14 +1,41 @@
 import iconBase64 from "data-base64:~assets/icon.png"
 import cssText from "data-text:~/contents/google-sidebar.css"
 import type { PlasmoCSConfig } from "plasmo"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useStorage } from "@plasmohq/storage/hook"
 import { setupCS } from "../functions/extcomms"
 import "./google-sidebar-base.css"
-
+import {Stepper} from "../functions/Stepper"
 // Inject to the webpage itself
 setupCS()
-
+import { pageObserver, type ObserverEvent } from '../functions/observer'; 
+pageObserver.registerCallback((event: ObserverEvent) => {
+  switch (event.type) {
+    case 'dom':
+      // console.log('DOM changed:', event.details);
+      break;
+    case 'location':
+      console.log('Location changed to:', event.details);
+      break;
+    case 'focus':
+      console.log('Page focus changed:', event.details);
+      break;
+    case 'elementFocus':
+      console.log('Focused element:', event.details);
+      break;
+    case 'keydown':
+    case 'keyup':
+      console.log('Key event:', event.type, event.details);
+      break;
+    case 'click':
+      // Updated to log new details
+      console.log('Mouse click:', event.details.x, event.details.y, event.details.selector, event.details.label);
+      break;
+    case 'mousemove':
+      // console.log('Mouse move:', event.details);
+      break;
+  }
+});
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
   all_frames: false,
@@ -45,6 +72,22 @@ const Yeshie = () => {
   const [isOpen, setIsOpen] = useStorage("isOpen" + window.location.hostname, false)
   const [isReady, setIsReady] = useState(false) // {{ edit_1 }}
 
+  const handleMessage = useCallback((event: MessageEvent) => {
+    // Check if the message is coming from the expected origin
+    if (event.origin !== "http://localhost:3000") return;
+
+    if (event.data && event.data.type === "monitor") {
+      console.log("Received message from CollaborationPage iframe:", event.data)
+      // Handle the message here
+      if (event.data.op === "command") {
+        console.log("Command", event.data.content)
+        // Add your logic to handle the LLM message
+        // For example, you might want to send this to a background script
+        // or process it directly within Yeshie
+      }
+    }
+  }, [])
+
   useEffect(() => {
     if (window.top !== window.self) {
       console.log("Yeshie is in an iframe, not rendering")
@@ -76,11 +119,15 @@ const Yeshie = () => {
 
     document.addEventListener('keydown', handleKeyPress)
 
+    // Add message listener
+    window.addEventListener("message", handleMessage)
+
     return () => {
       observer.disconnect()
       document.removeEventListener('keydown', handleKeyPress)
+      window.removeEventListener("message", handleMessage)
     }
-  }, [])
+  }, [handleMessage])
 
   useEffect(() => {
     setupCS() // Initialize communication
@@ -102,13 +149,19 @@ const Yeshie = () => {
 
     return (
       <div id="sidebar" className={isOpen ? "open" : "closed"}>
-        <div>Some oddball shit</div>
+        <img 
+          src={iconBase64} 
+          alt="Yeshie Icon" 
+          className="resizing-icon"
+          width={32} 
+          height={32} 
+        />
+ 
         <iframe src="http://localhost:3000" width="100%" height="500px" title="Localhost Iframe" />
         <button className="sidebar-toggle" onClick={() => setIsOpen(!isOpen)}>
           <img src={iconBase64} alt="Yeshie Icon" width={32} height={32} />
           {isOpen ? "🟡GGG" : "🟣"}
         </button>
-        <img src={iconBase64} alt="Yeshie Icon" width={128} height={128} />
       </div>
     )
   } catch (error) {
