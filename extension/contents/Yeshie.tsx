@@ -99,9 +99,9 @@ const Yeshie: React.FC = () => {
 
     async function init() {
       console.log("INITTING")
-      // chrome.runtime.sendMessage({op: "getTabId"}, (response) => {
-      //   console.log("Response from background script:", response);
-      // });
+      chrome.runtime.sendMessage({op: "getTabId"}, (response) => {
+        console.log("TAB ID", response);
+      });
       
 
     
