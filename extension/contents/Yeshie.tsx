@@ -21,34 +21,34 @@ const logMessages: string[] = [];
 //   }
 // };
 setupCS()
-import { pageObserver, type ObserverEvent } from '../functions/observer'; 
-pageObserver.registerCallback((event: ObserverEvent) => {
-  switch (event.type) {
-    case 'dom':
-      // console.log('DOM changed:', event.details);
-      break;
-    case 'location':
-      console.log('Location changed to:', event.details);
-      break;
-    case 'focus':
-      console.log('Page focus changed:', event.details);
-      break;
-    case 'elementFocus':
-      console.log('Focused element:', event.details);
-      break;
-    case 'keydown':
-    case 'keyup':
-      console.log('Key event:', event.type, event.details);
-      break;
-    case 'click':
-      // Updated to log new details
-      console.log('Mouse click:', event.details.x, event.details.y, event.details.selector, event.details.label);
-      break;
-    case 'mousemove':
-      // console.log('Mouse move:', event.details);
-      break;
-  }
-});
+// import { pageObserver, type ObserverEvent } from '../functions/observer'; 
+// pageObserver.registerCallback((event: ObserverEvent) => {
+//   switch (event.type) {
+//     case 'dom':
+//       // console.log('DOM changed:', event.details);
+//       break;
+//     case 'location':
+//       console.log('Location changed to:', event.details);
+//       break;
+//     case 'focus':
+//       console.log('Page focus changed:', event.details);
+//       break;
+//     case 'elementFocus':
+//       console.log('Focused element:', event.details);
+//       break;
+//     case 'keydown':
+//     case 'keyup':
+//       console.log('Key event:', event.type, event.details);
+//       break;
+//     case 'click':
+//       // Updated to log new details
+//       console.log('Mouse click:', event.details.x, event.details.y, event.details.selector, event.details.label);
+//       break;
+//     case 'mousemove':
+//       // console.log('Mouse move:', event.details);
+//       break;
+//   }
+// });
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
   all_frames: false,
@@ -76,8 +76,7 @@ export const getShadowHostId = () => "plasmo-google-sidebar"
 const Yeshie: React.FC = () => {
   const [isOpen, setIsOpen] = useStorage("isOpen" + window.location.hostname, false)
   const [isReady, setIsReady] = useState(false)
-  const [tabId, setTabId] = useState<number | null>(null)
-  const [instanceId, setInstanceId] = useState<string | null>(null)
+  const [tabId, setTabId] = useState<any | null>(null)
   const [sessionID, setSessionID] = useState<string | null>(null)
 
   const handleMessage = useCallback((event: MessageEvent) => {
@@ -99,30 +98,13 @@ const Yeshie: React.FC = () => {
     }
 
     async function init() {
-      interface GetCurrentTabIdMessage {
-        name: "getCurrentTabId";
-      }
-      interface GetCurrentTabIdResponse {
-        tabId: number;
-      }
-
-      try {
-        const response = await sendToBackground<GetCurrentTabIdMessage, GetCurrentTabIdResponse>({
-          name: "getCurrentTabId" 
-        });
-        setTabId(response.tabId);
-        console.log("Tab ID in content script:", response.tabId);
-
-        // Assuming you have a way to get the sessionID from the server
+      console.log("INITTING")
+      // chrome.runtime.sendMessage({op: "getTabId"}, (response) => {
+      //   console.log("Response from background script:", response);
+      // });
       
 
-        const id = await getOrCreateInstanceId(response.tabId, sessionID);
-        setInstanceId(id);
-
-        // You can add more initialization logic here if needed
-      } catch (error) {
-        console.error("Error initializing Yeshie:", error);
-      }
+    
     }
 
     init();
@@ -156,7 +138,7 @@ const Yeshie: React.FC = () => {
       document.removeEventListener('keydown', handleKeyPress)
       window.removeEventListener("message", handleMessage)
     }
-  }, [handleMessage])
+  }, [handleMessage]) // Ensure handleMessage is defined and used correctly
 
   useEffect(() => {
     setupCS()
@@ -177,6 +159,7 @@ const Yeshie: React.FC = () => {
 
   return (
     <div id="sidebar" className={isOpen ? "open" : "closed"}>
+      <h2>Tab ID: {tabId !== null ? tabId : 'Loading...'}</h2>
       <img 
         src={iconBase64} 
         alt="Yeshie Icon" 
@@ -185,7 +168,7 @@ const Yeshie: React.FC = () => {
         height={32} 
       />
       <iframe 
-        src={`http://localhost:3000?sessionID=${sessionID}&tabId=${tabId}&instanceId=${instanceId}`} 
+        src={`http://localhost:3000?sessionID=${sessionID}&tabId=${tabId}`} 
         width="100%" 
         height="500px" 
         title="Localhost Iframe" 

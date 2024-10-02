@@ -2,6 +2,7 @@
 import { spawn } from 'child_process';
 import concurrently from 'concurrently';
 import { cp } from 'fs';
+import { exit } from 'process';
 
 interface Job {
   name: string;
@@ -17,11 +18,14 @@ const jobs: Job[] = [
   { name: "winmonitor", do: "nodemon --watch src -e py --exec python src/winmonitor.py" },
   { name: "extension", do: "cd extension && npm run dev" },
   { name: "messages", do: "nodemon -watch scripts/messages.sh --exec ./scripts/messages.sh" },
-  { name: "llm", do: "nodemon --watch src -e py --exec python src/llmserver.py" }
-];
+  { name: "llm", do: "nodemon --watch src -e py --exec python src/llmserver.py" },
+  { name: "codeStore", do: "nodemon --watch src/codeStore.py -e py --exec python src/codeStore.py" }
+]
+
 
 const profiles: { [key: string]: string[] } = {
-  default: ["monitor", "server", "client", "extension", "messages"],
+  default:["dev"],
+  dev: ["monitor", "server", "client", "extension"],
   win: ["winmonitor", "extension"],
   llm: ["server", "llm"],
   all: jobs.map(job => job.name)
@@ -36,13 +40,16 @@ function runJobs(jobNames: string[]) {
 function main() {
   const args = process.argv.slice(2)
   let profile = args[0];
+  
   if (profile) {    
     if (profile in profiles) {
       console.log(`Running profile: ${profile}`);
       runJobs(profiles[profile]);
+    } else if (jobs.find(job => job.name === profile)) {
+      runJobs([profile]);
     } else {
-      console.error(`Profile "${profile}" not found. Available profiles: ${Object.keys(profiles).join(', ')}`);
-      process.exit(1);
+    console.error(`Profile "${profile}" not found. Available profiles: ${Object.keys(profiles).join(', ')}`);
+    process.exit(1);
     }
   } else {
     console.log(`Running default profile`);
