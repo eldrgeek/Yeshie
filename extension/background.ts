@@ -1,6 +1,19 @@
 import { setupBG } from "./functions/extcomms";
 import type {PlasmoMessaging} from "@plasmohq/messaging"
 
+// Add these type definitions at the top of your file
+declare global {
+  interface WorkerGlobalScope {
+    addEventListener(type: 'fetch', listener: (event: FetchEvent) => void): void;
+  }
+}
+
+interface FetchEvent extends Event {
+  request: Request;
+  respondWith(response: Promise<Response> | Response): void;
+  preloadResponse: Promise<Response | undefined>;
+}
+
 console.log("Background script loaded");
 self.addEventListener('offline', () => {
   console.log('The browser is offline.');
@@ -13,6 +26,25 @@ self.addEventListener('online', () => {
   // Handle reconnection logic, e.g., sync with server or fetch updates
 });
 
+// Update the fetch event listener
+self.addEventListener('fetch', (event: FetchEvent) => {
+  if (event.request.mode === 'navigate') {
+    event.respondWith((async () => {
+      try {
+        const preloadResponse = await event.preloadResponse;
+        if (preloadResponse) {
+          return preloadResponse;
+        }
+
+        return await fetch(event.request);
+      } catch (error) {
+        console.error('Fetch failed; returning offline page instead.', error);
+        // You might want to return a custom offline page here
+        return new Response('Offline page', { status: 503, statusText: 'Service Unavailable' });
+      }
+    })());
+  }
+});
 
 // Function to get the current tab ID
 async function getCurrentTabId(): Promise<number> {
