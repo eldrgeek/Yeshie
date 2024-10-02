@@ -5,8 +5,21 @@ import { useEffect, useState, useCallback } from "react"
 import { useStorage } from "@plasmohq/storage/hook"
 import { setupCS } from "../functions/extcomms"
 import "./google-sidebar-base.css"
-import {Stepper} from "../functions/Stepper"
+import { Stepper, getOrCreateInstanceId } from "../functions/Stepper"
+import { sendToBackground } from "@plasmohq/messaging"
+
 // Inject to the webpage itself
+const logMessages: string[] = [];
+// const originalConsoleLog = console.log;
+
+// console.log = (...args: any[]) => {
+//   originalConsoleLog(...args);
+//   logMessages.push(args.join(" "));
+//   // Send log messages to parent window if in an iframe
+//   if (window.parent && window.parent !== window) {
+//     window.parent.postMessage({ type: "log", messages: logMessages }, "*");
+//   }
+// };
 setupCS()
 import { pageObserver, type ObserverEvent } from '../functions/observer'; 
 pageObserver.registerCallback((event: ObserverEvent) => {
@@ -39,7 +52,7 @@ pageObserver.registerCallback((event: ObserverEvent) => {
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
   all_frames: false,
-  run_at: "document_end" // Changed from document_idle to document_end
+  run_at: "document_end"
 }
 
 // Inject into the ShadowDOM
@@ -60,30 +73,21 @@ const isMatchingURL = (pattern) => {
 
 export const getShadowHostId = () => "plasmo-google-sidebar"
 
-const Yeshie = () => {
-  console.log("Yeshie script starting")
-
-  // Check if we're in the top-level window
-  if (window.top !== window.self) {
-    console.log("Yeshie is in an iframe, not rendering")
-    return null // Don't render anything if we're in an iframe
-  }
-
+const Yeshie: React.FC = () => {
   const [isOpen, setIsOpen] = useStorage("isOpen" + window.location.hostname, false)
-  const [isReady, setIsReady] = useState(false) // {{ edit_1 }}
+  const [isReady, setIsReady] = useState(false)
+  const [tabId, setTabId] = useState<number | null>(null)
+  const [instanceId, setInstanceId] = useState<string | null>(null)
+  const [sessionID, setSessionID] = useState<string | null>(null)
 
   const handleMessage = useCallback((event: MessageEvent) => {
-    // Check if the message is coming from the expected origin
     if (event.origin !== "http://localhost:3000") return;
 
     if (event.data && event.data.type === "monitor") {
       console.log("Received message from CollaborationPage iframe:", event.data)
-      // Handle the message here
       if (event.data.op === "command") {
-        console.log("Command", event.data.content)
-        // Add your logic to handle the LLM message
-        // For example, you might want to send this to a background script
-        // or process it directly within Yeshie
+        console.log("Command", event.data.line)
+        Stepper(event.data.line)
       }
     }
   }, [])
@@ -94,11 +98,39 @@ const Yeshie = () => {
       return
     }
 
-    // Option 1: Using MutationObserver
+    async function init() {
+      interface GetCurrentTabIdMessage {
+        name: "getCurrentTabId";
+      }
+      interface GetCurrentTabIdResponse {
+        tabId: number;
+      }
+
+      try {
+        const response = await sendToBackground<GetCurrentTabIdMessage, GetCurrentTabIdResponse>({
+          name: "getCurrentTabId" 
+        });
+        setTabId(response.tabId);
+        console.log("Tab ID in content script:", response.tabId);
+
+        // Assuming you have a way to get the sessionID from the server
+      
+
+        const id = await getOrCreateInstanceId(response.tabId, sessionID);
+        setInstanceId(id);
+
+        // You can add more initialization logic here if needed
+      } catch (error) {
+        console.error("Error initializing Yeshie:", error);
+      }
+    }
+
+    init();
+
     const observer = new MutationObserver((mutations, obs) => {
-      const targetElement = document.querySelector('body') // Change this to a more specific selector if needed
+      const targetElement = document.querySelector('body')
       if (targetElement) {
-        setIsReady(true) // {{ edit 2 }}
+        setIsReady(true)
         obs.disconnect()
         console.log("Target element found, Yeshie is ready to render")
       }
@@ -109,7 +141,6 @@ const Yeshie = () => {
       subtree: true
     })
 
-    // Add keyboard shortcut listener
     const handleKeyPress = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === 'y') {
         event.preventDefault()
@@ -118,8 +149,6 @@ const Yeshie = () => {
     }
 
     document.addEventListener('keydown', handleKeyPress)
-
-    // Add message listener
     window.addEventListener("message", handleMessage)
 
     return () => {
@@ -130,47 +159,54 @@ const Yeshie = () => {
   }, [handleMessage])
 
   useEffect(() => {
-    setupCS() // Initialize communication
+    setupCS()
     if (document.body && isReady) {
       document.body.classList.toggle("plasmo-google-sidebar-show", isOpen)
     }
-  }, [isOpen, isReady]) // {{ edit 3 }}
+  }, [isOpen, isReady])
 
-  if (!isReady) { // {{ edit 4 }}
+  if (!isReady) {
     console.log("Yeshie is not ready to render yet")
     return null
   }
 
-  try {
-    if (!document.body) {
-      console.log("Body not found, not rendering Yeshie")
-      return null
-    }
-
-    return (
-      <div id="sidebar" className={isOpen ? "open" : "closed"}>
-        <img 
-          src={iconBase64} 
-          alt="Yeshie Icon" 
-          className="resizing-icon"
-          width={32} 
-          height={32} 
-        />
- 
-        <iframe src="http://localhost:3000" width="100%" height="500px" title="Localhost Iframe" />
-        <button className="sidebar-toggle" onClick={() => setIsOpen(!isOpen)}>
-          <img src={iconBase64} alt="Yeshie Icon" width={32} height={32} />
-          {isOpen ? "🟡GGG" : "🟣"}
-        </button>
-      </div>
-    )
-  } catch (error) {
-    console.error("Error in Yeshie component:", error)
+  if (!document.body) {
+    console.log("Body not found, not rendering Yeshie")
     return null
   }
+
+  return (
+    <div id="sidebar" className={isOpen ? "open" : "closed"}>
+      <img 
+        src={iconBase64} 
+        alt="Yeshie Icon" 
+        className="resizing-icon"
+        width={32} 
+        height={32} 
+      />
+      <iframe 
+        src={`http://localhost:3000?sessionID=${sessionID}&tabId=${tabId}&instanceId=${instanceId}`} 
+        width="100%" 
+        height="500px" 
+        title="Localhost Iframe" 
+      />
+      <button className="sidebar-toggle" onClick={() => setIsOpen(!isOpen)}>
+        <img src={iconBase64} alt="Yeshie Icon" width={32} height={32} />
+        {isOpen ? "🟡" : "🟣"}
+      </button>
+    </div>
+  )
+}
+
+// Add this function to get the sessionID from the server
+async function getSessionIDFromServer(): Promise<string> {
+  // Implement your logic to get the sessionID from the server
+  // This is a placeholder implementation
+  return new Promise((resolve) => {
+    setTimeout(() => resolve("server-generated-session-id"), 1000);
+  });
 }
 
 export default Yeshie
 
-// Add this at the end of the file for debugging
 console.log("Yeshie script loaded")

@@ -113,7 +113,7 @@ function App() {
       style={{display: "none"}}></div>
       <Box className="App" p={0} width="100%"> 
         {currentView === 'collaboration' && (
-          <CollaborationPage socket={socket} sessionID={session || ''} />
+          <CollaborationPage socket={socket} logMessages={[]} sessionID={session || ''} />
         )}
         {currentView === 'logging' && (
           <Logging 

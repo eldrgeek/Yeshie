@@ -57,7 +57,7 @@ class Application:
         @self.sio.on('llm')
         def on_llm(data):
             self.requestorSessionId = data.get("sessionId")
-
+            # self.llm_server.
         @self.sio.on('rewind')
         def on_rewind(data):
             self.requestorSessionId = data.get("sessionId")

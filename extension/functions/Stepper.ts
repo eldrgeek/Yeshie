@@ -1,17 +1,133 @@
-import { summarizeWebPage } from './pageSummary';
+  import { summarizeWebPage } from './pageSummary';
 import { pageObserver, type ObserverEvent, type ObserverCallback, type ObserverEventType } from './observer';
+import { v4 as uuidv4 } from 'uuid';
 
 interface Command {
   command: string;
   [key: string]: any;
 }
 
-const Stepper = async (step: Command) => {
-  const summary = summarizeWebPage({
-    excludeTags: ['h1', 'h2', 'h3', 'p', 'span']
+const commandTemplates = {
+  navto: {
+    regex: /^navto\s+(.+)$/,
+    template: { command: 'navto', url: '$1' }
+  },
+  click: {
+    regex: /^click\s+(.+?)(?:\s+"(.+)")?$/,
+    template: { command: 'click', selector: '$1', text: '$2' }
+  },
+  type: {
+    regex: /^type\s+(.+?)\s+"(.+)"$/,
+    template: { command: 'type', selector: '$1', value: '$2' }
+  },
+  scrollto: {
+    regex: /^scrollto\s+(.+)$/,
+    template: { command: 'scrollto', selector: '$1' }
+  },
+  hover: {
+    regex: /^hover\s+(.+)$/,
+    template: { command: 'hover', selector: '$1' }
+  },
+  getattribute: {
+    regex: /^getattribute\s+(.+?)\s+(.+)$/,
+    template: { command: 'getattribute', selector: '$1', attributeName: '$2' }
+  },
+  getcomputedstyle: {
+    regex: /^getcomputedstyle\s+(.+?)\s+(.+)$/,
+    template: { command: 'getcomputedstyle', selector: '$1', propertyName: '$2' }
+  },
+  waitfor: {
+    regex: /^waitfor\s+(.+?)(?:\s+(\d+))?$/,
+    template: { command: 'waitfor', condition: '$1', timeout: '$2' }
+  },
+  waitforelement: {
+    regex: /^waitforelement\s+(.+?)(?:\s+(\d+))?$/,
+    template: { command: 'waitforelement', selector: '$1', timeout: '$2' }
+  },
+  waitfornetwork: {
+    regex: /^waitfornetwork(?:\s+(\d+))?$/,
+    template: { command: 'waitfornetwork', timeout: '$1' }
+  },
+  executejs: {
+    regex: /^executejs\s+(.+)$/,
+    template: { command: 'executejs', script: '$1' }
+  },
+  takescreenshot: {
+    regex: /^takescreenshot$/,
+    template: { command: 'takescreenshot' }
+  },
+  handledialog: {
+    regex: /^handledialog\s+(accept|dismiss)$/,
+    template: { command: 'handledialog', action: '$1' }
+  },
+  setviewport: {
+    regex: /^setviewport\s+(\d+)\s+(\d+)$/,
+    template: { command: 'setviewport', width: '$1', height: '$2' }
+  },
+  changes: {
+    regex: /^changes\s+(on|off|clear|request)$/,
+    template: { command: 'changes', action: '$1' }
+  }
+};
+
+// Function to parse commands from input
+const parseCommand = (input: string | Command): Command => {
+  if (typeof input === 'object') {
+    return input;
+  }
+
+  const firstWord = input.split(/\s+/)[0].toLowerCase();
+  const templateEntry = commandTemplates[firstWord];
+  console.log(templateEntry)
+
+  if (!templateEntry) {
+    throw new Error(`Invalid command: ${input}`);
+  }
+
+  const { regex, template } = templateEntry;
+  const match = input.match(regex);
+
+  if (!match) {
+    throw new Error(`Invalid command format: ${input}`);
+  }
+
+  const command = { ...template };
+  Object.keys(command).forEach((key, index) => {
+    if (typeof command[key] === 'string' && command[key].startsWith('$')) {
+      const value = match[parseInt(command[key].slice(1))];
+      command[key] = value !== undefined ? value : null;
+    }
   });
-  
-  console.log(JSON.stringify(summary, null, 2));
+
+  return command as Command;
+};
+
+const Stepper = async (input: string | Command | (string | Command)[]) => {
+  const commands = Array.isArray(input) ? input : [input];
+  const parsedCommands = commands.map(parseCommand);
+
+  const results = [];
+
+  let lastEventTime = Date.now();
+  const observerCallback: ObserverCallback = () => {
+    console.log("CALLBACK")
+    lastEventTime = Date.now();
+  };
+
+  pageObserver.registerCallback(observerCallback);
+
+  const waitForQuiet = (timeout: number): Promise<void> => {
+    return new Promise((resolve) => {
+      const checkQuiet = () => {
+        if (Date.now() - lastEventTime >= timeout) {
+          resolve();
+        } else {
+          setTimeout(checkQuiet, 10);
+        }
+      };
+      checkQuiet();
+    });
+  };
 
   const performCommand = async (command: Command): Promise<string> => {
     console.log("Executing command:", command);
@@ -30,9 +146,11 @@ const Stepper = async (step: Command) => {
         return "Navigation initiated";
 
       case 'click':
+        pageObserver.start()
         const clickable = getElement(command.selector, command.text) as HTMLElement;
         if (clickable) {
           clickable.click();
+          waitForQuiet(100)
           return "Clicked element";
         }
         return "Element not found";
@@ -90,6 +208,10 @@ const Stepper = async (step: Command) => {
         return "Element for style not found";
 
       case 'waitfor':
+        if (command.condition === 'quiet') {
+          await waitForQuiet(command.timeout || 100);
+          return "Page is quiet";
+        }
         return new Promise((resolve) => {
           if (command.selector) {
             const checkElement = () => {
@@ -171,7 +293,41 @@ const Stepper = async (step: Command) => {
     }
   };
 
-  return performCommand(step);
+  for (const command of parsedCommands) {
+    try {
+      const result = await performCommand(command);
+      results.push(result);
+
+      if (command.command.toLowerCase() !== 'waitfor' && command.command.toLowerCase() !== 'changes') {
+        await waitForQuiet(100);
+      }
+
+      if (command.command.toLowerCase() === 'changes' && command.action === 'request') {
+        break;
+      }
+    } catch (error) {
+      results.push(`Error executing command: ${error}`);
+      break;
+    }
+  }
+
+  // pageObserver.unregisterCallback();
+
+  return results.length === 1 ? results[0] : results;
 };
 
 export { Stepper };
+
+// Add this function to get or create a unique instance ID
+export async function getOrCreateInstanceId(tabId: number, sessionID?: string): Promise<string> {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(`instanceId_${tabId}`, (result) => {
+      let instanceId = result[`instanceId_${tabId}`];
+      if (!instanceId) {
+        instanceId = sessionID || uuidv4();
+        chrome.storage.local.set({ [`instanceId_${tabId}`]: instanceId });
+      }
+      resolve(instanceId);
+    });
+  });
+}

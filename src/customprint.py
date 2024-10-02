@@ -4,6 +4,7 @@ import builtins
 
 madeprint = False
 def makeCustomPrint(filepath):
+    print("MADE CUSTOM PRINT")
     global madeprint
     if madeprint:
         return

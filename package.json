@@ -1,5 +1,5 @@
 {
-  "name": "alphahelper",
+  "name": "yeshie",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -18,21 +18,14 @@
     "dev:extension": "cd extension && npm run dev",
     "dev:messages": "nodemon -watch scripts/messages.sh --exec ./scripts/messages.sh",
     "devx": "concurrently \"npm run dev:winmonitor\" \"npm run dev:extension\"",
-    "dev1": "concurrently $(npm run --silent | grep '^dev:' | awk '{print $1}')"
+    "dev1": "concurrently $(npm run --silent | grep '^dev:' | awk '{print $1}')",
+    "dev:scrape": "nodemon --watch src -e py --exec python src/scrape.py"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@chakra-ui/icons": "^2.1.1",
-    "@codemirror/commands": "^6.6.1",
-    "@codemirror/lang-markdown": "^6.2.5",
-    "@codemirror/theme-one-dark": "^6.1.2",
-    "@tiptap/core": "^2.6.6",
-    "@tiptap/react": "^2.6.6",
-    "@tiptap/starter-kit": "^2.6.6",
-    "codemirror": "^6.0.1",
     "express": "^4.19.2",
     "lucide-react": "^0.441.0",
     "react-icons": "^5.3.0",

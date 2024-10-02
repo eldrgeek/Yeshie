@@ -1,7 +1,12 @@
-node_modules
+node_modules/
+client/node_modules/
+extention/node_modules/
+.env
 dist/*
 dist/server.js
-venv
+venv/
+.git/
+vector_stores
 src/__pycache__/
 extension/.pnp
 extension/.pnp.js
@@ -11,7 +16,7 @@ extension/coverage
 extension/.turbo
 
 # misc
-extension/.DS_Store
+extension/.DS_Store/
 extension/*.pem
 
 # debug
@@ -36,10 +41,14 @@ extension/keys.json
 # typescript
 extension/.tsbuildinfo
 extension/pnpm-lock.yaml
-.DS_Store
-.env
+.DS_Store/
 file_tracker.json
 persistent_index/
 extension.plasmo/
 indexes/
 out
+vector_stores/
+pnpm-lock.yaml
+client/package-lock.json
+client/package-lock.json
+.DS_Store
