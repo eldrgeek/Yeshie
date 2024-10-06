@@ -1,6 +1,8 @@
 import { setupBG } from "./functions/extcomms";
 import type {PlasmoMessaging} from "@plasmohq/messaging"
+import { Storage } from "@plasmohq/storage"
 
+const storage = new Storage()
 // Add these type definitions at the top of your file
 declare global {
   interface WorkerGlobalScope {
@@ -55,15 +57,6 @@ async function getCurrentTabId(): Promise<number> {
   return tabId;
 }
 
-// Message handler for getting the current tab ID
-export const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
-  console.log("ASKED FOR TABID")
-  if (req.name === "getCurrentTabId") {
-    const tabId = await getCurrentTabId();
-    console.log("Current Tab ID:", tabId); // This will log to the background script console
-    res.send({ tabId });
-  }
-}
 
 // Log tab ID when a new tab is activated
 chrome.tabs.onActivated.addListener((activeInfo) => {
@@ -85,10 +78,13 @@ chrome.tabs.onCreated.addListener((tab) => {
   logCurrentTabId();
 });
 
+const CONTEXT_REMOVAL_DELAY = 10000
 // Log tab ID when a tab is removed
-chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
-  console.log("Tab removed:", tabId);
-  logCurrentTabId();
+chrome.tabs.onRemoved.addListener((tabId) => {
+  // Schedule context removal
+  setTimeout(async () => {
+    await storage.remove(`tabContext:${tabId}`)
+  }, CONTEXT_REMOVAL_DELAY)
 });
 
 // Log tab ID when extension icon is clicked
@@ -118,15 +114,22 @@ const captureScreenshot = (windowId) => {
   });
 };
 
-// chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-//   if (message.action === 'screenshot' && sender.tab && sender.tab.windowId !== undefined) {
-//     captureScreenshot(sender.tab.windowId);
-//     sendResponse({ status: 'screenshot taken' });
-//   } else {
-//     sendResponse({ status: 'invalid request' });
-//   }
-//   return true;  // Keep the messaging channel open for sendResponse
-// });
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.op === "getTabId") {
+    getCurrentTabId().then(tabId => {
+      sendResponse({ tabId });
+    });
+    return true; // Indicates that the response will be sent asynchronously
+  }
+  
+  if (sender.tab && sender.tab.id) {
+    // Forward the message to the specific tab that sent it
+    chrome.tabs.sendMessage(sender.tab.id, message);
+  }
+  
+  // Always return true if you're handling the message asynchronously
+  return true;
+});
 
 const captureScreenshotToClipboard = (sendResponse) => {
   chrome.tabs.captureVisibleTab(null, { format: 'png' }, (dataUrl) => {
@@ -166,10 +169,8 @@ chrome.runtime.onInstalled.addListener(() => {
   console.log("Extension installed");
 });
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if(message.op=="getTabId"){
-    sendResponse(getCurrentTabId)
-  }
+chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
+  
   
   if (sender.tab && sender.tab.id) {
     // Forward the message to the specific tab that sent it

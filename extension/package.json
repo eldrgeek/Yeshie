@@ -5,7 +5,7 @@
   "description": "Yeshie Chrome Extension",
   "author": "Mike Wolf",
   "scripts": {
-    "dev": "plasmo dev",
+    "dev": "plasmo dev --verbose",
     "build": "plasmo build",
     "package": "plasmo package"
   },

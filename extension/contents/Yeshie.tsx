@@ -1,54 +1,15 @@
 import iconBase64 from "data-base64:~assets/icon.png"
 import cssText from "data-text:~/contents/google-sidebar.css"
 import type { PlasmoCSConfig } from "plasmo"
-import { useEffect, useState, useCallback } from "react"
+import React, { useEffect, useState, useCallback, useRef } from "react"
 import { useStorage } from "@plasmohq/storage/hook"
+import { Storage } from "@plasmohq/storage"
 import { setupCS } from "../functions/extcomms"
 import "./google-sidebar-base.css"
 import { Stepper, getOrCreateInstanceId } from "../functions/Stepper"
 import { sendToBackground } from "@plasmohq/messaging"
-
-// Inject to the webpage itself
-const logMessages: string[] = [];
-// const originalConsoleLog = console.log;
-
-// console.log = (...args: any[]) => {
-//   originalConsoleLog(...args);
-//   logMessages.push(args.join(" "));
-//   // Send log messages to parent window if in an iframe
-//   if (window.parent && window.parent !== window) {
-//     window.parent.postMessage({ type: "log", messages: logMessages }, "*");
-//   }
-// };
 setupCS()
-// import { pageObserver, type ObserverEvent } from '../functions/observer'; 
-// pageObserver.registerCallback((event: ObserverEvent) => {
-//   switch (event.type) {
-//     case 'dom':
-//       // console.log('DOM changed:', event.details);
-//       break;
-//     case 'location':
-//       console.log('Location changed to:', event.details);
-//       break;
-//     case 'focus':
-//       console.log('Page focus changed:', event.details);
-//       break;
-//     case 'elementFocus':
-//       console.log('Focused element:', event.details);
-//       break;
-//     case 'keydown':
-//     case 'keyup':
-//       console.log('Key event:', event.type, event.details);
-//       break;
-//     case 'click':
-//       // Updated to log new details
-//       console.log('Mouse click:', event.details.x, event.details.y, event.details.selector, event.details.label);
-//       break;
-//     case 'mousemove':
-//       // console.log('Mouse move:', event.details);
-//       break;
-//   }
-// });
+
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
   all_frames: false,
@@ -73,11 +34,34 @@ const isMatchingURL = (pattern) => {
 
 export const getShadowHostId = () => "plasmo-google-sidebar"
 
+const storage = new Storage()
+
+interface TabContext {
+  url: string
+  content: string
+  mode: string
+}
+
 const Yeshie: React.FC = () => {
   const [isOpen, setIsOpen] = useStorage("isOpen" + window.location.hostname, false)
   const [isReady, setIsReady] = useState(false)
-  const [tabId, setTabId] = useState<any | null>(null)
+  const [tabId, setTabId] = useState<number | null>(null)
   const [sessionID, setSessionID] = useState<string | null>(null)
+  const [context, setContext] = useState<TabContext | null>(null)
+  const initCalled = useRef(false) 
+
+  const updateContext = useCallback(async (newContext: Partial<TabContext>) => {
+    if (tabId === null) return
+
+    const updatedContext = { ...context, ...newContext }
+    await storage.set(`tabContext:${tabId}`, updatedContext)
+    setContext(updatedContext)
+  }, [tabId, context])
+
+  const debouncedUpdateContext = useCallback(
+    debounce((newContext: Partial<TabContext>) => updateContext(newContext), 1000),
+    [updateContext]
+  )
 
   const handleMessage = useCallback((event: MessageEvent) => {
     if (event.origin !== "http://localhost:3000") return;
@@ -98,13 +82,26 @@ const Yeshie: React.FC = () => {
     }
 
     async function init() {
-      console.log("INITTING")
-      chrome.runtime.sendMessage({op: "getTabId"}, (response) => {
-        console.log("TAB ID", response);
-      });
-      
+      if (initCalled.current) return 
+      initCalled.current = true 
 
-    
+      console.log("INITTING" , isOpen,isReady)
+      chrome.runtime.sendMessage({op: "getTabId"}, async (response) => {
+        const currentTabId = response.tabId
+        setTabId(currentTabId)
+        const storedContext = await storage.get(`tabContext:${currentTabId}`) as TabContext | undefined
+        if (storedContext) {
+          setContext(storedContext)
+        } else {
+          const newContext: TabContext = {
+            url: window.location.href,
+            content: "",
+            mode: "llm"
+          }
+          await storage.set(`tabContext:${currentTabId}`, newContext)
+          setContext(newContext)
+        }
+      });
     }
 
     init();
@@ -130,15 +127,21 @@ const Yeshie: React.FC = () => {
       }
     }
 
+    const handleUrlChange = () => {
+      updateContext({ url: window.location.href })
+    }
+
     document.addEventListener('keydown', handleKeyPress)
     window.addEventListener("message", handleMessage)
+    window.addEventListener('popstate', handleUrlChange)
 
     return () => {
       observer.disconnect()
       document.removeEventListener('keydown', handleKeyPress)
       window.removeEventListener("message", handleMessage)
+      window.removeEventListener('popstate', handleUrlChange)
     }
-  }, [handleMessage]) // Ensure handleMessage is defined and used correctly
+  }, [handleMessage, updateContext])
 
   useEffect(() => {
     setupCS()
@@ -159,6 +162,7 @@ const Yeshie: React.FC = () => {
 
   return (
     <div id="sidebar" className={isOpen ? "open" : "closed"}>
+      {/* <PythonComponent/> */}
       <h2>Tab ID: {tabId !== null ? tabId : 'Loading...'}</h2>
       <img 
         src={iconBase64} 
@@ -168,7 +172,7 @@ const Yeshie: React.FC = () => {
         height={32} 
       />
       <iframe 
-        src={`http://localhost:3000?sessionID=${sessionID}&tabId=${tabId}`} 
+        src={`http://localhost:3000?sessionID=${sessionID}&tabId=${tabId}&mode=${context?.mode}`} 
         width="100%" 
         height="500px" 
         title="Localhost Iframe" 
@@ -181,13 +185,17 @@ const Yeshie: React.FC = () => {
   )
 }
 
-// Add this function to get the sessionID from the server
-async function getSessionIDFromServer(): Promise<string> {
-  // Implement your logic to get the sessionID from the server
-  // This is a placeholder implementation
-  return new Promise((resolve) => {
-    setTimeout(() => resolve("server-generated-session-id"), 1000);
-  });
+// Debounce function
+function debounce(func: Function, wait: number) {
+  let timeout: NodeJS.Timeout
+  return function executedFunction(...args: any[]) {
+    const later = () => {
+      clearTimeout(timeout)
+      func(...args)
+    }
+    clearTimeout(timeout)
+    timeout = setTimeout(later, wait)
+  }
 }
 
 export default Yeshie
