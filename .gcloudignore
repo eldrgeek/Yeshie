@@ -1,0 +1,43 @@
+# Ignore node_modules directory and all its contents
+node_modules
+node_modules/**
+
+# Ignore extensions directory (which uses pnpm)
+extension
+extension/**
+
+# Ignore pnpm-specific files (in case any exist in the root)
+pnpm-lock.yaml
+pnpm-debug.log
+
+# Ignore client directory and all its contents
+client
+client/**
+
+# Other directories to ignore
+venv
+venv/**
+scripts
+scripts/**
+test
+test/**
+__tests__
+__tests__/**
+
+# Ignore git directory
+.git
+.git/**
+
+# Ignore specific file types or patterns
+*.md
+.env*
+npm-debug.log
+
+# Ignore all hidden files and directories
+.*
+
+# Exceptions (files you want to include despite the above rules)
+!.gcloudignore
+!.dockerignore
+!package.json
+!package-lock.json

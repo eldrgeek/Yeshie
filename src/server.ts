@@ -4,20 +4,31 @@ import fs from 'fs';
 import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
-
+import logger from "./logger"
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer);
 
 const IS_DEVELOPMENT = process.env.NODE_ENV !== 'production';
-const PORT = IS_DEVELOPMENT ? 3001 : (process.env.PORT || 3000);
-const CLIENT_BUILD_PATH = path.join(__dirname, '../client/dist');
-
+const PORT = IS_DEVELOPMENT ? 3001 : (process.env.PORT || 8080);
 interface SessionInfo {
   componentType: string;
   socket: Socket;
   sessionNo: number;
+  conversationId: string | null;  // Added conversationId property
 }
+// Update CORS configuration to allow requests from Firebase hosting
+const ALLOWED_ORIGINS = [
+  'http://localhost:3000',  // Local development
+  'https://yeshie-001.web.app',  // Replace with your Firebase hosting URL
+  'https://yeshie-001.firebaseapp.com'  // Replace with your Firebase hosting URL
+];
+
+const io = new Server(httpServer, {
+  cors: {
+    origin: ALLOWED_ORIGINS,
+    methods: ["GET", "POST"]
+  }
+});
 
 const sessions = new Map<string, SessionInfo>();
 let sessionNo = 0;
@@ -42,16 +53,14 @@ httpServer.listen(PORT, () => {
 
 // Helper functions
 function _setupServer() {
-  if (!IS_DEVELOPMENT && fs.existsSync(CLIENT_BUILD_PATH)) {
-    app.use(express.static(CLIENT_BUILD_PATH));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(CLIENT_BUILD_PATH, 'index.html'));
-    });
-  }
-
+  // Remove static file serving since client is now on Firebase
   app.get('/api/hello', (req, res) => {
     res.json({ message: 'Hello there from server!' });
   });
+
+  if (IS_DEVELOPMENT) {
+    _setupDevelopmentProxy();
+  }
 
   _setupLogging();
 }
@@ -77,6 +86,7 @@ function _setupSocketIO() {
     socket.on('disconnect', () => _handleDisconnect(socket));
     socket.on('forward', (message) => _handleForwardMessage(socket, message));
     socket.on('monitor', (payload) => _handleMonitorMessage(payload));
+    socket.on('updateConversationId', (sessionId, conversationId) => _updateConversationId(sessionId, conversationId));
   });
 }
 
@@ -96,7 +106,7 @@ function _handleSessionRequest(socket: Socket, componentType: string) {
     console.log("Monitor connected");
   }
   const sessionId = uuidv4();
-  sessions.set(sessionId, { componentType, socket, sessionNo: sessionNo++ });
+  sessions.set(sessionId, { componentType, socket, sessionNo: sessionNo++, conversationId: null });
   socket.emit('session:', sessionId);
   console.log("Session created", sessionId);
   socket.emit('serverLog', [`Session created`]);
@@ -106,7 +116,7 @@ function _handleSessionConfirmation(socket: Socket, sessionId: string, component
   if (sessions.has(sessionId)) {
     console.log("Session confirmed");
   } else {
-    sessions.set(sessionId, { componentType, socket, sessionNo: sessionNo++ });
+    sessions.set(sessionId, { componentType, socket, sessionNo: sessionNo++, conversationId: null });
     console.log('Session restored:', sessionId);
   }
 }
@@ -134,7 +144,7 @@ function _handleForwardMessage(socket: Socket, message: any) {
     }
   } else {
     sessions.forEach((sessionInfo, sessionId) => {
-      if (sessionInfo.socket !== socket) {
+      if (sessionInfo.socket !== socket && sessionInfo.conversationId === message.conversationId) {
         sessionInfo.socket.emit(message.type, message.payload);
       }
     });
@@ -148,5 +158,15 @@ function _handleMonitorMessage(payload: any) {
     monitorSocket.emit(op, data);
   } else {
     console.log("Monitor not connected");
+  }
+}
+
+function _updateConversationId(sessionId: string, conversationId: string | null) {
+  const session = sessions.get(sessionId);
+  if (session) {
+    session.conversationId = conversationId;
+    console.log(`Updated conversation ID for session ${sessionId}: ${conversationId}`);
+  } else {
+    console.log(`Error: Session ${sessionId} not found`);
   }
 }

@@ -52,3 +52,4 @@ pnpm-lock.yaml
 client/package-lock.json
 client/package-lock.json
 .DS_Store
+client/.firebase/hosting.ZGlzdA.cache

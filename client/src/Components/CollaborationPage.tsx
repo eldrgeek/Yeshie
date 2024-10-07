@@ -49,11 +49,27 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     isIframe ? "command" : "llm"
   );
 
+  const [conversationId, setConversationId] = useState<string | null>(null); // Add conversationId state
+
   // Add this line to detect if running in an iframe
+
+  const extractConversationId = (content: string): string | null => { // New function to extract conversation ID
+    const lines = content.split('\n');
+    const firstLine = lines[0].trim();
+    if (firstLine.startsWith('# ')) {
+        return firstLine.substring(2).trim();
+    }
+    return null;
+  };
 
   const sendContent = useCallback(() => {
     const content = viewRef.current?.state.doc.toString() || "";
     const filteredContent = content.replace(/\/\*[\s\S]*?\*\//g, "").trim();
+
+    const newConversationId = extractConversationId(content); // Extract conversation ID
+    if (newConversationId !== conversationId) {
+        setConversationId(newConversationId); // Update conversation ID state
+    }
 
     // Prepare log messages for insertion
 
@@ -108,7 +124,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     }
 
     if (mode === "llm" && socket && socket.connected) {
-      socket.emit("monitor", { op: "llm", from: sessionID, content });
+      socket.emit("monitor", { op: "llm", from: sessionID, content, conversationId }); // Include conversationId
       toast({
         title: "Command sent to LLM via socket",
         status: "info",
@@ -120,7 +136,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     } else {
       // Default behavior (unchanged)
       if (socket && socket.connected) {
-        socket.emit("monitor", { op: "llm", from: sessionID, content });
+        socket.emit("monitor", { op: "llm", from: sessionID, content, conversationId }); // Include conversationId
         toast({
           title: "LLM message sent via socket",
           status: "info",
@@ -131,7 +147,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
         sendPostMessage(content);
       }
     }
-  }, [socket, sessionID, mode, isIframe, logMessages]); // Add logMessages to dependencies
+  }, [socket, sessionID, mode, isIframe, logMessages, conversationId]); // Add conversationId to dependencies
   const filterString = (inputString: string): string =>{
     const pattern = /\/\*\*[\s\S]*?\*\*\//g;
     return inputString.replace(pattern, '');
@@ -277,20 +293,20 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
   useEffect(() => {
     if (!socket) return;
 
-    socket.on("response", ({ from, cmd, request, response }) => {
-      console.log("response", from, cmd, request, response);
-      if (cmd === "append" && viewRef.current) {
-        const doc = viewRef.current.state.doc;
-        viewRef.current.dispatch({
-          changes: { from: doc.length, insert: "\n" + response },
-        });
-      }
+    socket.on("response", ({ from, cmd, request, response, conversationId: responseConversationId }) => { // Handle response with conversationId
+        console.log("response", from, cmd, request, response, responseConversationId);
+        if (cmd === "append" && viewRef.current && responseConversationId === conversationId) { // Check conversationId
+            const doc = viewRef.current.state.doc;
+            viewRef.current.dispatch({
+                changes: { from: doc.length, insert: "\n" + response },
+            });
+        }
     });
 
     return () => {
-      socket.off("response");
+        socket.off("response");
     };
-  }, [socket]);
+  }, [socket, conversationId]); // Add conversationId to dependencies
 
   useEffect(() => {
     const handleLogMessage = (event: MessageEvent) => {
@@ -331,6 +347,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
         <Heading as="h2" size="lg">
           Collaboration Page - {mode.toUpperCase()} Mode
           {isIframe ? " (Iframe)" : ""}
+          {conversationId ? ` - Conversation: ${conversationId}` : ""} // Display conversationId
         </Heading>
         <Box
           ref={editorRef}
