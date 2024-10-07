@@ -346,9 +346,12 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
       >
         <Heading as="h2" size="lg">
           Collaboration Page - {mode.toUpperCase()} Mode
-          {isIframe ? " (Iframe)" : ""}
-          {conversationId ? ` - Conversation: ${conversationId}` : ""} // Display conversationId
-        </Heading>
+         </Heading>
+         <h3>
+         {isIframe ? " (Iframe)" : "Native"}
+          {conversationId ? `/: ${conversationId}` : ""} 
+     
+         </h3>
         <Box
           ref={editorRef}
           flex="1"
