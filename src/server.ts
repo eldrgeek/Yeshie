@@ -4,7 +4,9 @@ import fs from 'fs';
 import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
-import logger from "./logger"
+import { Update } from '@codemirror/collab';
+import { ChangeSet } from '@codemirror/state';
+
 const app = express();
 const httpServer = createServer(app);
 
@@ -14,7 +16,9 @@ interface SessionInfo {
   componentType: string;
   socket: Socket;
   sessionNo: number;
-  conversationId: string | null;  // Added conversationId property
+  conversationId: string | null;
+  version: number;  // Add this line
+  updates: Update[];  // Add this line
 }
 // Update CORS configuration to allow requests from Firebase hosting
 const ALLOWED_ORIGINS = [
@@ -40,7 +44,7 @@ _setupServer();
 // Socket.IO setup
 _setupSocketIO();
 
-_setupLogging();
+// _setupLogging();
 
 // Start the server
 httpServer.listen(PORT, () => {
@@ -62,7 +66,7 @@ function _setupServer() {
     _setupDevelopmentProxy();
   }
 
-  _setupLogging();
+  // _setupLogging();
 }
 
 function _setupDevelopmentProxy() {
@@ -87,18 +91,13 @@ function _setupSocketIO() {
     socket.on('forward', (message) => _handleForwardMessage(socket, message));
     socket.on('monitor', (payload) => _handleMonitorMessage(payload));
     socket.on('updateConversationId', (sessionId, conversationId) => _updateConversationId(sessionId, conversationId));
+    
+    // Add these new event listeners
+    socket.on('pullUpdates', (sessionId, version, conversationId) => _handlePullUpdates(socket, sessionId, version, conversationId));
+    socket.on('pushUpdates', (sessionId, version, updates, conversationId) => _handlePushUpdates(socket, sessionId, version, updates, conversationId));
   });
 }
 
-function _setupLogging() {
-  const originalConsoleLog = console.log;
-  console.log = (...args: any[]) => {
-    originalConsoleLog("serv:", ...args);
-    sessions.forEach((sessionInfo) => {
-      sessionInfo.socket.emit('serverLog', args);
-    });
-  };
-}
 
 function _handleSessionRequest(socket: Socket, componentType: string) {
   if (componentType === "monitor") {
@@ -106,7 +105,14 @@ function _handleSessionRequest(socket: Socket, componentType: string) {
     console.log("Monitor connected");
   }
   const sessionId = uuidv4();
-  sessions.set(sessionId, { componentType, socket, sessionNo: sessionNo++, conversationId: null });
+  sessions.set(sessionId, { 
+    componentType, 
+    socket, 
+    sessionNo: sessionNo++, 
+    conversationId: null,
+    version: 0,  // Add this line
+    updates: []  // Add this line
+  });
   socket.emit('session:', sessionId);
   console.log("Session created", sessionId);
   socket.emit('serverLog', [`Session created`]);
@@ -116,7 +122,14 @@ function _handleSessionConfirmation(socket: Socket, sessionId: string, component
   if (sessions.has(sessionId)) {
     console.log("Session confirmed");
   } else {
-    sessions.set(sessionId, { componentType, socket, sessionNo: sessionNo++, conversationId: null });
+    sessions.set(sessionId, { 
+      componentType, 
+      socket, 
+      sessionNo: sessionNo++, 
+      conversationId: null,
+      version: 0,  // Add this line
+      updates: []  // Add this line
+    });
     console.log('Session restored:', sessionId);
   }
 }
@@ -162,10 +175,48 @@ function _handleMonitorMessage(payload: any) {
 }
 
 function _updateConversationId(sessionId: string, conversationId: string | null) {
+  console.log("UPDATE CONVO",sessionId,conversationId)
   const session = sessions.get(sessionId);
   if (session) {
     session.conversationId = conversationId;
     console.log(`Updated conversation ID for session ${sessionId}: ${conversationId}`);
+  } else {
+    console.log(`Error: Session ${sessionId} not found`);
+  }
+}
+
+function _handlePullUpdates(socket: Socket, sessionId: string, version: number, conversationId: string) {
+  const session = sessions.get(sessionId);
+  if (session) {
+    session.conversationId = conversationId;
+    const updates = session.updates.slice(version - session.version);
+    socket.emit('pullUpdates', updates);
+  } else {
+    console.log(`Error: Session ${sessionId} not found`);
+  }
+}
+
+function _handlePushUpdates(socket: Socket, sessionId: string, version: number, updates: Update[], conversationId: string) {
+  const session = sessions.get(sessionId);
+  console.log("updates", conversationId, version);
+
+  if (session) {
+    // if (version !== session.version) {
+    //   console.log("REJECT",version, session.version)
+    //   socket.emit('pushRejected');
+    //   return;
+    // }
+    session.version += updates.length;
+    session.updates = session.updates.concat(updates);
+    session.conversationId = conversationId;
+
+    // Broadcast updates to all sessions with the same conversationId
+    sessions.forEach((otherSession, otherSessionId) => {
+      console.log(otherSessionId, `Other '${otherSession.conversationId}`)
+      if (otherSessionId !== sessionId && otherSession.conversationId === conversationId) {
+        otherSession.socket.emit('receiveUpdates', conversationId, updates);
+      }
+    });
   } else {
     console.log(`Error: Session ${sessionId} not found`);
   }

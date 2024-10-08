@@ -2,22 +2,21 @@ import React, { useEffect, useRef, useCallback, useState } from "react";
 import { Box, VStack, Heading, useToast } from "@chakra-ui/react";
 import { Socket } from "socket.io-client";
 import { EditorView, basicSetup } from "codemirror";
-import { EditorState, Prec } from "@codemirror/state";
+import { EditorState, Prec, Compartment } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
-import { defaultKeymap, indentWithTab } from "@codemirror/commands";
+import { defaultKeymap, indentWithTab, history } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import { history } from "@codemirror/commands";
-// import { oneDark } from "@codemirror/theme-one-dark";
-import { Compartment } from "@codemirror/state";
-import { debounce } from "lodash"; // Add lodash import
+import { debounce } from "lodash";
+import { collab, receiveUpdates, sendableUpdates, getSyncedVersion } from '@codemirror/collab';
 
 /*
+
 navto https://www.github.com
 //click a "Sign in" type //#login_ field "ishipcode"
 //type #password.
 "awesometools1"
 //click .js-sign-in-button //click -js-octocaptcha-form-submit
-//message Enter your authentication code navto https://www.github.com
+//message Enter your authenticat`io`n code navto https://www.github.com
 */
 
 interface CollaborationPageProps {
@@ -27,10 +26,16 @@ interface CollaborationPageProps {
   // Remove the isIframe prop
 }
 
+// Add this function to extract the conversation ID
+const extractConversationId = (content: string): string => {
+  const firstLine = content.split('\n')[0].trim();
+  return firstLine.startsWith('# ') ? firstLine.substring(2) : '';
+};
+
 const CollaborationPage: React.FC<CollaborationPageProps> = ({
   socket,
   sessionID,
-  logMessages: initialLogMessages, // Rename to avoid conflict
+  logMessages: initialLogMessages,
 }) => {
   const [logMessages, setLogMessages] = useState<string[]>(
     initialLogMessages || []
@@ -49,29 +54,25 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     isIframe ? "command" : "llm"
   );
 
-  const [conversationId, setConversationId] = useState<string | null>(null); // Add conversationId state
+  const [conversationId, setConversationId] = useState<string>('');
 
-  // Add this line to detect if running in an iframe
-
-  const extractConversationId = (content: string): string | null => { // New function to extract conversation ID
-    const lines = content.split('\n');
-    const firstLine = lines[0].trim();
-    if (firstLine.startsWith('# ')) {
-        return firstLine.substring(2).trim();
-    }
-    return null;
-  };
+  const updateConversationId = useCallback(
+    debounce((content: string) => {
+      const newConversationId = extractConversationId(content);
+      if (newConversationId !== conversationId) {
+        setConversationId(newConversationId);
+        if (socket) {
+          console.log("New CONVO ID", newConversationId)
+          socket.emit('updateConversationId', sessionID, newConversationId);
+        }
+      }
+    }, 500),
+    [conversationId, sessionID, socket]
+  );
 
   const sendContent = useCallback(() => {
     const content = viewRef.current?.state.doc.toString() || "";
     const filteredContent = content.replace(/\/\*[\s\S]*?\*\//g, "").trim();
-
-    const newConversationId = extractConversationId(content); // Extract conversation ID
-    if (newConversationId !== conversationId) {
-        setConversationId(newConversationId); // Update conversation ID state
-    }
-
-    // Prepare log messages for insertion
 
     // Save content to sessionStorage
     sessionStorage.setItem("editorContent", content);
@@ -224,14 +225,16 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     []
   ); // Debounce for 1 second
 
-  useEffect(() => {
+  const editorStateRef = useRef<EditorState | null>(null); // New ref for editor state
+
+  const initializeEditor = useCallback(() => {
     if (!editorRef.current) return;
-
+    console.log("Editor instantiated", socket)
     // Retrieve saved content from sessionStorage
-    const savedContent = sessionStorage.getItem("editorContent") || "Mike:"; // Default to "Mike:" if no saved content
+    const savedContent = sessionStorage.getItem("editorContent") || "Mike:";
 
-    const state = EditorState.create({
-      doc: savedContent, // Use saved content as initial document
+    const startState = EditorState.create({
+      doc: savedContent,
       extensions: [
         basicSetup,
         Prec.highest(
@@ -241,7 +244,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
               preventDefault: true,
               run: () => {
                 console.log("Save shortcut triggered");
-                sendContent();
+                sendContent();  
                 return true;
               },
             },
@@ -261,52 +264,88 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
         EditorView.lineWrapping,
         history(),
         themeCompartment.current.of([]),
+        collab({ clientID: sessionID }), // Update to use sessionID
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
-            saveContent(); // Call saveContent on document change
+            saveContent();
+            updateConversationId(update.state.doc.toString());
+            if (socket) {
+              const updates = sendableUpdates(update.state);
+              if (updates.length > 0) {
+                console.log("Pushing updates");
+                socket.emit('pushUpdates', sessionID, getSyncedVersion(update.state), updates, conversationId);
+              }
+            }
           }
         }),
       ],
     });
 
-    const view = new EditorView({ state, parent: editorRef.current });
+    editorStateRef.current = startState; // Store the initial state
+
+    if (viewRef.current) {
+      viewRef.current.destroy();
+    }
+
+    const view = new EditorView({ state: startState, parent: editorRef.current });
     viewRef.current = view;
 
-    return () => {
-      view.destroy();
-    };
-  }, [sendContent, saveContent]); // Add saveContent to dependencies
-
-  useEffect(() => {
-    const savedContent = sessionStorage.getItem("editorContent");
-    if (savedContent && viewRef.current) {
-      viewRef.current.dispatch({
-        changes: {
-          from: 0,
-          to: viewRef.current.state.doc.length,
-          insert: savedContent,
-        },
-      });
+    // Pull initial updates
+    if (socket) {
+      socket.emit('pullUpdates', sessionID, 0, conversationId);
     }
-  }, []); // Run once on mount
+  }, [socket, sessionID, saveContent, sendContent, updateConversationId, conversationId]);
 
   useEffect(() => {
-    if (!socket) return;
+    initializeEditor(); // Call to initialize the editor
+  }, [initializeEditor]);
 
-    socket.on("response", ({ from, cmd, request, response, conversationId: responseConversationId }) => { // Handle response with conversationId
-        console.log("response", from, cmd, request, response, responseConversationId);
-        if (cmd === "append" && viewRef.current && responseConversationId === conversationId) { // Check conversationId
-            const doc = viewRef.current.state.doc;
-            viewRef.current.dispatch({
-                changes: { from: doc.length, insert: "\n" + response },
-            });
-        }
-    });
+  useEffect(() => {
+    if (!socket || !viewRef.current || !editorStateRef.current) return;
+
+    const handleReceiveUpdates = (updatedConversationId: string, updates: any[]) => {
+      console.log("Got updates for conversation", updatedConversationId);
+      // Check if editorStateRef.current is valid
+      if (!editorStateRef.current) {
+        console.error("Editor state is not initialized");
+        return;
+      }
+      // Check if viewRef.current is valid
+      if (!viewRef.current) {
+        console.error("Editor view is not initialized");
+        return;
+      }
+      if (updatedConversationId === conversationId) {
+        console.log("1")
+        const newState = receiveUpdates(editorStateRef.current, updates);
+        console.log("2")
+        viewRef.current.update([newState]);
+        console.log("3")
+        editorStateRef.current = viewRef.current.state;
+      }
+    };
+
+    const handleResponse = ({ from, cmd, request, response, conversationId: responseConversationId }: any) => {
+      console.log("response", from, cmd, request, response, responseConversationId);
+      if (cmd === "append" && viewRef.current && responseConversationId === conversationId) {
+        const currentState = viewRef.current.state;
+        const transaction = currentState.update({
+          changes: { from: currentState.doc.length, insert: "\n" + response }
+        });
+        const newState = transaction.state;
+        viewRef.current.update([transaction]);
+        editorStateRef.current = newState; // Update the editor state ref
+      }
+    };
+
+    socket.on('receiveUpdates', handleReceiveUpdates);
+    socket.on("response", handleResponse);
 
     return () => {
-        socket.off("response");
+      socket.off("response", handleResponse);
+      socket.off('receiveUpdates', handleReceiveUpdates);
     };
-  }, [socket, conversationId]); // Add conversationId to dependencies
+  }, [socket, sessionID, conversationId]);
 
   useEffect(() => {
     const handleLogMessage = (event: MessageEvent) => {
@@ -345,7 +384,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
         overflow="hidden"
       >
         <Heading as="h2" size="lg">
-          Collaboration Page - {mode.toUpperCase()} Mode
+          A Collaboration Page - {mode.toUpperCase()} Mode
          </Heading>
          <h3>
          {isIframe ? " (Iframe)" : "Native"}
