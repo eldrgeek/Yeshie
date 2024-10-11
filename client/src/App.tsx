@@ -6,8 +6,8 @@ import { ChakraProvider, Box } from "@chakra-ui/react";
 import CollaborationPage from "./Components/CollaborationPage";
 import Logging from "./Components/Logging";
 import RewindWrapper from "./Components/RewindWrapper";
+import TipTapCollaboration from "./Components/TipTapCollaboration";
 import theme from './styles/theme';
-
 
 function App() {
   const [message, setMessage] = useState("");
@@ -15,10 +15,10 @@ function App() {
   const [session, setSession] = useState(urlSession);
   const [connected, setConnected] = useState(false);
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [currentView, setCurrentView] = useState<'collaboration' | 'logging' | 'rewind'>('collaboration');
+  const [currentView, setCurrentView] = useState<'collaboration' | 'logging' | 'rewind' | 'tiptap'>('collaboration');
+  const [conversationId, setConversationId] = useState<string | null>(null); // New state for conversation ID
 
   const rewindWrapperRef = useRef<{ handleGoClick: () => void; handleKeyDown: (event: KeyboardEvent) => void; handleSave: () => void } | null>(null);
-
 
   useEffect(() => {
     fetch("/api/hello")
@@ -48,7 +48,7 @@ function App() {
       setSession(session);
     });
 
-    
+
 
     newSocket.on("connect_error", (error) => {
       console.error("Connection error:", error);
@@ -71,7 +71,7 @@ function App() {
             event.preventDefault();
             setCurrentView('collaboration');
             break;
-          case '1': // Added case for ctrl-1
+          case '1':
             event.preventDefault();
             setCurrentView('collaboration');
             break;
@@ -82,6 +82,10 @@ function App() {
           case '3':
             event.preventDefault();
             setCurrentView('rewind');
+            break;
+          case '5': // Add a new shortcut for TipTap
+            event.preventDefault();
+            setCurrentView('tiptap');
             break;
           case 's':
             event.preventDefault();
@@ -100,6 +104,7 @@ function App() {
     },
     []
   );
+
   useEffect(() => {
     document.addEventListener("keydown", handleKeyDown);
     return () => {
@@ -114,7 +119,11 @@ function App() {
       style={{display: "none"}}></div>
       <Box className="App" p={0} width="100%"> 
         {currentView === 'collaboration' && (
-          <CollaborationPage socket={socket} logMessages={[]} sessionID={session || ''} />
+          <CollaborationPage 
+            socket={socket} 
+            logMessages={[]} 
+            sessionID={session || ''} 
+          />
         )}
         {currentView === 'logging' && (
           <Logging 
@@ -130,10 +139,12 @@ function App() {
             ref={rewindWrapperRef}
           />
         )}
+        {currentView === 'tiptap' && (
+          <TipTapCollaboration />
+        )}
       </Box>
     </ChakraProvider>
   );
-
 }
 
 export default App;

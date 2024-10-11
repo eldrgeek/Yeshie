@@ -62,8 +62,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
       if (newConversationId !== conversationId) {
         setConversationId(newConversationId);
         if (socket) {
-          console.log("New CONVO ID", newConversationId)
-          socket.emit('updateConversationId', sessionID, newConversationId);
+          socket.emit('conversation:', sessionID, newConversationId);
         }
       }
     }, 500),

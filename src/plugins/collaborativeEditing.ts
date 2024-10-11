@@ -8,7 +8,8 @@ export default function collaborativeEditor(sm: SessionManager) {
     socket.on("session:", (newSessionId: string, componentType: string) => {
         sessionId = newSessionId;
     });
-    socket.on("conversation:", (conversationIdationId: string) => {
+    socket.on("conversation:", (sessionId: string, conversationId: string) => {
+        sm.setConversationId(sessionId, conversationId);
         
     });
     socket.on('pullUpdates', (sessionId: string, version: number, conversationId: string) => {
