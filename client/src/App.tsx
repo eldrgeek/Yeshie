@@ -7,6 +7,7 @@ import CollaborationPage from "./Components/CollaborationPage";
 import Logging from "./Components/Logging";
 import RewindWrapper from "./Components/RewindWrapper";
 import TipTapCollaboration from "./Components/TipTapCollaboration";
+import MilkdownCollab from "./Components/MilkdownCollab";
 import theme from './styles/theme';
 
 function App() {
@@ -15,8 +16,8 @@ function App() {
   const [session, setSession] = useState(urlSession);
   const [connected, setConnected] = useState(false);
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [currentView, setCurrentView] = useState<'collaboration' | 'logging' | 'rewind' | 'tiptap'>('collaboration');
-  const [conversationId, setConversationId] = useState<string | null>(null); // New state for conversation ID
+  const [currentView, setCurrentView] = useState<'collaboration' | 'logging' | 'rewind' | 'tiptap' | 'milkdown'>('milkdown');
+  // const [conversationId, setConversationId] = useState<string | null>(null); // New state for conversation ID
 
   const rewindWrapperRef = useRef<{ handleGoClick: () => void; handleKeyDown: (event: KeyboardEvent) => void; handleSave: () => void } | null>(null);
 
@@ -99,6 +100,10 @@ function App() {
               rewindWrapperRef.current.handleGoClick();
             }
             break;
+          case '6': // Add a new shortcut for MilkdownCollab
+            event.preventDefault();
+            setCurrentView('milkdown');
+            break;
         }
       }
     },
@@ -141,6 +146,9 @@ function App() {
         )}
         {currentView === 'tiptap' && (
           <TipTapCollaboration />
+        )}
+        {currentView === 'milkdown' && (
+          <MilkdownCollab />
         )}
       </Box>
     </ChakraProvider>
