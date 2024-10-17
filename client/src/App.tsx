@@ -8,7 +8,7 @@ import Logging from "./Components/Logging";
 import RewindWrapper from "./Components/RewindWrapper";
 import TipTapCollaboration from "./Components/TipTapCollaboration";
 import MilkdownCollab from "./Components/MilkdownCollab";
-import theme from './styles/theme';
+import theme from "./styles/theme";
 
 function App() {
   const [message, setMessage] = useState("");
@@ -16,10 +16,16 @@ function App() {
   const [session, setSession] = useState(urlSession);
   const [connected, setConnected] = useState(false);
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [currentView, setCurrentView] = useState<'collaboration' | 'logging' | 'rewind' | 'tiptap' | 'milkdown'>('milkdown');
+  const [currentView, setCurrentView] = useState<
+    "collaboration" | "logging" | "rewind" | "tiptap" | "milkdown"
+  >("collaboration");
   // const [conversationId, setConversationId] = useState<string | null>(null); // New state for conversation ID
 
-  const rewindWrapperRef = useRef<{ handleGoClick: () => void; handleKeyDown: (event: KeyboardEvent) => void; handleSave: () => void } | null>(null);
+  const rewindWrapperRef = useRef<{
+    handleGoClick: () => void;
+    handleKeyDown: (event: KeyboardEvent) => void;
+    handleSave: () => void;
+  } | null>(null);
 
   useEffect(() => {
     fetch("/api/hello")
@@ -49,8 +55,6 @@ function App() {
       setSession(session);
     });
 
-
-
     newSocket.on("connect_error", (error) => {
       console.error("Connection error:", error);
       setConnected(false);
@@ -63,52 +67,49 @@ function App() {
     };
   }, [session]);
 
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey) {
-        console.log("ctrl key", event.key);
-        switch (event.key) {
-          case '4':
-            event.preventDefault();
-            setCurrentView('collaboration');
-            break;
-          case '1':
-            event.preventDefault();
-            setCurrentView('collaboration');
-            break;
-          case '2':
-            event.preventDefault();
-            setCurrentView('logging');
-            break;
-          case '3':
-            event.preventDefault();
-            setCurrentView('rewind');
-            break;
-          case '5': // Add a new shortcut for TipTap
-            event.preventDefault();
-            setCurrentView('tiptap');
-            break;
-          case 's':
-            event.preventDefault();
-            if (rewindWrapperRef.current) {
-              rewindWrapperRef.current.handleSave();
-            }
-            break;
-          case 'g':
-            event.preventDefault();
-            if (rewindWrapperRef.current) {
-              rewindWrapperRef.current.handleGoClick();
-            }
-            break;
-          case '6': // Add a new shortcut for MilkdownCollab
-            event.preventDefault();
-            setCurrentView('milkdown');
-            break;
-        }
+  const handleKeyDown = useCallback((event: KeyboardEvent) => {
+    if (event.metaKey || event.ctrlKey) {
+      console.log("ctrl key", event.key);
+      switch (event.key) {
+        case "4":
+          event.preventDefault();
+          setCurrentView("collaboration");
+          break;
+        case "1":
+          event.preventDefault();
+          setCurrentView("collaboration");
+          break;
+        case "2":
+          event.preventDefault();
+          setCurrentView("logging");
+          break;
+        case "3":
+          event.preventDefault();
+          setCurrentView("rewind");
+          break;
+        case "5": // Add a new shortcut for TipTap
+          event.preventDefault();
+          setCurrentView("tiptap");
+          break;
+        case "s":
+          event.preventDefault();
+          if (rewindWrapperRef.current) {
+            rewindWrapperRef.current.handleSave();
+          }
+          break;
+        case "g":
+          event.preventDefault();
+          if (rewindWrapperRef.current) {
+            rewindWrapperRef.current.handleGoClick();
+          }
+          break;
+        case "6": // Add a new shortcut for MilkdownCollab
+          event.preventDefault();
+          setCurrentView("milkdown");
+          break;
       }
-    },
-    []
-  );
+    }
+  }, []);
 
   useEffect(() => {
     document.addEventListener("keydown", handleKeyDown);
@@ -119,37 +120,32 @@ function App() {
 
   return (
     <ChakraProvider theme={theme}>
-      <div id="aiaugie" data-server="http://localhost:3000" 
-      data-session={session}
-      style={{display: "none"}}></div>
-      <Box className="App" p={0} width="100%"> 
-        {currentView === 'collaboration' && (
-          <CollaborationPage 
-            socket={socket} 
-            logMessages={[]} 
-            sessionID={session || ''} 
+      <div
+        id="aiaugie"
+        data-server="http://localhost:3000"
+        data-session={session}
+        style={{ display: "none" }}
+      ></div>
+      <Box className="App" p={0} width="100%">
+        {currentView === "collaboration" && (
+          <CollaborationPage
+            socket={socket}
+            logMessages={[]}
+            sessionID={session || ""}
           />
         )}
-        {currentView === 'logging' && (
-          <Logging 
-            socket={socket} 
-            connected={connected} 
-            message={message} 
-          />
+        {currentView === "logging" && (
+          <Logging socket={socket} connected={connected} message={message} />
         )}
-        {currentView === 'rewind' && (
-          <RewindWrapper 
-            socket={socket} 
-            sessionId={session || ''} 
+        {currentView === "rewind" && (
+          <RewindWrapper
+            socket={socket}
+            sessionId={session || ""}
             ref={rewindWrapperRef}
           />
         )}
-        {currentView === 'tiptap' && (
-          <TipTapCollaboration />
-        )}
-        {currentView === 'milkdown' && (
-          <MilkdownCollab />
-        )}
+        {currentView === "tiptap" && <TipTapCollaboration />}
+        {currentView === "milkdown" && <MilkdownCollab />}
       </Box>
     </ChakraProvider>
   );

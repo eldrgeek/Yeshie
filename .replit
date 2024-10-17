@@ -1,0 +1,23 @@
+env = { PATH = "./scripts:${PATH}" }
+modules = ["nodejs-20", "python-3.12", "web", "bash"]
+run = "./scripts/dev dev"
+[nix]
+channel = "stable-24_05"
+
+[deployment]
+run = ["sh", "-c", "dev dev"]
+
+[[ports]]
+localPort = 1012
+
+[[ports]]
+localPort = 1815
+
+[[ports]]
+localPort = 3000
+externalPort = 3000
+exposeLocalhost = true
+
+[[ports]]
+localPort = 3001
+externalPort = 80
