@@ -1,23 +1,51 @@
-env = { PATH = "./scripts:${PATH}" }
-modules = ["nodejs-20", "python-3.12", "web", "bash"]
-run = "./scripts/dev dev"
+run = "npm start"
+entrypoint = "src/server.ts"
+modules = ["nodejs-20"]
+
+[env]
+PATH = "/home/runner/$REPL_SLUG/.config/npm/node_global/bin:/home/runner/$REPL_SLUG/node_modules/.bin"
+npm_config_prefix = "/home/runner/$REPL_SLUG/.config/npm/node_global"
+
 [nix]
 channel = "stable-24_05"
 
+[run.env]
+NODE_ENV = "production"
+
 [deployment]
-run = ["sh", "-c", "dev dev"]
-
-[[ports]]
-localPort = 1012
-
-[[ports]]
-localPort = 1815
+run = ["sh", "-c", "npm start"]
+build = ["sh", "-c", "npm install && npm run build:repl"]
+deploymentTarget = "cloudrun"
 
 [[ports]]
 localPort = 3000
 externalPort = 3000
-exposeLocalhost = true
 
 [[ports]]
 localPort = 3001
 externalPort = 80
+
+[languages]
+[languages.nodejs]
+version = "20.x"
+
+[languages.typescript]
+pattern = "**/{*.ts,*.js,*.tsx,*.jsx}"
+syntax = "typescript"
+
+[languages.typescript.languageServer]
+start = [ "typescript-language-server", "--stdio" ]
+
+[packager]
+language = "nodejs"
+
+[packager.features]
+enabledForHosting = true
+packageSearch = true
+guessImports = true
+
+[gitHubImport]
+requiredFiles = [".replit", "replit.nix", ".config"]
+
+[build]
+command = "npm install && npm run build:repl"

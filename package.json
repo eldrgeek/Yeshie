@@ -10,7 +10,7 @@
     "dev": "concurrently \"npm run dev:monitor\" \"npm run dev:server\" \"npm run dev:client\"  \"npm run dev:extension\" \"npm run dev:messages\"",
     "build:client": "cd client && npm run build",
     "build:server": "tsc",
-    "build:all": "npm run build:server && npm run build:client",
+    "build:repl": "npm run build:server && npm run build:client",
     "dev:listener": "nodemon --watch src -e py --exec python src/listener.py",
     "dev:monitor": "nodemon --watch src -e py --exec python src/monitor.py",
     "dev:testkb": "nodemon --watch src -e py --exec python src/testkb.py",
