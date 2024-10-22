@@ -230,7 +230,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     if (!editorRef.current) return;
     console.log("Editor instantiated", socket)
     // Retrieve saved content from sessionStorage
-    const savedContent = sessionStorage.getItem("editorContent") || "Mike:";
+    const savedContent = sessionStorage.getItem("editorContent") || "Yeshie: add voice to github";
 
     const startState = EditorState.create({
       doc: savedContent,
@@ -279,7 +279,6 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
         }),
       ],
     });
-
     editorStateRef.current = startState; // Store the initial state
 
     if (viewRef.current) {
@@ -304,12 +303,10 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
 
     const handleReceiveUpdates = (updatedConversationId: string, updates: any[]) => {
       console.log("Got updates for conversation", updatedConversationId);
-      // Check if editorStateRef.current is valid
       if (!editorStateRef.current) {
         console.error("Editor state is not initialized");
         return;
       }
-      // Check if viewRef.current is valid
       if (!viewRef.current) {
         console.error("Editor view is not initialized");
         return;

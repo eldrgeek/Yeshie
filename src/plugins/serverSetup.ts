@@ -2,11 +2,25 @@ import express from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import path from 'path';
+import fs from 'fs';
+import dotenv from 'dotenv';
+
+// Load environment variables from .env file
+dotenv.config();
+
 const IS_DEVELOPMENT = process.env.NODE_ENV !== "production";
 const PORT = IS_DEVELOPMENT ? 3001 : process.env.PORT || 8080;
 
 export default function serverSetup() {
     const app = express();
+    console.log(`PORT: ${PORT}`);
+    const clientBuildPath = path.join(__dirname, '../../client/dist');
+    console.log(`clientBuildPath: ${clientBuildPath}`);
+    if (!IS_DEVELOPMENT && fs.existsSync(clientBuildPath)) {
+        console.log(`Serving static files from ${clientBuildPath}`);
+        app.use(express.static(clientBuildPath));
+    }
     const httpServer = createServer(app);
     const io = new Server(httpServer, {
         // cors: {
