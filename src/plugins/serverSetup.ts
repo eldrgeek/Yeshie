@@ -2,6 +2,8 @@ import express from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import dotenv from "dotenv";
+dotenv.config();
 const IS_DEVELOPMENT = process.env.NODE_ENV !== "production";
 const PORT = IS_DEVELOPMENT ? 3001 : process.env.PORT || 8080;
 
