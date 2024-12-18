@@ -14,3 +14,26 @@ body.plasmo-google-sidebar-show * {
   top: 0px;
   right: 0px;
 }
+
+#sidebar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px;
+}
+
+#sidebar span {
+  margin: 0;
+}
+
+#sidebar img {
+  margin: 0;
+}
+
+#sidebar iframe {
+  margin: 0;
+  padding: 0;
+  flex-grow: 1;
+  width: 100%;
+  height: auto;
+}

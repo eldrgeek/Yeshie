@@ -93,6 +93,11 @@ const Yeshie: React.FC = () => {
             }
         }
     }
+
+    if (event.data && event.data.type === "sessionID") {
+      console.log("Received session ID from iframe:", event.data.sessionID);
+      setSessionID(event.data.sessionID);
+    }
   }, []);
 
   useEffect(() => {
@@ -181,9 +186,8 @@ const Yeshie: React.FC = () => {
   }
 
   return (
-    <div id="sidebar" className={isOpen ? "open" : "closed"}>
+    <div id="sidebar" className={isOpen ? "open" : "closed"} style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       {/* <PythonComponent/> */}
-      <h2>Tab ID: {tabId !== null ? tabId : 'Loading...'}</h2>
       <img 
         src={iconBase64} 
         alt="Yeshie Icon" 
@@ -191,13 +195,15 @@ const Yeshie: React.FC = () => {
         width={32} 
         height={32} 
       />
-      <h2>This is YESHIE</h2>
       <iframe 
-        src={`http://localhost:3000?sessionID=${sessionID}&tabId=${tabId}&mode=${context?.mode}`} 
+        src={`http://localhost:3000?tabId=${tabId}&mode=${context?.mode}`} 
         width="100%" 
-        height="500px" 
+        style={{ flex: 1 }}
         title="Localhost Iframe" 
       />
+      <span>Tab ID: {tabId !== null ? tabId : 'Loading...'}</span>
+      <span>Session ID: {sessionID !== null ? sessionID : 'Loading...'}</span>
+      
       <button className="sidebar-toggle" onClick={() => setIsOpen(!isOpen)}>
         <img src={iconBase64} alt="Yeshie Icon" width={32} height={32} />
         {isOpen ? "🟡" : "🟣"}
