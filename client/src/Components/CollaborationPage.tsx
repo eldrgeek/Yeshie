@@ -158,57 +158,46 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     console.log("LINES", lines);
 
     const sendLine = (index: number) => {
-      if (index >= lines.length) return;
+        if (index >= lines.length) return;
 
-      const line = lines[index].trim();
-      if(!line.startsWith("//")){
-        console.log(`SENDING line '${line}'`);
+        const line = lines[index].trim();
+        if (!line.startsWith("//")) {
+            console.log(`SENDING line '${line}'`);
 
-        if (line.startsWith('message ')) {
-          toast({
-            title: "Message",
-            description: line.substring(8),
-            status: "info",
-            duration: 2000,
-            isClosable: true,
-          });
-        } else {
-          if (window.parent && window.parent !== window) {
-            window.parent.postMessage(
-              { type: "monitor", op: mode, from: sessionID, line },
-              "*"
-            );
+            if (line.startsWith('message ')) {
+                toast({
+                    title: "Message",
+                    description: line.substring(8),
+                    status: "info",
+                    duration: 2000,
+                    isClosable: true,
+                });
+            } else {
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage(
+                        { type: "monitor", op: mode, from: sessionID, line },
+                        "*"
+                    );
 
-            // Insert log messages into the editor
-            // if (logMessages) {
-            //   const messages = logMessages.join("\n")
-            //   viewRef.current?.dispatch({
-            //     changes: {
-            //       from: viewRef.current.state.doc.length,
-            //       insert: messages,
-            //     },
-            //   });
-            // }
-
-            toast({
-              title: "PostMessage",
-              description: line,
-              status: "info",
-              duration: 2000,
-              isClosable: true,
-            });
-          } else {
-            toast({
-              title: "Cannot send message: No parent window",
-              status: "error",
-              duration: 2000,
-              isClosable: true,
-            });
-          }
+                    toast({
+                        title: "PostMessage",
+                        description: line,
+                        status: "info",
+                        duration: 2000,
+                        isClosable: true,
+                    });
+                } else {
+                    toast({
+                        title: "Cannot send message: No parent window",
+                        status: "error",
+                        duration: 2000,
+                        isClosable: true,
+                    });
+                }
+            }
         }
-      }
-      // Schedule the next line to be sent after 1 second
-      setTimeout(() => sendLine(index + 1), 1000);
+        // Schedule the next line to be sent after 1 second
+        setTimeout(() => sendLine(index + 1), 1000);
     };
 
     // Start sending lines
@@ -329,8 +318,10 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
           changes: { from: currentState.doc.length, insert: "\n" + response }
         });
         const newState = transaction.state;
-        viewRef.current.update([transaction]);
-        editorStateRef.current = newState; // Update the editor state ref
+        if (viewRef.current) {
+          viewRef.current.update([transaction]);
+          editorStateRef.current = newState; // Update the editor state ref
+        }
       }
     };
 
@@ -361,6 +352,29 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
 
     return () => {
       window.removeEventListener("message", handleLogMessage);
+    };
+  }, []); // Run once on mount
+
+  useEffect(() => {
+    const handleYeshieResponse = (event: MessageEvent) => {
+        if (event.data.type === "commandResult" ) {
+          console.log(event)
+            const responseContent = event.data.result; // Assuming the response contains the content
+            const currentState = viewRef.current?.state;
+            if (currentState) {
+                const transaction = currentState.update({
+                    changes: { from: currentState.doc.length, insert: "\n" + responseContent }
+                });
+                viewRef.current?.update([transaction]);
+                editorStateRef.current = transaction.state; // Update the editor state ref
+            }
+        }
+    };
+
+    window.addEventListener("message", handleYeshieResponse);
+
+    return () => {
+        window.removeEventListener("message", handleYeshieResponse);
     };
   }, []); // Run once on mount
 

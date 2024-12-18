@@ -75,11 +75,9 @@ const Yeshie: React.FC = () => {
                 console.log("Result", result);
                 event.source?.postMessage({ 
                     type: "commandResult", 
-                    data: {
-                        command: event.data.line,
-                        result: result,
-                        timestamp: new Date().toISOString()
-                    }
+                    command: event.data.line,
+                    result: result,
+                    timestamp: new Date().toISOString()
                 }, { targetOrigin: event.origin });
             } catch (error) {
                 console.error("Error processing command:", error);
