@@ -63,17 +63,39 @@ const Yeshie: React.FC = () => {
     [updateContext]
   )
 
-  const handleMessage = useCallback((event: MessageEvent) => {
+  const handleMessage = useCallback(async (event: MessageEvent) => {
     if (event.origin !== "http://localhost:3000") return;
 
     if (event.data && event.data.type === "monitor") {
-      console.log("Received message from CollaborationPage iframe:", event.data)
-      if (event.data.op === "command") {
-        console.log("Command", event.data.line)
-        Stepper(event.data.line)
-      }
+        console.log("Received message from CollaborationPage iframe:", event.origin, event.data);
+        if (event.data.op === "command") {
+            console.log("Command", event.data.line);
+            try {
+                const result = await Stepper(event.data.line);
+                console.log("Result", result);
+                event.source?.postMessage({ 
+                    type: "commandResult", 
+                    data: {
+                        command: event.data.line,
+                        result: result,
+                        timestamp: new Date().toISOString()
+                    }
+                }, { targetOrigin: event.origin });
+            } catch (error) {
+                console.error("Error processing command:", error);
+                event.source?.postMessage({ 
+                    type: "commandResult", 
+                    data: {
+                        command: event.data.line,
+                        result: null,
+                        error: error.message,
+                        timestamp: new Date().toISOString()
+                    }
+                }, { targetOrigin: event.origin }); //
+            }
+        }
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
     if (window.top !== window.self) {
@@ -171,6 +193,7 @@ const Yeshie: React.FC = () => {
         width={32} 
         height={32} 
       />
+      <h2>This is YESHIE</h2>
       <iframe 
         src={`http://localhost:3000?sessionID=${sessionID}&tabId=${tabId}&mode=${context?.mode}`} 
         width="100%" 
