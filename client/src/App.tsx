@@ -54,7 +54,7 @@ function App() {
       newSocket.emit("session:", session, "client");
       history.pushState({}, "", location.pathname + `?session=${session}`);
       setSession(session);
-      window.parent.postMessage({ type: "sessionID", sessionID: storedSession }, "*");
+      window.parent.postMessage({ type: "sessionID", sessionID: session }, "*");
 
     });
 
