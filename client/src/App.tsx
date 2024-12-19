@@ -46,6 +46,7 @@ function App() {
         newSocket.emit("session?", "client");
       } else {
         newSocket.emit("session:", session);
+        window.parent.postMessage({ type: "sessionID", sessionID: session }, "*");
       }
     });
 
@@ -53,6 +54,8 @@ function App() {
       newSocket.emit("session:", session, "client");
       history.pushState({}, "", location.pathname + `?session=${session}`);
       setSession(session);
+      window.parent.postMessage({ type: "sessionID", sessionID: storedSession }, "*");
+
     });
 
     newSocket.on("connect_error", (error) => {
