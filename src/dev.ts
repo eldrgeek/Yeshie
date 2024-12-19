@@ -51,6 +51,7 @@ const profiles: { [key: string]: string[] } = {
   dev: ["monitor", "server", "client", "extension"],
   win: ["winmonitor", "extension"],
   llm: ["server", "llm"],
+  codeStore: ["server", "codeStore"],
   all: jobs.map((job) => job.name),
 };
 
