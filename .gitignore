@@ -1,7 +1,8 @@
-node_modules/
+node_modules
 client/node_modules/
 extention/node_modules/
 .env
+/logs
 dist/*
 dist/server.js
 venv/
@@ -55,3 +56,4 @@ client/package-lock.json
 client/.firebase/hosting.ZGlzdA.cache
 package-lock.json
 client/package.json
+node_modules

@@ -13,6 +13,8 @@ Yeshie AI is a collaborative system that integrates a Chrome extension, a React-
 7. [Troubleshooting](#troubleshooting)
 8. [Deployment on Replit](#deployment-on-replit)
 9. [Packaging Components](#packaging-components)
+10. [Utilities](#utilities)
+11. [Contributing](#contributing)
 
 ## System Requirements
 
@@ -197,6 +199,68 @@ app.get('/download', (req, res) => {
 ```
 
 Ensure to place the packaged extension and monitor in the appropriate directories for the server to serve them.
+
+## Utilities
+
+The `scripts` directory contains various utility scripts to help with development and maintenance:
+
+### killports.sh
+
+A utility script to free up commonly used ports (3000 and 3001) that might be stuck in use.
+
+Usage:
+```bash
+# Make the script executable (first time only)
+chmod +x scripts/killports.sh
+
+# Run the script
+./scripts/killports.sh
+```
+
+Features:
+- Automatically checks ports 3000 (client) and 3001 (server)
+- Identifies processes using these ports
+- Safely terminates any processes found
+- Verifies ports are free after termination
+- Provides detailed feedback about actions taken
+
+Example output:
+```bash
+Checking port 3000...
+Found process 1234 using port 3000
+Killing process...
+Successfully killed process 1234
+
+Checking port 3001...
+No process found using port 3001
+
+Verifying ports are free...
+Port 3000 is free
+Port 3001 is free
+```
+
+### dev.ts
+
+A TypeScript-based development environment manager that:
+- Automatically detects file dependencies
+- Watches for changes in both main files and their imports
+- Supports both TypeScript and Python files
+- Manages different development profiles
+- Provides concurrent execution of multiple services
+
+Usage:
+```bash
+# Run the default development profile
+dev
+
+# Run a specific profile
+dev dev        # Development profile
+dev codeStore  # CodeStore profile
+dev llm        # LLM profile
+
+# Run a specific file
+dev monitor    # Run monitor.py with auto-reload
+```
 
 ## Contributing
 
