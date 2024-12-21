@@ -15,7 +15,7 @@ interface FileAnalysis {
 
 interface Job {
   name: string;
-  do: string;
+  do: string | { command: string; args: string[] };
   dependencies?: string[];
   env?: Record<string, string>;
 }
@@ -40,13 +40,26 @@ class DevEnvironment {
     const jobsToRun = this.profiles[profileName as Profile] || [profileName];
     const selectedJobs = this.jobs.filter(job => jobsToRun.includes(job.name));
     
-    await concurrently(
-      selectedJobs.map(job => ({
-        command: job.do,
-        name: job.name,
-        env: job.env
-      }))
-    );
+    const commands = selectedJobs.map(job => {
+      if (typeof job.do === 'string' && job.do.includes('npm-run-all')) {
+        // Extract the script names from npm-run-all command
+        const scripts = job.do.split('--parallel')[1].trim().split(' ');
+        // Convert each script to a full npm run command
+        return scripts.map(script => ({
+          command: `npm run ${script}`,
+          name: script,
+          env: job.env
+        }));
+      } else {
+        return [{
+          command: typeof job.do === 'string' ? job.do : `${job.do.command} ${job.do.args.join(' ')}`,
+          name: job.name,
+          env: job.env
+        }];
+      }
+    }).flat();
+    
+    await concurrently(commands);
   }
 }
 
@@ -245,6 +258,24 @@ class JobBuilder {
     const jobs: Job[] = [];
     const files = await this.findSourceFiles();
     const requestedFile = process.argv[2];
+
+    if (requestedFile === 'dev') {
+      // Special case for 'dev dev' command - run all dev scripts concurrently
+      const devScripts = [
+        'dev:monitor',
+        'dev:server',
+        'dev:client',
+        'dev:extension',
+        'dev:messages'
+      ];
+      
+      // Return a separate job for each script to run in parallel
+      return devScripts.map(script => ({
+        name: script,
+        do: `npm run ${script}`,
+        dependencies: []
+      }));
+    }
 
     if (requestedFile) {
       // If a specific file/profile is requested, only process that
