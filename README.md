@@ -93,9 +93,21 @@ This command will start the following components:
 
 ## Development
 
-- Server code is located in the `src` directory
-- Client code is in the `client` directory
-- Chrome extension code is in the `extension` directory
+The project's Python components are organized as follows:
+
+### Core Components
+- `src/codeStore.py`: Handles code document processing and management
+- `src/llmserver.py`: LLM server implementation with vector store integration
+- `src/vectorstore.py`: Vector store management and operations
+- `src/monitor.py`: System monitoring and event handling
+
+### Supporting Modules
+- `src/embedding_model.py`: Manages the HuggingFace embedding model (all-MiniLM-L6-v2)
+- `src/gitignore.py`: Handles .gitignore pattern matching for file processing
+
+### Test Suites
+- `src/test_llmserver.py`: Test suite for LLM server functionality
+- `src/test_vectorstore.py`: Test suite for vector store operations
 
 To run individual components:
 
@@ -136,11 +148,37 @@ Each major component has standalone tests that can be run independently for deve
    - Verify document storage and retrieval
    - Test different vector store types (basic and chroma)
 
+4. **Full Test Suite**:
+   ```bash
+   python -m pytest src/test_*.py
+   ```
+   This will run all test files including:
+   - LLMServer tests (`test_llmserver.py`)
+   - VectorStore tests (`test_vectorstore.py`)
+
 Make sure to:
 - Set up your `.env` file with a valid `OPENAI_API_KEY`
 - Run tests in order (CodeStore → VectorStore → LLMServer)
 - Check the generated `vector_stores` directory for stored indices
 - Review the logs in the `logs` directory for detailed output
+
+### System Architecture
+
+The system uses the following key components:
+
+1. **Embedding Model**: Uses HuggingFace's all-MiniLM-L6-v2 model for:
+   - Document embedding generation
+   - Semantic search functionality
+   - Vector store operations
+
+2. **Vector Store**: Supports two types of stores:
+   - Basic: Simple vector store for testing and development
+   - Chroma: Production-ready vector store with persistence
+
+3. **Code Processing**:
+   - Respects .gitignore patterns
+   - Handles multiple file encodings
+   - Processes code files with metadata
 
 ## Troubleshooting
 

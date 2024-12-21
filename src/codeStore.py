@@ -1,179 +1,272 @@
-import os
-import json
 from pathlib import Path
-from llama_index.core import Document
-import vectorstore
-import customprint
+import os
+import sys
+import time
 import fnmatch
+import logging
+import customprint  # Import the custom print module
+from typing import List, Set, Dict, Optional, Generator
+from llama_index.core import Document
+import chardet
+from gitignore import GitignoreParser  # Import the GitignoreParser from gitignore.py
+from embedding_model import init_embedding_model
+
+class CodeDocumentProcessor:
+    """Handles reading and processing of code files."""
+    
+    SUPPORTED_EXTENSIONS = {
+        '.py', '.js', '.jsx', '.ts', '.tsx',
+        '.html', '.css', '.json', '.yaml', '.yml',
+        '.md', '.txt', '.sh', '.bash', '.sql'
+    }
+
+    def __init__(self):
+        self.errors: List[Dict] = []
+
+    def is_supported_file(self, path: Path) -> bool:
+        """Check if a file is supported based on its extension."""
+        return path.suffix.lower() in self.SUPPORTED_EXTENSIONS
+
+    def read_file(self, path: Path) -> Optional[str]:
+        """
+        Read a file with proper encoding detection and error handling.
+        
+        Args:
+            path: Path to the file to read
+            
+        Returns:
+            Optional[str]: File contents if successful, None if failed
+        """
+        try:
+            # First try UTF-8
+            try:
+                with path.open('r', encoding='utf-8') as f:
+                    return f.read()
+            except UnicodeDecodeError:
+                # If UTF-8 fails, detect encoding
+                with path.open('rb') as f:
+                    raw_data = f.read()
+                    result = chardet.detect(raw_data)
+                    encoding = result['encoding']
+                    
+                if encoding:
+                    with path.open('r', encoding=encoding) as f:
+                        return f.read()
+                else:
+                    raise ValueError(f"Could not detect encoding for {path}")
+
+        except Exception as e:
+            self.errors.append({
+                'path': str(path),
+                'error': str(e),
+                'type': 'read_error'
+            })
+            logging.error(f"Error reading file {path}: {e}")
+            return None
+
+    def create_document(self, path: Path, content: str, metadata: Dict) -> Document:
+        """Create a Document object from file content with metadata."""
+        return Document(
+            text=content,
+            metadata={
+                'file_path': str(path),
+                'file_type': path.suffix.lower(),
+                'file_name': path.name,
+                **metadata
+            }
+        )
 
 class CodeStore:
-    def __init__(self, project_path, store_name=None, vector_store_manager=None):
-        print("start")
-        self.project_path = Path(project_path)
+    """Main class for managing code document storage and processing."""
+    
+    def __init__(self, project_path: str, store_name: Optional[str] = None):
+        self.project_path = Path(project_path).resolve()
         self.store_name = store_name or self.project_path.name
-        self.vector_store_manager = vector_store_manager or vectorstore.getManager()
-        self.file_tracker_path = None
+        self.processor = CodeDocumentProcessor()
+        self.gitignore = GitignoreParser(self.project_path / '.gitignore')  # Use the imported GitignoreParser
         self.docs_processed = 0
-        self.ignored = None
-        self.project_path = Path("./extension")
-        self._get_new_or_modified_documents()
-        exit(0)
-        self.update_store()
-
-    def update_store(self):
-        index = self.vector_store_manager.add_vector_store(self.store_name, "basic")
-        store_path = self.vector_store_manager.get_store_path(self.store_name)
-        self.file_tracker_path = store_path / "file_tracker.json"
-        documents = self._get_new_or_modified_documents()
-        if documents:
-            self.vector_store_manager.update_vector_store(self.store_name, documents)
-            self.docs_processed = len(documents)
-        else:
-            self.docs_processed = 0
-        print(f"Updated {self.docs_processed} documents in the store.")
-
-    def reset_docs_processed(self):
-        self.docs_processed = 0
-
-    def _get_new_or_modified_documents(self):
-        new_or_modified_docs = []
-        file_tracker = self._load_file_tracker()
+        self.errors: List[Dict] = []
         
-        for file_path in self.project_path.rglob('*'):
-            if file_path.is_file() and not self._is_ignored(file_path):
-                last_modified = os.path.getmtime(file_path)
-                relative_path = file_path.relative_to(self.project_path)
-                if relative_path.as_posix().startswith(".git/"):
-                    continue
-                if relative_path.suffix not in {'.py', '.ts', '.tsx', '.txt', '.json', '.sh'}:
-                    continue
-                if str(relative_path) not in file_tracker or file_tracker[str(relative_path)] < last_modified:
-                    print(relative_path)
-                    try:
-                        with open(file_path, 'r', encoding='utf-8') as f:
-                            content = f.read()
-                        doc = Document(
-                            text=content,
-                            metadata=self._get_file_metadata(file_path, last_modified)
-                        )
-                        new_or_modified_docs.append(doc)
-                        file_tracker[str(relative_path)] = last_modified
-                        print(f"Added/Updated: {relative_path}")
-                    except Exception as e:
-                        print(f"Error processing file {file_path}: {e}")
-        self._save_file_tracker(file_tracker)
-        return new_or_modified_docs
+        # Initialize embedding model
+        init_embedding_model()
 
-    def _get_file_metadata(self, file_path, last_modified):
+    def process_project(self, batch_size: int = 100) -> List[Document]:
+        """
+        Process all files in the project directory.
+        
+        Args:
+            batch_size: Number of documents to process in each batch
+            
+        Returns:
+            List[Document]: List of processed documents
+        """
+        documents = []
+        current_batch = []
+        total_files = 0
+        processed_files = 0
+        
+        try:
+            print(f"Starting project processing at {self.project_path}")
+            
+            # First count total files for progress reporting
+            for _ in self._iterate_files():
+                total_files += 1
+            
+            print(f"Found {total_files} files to process")
+            
+            # Now process files
+            for file_path in self._iterate_files():
+                if self.processor.is_supported_file(file_path):
+                    processed_files += 1
+                    if processed_files % 100 == 0:  # Progress update every 100 files
+                        print(f"Processing file {processed_files}/{total_files}: {file_path.name}")
+                    
+                    content = self.processor.read_file(file_path)
+                    if content is not None:
+                        metadata = self._get_file_metadata(file_path)
+                        doc = self.processor.create_document(file_path, content, metadata)
+                        current_batch.append(doc)
+                        
+                        if len(current_batch) >= batch_size:
+                            documents.extend(current_batch)
+                            print(f"Completed batch of {batch_size} documents. Total processed: {len(documents)}")
+                            current_batch = []
+                            
+            if current_batch:
+                documents.extend(current_batch)
+                
+            self.docs_processed = len(documents)
+            print(f"Project processing complete. Total documents: {self.docs_processed}")
+            return documents
+            
+        except Exception as e:
+            self.errors.append({
+                'error': str(e),
+                'type': 'process_error'
+            })
+            print(f"Error processing project: {e}")
+            raise
+
+    def _iterate_files(self) -> Generator[Path, None, None]:
+        """Iterate through project files, respecting .gitignore rules."""
+        def _scan_directory(directory: Path):
+            """Recursively scan directory, checking gitignore at each level."""
+            try:
+                for path in directory.iterdir():
+                    # Check if this path should be ignored
+                    if self.gitignore.should_ignore(path, self.project_path):
+                        print(f"Skipping ignored path: {path}")
+                        continue
+                        
+                    if path.is_file():
+                        yield path
+                    elif path.is_dir():
+                        # Recursively traverse non-ignored directories
+                        yield from _scan_directory(path)
+                        
+            except PermissionError as e:
+                print(f"Permission denied accessing directory {directory}: {e}")
+            except Exception as e:
+                print(f"Error accessing directory {directory}: {e}")
+
+        try:
+            yield from _scan_directory(self.project_path)
+        except Exception as e:
+            print(f"Error iterating files: {e}")
+            raise
+
+    def _get_file_metadata(self, file_path: Path) -> Dict:
+        """Get metadata for a file."""
+        try:
+            stats = file_path.stat()
+            return {
+                'creation_time': stats.st_ctime,
+                'modification_time': stats.st_mtime,
+                'size': stats.st_size
+            }
+        except Exception as e:
+            logging.error(f"Error getting metadata for {file_path}: {e}")
+            return {}
+
+    def get_error_report(self) -> Dict:
+        """Get a report of all errors encountered during processing."""
         return {
-            "file_path": str(file_path.relative_to(self.project_path)),
-            "creation_time": os.path.getctime(file_path),
-            "last_modified_time": last_modified
+            'processor_errors': self.processor.errors,
+            'store_errors': self.errors,
+            'total_documents_processed': self.docs_processed
         }
 
-    def _is_ignored(self, path):
-        if self.ignored is None:
-            gitignore_path = self.project_path / '.gitignore'
-            if gitignore_path.exists():
-                with open(gitignore_path, 'r') as f:
-                    self.ignored = [line.strip() for line in f if line.strip() and not line.startswith('#')]
-                    print(self.ignored)
-        path_obj = Path(path)
-        for pattern in self.ignored:
-            if pattern.endswith('/'):
-                if path_obj.is_dir() and (path_obj.match(pattern) or any(parent.match(pattern) for parent in path_obj.parents)):
-                    print("ignore dir", path)
-                    return True
-            elif path_obj.match(pattern) or any(parent.match(pattern) for parent in path_obj.parents):
-                print("ignore file", path)
-                return True
-        return False
-
-    def _load_file_tracker(self):
-        if self.file_tracker_path and self.file_tracker_path.exists():
-            with open(self.file_tracker_path, 'r') as f:
-                return json.load(f)
-        return {}
-
-    def _save_file_tracker(self, tracker):
-        if self.file_tracker_path:
-            with open(self.file_tracker_path, 'w') as f:
-                json.dump(tracker, f)
-
-
-def parse_gitignore(gitignore_path):
-    """
-    Parse the .gitignore file and return a list of ignore patterns.
-    """
-    ignore_patterns = []
-    try:
-        with open(gitignore_path, 'r') as file:
-            for line in file:
-                line = line.strip()
-                if line and not line.startswith('#'):
-                    ignore_patterns.append(line)
-    except FileNotFoundError:
-        print(f"Warning: .gitignore file not found at {gitignore_path}")
-    return ignore_patterns
-
-def should_ignore(file_path, ignore_patterns):
-    """
-    Check if a file should be ignored based on the ignore patterns.
-    """
-    for pattern in ignore_patterns:
-        if pattern.endswith('/'):
-            # Directory pattern
-            if os.path.isdir(file_path) and fnmatch.fnmatch(file_path, f"*{pattern}*"):
-                return True
-        elif fnmatch.fnmatch(os.path.basename(file_path), pattern):
-            return True
-    return False
-
-def get_ignored_files(directory, ignore_patterns):
-    """
-    Get a list of files that should be ignored based on the .gitignore file.
-    """
-    ignored_files = []
-    returned_files = []
-
-    for root, dirs, files in os.walk(directory):
-        for file in files + dirs:
-            file_path = os.path.join(root, file)
-            if should_ignore(file_path, ignore_patterns):
-                ignored_files.append(file_path)
-        returned_files.append(file_path)
-
-    return [ignored_files,returned_files]
-
-# Example usage
-if __name__ == "__main__":
-    gitignore_path = '.gitignore'
-    ignore_patterns = parse_gitignore(gitignore_path)
-
-    [ignored_files, returned_files] = get_ignored_files(".", ignore_patterns)
-
-    print("Files ignored by .gitignore:")
-    for file in ignored_files:
-        print(file)
-# Example usage and testing
-if __name__ == "__main__":
-    gitignore_path = '.gitignore'
-    patterns = parse_gitignore(gitignore_path)
-    print("Gitignore patterns:")
-    for pattern, is_exclude in patterns:
-        print(f"{'Exclude' if is_exclude else 'Include'}: {pattern}")
-
-    print("\nTesting actual files in the directory:")
-    actual_files = list(Path('.').rglob('*'))[:20]  # Limit to first 20 files
-    for file in actual_files:
-        # status = 'Ignored' if is_ignored(file, gitignore_path) else 'Kept'
-        # print(f"{file}: {status}")
-        pass
-
-
-# if __name__ == "__main__":
-#     customprint.makeCustomPrint("out")
-#     vectorstore.getManager().remove_vector_store("YeshieCode")
-#     code_store = CodeStore(".", store_name="YeshieCode", vector_store_manager=vectorstore.getManager())
+def setup_logging(log_dir: str = "logs") -> None:
+    """Set up logging configuration with both file and console handlers."""
+    # Create logs directory if it doesn't exist
+    log_dir = Path(log_dir)
+    log_dir.mkdir(exist_ok=True)
     
-#     print("Store update complete.")
+    # Create log file path with timestamp
+    log_file = log_dir / f"codestore_{time.strftime('%Y%m%d_%H%M%S')}.log"
+    
+    # Initialize customprint with the log file
+    customprint.makeCustomPrint(str(log_file))
+    
+    # Now logging will use the custom print function
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    )
+    
+    print(f"Logging initialized. Log file: {log_file}")
+
+def test_gitignore():
+    """Test function to verify gitignore functionality."""
+    print("Testing gitignore functionality...")
+    
+    project_path = Path(".")
+    gitignore = GitignoreParser(project_path / '.gitignore')
+    
+    # Test some common patterns
+    test_paths = [
+        "node_modules/package.json",
+        "client/node_modules/some-file",
+        ".env",
+        "dist/output.js",
+        "src/main.py",
+        "README.md",
+        ".git/config",
+        "client/.env",
+    ]
+    
+    print("\nTesting path matching:")
+    for test_path in test_paths:
+        path = project_path / test_path
+        ignored = gitignore.should_ignore(path, project_path)
+        print(f"Path: {test_path:<30} Ignored: {ignored}")
+        
+    return gitignore
+
+def main():
+    """Main function for testing the CodeStore independently."""
+    setup_logging()
+    
+    # First test gitignore functionality
+    print("\nTesting gitignore patterns...")
+    gitignore = test_gitignore()
+    
+    # Then proceed with full processing
+    print("\nProcessing project...")
+    store = CodeStore(".")
+    
+    try:
+        documents = store.process_project()
+        logging.info(f"Processed {len(documents)} documents")
+        
+        # Print error report
+        error_report = store.get_error_report()
+        if error_report['processor_errors'] or error_report['store_errors']:
+            logging.warning("Errors encountered during processing:")
+            logging.warning(error_report)
+            
+    except Exception as e:
+        logging.error(f"Failed to process project: {e}")
+
+if __name__ == "__main__":
+    main()
