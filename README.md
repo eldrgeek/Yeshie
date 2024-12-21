@@ -5,7 +5,7 @@ Yeshie AI is a collaborative system that integrates a Chrome extension, a React-
 ## Table of Contents
 
 1. [System Requirements](#system-requirements)
-2. [Installation](#installation)
+2. [Installation](#installINation)
 3. [Configuration](#configuration)
 4. [Running the System](#running-the-system)
 5. [Using the System](#using-the-system)
@@ -103,6 +103,44 @@ To run individual components:
 - Client: `npm run dev:client`
 - Monitor: `npm run dev:monitor`
 - Extension: `npm run dev:extension`
+
+### Development Testing
+
+Each major component has standalone tests that can be run independently for development:
+
+1. **CodeStore Testing**:
+   ```bash
+   python src/codeStore.py
+   ```
+   This will:
+   - Test gitignore pattern matching
+   - Process all files in the project
+   - Generate a report of processed documents
+
+2. **LLMServer Testing**:
+   ```bash
+   python src/llmserver.py
+   ```
+   This will:
+   - Process the codebase using CodeStore
+   - Create a vector store using VectorStoreManager
+   - Initialize the LLM server
+   - Run test queries about the codebase
+
+3. **VectorStore Testing**:
+   ```bash
+   python src/test_vectorstore.py
+   ```
+   This will:
+   - Test basic vector store operations
+   - Verify document storage and retrieval
+   - Test different vector store types (basic and chroma)
+
+Make sure to:
+- Set up your `.env` file with a valid `OPENAI_API_KEY`
+- Run tests in order (CodeStore → VectorStore → LLMServer)
+- Check the generated `vector_stores` directory for stored indices
+- Review the logs in the `logs` directory for detailed output
 
 ## Troubleshooting
 
