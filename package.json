@@ -26,6 +26,8 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@babel/parser": "^7.x",
+    "@babel/traverse": "^7.x",
     "@codemirror/collab": "^6.1.1",
     "@codemirror/state": "^6.4.1",
     "dotenv": "^16.4.5",
@@ -34,9 +36,11 @@
     "lucide-react": "^0.441.0",
     "react-icons": "^5.3.0",
     "socket.io": "^4.7.5",
+    "typescript": "^4.x",
     "uuidv4": "^6.2.13"
   },
   "devDependencies": {
+    "@types/concurrently": "^6.4.0",
     "@types/express": "^4.17.21",
     "@types/node": "^22.5.4",
     "@types/socket.io": "^3.0.1",
