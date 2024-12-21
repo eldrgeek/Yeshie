@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 class BaseServer:
     """Base class for LLM servers with common functionality."""
     def __init__(self, sio=None):
-
         self.openai_api_key = os.environ.get("OPENAI_API_KEY")
         if not self.openai_api_key:
             raise ValueError("OPENAI_API_KEY environment variable is not set")
@@ -29,23 +28,11 @@ class BaseServer:
         self.sio = sio
         self.query_engine = None
         self.instructions = ""
+        self._conversation_id = None
         
         # Initialize embedding model
         init_embedding_model()
 
-    def _emit_response(self, prompt, response):
-        """Helper method to emit responses through socket if available."""
-        if self.sio:
-            self.sio.emit("response", {
-                "request": prompt,
-                "response": response
-            })
-
-    def _emit_error(self, error_message):
-        """Helper method to emit errors through socket if available."""
-        if self.sio:
-            self.sio.emit("error", {"message": error_message})
-        logger.error(error_message)
 
 class SimpleServer(BaseServer):
     """Simple LLM server without vector store integration."""
@@ -67,7 +54,7 @@ class SimpleServer(BaseServer):
             logger.info(f"Query engine created with model {model_name}")
         except Exception as e:
             error_msg = f"Failed to create query engine: {str(e)}"
-            self._emit_error(error_msg)
+            logger.error(error_msg)
             raise
 
     def makeQuery(self, prompt):
@@ -79,12 +66,10 @@ class SimpleServer(BaseServer):
 
         try:
             response = self.query_engine.query(query_bundle)
-            formatted_response = str(response)
-            self._emit_response(prompt, formatted_response)
-            return formatted_response
+            return str(response)
         except Exception as e:
             error_message = f"Error processing query: {str(e)}"
-            self._emit_error(error_message)
+            logger.error(error_message)
             return error_message
 
 class LLMServer(BaseServer):
@@ -120,7 +105,7 @@ class LLMServer(BaseServer):
             logger.info(f"Query engine created with model {model_name} and index {index_name}")
         except Exception as e:
             error_msg = f"Failed to create query engine: {str(e)}"
-            self._emit_error(error_msg)
+            logger.error(error_msg)
             raise
 
     def makeQuery(self, prompt):
@@ -132,12 +117,10 @@ class LLMServer(BaseServer):
 
         try:
             response = self.query_engine.query(query_bundle)
-            formatted_response = str(response)
-            self._emit_response(prompt, formatted_response)
-            return formatted_response
+            return str(response)
         except Exception as e:
             error_message = f"Error processing query: {str(e)}"
-            self._emit_error(error_message)
+            logger.error(error_message)
             return error_message
 
 def makeServer(sio):

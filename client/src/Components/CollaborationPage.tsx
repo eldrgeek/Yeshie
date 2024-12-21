@@ -311,26 +311,51 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     };
 
     const handleResponse = ({ from, cmd, request, response, conversationId: responseConversationId }: any) => {
-      console.log("response", from, cmd, request, response, responseConversationId);
-      if (cmd === "append" && viewRef.current && responseConversationId === conversationId) {
-        const currentState = viewRef.current.state;
-        const transaction = currentState.update({
-          changes: { from: currentState.doc.length, insert: "\n" + response }
-        });
-        const newState = transaction.state;
-        if (viewRef.current) {
+      console.log("Response received:", { from, cmd, request, response, responseConversationId });
+      
+      // Only handle responses for the current conversation
+      if (responseConversationId === conversationId || !responseConversationId) {
+        if (cmd === "append" && viewRef.current) {
+          const currentState = viewRef.current.state;
+          const transaction = currentState.update({
+            changes: { 
+              from: currentState.doc.length, 
+              insert: "\n\nResponse:\n" + response 
+            }
+          });
           viewRef.current.update([transaction]);
-          editorStateRef.current = newState; // Update the editor state ref
+          editorStateRef.current = transaction.state;
+          
+          // Scroll to the bottom
+          const lastLine = viewRef.current.state.doc.lines;
+          viewRef.current.dispatch({
+            effects: EditorView.scrollIntoView(viewRef.current.state.doc.length)
+          });
         }
       }
     };
 
     socket.on('receiveUpdates', handleReceiveUpdates);
     socket.on("response", handleResponse);
+    socket.on("error", (error) => {
+      console.error("LLM Error:", error);
+      if (viewRef.current) {
+        const currentState = viewRef.current.state;
+        const transaction = currentState.update({
+          changes: { 
+            from: currentState.doc.length, 
+            insert: "\n\nError:\n" + error.message 
+          }
+        });
+        viewRef.current.update([transaction]);
+        editorStateRef.current = transaction.state;
+      }
+    });
 
     return () => {
       socket.off("response", handleResponse);
       socket.off('receiveUpdates', handleReceiveUpdates);
+      socket.off("error");
     };
   }, [socket, sessionID, conversationId]);
 

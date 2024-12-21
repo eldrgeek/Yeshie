@@ -26,7 +26,49 @@ class Application:
         self.sio = socketio.Client()
         self.requestorSessionId = None
         self.setup_sockets()
+        
+        # Initialize LLM server with proper configuration
         self.llm_server = llmserver.makeServer(self.sio)
+        
+        try:
+            # Initialize CodeStore and process files
+            print("\nInitializing CodeStore to process project files...")
+            from codeStore import CodeStore
+            code_store = CodeStore(".", "test_store")
+            documents = code_store.process_project()
+            
+            # Create/update vector store
+            print("\nCreating/updating vector store...")
+            import vectorstore
+            vector_store_manager = vectorstore.getManager()
+            
+            # Remove existing store if it exists
+            try:
+                vector_store_manager.delete_vector_store("test_store")
+            except:
+                pass
+                
+            # Create new store and add documents
+            vector_store_manager.add_vector_store("test_store", "basic")
+            vector_store_manager.add_to_vector_store("test_store", documents)
+            
+            # Configure query engine
+            print("\nConfiguring LLM query engine...")
+            self.llm_server.makeQueryEngine({
+                "index": "test_store",
+                "instructions": "You are an AI assistant helping with code-related questions.",
+                "model": "gpt-3.5-turbo"
+            })
+            print("LLM server initialization complete.")
+            
+        except Exception as e:
+            print(f"Error initializing LLM server: {str(e)}")
+            # Initialize with basic configuration if vector store setup fails
+            self.llm_server.makeQueryEngine({
+                "path": ".",  # Use current directory
+                "instructions": "You are an AI assistant helping with code-related questions.",
+                "model": "gpt-3.5-turbo"
+            })
     def run(self): 
         self.checkCallback()
         
@@ -56,8 +98,47 @@ class Application:
         
         @self.sio.on('llm')
         def on_llm(data):
-            self.requestorSessionId = data.get("sessionId")
-            self.llm_server.makeQuery(data.get("prompt"))
+            conversation_id = None  # Initialize outside try block
+            try:
+                from_id = data.get("from")  # Use "from" instead of "sessionId"
+                content = data.get("content")
+                conversation_id = data.get("conversationId")
+                
+                print(f"Received LLM request from {from_id} with conversation ID '{conversation_id}'")
+                
+                # Set the conversation ID in the server for the response
+                if hasattr(self.llm_server, '_conversation_id'):
+                    self.llm_server._conversation_id = conversation_id
+                
+                # Make the query and get response
+                response = self.llm_server.makeQuery(content)
+                
+                # Forward response back to the client
+                if response and self.sio:
+                    self.sio.emit("forward", {
+                        "to": from_id,
+                        "op": "response",
+                        "from": "llmserver",
+                        "cmd": "append",
+                        "request": content,
+                        "response": response,
+                        "conversationId": conversation_id
+                    })
+                    print(f"LLM query processed and forwarded. Response length: {len(response)}")
+                else:
+                    print("No response generated or socket unavailable")
+                    
+            except Exception as e:
+                error_msg = f"Error processing LLM query: {str(e)}"
+                print(error_msg)
+                if self.sio:
+                    self.sio.emit("forward", {
+                        "to": from_id,
+                        "op": "error",
+                        "from": "llmserver",
+                        "message": error_msg,
+                        "conversationId": conversation_id
+                    })
         @self.sio.on('rewind')
         def on_rewind(data):
             self.requestorSessionId = data.get("sessionId")
