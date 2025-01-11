@@ -4,6 +4,7 @@ import shutil
 import logging
 from pathlib import Path
 from llama_index.core import VectorStoreIndex, StorageContext, load_index_from_storage
+
 from llama_index.vector_stores.chroma import ChromaVectorStore
 import chromadb
 from llama_index.embeddings.openai import OpenAIEmbedding
@@ -102,7 +103,10 @@ class VectorStoreManager:
 
     def save_vsIndex(self) -> None:
         """Save the vector store index to a JSON file."""
-        self.index_base_path.mkdir(parents=True, exist_ok=True)
+        # Create the directory and any necessary parent directories
+        self.vs_index_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Now save the index file
         with open(self.vs_index_path, 'w') as f:
             json.dump(self.vs_index, f, indent=2)
 
