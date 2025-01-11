@@ -36,7 +36,31 @@ class DevEnvironment {
     private profiles: Record<Profile, string[]>
   ) {}
 
+  private async killPorts(): Promise<void> {
+    // Common development ports to kill
+    const portsToKill = [3000, 3001, 3002];
+    
+    try {
+      console.log('Killing existing processes on development ports...');
+      for (const port of portsToKill) {
+        await new Promise((resolve, reject) => {
+          const kill = spawn('kill-port', [port.toString()]);
+          kill.on('close', resolve);
+          kill.on('error', (err) => {
+            // Ignore errors since ports might not be in use
+            resolve(null);
+          });
+        });
+      }
+    } catch (error) {
+      console.warn('Warning: kill-port failed, ports might still be in use');
+    }
+  }
+
   async run(profileName: string): Promise<void> {
+    // Kill ports before starting
+    await this.killPorts();
+
     const jobsToRun = this.profiles[profileName as Profile] || [profileName];
     const selectedJobs = this.jobs.filter(job => jobsToRun.includes(job.name));
     
