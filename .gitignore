@@ -2,10 +2,10 @@ node_modules
 client/node_modules/
 extention/node_modules/
 .env
+.venv/
 /logs
 dist/*
 dist/server.js
-venv/
 .git/
 vector_stores
 src/__pycache__/
