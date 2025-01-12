@@ -427,23 +427,29 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
 
   const styles = `
     .cm-yeshie-response {
-      background-color: #e6ffe6 !important;
-      display: block !important;
-      width: 100% !important;
-      padding: 2px 4px !important;
-      box-sizing: border-box !important;
+      background-color: rgba(230, 255, 230, 0.5);  /* Light green with transparency */
+      display: block;
+      width: 100%;
+      padding: 2px 4px;
+      box-sizing: border-box;
     }
     
     .cm-user-response {
-      background-color: #e6f3ff !important;
-      display: block !important;
-      width: 100% !important;
-      padding: 2px 4px !important;
-      box-sizing: border-box !important;
+      background-color: rgba(230, 243, 255, 0.5);  /* Light blue with transparency */
+      display: block;
+      width: 100%;
+      padding: 2px 4px;
+      box-sizing: border-box;
     }
 
     .cm-line {
-      position: relative !important;
+      position: relative;
+    }
+
+    /* Let CodeMirror's default selection styling show through */
+    .cm-selectionBackground {
+      background-color: #1a73e8 !important;
+      opacity: 0.3;
     }
   `;
 
