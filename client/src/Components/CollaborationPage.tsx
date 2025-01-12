@@ -107,15 +107,16 @@ function getBackgroundRanges(content: string): Range<Decoration>[] {
   let currentPos = 0;
   
   const lines = content.split('\n');
+  const lastLineIndex = lines.length - 1;
   
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const lineStart = currentPos;
     const lineLength = lines[i].length;
     
-    if (line.trim()) {
-      // In testall mode, look for the '>' prefix
-      const isUserResponse = line.startsWith('> ');
+    if (line.trim() || i === lastLineIndex) {  // Check if it's the last line
+      // In testall mode, look for the '>' prefix, or style last line if it's being typed on
+      const isUserResponse = line.startsWith('> ') || (i === lastLineIndex && line.trim());
       ranges.push({
         from: lineStart,
         to: lineStart + lineLength,
