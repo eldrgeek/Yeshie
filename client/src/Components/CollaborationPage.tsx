@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Box, VStack, Heading, useToast } from "@chakra-ui/react";
 import { Socket } from "socket.io-client";
 import { EditorView, basicSetup } from "codemirror";
-import { EditorState, Prec, RangeSet, EditorSelection, StateEffect, StateField, Range } from "@codemirror/state";
+import { EditorState, Prec, RangeSet, EditorSelection, StateEffect, StateField, Range, Transaction } from "@codemirror/state";
 import { keymap, GutterMarker, } from "@codemirror/view";
 import { defaultKeymap, indentWithTab, history } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
@@ -94,16 +94,17 @@ const backgroundField = StateField.define<DecorationSet>({
   create() {
     return Decoration.none;
   },
-  update(decorations, tr) {
+  update(_, tr: Transaction) {
     return RangeSet.of(getBackgroundRanges(tr.state.doc.toString()));
   },
   provide: f => EditorView.decorations.from(f)
 });
 
+let currentTestStepRef = 0;  // Add this at module level
+
 function getBackgroundRanges(content: string): Range<Decoration>[] {
   const ranges: Range<Decoration>[] = [];
   let currentPos = 0;
-  let currentSpeaker = '';
   
   const lines = content.split('\n');
   
@@ -113,24 +114,16 @@ function getBackgroundRanges(content: string): Range<Decoration>[] {
     const lineLength = lines[i].length;
     
     if (line.trim()) {
-      // Determine speaker based on line content
-      if (line.startsWith('>')) {
-        currentSpeaker = 'U';
-      } else if (line.trim() !== '') {
-        currentSpeaker = 'Y';
-      }
-      
-      // Add decoration for the current line
-      if (currentSpeaker) {
-        ranges.push({
-          from: lineStart,
-          to: lineStart + lineLength,
-          value: currentSpeaker === 'U' ? userBackground : yeshieBackground
-        });
-      }
+      // In testall mode, look for the '>' prefix
+      const isUserResponse = line.startsWith('> ');
+      ranges.push({
+        from: lineStart,
+        to: lineStart + lineLength,
+        value: isUserResponse ? userBackground : yeshieBackground
+      });
     }
     
-    currentPos += lineLength + 1; // +1 for newline
+    currentPos += lineLength + 1;
   }
   
   return ranges;
@@ -310,7 +303,17 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
       if (currentEntry.from === "U") {
         const hasResponse = lastLine.trim() !== "";
         if (!hasResponse) {
-          // If no response, show the scripted user response
+          // Add a blank line with user styling for input
+          view.dispatch({
+            changes: { from: view.state.doc.length, insert: "\n" },
+            selection: { anchor: view.state.doc.length + 1 }
+          });
+          // Force update of decorations
+          view.dispatch({
+            effects: StateEffect.appendConfig.of([])
+          });
+        } else {
+          // If response given, show the scripted user response
           updateContent(view, formatEntry(currentEntry, true), "append");
         }
         // Move to next entry (Yeshie's response) after a delay
@@ -318,7 +321,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
           clearGutters(view);
           updateContent(view, formatEntry(nextEntry, true), "replace");
           setCurrentTestStep(nextStep + 1);
-        }, 1000);
+        }, 300);
       } else {
         // For Yeshie's entries, just show the next entry
         clearGutters(view);
@@ -416,9 +419,14 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     };
   }, [initializeEditor]);
 
+  // In the component, update currentTestStepRef when currentTestStep changes
+  useEffect(() => {
+    currentTestStepRef = currentTestStep;
+  }, [currentTestStep]);
+
   const styles = `
     .cm-yeshie-response {
-      background-color: #e6f3ff !important;
+      background-color: #e6ffe6 !important;
       display: block !important;
       width: 100% !important;
       padding: 2px 4px !important;
@@ -426,7 +434,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     }
     
     .cm-user-response {
-      background-color: #e6ffe6 !important;
+      background-color: #e6f3ff !important;
       display: block !important;
       width: 100% !important;
       padding: 2px 4px !important;
