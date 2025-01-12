@@ -2,10 +2,11 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Box, VStack, Heading, useToast } from "@chakra-ui/react";
 import { Socket } from "socket.io-client";
 import { EditorView, basicSetup } from "codemirror";
-import { EditorState, Prec, RangeSet, EditorSelection, StateEffect, StateField } from "@codemirror/state";
+import { EditorState, Prec, RangeSet, EditorSelection, StateEffect, StateField, Range } from "@codemirror/state";
 import { keymap, GutterMarker, } from "@codemirror/view";
 import { defaultKeymap, indentWithTab, history } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
+import { Decoration, DecorationSet } from "@codemirror/view";
 // import '../styles/editor.css';
 import { TEST_CONVERSATION } from './testconversation';
 
@@ -15,11 +16,13 @@ interface CollaborationPageProps {
   logMessages: string[];
 }
 
-
-
 // Function to format conversation entry
 const formatEntry = (entry: typeof TEST_CONVERSATION[0], isFirst: boolean = false) => {
-  return (isFirst ? "" : "\n") + entry.text + "\n\n";
+  // Use blockquote for user messages and regular text for Yeshie
+  const formattedText = entry.from === "U" 
+    ? `> ${entry.text.split('\n').join('\n> ')}` // Prefix each line with > for user messages
+    : entry.text;
+  return (isFirst ? "" : "\n") + formattedText + "\n\n";
 };
 
 // Define the marker state field
@@ -77,6 +80,61 @@ Type 'test' for an interactive demo or 'testall' to see a complete conversation.
 
 `;  // Note the extra newline at the end
 
+const yeshieBackground = Decoration.mark({
+  class: "cm-yeshie-response",
+  inclusive: true
+});
+
+const userBackground = Decoration.mark({
+  class: "cm-user-response",
+  inclusive: true
+});
+
+const backgroundField = StateField.define<DecorationSet>({
+  create() {
+    return Decoration.none;
+  },
+  update(decorations, tr) {
+    return RangeSet.of(getBackgroundRanges(tr.state.doc.toString()));
+  },
+  provide: f => EditorView.decorations.from(f)
+});
+
+function getBackgroundRanges(content: string): Range<Decoration>[] {
+  const ranges: Range<Decoration>[] = [];
+  let currentPos = 0;
+  let currentSpeaker = '';
+  
+  const lines = content.split('\n');
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineStart = currentPos;
+    const lineLength = lines[i].length;
+    
+    if (line.trim()) {
+      // Determine speaker based on line content
+      if (line.startsWith('>')) {
+        currentSpeaker = 'U';
+      } else if (line.trim() !== '') {
+        currentSpeaker = 'Y';
+      }
+      
+      // Add decoration for the current line
+      if (currentSpeaker) {
+        ranges.push({
+          from: lineStart,
+          to: lineStart + lineLength,
+          value: currentSpeaker === 'U' ? userBackground : yeshieBackground
+        });
+      }
+    }
+    
+    currentPos += lineLength + 1; // +1 for newline
+  }
+  
+  return ranges;
+}
 
 const CollaborationPage: React.FC<CollaborationPageProps> = ({
   socket,
@@ -338,8 +396,8 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
         keymap.of([...defaultKeymap, indentWithTab]),
         markdown(),
         EditorView.lineWrapping,
-        history()
-        
+        history(),
+        backgroundField
       ],
     });
 
@@ -358,26 +416,51 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     };
   }, [initializeEditor]);
 
+  const styles = `
+    .cm-yeshie-response {
+      background-color: #e6f3ff !important;
+      display: block !important;
+      width: 100% !important;
+      padding: 2px 4px !important;
+      box-sizing: border-box !important;
+    }
+    
+    .cm-user-response {
+      background-color: #e6ffe6 !important;
+      display: block !important;
+      width: 100% !important;
+      padding: 2px 4px !important;
+      box-sizing: border-box !important;
+    }
+
+    .cm-line {
+      position: relative !important;
+    }
+  `;
+
   return (
-    <Box p={0} width="100hw" height="100vh" display="flex" flexDirection="column">
-      <VStack width="100hw" spacing={2} align="stretch" flex="1" overflow="hidden">
-        <Heading as="h2" size="lg">
-          A Collaboration Page - {mode.toUpperCase()} Mode
-        </Heading>
-        <h3>
-          {isIframe ? " (Iframe)" : "Native"}
-        </h3>
-        <Box
-          ref={editorRef}
-          flex="1"
-          border="1px solid"
-          borderColor="gray.200"
-          width="100%"
-          overflow="auto"
-          padding="2px"
-        />
-      </VStack>
-    </Box>
+    <>
+      <style>{styles}</style>
+      <Box p={0} width="100hw" height="100vh" display="flex" flexDirection="column">
+        <VStack width="100hw" spacing={2} align="stretch" flex="1" overflow="hidden">
+          <Heading as="h2" size="lg">
+            A Collaboration Page - {mode.toUpperCase()} Mode
+          </Heading>
+          <h3>
+            {isIframe ? " (Iframe)" : "Native"}
+          </h3>
+          <Box
+            ref={editorRef}
+            flex="1"
+            border="1px solid"
+            borderColor="gray.200"
+            width="100%"
+            overflow="auto"
+            padding="2px"
+          />
+        </VStack>
+      </Box>
+    </>
   );
 };
 
