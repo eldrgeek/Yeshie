@@ -373,6 +373,15 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
               },
             },
             {
+              key: "Mod-Enter",
+              preventDefault: true,
+              run: () => {
+                console.log("Enter shortcut triggered");
+                sendContent();
+                return true;
+              },
+            },
+            {
               key: "Mod-a",
               preventDefault: true,
               run: (view) => {
