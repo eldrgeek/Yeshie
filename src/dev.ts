@@ -359,13 +359,13 @@ class JobBuilder {
 
   public async buildProfiles(jobs: Job[]): Promise<Record<Profile, string[]>> {
     const profiles: Record<Profile, string[]> = {
-      [Profile.DEFAULT]: ['dev'],
+      [Profile.DEFAULT]: [],
       [Profile.REPL]: [],
-      [Profile.DEV]: [],
-      [Profile.WIN]: [],
+      [Profile.DEV]: ['dev:monitor', 'dev:server', 'dev:client', 'dev:extension', 'dev:messages'],
+      [Profile.WIN]: ['dev:winmonitor', 'dev:extension'],
       [Profile.LLM]: [],
       [Profile.CODE_STORE]: [],
-      [Profile.ALL]: jobs.map(job => job.name),
+      [Profile.ALL]: jobs.map(job => job.name)
     };
 
     // Group jobs by type
@@ -374,7 +374,7 @@ class JobBuilder {
     const monitorJobs = jobs.filter(job => job.name.includes('monitor'));
 
     profiles[Profile.REPL] = [...serverJobs, ...clientJobs].map(job => job.name);
-    profiles[Profile.DEV] = [...monitorJobs, ...serverJobs, ...clientJobs].map(job => job.name);
+    // Don't override DEV profile as it's already set correctly above
     profiles[Profile.WIN] = jobs.filter(job => job.name.includes('win')).map(job => job.name);
     profiles[Profile.LLM] = ['server', 'llm'];
     profiles[Profile.CODE_STORE] = ['server', 'codeStore'];
