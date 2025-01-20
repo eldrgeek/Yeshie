@@ -40,7 +40,12 @@ class SimpleServer(BaseServer):
         try:
             instructions = config.get("instructions", "")
             model_name = config.get("model", self.models[0])
-            documents = SimpleDirectoryReader(config.get("path")).load_data()
+            path = config.get("path")
+            
+            if not path:
+                raise ValueError("Must provide 'path' in config")
+                
+            documents = SimpleDirectoryReader(input_dir=path).load_data()
             index = VectorStoreIndex.from_documents(documents)
 
             Settings.llm = OpenAI(model=model_name, temperature=0)
@@ -126,7 +131,7 @@ class LLMServer(BaseServer):
 def makeServer(sio):
     """Factory function to create a server instance."""
     logger.info("Making LLMServer")
-    server = SimpleServer(sio)
+    server = LLMServer(".", "test_store", sio)
     return server
 
 if __name__ == "__main__":

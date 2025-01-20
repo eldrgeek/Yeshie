@@ -9,6 +9,7 @@ from llama_index.vector_stores.chroma import ChromaVectorStore
 import chromadb
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.core.settings import Settings
+import time
 
 class Handler:
     def __init__(self, store_type: str, index_path: Path):
@@ -119,6 +120,40 @@ class VectorStoreManager:
         else:
             raise ValueError(f"Unknown store type: {store_type}")
 
+    def vector_store_exists(self, name: str) -> bool:
+        """Check if a vector store exists and is valid."""
+        if name not in self.vs_index:
+            return False
+            
+        # Check if the store files exist
+        store_info = self.vs_index[name]
+        store_path = Path(store_info["path"])
+        if not store_path.exists():
+            # Clean up invalid entry
+            del self.vs_index[name]
+            self.save_vsIndex()
+            return False
+            
+        return True
+
+    def get_store_timestamp(self, name: str) -> float:
+        """Get the last update timestamp of a vector store."""
+        if name in self.vs_index:
+            timestamp = self.vs_index[name].get("last_update", 0.0)
+            # Ensure we have a valid timestamp with microsecond precision
+            if isinstance(timestamp, (int, float)):
+                return float(timestamp)
+            return 0.0
+        raise ValueError(f"Vector store '{name}' not found.")
+
+    def update_store_timestamp(self, name: str) -> None:
+        """Update the timestamp of a vector store to current time."""
+        if name in self.vs_index:
+            self.vs_index[name]["last_update"] = time.time()
+            self.save_vsIndex()
+        else:
+            raise ValueError(f"Vector store '{name}' not found.")
+
     def add_vector_store(self, name: str, store_type: str) -> VectorStoreIndex:
         """Add a new vector store to the manager."""
         if name not in self.vs_index:
@@ -133,7 +168,8 @@ class VectorStoreManager:
             self.vs_index[name] = {
                 "name": name,
                 "type": store_type,
-                "path": str(index_path)
+                "path": str(index_path),
+                "last_update": time.time()
             }
             self.save_vsIndex()
             return index

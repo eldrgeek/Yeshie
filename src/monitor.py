@@ -11,7 +11,6 @@ import rewind
 import llmdebug
 import customprint
 import llmserver
-customprint.makeCustomPrint("out")
 # Redefine print function
 listener = None
 
@@ -31,44 +30,51 @@ class Application:
         self.llm_server = llmserver.makeServer(self.sio)
         
         try:
-            # Initialize CodeStore and process files
-            print("\nInitializing CodeStore to process project files...")
-            from codeStore import CodeStore
-            code_store = CodeStore(".", "test_store")
-            documents = code_store.process_project()
-            
-            # Create/update vector store
-            print("\nCreating/updating vector store...")
+            # Initialize vector store manager first
             import vectorstore
             vector_store_manager = vectorstore.getManager()
+            store_exists = vector_store_manager.vector_store_exists("test_store")
             
-            # Remove existing store if it exists
-            try:
-                vector_store_manager.delete_vector_store("test_store")
-            except:
-                pass
-                
-            # Create new store and add documents
-            vector_store_manager.add_vector_store("test_store", "basic")
-            vector_store_manager.add_to_vector_store("test_store", documents)
+            # Initialize CodeStore and process files
+            from codeStore import CodeStore
+            code_store = CodeStore(".", "test_store")
+            
+            if store_exists:
+                last_update_time = vector_store_manager.get_store_timestamp("test_store")
+                if last_update_time > 0:
+                    # Only process files changed since last update
+                    documents = code_store.process_changed_files(last_update_time)
+                    if documents:
+                        print(f"Processing {len(documents)} changed files...")
+                        vector_store_manager.add_to_vector_store("test_store", documents)
+                    else:
+                        print("No files have changed since last update")
+                else:
+                    # Invalid timestamp, reprocess all
+                    print("Processing all project files...")
+                    documents = code_store.process_project()
+                    vector_store_manager.add_to_vector_store("test_store", documents)
+            else:
+                # Process all files for new store
+                print("Processing all project files...")
+                documents = code_store.process_project()
+                vector_store_manager.add_vector_store("test_store", "basic")
+                vector_store_manager.add_to_vector_store("test_store", documents)
+            
+            # Update store timestamp
+            vector_store_manager.update_store_timestamp("test_store")
             
             # Configure query engine
-            print("\nConfiguring LLM query engine...")
             self.llm_server.makeQueryEngine({
                 "index": "test_store",
                 "instructions": "You are an AI assistant helping with code-related questions.",
                 "model": "gpt-3.5-turbo"
             })
-            print("LLM server initialization complete.")
+            print("Initialization complete")
             
         except Exception as e:
             print(f"Error initializing LLM server: {str(e)}")
-            # Initialize with basic configuration if vector store setup fails
-            self.llm_server.makeQueryEngine({
-                "path": ".",  # Use current directory
-                "instructions": "You are an AI assistant helping with code-related questions.",
-                "model": "gpt-3.5-turbo"
-            })
+            raise  # Re-raise the exception instead of falling back
     def run(self): 
         self.checkCallback()
         
@@ -189,11 +195,13 @@ def heartbeat():
 
 def main():
     global app
+    customprint.makeCustomPrint("out")
     heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
     heartbeat_thread.start()
 
     app = Application()
     app.action = "test"
     app.run()
+
 if __name__ == "__main__":
     main()

@@ -37,23 +37,35 @@ class DevEnvironment {
   ) {}
 
   private async killPorts(): Promise<void> {
-    // Common development ports to kill
-    const portsToKill = [3000, 3001, 3002];
-    
     try {
       console.log('Killing existing processes on development ports...');
-      for (const port of portsToKill) {
-        await new Promise((resolve, reject) => {
-          const kill = spawn('kill-port', [port.toString()]);
-          kill.on('close', resolve);
-          kill.on('error', (err) => {
-            // Ignore errors since ports might not be in use
-            resolve(null);
-          });
+      await new Promise<void>((resolve, reject) => {
+        const killScript = spawn('scripts/killports.sh');
+        
+        killScript.stdout.on('data', (data) => {
+          console.log(data.toString().trim());
         });
-      }
+        
+        killScript.stderr.on('data', (data) => {
+          console.error(data.toString().trim());
+        });
+        
+        killScript.on('close', (code) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            console.warn('Warning: killports.sh exited with code', code);
+            resolve(); // Still resolve to continue with startup
+          }
+        });
+        
+        killScript.on('error', (err) => {
+          console.warn('Warning: Failed to execute killports.sh:', err);
+          resolve(); // Still resolve to continue with startup
+        });
+      });
     } catch (error) {
-      console.warn('Warning: kill-port failed, ports might still be in use');
+      console.warn('Warning: Port killing failed, some ports might still be in use');
     }
   }
 
@@ -290,7 +302,7 @@ class JobBuilder {
         'dev:server',
         'dev:client',
         'dev:extension',
-        'dev:messages'
+        // 'dev:messages'
       ];
       
       // Return a separate job for each script to run in parallel

@@ -83,7 +83,7 @@ class CodeStore:
         self.project_path = Path(project_path).resolve()
         self.store_name = store_name or self.project_path.name
         self.processor = CodeDocumentProcessor()
-        self.gitignore = GitignoreParser(self.project_path / '.gitignore')  # Use the imported GitignoreParser
+        self.gitignore = GitignoreParser(self.project_path / '.gitignore')  # Remove log_level argument
         self.docs_processed = 0
         self.errors: List[Dict] = []
         
@@ -147,6 +147,74 @@ class CodeStore:
             print(f"Error processing project: {e}")
             raise
 
+    def process_changed_files(self, last_update_time: float, batch_size: int = 100) -> List[Document]:
+        """
+        Process only files that have been modified since the last update.
+        
+        Args:
+            last_update_time: Unix timestamp of last update
+            batch_size: Number of documents to process in each batch
+            
+        Returns:
+            List[Document]: List of processed documents
+        """
+        documents = []
+        current_batch = []
+        total_files = 0
+        modified_files = []
+        processed_files = 0
+        
+        try:
+            print(f"Looking for files modified since {time.ctime(last_update_time)}")
+            
+            # First count total files and collect modified files for reporting
+            for file_path in self._iterate_files():
+                if self._is_file_modified(file_path, last_update_time):
+                    total_files += 1
+                    modified_files.append(file_path)
+            
+            if total_files == 0:
+                print("No modified files found")
+                return []
+                
+            print(f"Found {total_files} modified files to process")
+            print("First 10 modified files:")
+            for i, file_path in enumerate(modified_files[:10]):
+                print(f"{i+1}. {file_path}")
+            
+            # Now process modified files
+            for file_path in self._iterate_files():
+                if self.processor.is_supported_file(file_path) and self._is_file_modified(file_path, last_update_time):
+                    processed_files += 1
+                    if processed_files % 10 == 0:  # Progress update every 10 files for changed files
+                        print(f"Processing modified file {processed_files}/{total_files}: {file_path.name}")
+                    
+                    content = self.processor.read_file(file_path)
+                    if content is not None:
+                        metadata = self._get_file_metadata(file_path)
+                        doc = self.processor.create_document(file_path, content, metadata)
+                        current_batch.append(doc)
+                        
+                        if len(current_batch) >= batch_size:
+                            documents.extend(current_batch)
+                            print(f"Completed batch of {batch_size} documents. Total processed: {len(documents)}")
+                            current_batch = []
+                            
+            if current_batch:
+                documents.extend(current_batch)
+                
+            self.docs_processed += len(documents)
+            print(f"Modified files processing complete. Total documents: {len(documents)}")
+            return documents
+            
+        except Exception as e:
+            self.errors.append({
+                'error': str(e),
+                'type': 'process_changed_error'
+            })
+            print(f"Error processing changed files: {e}")
+            raise
+
     def _iterate_files(self) -> Generator[Path, None, None]:
         """Iterate through project files, respecting .gitignore rules."""
         def _scan_directory(directory: Path):
@@ -155,7 +223,6 @@ class CodeStore:
                 for path in directory.iterdir():
                     # Check if this path should be ignored
                     if self.gitignore.should_ignore(path, self.project_path):
-                        print(f"Skipping ignored path: {path}")
                         continue
                         
                     if path.is_file():
@@ -164,15 +231,16 @@ class CodeStore:
                         # Recursively traverse non-ignored directories
                         yield from _scan_directory(path)
                         
-            except PermissionError as e:
-                print(f"Permission denied accessing directory {directory}: {e}")
+            except PermissionError:
+                # Silently skip permission errors
+                pass
             except Exception as e:
-                print(f"Error accessing directory {directory}: {e}")
+                logging.warning(f"Error accessing directory {directory}: {e}")
 
         try:
             yield from _scan_directory(self.project_path)
         except Exception as e:
-            print(f"Error iterating files: {e}")
+            logging.error(f"Error iterating files: {e}")
             raise
 
     def _get_file_metadata(self, file_path: Path) -> Dict:
@@ -184,9 +252,17 @@ class CodeStore:
                 'modification_time': stats.st_mtime,
                 'size': stats.st_size
             }
-        except Exception as e:
-            logging.error(f"Error getting metadata for {file_path}: {e}")
+        except Exception:
+            # Silently return empty dict on errors
             return {}
+
+    def _is_file_modified(self, file_path: Path, last_update_time: float) -> bool:
+        """Check if a file has been modified since the last update."""
+        try:
+            return file_path.stat().st_mtime > last_update_time
+        except Exception:
+            # Silently return False on errors
+            return False
 
     def get_error_report(self) -> Dict:
         """Get a report of all errors encountered during processing."""
@@ -210,11 +286,9 @@ def setup_logging(log_dir: str = "logs") -> None:
     
     # Now logging will use the custom print function
     logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        level=logging.WARNING,  # Change to WARNING to reduce noise
+        format='%(message)s',  # Simplify format to just show the message
     )
-    
-    print(f"Logging initialized. Log file: {log_file}")
 
 def test_gitignore():
     """Test function to verify gitignore functionality."""
