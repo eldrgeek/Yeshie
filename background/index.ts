@@ -1,8 +1,9 @@
-import { setupBG } from "./functions/extcomms";
+import { setupBG } from "../extension/functions/extcomms";
 import type {PlasmoMessaging} from "@plasmohq/messaging"
 import { Storage } from "@plasmohq/storage"
 
 const storage = new Storage()
+
 // Add these type definitions at the top of your file
 declare global {
   interface WorkerGlobalScope {
@@ -50,13 +51,17 @@ self.addEventListener('fetch', (event: FetchEvent) => {
 
 // Function to get the current tab ID
 async function getCurrentTabId(): Promise<number> {
-  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-  console.log("All active tabs:", tabs);
-  const tabId = tabs[0]?.id ?? -1;
-  console.log("Selected tab ID:", tabId);
-  return tabId;
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    console.log("All active tabs:", tabs);
+    const tabId = tabs[0]?.id ?? -1;
+    console.log("Selected tab ID:", tabId);
+    return tabId;
+  } catch (error) {
+    console.error("Error getting current tab ID:", error);
+    return -1;
+  }
 }
-
 
 // Log tab ID when a new tab is activated
 chrome.tabs.onActivated.addListener((activeInfo) => {
@@ -95,14 +100,8 @@ chrome.action.onClicked.addListener(async (tab) => {
 // Log the current tab ID every 30 seconds
 setInterval(logCurrentTabId, 30000);
 
-// Background script or worker script
-
-// Adding the offline event listener immediately during script evaluation
-
-
-// Other code related to the service worker or background script
-
 setupBG();
+
 const captureScreenshot = (windowId) => {
   chrome.tabs.captureVisibleTab(windowId, { format: 'png' }, (dataUrl) => {
     if (!dataUrl) {
@@ -169,15 +168,6 @@ chrome.runtime.onInstalled.addListener(() => {
   console.log("Extension installed");
 });
 
-chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-  
-  
-  if (sender.tab && sender.tab.id) {
-    // Forward the message to the specific tab that sent it
-    chrome.tabs.sendMessage(sender.tab.id, message);
-  } 
-});
-
 // Function to send a message to a specific tab
 function sendMessageToTab(tabId, message) {
   chrome.tabs.sendMessage(tabId, message);
@@ -191,18 +181,9 @@ function logCurrentTabId() {
   });
 }
 
-// Log the current tab ID every 5 seconds
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete') {
-    console.log("Updated Tab ID:", tabId);
-    logCurrentTabId();
-  }
-});
-
-console.log("Background loaded")
-
-
 async function logAllTabs() {
   const allTabs = await chrome.tabs.query({});
   console.log("All open tabs:", allTabs.map(tab => ({ id: tab.id, url: tab.url })));
 }
+
+console.log("Background loaded") 

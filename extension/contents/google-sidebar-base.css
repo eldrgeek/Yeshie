@@ -1,25 +1,47 @@
-:root,
-#plasmo-google-sidebar:host {
-  --plasmo-google-sidebar-width: 420px;
-}
-
-body.plasmo-google-sidebar-show,
-body.plasmo-google-sidebar-show * {
-  max-width: calc(100vw - var(--plasmo-google-sidebar-width));
-}
-
 #plasmo-google-sidebar {
   position: fixed;
-  z-index: 240;
-  top: 0px;
-  right: 0px;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  z-index: 2147483647;
+  transition: all 0.5s ease;
+}
+
+:root {
+  --plasmo-google-sidebar-width: 400px;
+}
+
+body.plasmo-google-sidebar-show {
+  margin-right: var(--plasmo-google-sidebar-width);
 }
 
 #sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  background-color: #ffffff;
+  width: var(--plasmo-google-sidebar-width);
+  height: 100vh;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  padding: 10px;
+  justify-content: flex-start;
+  flex-direction: column;
+  transition: all 0.5s ease;
+}
+
+#sidebar.open {
+  right: calc(var(--plasmo-google-sidebar-width) * -1);
+}
+
+#sidebar.closed {
+  right: 0;
+}
+
+.sidebar-toggle {
+  position: fixed;
+  right: 4.7px;
+  bottom: 47px;
+  z-index: 2147483647;
 }
 
 #sidebar span {

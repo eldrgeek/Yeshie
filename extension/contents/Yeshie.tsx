@@ -8,6 +8,8 @@ import { setupCS } from "../functions/extcomms"
 import "./google-sidebar-base.css"
 import { Stepper, getOrCreateInstanceId } from "../functions/Stepper"
 import { sendToBackground } from "@plasmohq/messaging"
+import YeshieEditor from "../components/YeshieEditor"
+
 setupCS()
 
 export const config: PlasmoCSConfig = {
@@ -23,7 +25,7 @@ export const getStyle = () => {
   return style
 }
 
-const isMatchingURL = (pattern) => {
+const isMatchingURL = (pattern: string) => {
   const currentURL = new URL(window.location.href)
   const patternURL = new URL(pattern.replace('*', ''), currentURL.origin)
   const cordURL = new URL("https://docs.cord.com")
@@ -42,20 +44,35 @@ interface TabContext {
   mode: string
 }
 
+// Debounce function
+function debounce(func: Function, wait: number) {
+  let timeout: NodeJS.Timeout
+  return function executedFunction(...args: any[]) {
+    const later = () => {
+      clearTimeout(timeout)
+      func(...args)
+    }
+    clearTimeout(timeout)
+    timeout = setTimeout(later, wait)
+  }
+}
+
 const Yeshie: React.FC = () => {
   const [isOpen, setIsOpen] = useStorage("isOpen" + window.location.hostname, false)
   const [isReady, setIsReady] = useState(false)
   const [tabId, setTabId] = useState<number | null>(null)
   const [sessionID, setSessionID] = useState<string | null>(null)
   const [context, setContext] = useState<TabContext | null>(null)
-  const initCalled = useRef(false) 
+  const [canLoadIframe, setCanLoadIframe] = useState(true)
+  const [connectionError, setConnectionError] = useState(false)
+  const initCalled = useRef(false)
 
   const updateContext = useCallback(async (newContext: Partial<TabContext>) => {
     if (tabId === null) return
 
     const updatedContext = { ...context, ...newContext }
     await storage.set(`tabContext:${tabId}`, updatedContext)
-    setContext(updatedContext)
+    setContext(updatedContext as TabContext)
   }, [tabId, context])
 
   const debouncedUpdateContext = useCallback(
@@ -67,31 +84,31 @@ const Yeshie: React.FC = () => {
     if (event.origin !== "http://localhost:3000") return;
 
     if (event.data && event.data.type === "monitor") {
-        console.log("Received message from CollaborationPage iframe:", event.origin, event.data);
-        if (event.data.op === "command") {
-            console.log("Command", event.data.line);
-            try {
-                const result = await Stepper(event.data.line);
-                console.log("Result", result);
-                event.source?.postMessage({ 
-                    type: "commandResult", 
-                    command: event.data.line,
-                    result: result,
-                    timestamp: new Date().toISOString()
-                }, { targetOrigin: event.origin });
-            } catch (error) {
-                console.error("Error processing command:", error);
-                event.source?.postMessage({ 
-                    type: "commandResult", 
-                    data: {
-                        command: event.data.line,
-                        result: null,
-                        error: error.message,
-                        timestamp: new Date().toISOString()
-                    }
-                }, { targetOrigin: event.origin }); //
+      console.log("Received message from CollaborationPage iframe:", event.origin, event.data);
+      if (event.data.op === "command") {
+        console.log("Command", event.data.line);
+        try {
+          const result = await Stepper(event.data.line);
+          console.log("Result", result);
+          event.source?.postMessage({ 
+            type: "commandResult", 
+            command: event.data.line,
+            result: result,
+            timestamp: new Date().toISOString()
+          }, { targetOrigin: event.origin });
+        } catch (error) {
+          console.error("Error processing command:", error);
+          event.source?.postMessage({ 
+            type: "commandResult", 
+            data: {
+              command: event.data.line,
+              result: null,
+              error: error.message,
+              timestamp: new Date().toISOString()
             }
+          }, { targetOrigin: event.origin });
         }
+      }
     }
 
     if (event.data && event.data.type === "sessionID") {
@@ -101,8 +118,8 @@ const Yeshie: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (window.top !== window.self) {
-      console.log("Yeshie is in an iframe, not rendering")
+    if (window.top !== window.self || !document.getElementById(getShadowHostId())) {
+      console.log("Yeshie is in an iframe or shadow host not found, not rendering")
       return
     }
 
@@ -110,23 +127,22 @@ const Yeshie: React.FC = () => {
       if (initCalled.current) return 
       initCalled.current = true 
 
-      console.log("INITTING" , isOpen,isReady)
-      chrome.runtime.sendMessage({op: "getTabId"}, async (response) => {
-        const currentTabId = response.tabId
-        setTabId(currentTabId)
-        const storedContext = await storage.get(`tabContext:${currentTabId}`) as TabContext | undefined
-        if (storedContext) {
-          setContext(storedContext)
-        } else {
-          const newContext: TabContext = {
-            url: window.location.href,
-            content: "",
-            mode: "llm"
-          }
-          await storage.set(`tabContext:${currentTabId}`, newContext)
-          setContext(newContext)
+      console.log("INITTING", isOpen, isReady)
+      const response = await sendToBackground({ name: "get_tab_id" });
+      setTabId(response.tabId);
+      
+      const storedContext = await storage.get(`tabContext:${response.tabId}`) as TabContext | undefined
+      if (storedContext) {
+        setContext(storedContext)
+      } else {
+        const newContext: TabContext = {
+          url: window.location.href,
+          content: "",
+          mode: "llm"
         }
-      });
+        await storage.set(`tabContext:${response.tabId}`, newContext)
+        setContext(newContext)
+      }
     }
 
     init();
@@ -166,7 +182,7 @@ const Yeshie: React.FC = () => {
       window.removeEventListener("message", handleMessage)
       window.removeEventListener('popstate', handleUrlChange)
     }
-  }, [handleMessage, updateContext])
+  }, [handleMessage, updateContext, isOpen, isReady])
 
   useEffect(() => {
     setupCS()
@@ -186,43 +202,63 @@ const Yeshie: React.FC = () => {
   }
 
   return (
-    <div id="sidebar" className={isOpen ? "open" : "closed"} style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      {/* <PythonComponent/> */}
-      <img 
-        src={iconBase64} 
-        alt="Yeshie Icon" 
-        className="resizing-icon"
-        width={32} 
-        height={32} 
-      />
-      <iframe 
-        src={`http://localhost:3000?tabId=${tabId}&mode=${context?.mode}`} 
-        width="100%" 
-        style={{ flex: 1 }}
-        title="Localhost Iframe" 
-      />
-      <span>Tab ID: {tabId !== null ? tabId : 'Loading...'}</span>
-      <span>Session ID: {sessionID !== null ? sessionID : 'Loading...'}</span>
-      
-      <button className="sidebar-toggle" onClick={() => setIsOpen(!isOpen)}>
-        <img src={iconBase64} alt="Yeshie Icon" width={32} height={32} />
-        {isOpen ? "🟡" : "🟣"}
-      </button>
+    <div id="plasmo-google-sidebar">
+      <div id="sidebar" className={isOpen ? "open" : "closed"} style={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        height: '100vh',
+        width: "var(--plasmo-google-sidebar-width)"
+      }}>
+        <img 
+          src={iconBase64} 
+          alt="Yeshie Icon" 
+          className="resizing-icon"
+          width={32} 
+          height={32} 
+        />
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          flex: 1,
+          overflow: 'hidden',
+          width: '100%'
+        }}>
+          {/* Top half - iframe */}
+          <div style={{ height: '50%', borderBottom: '1px solid #e0e0e0', width: '100%' }}>
+            {canLoadIframe && !connectionError ? (
+              <iframe 
+                src={`http://localhost:3000?tabId=${tabId}&mode=${context?.mode}`} 
+                width="100%" 
+                height="100%" 
+                style={{ border: 'none' }}
+                title="Localhost Iframe" 
+                onError={() => setConnectionError(true)}
+              />
+            ) : null}
+          </div>
+          {/* Bottom half - YeshieEditor */}
+          <div style={{ height: '50%', width: '100%' }}>
+            <YeshieEditor sessionId={sessionID || ''} />
+          </div>
+        </div>
+        <div style={{ 
+          padding: '8px', 
+          borderTop: '1px solid #e0e0e0',
+          backgroundColor: '#f8f8f8',
+          fontSize: '12px',
+          color: '#666',
+          width: '100%'
+        }}>
+          <span>Tab ID: {tabId !== null ? tabId : 'Loading...'}</span>
+          <span style={{ marginLeft: '12px' }}>Session ID: {sessionID !== null ? sessionID : 'Loading...'}</span>
+        </div>
+        <button className="sidebar-toggle" onClick={() => setIsOpen(!isOpen)}>
+          <img src={iconBase64} alt="Yeshie Icon" width={32} height={32} />
+          {isOpen ? "🟡" : "🟣"}
+        </button>
+      </div>
     </div>
   )
-}
-
-// Debounce function
-function debounce(func: Function, wait: number) {
-  let timeout: NodeJS.Timeout
-  return function executedFunction(...args: any[]) {
-    const later = () => {
-      clearTimeout(timeout)
-      func(...args)
-    }
-    clearTimeout(timeout)
-    timeout = setTimeout(later, wait)
-  }
 }
 
 export default Yeshie
