@@ -8,7 +8,7 @@ import { defaultKeymap, indentWithTab, history } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { Decoration, DecorationSet } from "@codemirror/view";
 // import '../styles/editor.css';
-import { TEST_CONVERSATION } from './testconversation';
+import { TEST_CONVERSATION } from './TestConversation';
 
 interface CollaborationPageProps {
   socket: Socket | null;
@@ -23,56 +23,6 @@ const formatEntry = (entry: typeof TEST_CONVERSATION[0], isFirst: boolean = fals
     ? `> ${entry.text.split('\n').join('\n> ')}` // Prefix each line with > for user messages
     : entry.text;
   return (isFirst ? "" : "\n") + formattedText + "\n\n";
-};
-
-// Define the marker state field
-const markerStateField = StateField.define<RangeSet<GutterMarker>>({
-  create() {
-    return RangeSet.empty;
-  },
-  update(markers, tr) {
-    return markers.map(tr.changes);
-  }
-});
-
-// Function to clear all gutter annotations
-const clearGutters = (view: EditorView) => {
-  view.dispatch({
-    effects: StateEffect.appendConfig.of([
-      markerStateField.init(() => RangeSet.empty)
-    ])
-  });
-};
-
-// Function to update editor content
-const updateContent = (view: EditorView, newContent: string, mode: "append" | "replace" = "replace") => {
-  if (mode === "append") {
-    const currentContent = view.state.doc.toString();
-    // Remove trailing newlines from current content
-    const trimmedCurrent = currentContent.replace(/\n+$/, "");
-    // Add newlines between existing and new content if needed
-    const separator = trimmedCurrent ? "\n\n" : "";
-    const fullContent = trimmedCurrent + separator + newContent;
-
-    view.dispatch({
-      changes: {
-        from: 0,
-        to: view.state.doc.length,
-        insert: fullContent
-      },
-      selection: EditorSelection.cursor(fullContent.length)
-    });
-  } else {
-    // Replace mode - just replace everything
-    view.dispatch({
-      changes: {
-        from: 0,
-        to: view.state.doc.length,
-        insert: newContent
-      },
-      selection: EditorSelection.cursor(newContent.length)
-    });
-  }
 };
 
 const DEFAULT_CONTENT = `# Welcome to Yeshie
@@ -129,6 +79,37 @@ function getBackgroundRanges(content: string): Range<Decoration>[] {
   
   return ranges;
 }
+
+// Function to update editor content
+const updateContent = (view: EditorView, newContent: string, mode: "append" | "replace" = "replace") => {
+  if (mode === "append") {
+    const currentContent = view.state.doc.toString();
+    // Remove trailing newlines from current content
+    const trimmedCurrent = currentContent.replace(/\n+$/, "");
+    // Add newlines between existing and new content if needed
+    const separator = trimmedCurrent ? "\n\n" : "";
+    const fullContent = trimmedCurrent + separator + newContent;
+
+    view.dispatch({
+      changes: {
+        from: 0,
+        to: view.state.doc.length,
+        insert: fullContent
+      },
+      selection: EditorSelection.cursor(fullContent.length)
+    });
+  } else {
+    // Replace mode - just replace everything
+    view.dispatch({
+      changes: {
+        from: 0,
+        to: view.state.doc.length,
+        insert: newContent
+      },
+      selection: EditorSelection.cursor(newContent.length)
+    });
+  }
+};
 
 const CollaborationPage: React.FC<CollaborationPageProps> = ({
   socket,
@@ -441,13 +422,11 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
         }
         // Move to next entry (Yeshie's response) after a delay
         setTimeout(() => {
-          clearGutters(view);
           updateContent(view, formatEntry(nextEntry, true), "replace");
           setCurrentTestStep(nextStep + 1);
         }, 300);
       } else {
         // For Yeshie's entries, just show the next entry
-        clearGutters(view);
         updateContent(view, formatEntry(nextEntry, true), "replace");
         setCurrentTestStep(nextStep);
       }
