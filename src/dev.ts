@@ -27,7 +27,9 @@ enum Profile {
   WIN = 'win',
   LLM = 'llm',
   CODE_STORE = 'codeStore',
-  ALL = 'all'
+  ALL = 'all',
+  SHARED = 'shared',
+  SHARED_WATCH = 'shared:watch'
 }
 
 class DevEnvironment {
@@ -373,12 +375,28 @@ class JobBuilder {
     const profiles: Record<Profile, string[]> = {
       [Profile.DEFAULT]: [],
       [Profile.REPL]: [],
-      [Profile.DEV]: ['dev:monitor', 'dev:server', 'dev:client', 'dev:extension', 'dev:messages'],
+      [Profile.DEV]: ['dev:monitor', 'dev:server', 'dev:client', 'dev:extension', 'dev:messages', 'shared:watch'],
       [Profile.WIN]: ['dev:winmonitor', 'dev:extension'],
       [Profile.LLM]: [],
       [Profile.CODE_STORE]: [],
-      [Profile.ALL]: jobs.map(job => job.name)
+      [Profile.ALL]: jobs.map(job => job.name),
+      [Profile.SHARED]: ['shared:build'],
+      [Profile.SHARED_WATCH]: ['shared:watch']
     };
+
+    // Add shared build jobs
+    const sharedJobs: Job[] = [
+      {
+        name: 'shared:build',
+        do: 'tsc -p shared/tsconfig.json',
+      },
+      {
+        name: 'shared:watch',
+        do: 'tsc -p shared/tsconfig.json --watch',
+      }
+    ];
+
+    jobs.push(...sharedJobs);
 
     // Group jobs by type
     const serverJobs = jobs.filter(job => job.name.includes('server'));
@@ -386,7 +404,6 @@ class JobBuilder {
     const monitorJobs = jobs.filter(job => job.name.includes('monitor'));
 
     profiles[Profile.REPL] = [...serverJobs, ...clientJobs].map(job => job.name);
-    // Don't override DEV profile as it's already set correctly above
     profiles[Profile.WIN] = jobs.filter(job => job.name.includes('win')).map(job => job.name);
     profiles[Profile.LLM] = ['server', 'llm'];
     profiles[Profile.CODE_STORE] = ['server', 'codeStore'];

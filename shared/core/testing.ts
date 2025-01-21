@@ -1,0 +1,154 @@
+import { ConversationEntry, IEditorProvider, IMessageSender, INotificationProvider } from '../types';
+
+export const TEST_CONVERSATION: ConversationEntry[] = [
+  {
+    from: 'Y',
+    text: `Hi! I'm Yeshie, your AI coding assistant. I can help you with:
+
+1. Writing and debugging code
+2. Answering programming questions
+3. Explaining concepts
+4. Running commands
+
+Try typing something, or press Enter to continue the demo.`,
+  },
+  {
+    from: 'U',
+    text: 'Can you help me understand what this codebase does?',
+  },
+  {
+    from: 'Y',
+    text: `I'll help you understand the codebase. Let me check what files we have.`,
+    actions: [
+      'message Scanning repository...',
+      'ls -R',
+    ],
+  },
+  {
+    from: 'U',
+    text: 'Can you show me the main components?',
+  },
+  {
+    from: 'Y',
+    text: `I'll help you explore the main components. Let me show you the key files.`,
+    actions: [
+      'find . -name "*.tsx" -o -name "*.ts" | grep -v "node_modules"',
+    ],
+  }
+];
+
+export const DEFAULT_CONTENT = `# Welcome to Yeshie
+Type 'test' for an interactive demo or 'testall' to see a complete conversation.
+
+`;
+
+export class TestConversationHandler {
+  private currentStep: number = 0;
+  private isTestMode: boolean = false;
+
+  constructor(
+    private editor: IEditorProvider,
+    private messageSender: IMessageSender,
+    private notifications: INotificationProvider,
+  ) {}
+
+  public handleTestCommand(command: string, isIframe: boolean): boolean {
+    const lastLine = this.editor.getCurrentLine().trim();
+    
+    if (lastLine !== 'test' && lastLine !== 'testall') {
+      return false;
+    }
+
+    if (lastLine === 'test') {
+      this.startTestMode();
+    } else {
+      this.showFullConversation(isIframe);
+    }
+
+    return true;
+  }
+
+  private startTestMode(): void {
+    console.log("Starting test mode");
+    this.isTestMode = true;
+    this.currentStep = 0;
+    this.editor.setContent("", "replace");
+    
+    // Display first entry
+    setTimeout(() => {
+      const entry = TEST_CONVERSATION[0];
+      this.editor.setContent(this.formatEntry(entry, true), "replace");
+    }, 0);
+    
+    this.currentStep = 1;
+  }
+
+  private showFullConversation(isIframe: boolean): void {
+    console.log("Starting testall mode");
+    this.isTestMode = false;
+    
+    const allContent = TEST_CONVERSATION
+      .map((entry, index) => this.formatEntry(entry, index === 0))
+      .join("");
+      
+    this.editor.setContent(allContent, "replace");
+    
+    if (isIframe) {
+      TEST_CONVERSATION.forEach(entry => {
+        if (entry.actions?.length) {
+          entry.actions.forEach(action => {
+            this.messageSender.sendCommandMessage(action);
+          });
+        }
+      });
+    }
+  }
+
+  public handleTestModeEnter(): boolean {
+    if (!this.isTestMode) {
+      return false;
+    }
+
+    console.log("Test mode state:", { currentStep: this.currentStep });
+    
+    if (this.currentStep >= TEST_CONVERSATION.length - 1) {
+      console.log("Reached end of conversation");
+      this.isTestMode = false;
+      return true;
+    }
+    
+    const currentEntry = TEST_CONVERSATION[this.currentStep];
+    const nextStep = this.currentStep + 1;
+    const nextEntry = TEST_CONVERSATION[nextStep];
+    
+    // If current entry is from user (U), check for input
+    if (currentEntry.from === 'U') {
+      const hasResponse = this.editor.getCurrentLine().trim() !== "";
+      if (!hasResponse) {
+        this.editor.addNewLine();
+      } else {
+        this.editor.setContent(this.formatEntry(currentEntry, true), "append");
+      }
+      
+      // Move to next entry (Yeshie's response) after a delay
+      setTimeout(() => {
+        this.editor.setContent(this.formatEntry(nextEntry, true), "replace");
+        this.currentStep = nextStep + 1;
+      }, 300);
+    } else {
+      // For Yeshie's entries, just show the next entry
+      this.editor.setContent(this.formatEntry(nextEntry, true), "replace");
+      this.currentStep = nextStep;
+    }
+    
+    return true;
+  }
+
+  private formatEntry(entry: ConversationEntry, isFirst: boolean = false): string {
+    // Use blockquote for user messages and regular text for Yeshie
+    const formattedText = entry.from === "U" 
+      ? `> ${entry.text.split('\n').join('\n> ')}` // Prefix each line with > for user messages
+      : entry.text;
+    return (isFirst ? "" : "\n") + formattedText + "\n\n";
+  }
+} 
