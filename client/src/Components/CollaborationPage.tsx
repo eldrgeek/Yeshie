@@ -1,19 +1,17 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { Box, VStack, Heading, useToast } from "@chakra-ui/react";
+import { Box, VStack, Heading, useToast, UseToastOptions } from "@chakra-ui/react";
 import { Socket } from "socket.io-client";
 import { EditorView, basicSetup } from "codemirror";
 import { EditorState, Prec, RangeSet, EditorSelection, StateEffect, StateField, Range, Transaction } from "@codemirror/state";
-import { keymap, GutterMarker, } from "@codemirror/view";
+import { keymap } from "@codemirror/view";
 import { defaultKeymap, indentWithTab, history } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { Decoration, DecorationSet } from "@codemirror/view";
-// import '../styles/editor.css';
 import { TEST_CONVERSATION } from './TestConversation';
 
 interface CollaborationPageProps {
   socket: Socket | null;
   sessionID: string;
-  logMessages: string[];
 }
 
 // Function to format conversation entry
@@ -49,8 +47,6 @@ const backgroundField = StateField.define<DecorationSet>({
   },
   provide: f => EditorView.decorations.from(f)
 });
-
-let currentTestStepRef = 0;  // Add this at module level
 
 function getBackgroundRanges(content: string): Range<Decoration>[] {
   const ranges: Range<Decoration>[] = [];
@@ -114,7 +110,6 @@ const updateContent = (view: EditorView, newContent: string, mode: "append" | "r
 const CollaborationPage: React.FC<CollaborationPageProps> = ({
   socket,
   sessionID,
-  // logMessages: initialLogMessages
 }) => {
   const [currentTestStep, setCurrentTestStep] = useState<number>(0);
   const [isTestMode, setIsTestMode] = useState<boolean>(false);
@@ -122,13 +117,12 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
   const viewRef = useRef<EditorView | null>(null);
   const handleEnterKeyRef = useRef<(view: EditorView) => boolean>();
   const innerToast = useToast();
-  const toast = (opts: any) => {
-    console.log("TOAST", opts.title);
+  const toast = (opts: UseToastOptions) => {
     innerToast(opts);
   };
   
   const isIframe = window.self !== window.top;
-  const [mode, setMode] = useState<"default" | "command" | "llm">(() => {
+  const [mode, setMode] = useState(() => {
     const savedMode = sessionStorage.getItem("editorMode");
     return (savedMode as "default" | "command" | "llm") || "llm";
   });
@@ -139,7 +133,6 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
   };
 
   const sendPostMessage = (content: string) => {
-    // Don't send postMessage in LLM mode
     if (mode === "llm") {
       console.error("Attempted to send postMessage in LLM mode");
       return;
@@ -147,15 +140,12 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
 
     content = filterString(content);
     const lines = content.split("\n").filter(line => line.trim());
-    console.log("LINES", lines);
 
     const sendLine = (index: number) => {
       if (index >= lines.length) return;
 
       const line = lines[index].trim();
       if (!line.startsWith("//")) {
-        console.log(`SENDING line '${line}'`);
-
         if (line.startsWith('message ')) {
           toast({
             title: "Message",
@@ -455,13 +445,11 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
 
   // Add key handlers with useCallback
   const handleSave = useCallback(() => {
-    console.log("Save shortcut triggered");
     sendContent();
     return true;
   }, [sendContent]);
 
   const handleEnter = useCallback(() => {
-    console.log("Enter shortcut triggered");
     sendContent();
     return true;
   }, [sendContent]);
@@ -483,7 +471,6 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
   // Initialize editor only once
   const initializeEditor = useCallback(() => {
     if (!editorRef.current) return;
-    console.log("Editor instantiated");
 
     const startState = EditorState.create({
       doc: DEFAULT_CONTENT,
@@ -527,7 +514,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     }
 
     viewRef.current = new EditorView({ state: startState, parent: editorRef.current });
-  }, [handleSave, handleEnter, handleSelectAll]); // Add dependencies
+  }, [handleSave, handleEnter, handleSelectAll]);
 
   // Initialize editor on mount
   useEffect(() => {
@@ -536,11 +523,6 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
       viewRef.current?.destroy();
     };
   }, [initializeEditor]);
-
-  // In the component, update currentTestStepRef when currentTestStep changes
-  useEffect(() => {
-    currentTestStepRef = currentTestStep;
-  }, [currentTestStep]);
 
   const styles = `
     .cm-yeshie-response {

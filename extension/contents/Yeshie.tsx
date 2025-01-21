@@ -1,17 +1,18 @@
 import iconBase64 from "data-base64:~assets/icon.png"
+import cssTextBase from "data-text:~/contents/google-sidebar-base.css"
 import cssText from "data-text:~/contents/google-sidebar.css"
 import type { PlasmoCSConfig } from "plasmo"
 import React, { useEffect, useState, useCallback, useRef } from "react"
 import { useStorage } from "@plasmohq/storage/hook"
 import { Storage } from "@plasmohq/storage"
 import { setupCS } from "../functions/extcomms"
-import "./google-sidebar-base.css"
 import { Stepper, getOrCreateInstanceId } from "../functions/Stepper"
 import { sendToBackground } from "@plasmohq/messaging"
 import YeshieEditor from "../components/YeshieEditor"
+import "./google-sidebar-base.css"
 
 setupCS()
-
+console.log(cssText)
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
   all_frames: false,
@@ -191,6 +192,17 @@ const Yeshie: React.FC = () => {
     }
   }, [isOpen, isReady])
 
+  useEffect(() => {
+    const style = document.createElement("style")
+    const styleContent: string = cssText + "\n" + cssTextBase;
+    style.textContent = styleContent
+    document.head.appendChild(style)
+    
+    return () => {
+      document.head.removeChild(style)
+    }
+  }, [])
+
   if (!isReady) {
     console.log("Yeshie is not ready to render yet")
     return null
@@ -203,12 +215,17 @@ const Yeshie: React.FC = () => {
 
   return (
     <div id="plasmo-google-sidebar">
-      <div id="sidebar" className={isOpen ? "open" : "closed"} style={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        height: '100vh',
-        width: "var(--plasmo-google-sidebar-width)"
-      }}>
+      <div
+        id="sidebar"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-start",
+          flexDirection: "column",
+          border: "2px solid #e2e8f0",
+          boxShadow: "0 0 10px rgba(0, 0, 0, 0.1)"
+        }}
+        className={isOpen ? "open" : "closed"}>
         <img 
           src={iconBase64} 
           alt="Yeshie Icon" 

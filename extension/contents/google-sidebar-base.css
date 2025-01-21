@@ -19,14 +19,17 @@ body.plasmo-google-sidebar-show {
   position: fixed;
   top: 0;
   right: 0;
-  background-color: #ffffff;
+  color: "red";
   width: var(--plasmo-google-sidebar-width);
   height: 100vh;
+  background-color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: flex-start;
   flex-direction: column;
-  transition: all 0.5s ease;
+  transition: right 0.5s ease;
+  border: 2px solid #e2e8f0;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
 #sidebar.open {
@@ -58,4 +61,76 @@ body.plasmo-google-sidebar-show {
   flex-grow: 1;
   width: 100%;
   height: auto;
+}
+
+/* Chat container and conversation list styles */
+.cs-main-container {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  overflow: auto;
+  border: solid 1px #d1dbe3;
+  box-sizing: border-box;
+  color: #000000de;
+  background-color: #fff;
+  font-size: 1rem;
+}
+
+.cs-main-container > .cs-conversation-list {
+  order: 0;
+  height: 100%;
+  flex-basis: 300px;
+  border-top: solid 0px #d1dbe3;
+  border-right: solid 1px #d1dbe3;
+  border-bottom: solid 0px #d1dbe3;
+  border-left: solid 0px #d1dbe3;
+  box-shadow: 2px 0 5px -2px #00000061;
+  z-index: 2;
+}
+
+.cs-main-container > .cs-sidebar.cs-sidebar--left {
+  order: 0;
+  height: 100%;
+  max-width: 320px;
+  flex-basis: 35%;
+  border-right: solid 1px #d1dbe3;
+  z-index: 2;
+}
+
+.cs-main-container > .cs-sidebar.cs-sidebar--right {
+  flex-basis: 25%;
+  min-width: 150px;
+  max-width: 320px;
+  border-top: solid 0px #d1dbe3;
+  border-right: solid 0px #d1dbe3;
+  border-bottom: solid 0px #d1dbe3;
+  border-left: solid 1px #d1dbe3;
+}
+
+.cs-main-container .cs-chat-container {
+  order: 1;
+  z-index: 1;
+  flex-grow: 1;
+  flex-basis: 65%;
+  border-right: solid 0px #d1dbe3;
+}
+
+/* Icon styles */
+.resizing-icon {
+  width: 128px;
+  height: 128px;
+  transition: width 2s, height 2s;
+}
+
+#sidebar.open .resizing-icon {
+  width: 32px;
+  height: 32px;
+}
+
+#sidebar p {
+  font-weight: normal;
+  text-align: left;
+  font-size: 14px;
+  font-family: sans-serif;
 }
