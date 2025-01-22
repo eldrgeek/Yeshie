@@ -113,20 +113,20 @@ const captureScreenshot = (windowId) => {
   });
 };
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.op === "getTabId") {
-    getCurrentTabId().then(tabId => {
+// Add message handler for getTabId
+chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
+  if (message.name === "getTabId") {
+    try {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      const tabId = tabs[0]?.id ?? -1;
+      console.log("Selected tab ID:", tabId);
       sendResponse({ tabId });
-    });
-    return true; // Indicates that the response will be sent asynchronously
+    } catch (error) {
+      console.error("Error getting current tab ID:", error);
+      sendResponse({ tabId: -1 });
+    }
+    return true; // Keep the message channel open for async response
   }
-  
-  if (sender.tab && sender.tab.id) {
-    // Forward the message to the specific tab that sent it
-    chrome.tabs.sendMessage(sender.tab.id, message);
-  }
-  
-  // Always return true if you're handling the message asynchronously
   return true;
 });
 

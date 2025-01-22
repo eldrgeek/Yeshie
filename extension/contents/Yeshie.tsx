@@ -128,20 +128,29 @@ const Yeshie: React.FC = () => {
       initCalled.current = true 
 
       console.log("INITTING", isOpen, isReady)
-      const response = await sendToBackground({ name: "get_tab_id" });
-      setTabId(response.tabId);
-      
-      const storedContext = await storage.get(`tabContext:${response.tabId}`) as TabContext | undefined
-      if (storedContext) {
-        setContext(storedContext)
-      } else {
-        const newContext: TabContext = {
-          url: window.location.href,
-          content: "",
-          mode: "llm"
+      try {
+        const response = await sendToBackground({ name: "getTabId" });
+        console.log("Got tab ID response:", response);
+        if (response && typeof response.tabId === 'number') {
+          setTabId(response.tabId);
+          
+          const storedContext = await storage.get(`tabContext:${response.tabId}`) as TabContext | undefined
+          if (storedContext) {
+            setContext(storedContext)
+          } else {
+            const newContext: TabContext = {
+              url: window.location.href,
+              content: "",
+              mode: "llm"
+            }
+            await storage.set(`tabContext:${response.tabId}`, newContext)
+            setContext(newContext)
+          }
+        } else {
+          console.error("Invalid tab ID response:", response);
         }
-        await storage.set(`tabContext:${response.tabId}`, newContext)
-        setContext(newContext)
+      } catch (error) {
+        console.error("Error getting tab ID:", error);
       }
     }
 
