@@ -263,12 +263,10 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     if (lastLine === "command" && isIframe) {
       console.log("[sendContent] Switching to command mode");
       changeMode("command");
-      showModeChangeToast("command");
       return;
     } else if (lastLine === "llm") {
       console.log("[sendContent] Switching to llm mode");
       changeMode("llm");
-      showModeChangeToast("llm");
       return;
     }
 
