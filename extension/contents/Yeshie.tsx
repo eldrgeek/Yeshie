@@ -12,7 +12,6 @@ import YeshieEditor from "../components/YeshieEditor"
 import "./google-sidebar-base.css"
 
 setupCS()
-console.log(cssText)
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
   all_frames: false,

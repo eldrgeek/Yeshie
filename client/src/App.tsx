@@ -70,8 +70,12 @@ function App() {
   }, [session]);
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
-    if (event.metaKey || event.ctrlKey) {
-      console.log("ctrl key", event.key);
+    // Only handle number keys and specific commands
+    const validKeys = ['1', '2', '3', '4', '5', '6', 's', 'g'];
+    
+    if ((event.metaKey || event.ctrlKey) && validKeys.includes(event.key)) {
+      console.log("[App] handling shortcut:", event.key);
+      
       switch (event.key) {
         case "4":
           event.preventDefault();
@@ -89,23 +93,23 @@ function App() {
           event.preventDefault();
           setCurrentView("rewind");
           break;
-        case "5": // Add a new shortcut for TipTap
+        case "5":
           event.preventDefault();
           setCurrentView("tiptap");
           break;
         case "s":
-          event.preventDefault();
           if (rewindWrapperRef.current) {
+            event.preventDefault();
             rewindWrapperRef.current.handleSave();
           }
           break;
         case "g":
-          event.preventDefault();
           if (rewindWrapperRef.current) {
+            event.preventDefault();
             rewindWrapperRef.current.handleGoClick();
           }
           break;
-        case "6": // Add a new shortcut for MilkdownCollab
+        case "6":
           event.preventDefault();
           setCurrentView("milkdown");
           break;
@@ -132,7 +136,6 @@ function App() {
         {currentView === "collaboration" && (
           <CollaborationPage
             socket={socket}
-            logMessages={[]}
             sessionID={session || ""}
           />
         )}

@@ -1,12 +1,12 @@
 import React, { useEffect, useRef } from 'react';
-import { defaultValueCtx, Editor, rootCtx } from '@milkdown/kit/core';
+import { defaultValueCtx, Editor, rootCtx } from '@milkdown/core';
 import {
   collab,
   CollabService,
   collabServiceCtx,
 } from '@milkdown/plugin-collab';
 import { Crepe } from '@milkdown/crepe';
-import { commonmark } from '@milkdown/kit/preset/commonmark';
+import { commonmark } from '@milkdown/preset-commonmark';
 import { nord } from '@milkdown/theme-nord';
 import { WebsocketProvider } from 'y-websocket';
 import { Doc } from 'yjs';
@@ -77,7 +77,7 @@ class CollabManager {
     this.collabService
       .bindDoc(this.doc)
       .setAwareness(this.wsProvider.awareness);
-    this.wsProvider.once('synced', async (isSynced: boolean) => {
+    this.wsProvider.once('sync', async (isSynced: boolean) => {
       if (isSynced) {
         this.collabService.applyTemplate(template).connect();
       }

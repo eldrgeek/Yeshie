@@ -4,15 +4,12 @@ import { Socket } from "socket.io-client";
 import { Button, HStack, VStack, useToast } from "@chakra-ui/react";
 import { FiSave, FiChevronRight, FiChevronLeft } from "react-icons/fi";
 import { FaUndo, FaRedo } from "react-icons/fa";
-import { keymap } from "@codemirror/view";
-import { EditorView, basicSetup } from "codemirror";
-import { indentWithTab, indentMore, indentLess } from "@codemirror/commands";
-import { EditorState } from "@codemirror/state";
-import { markdown } from "@codemirror/lang-markdown";
-import { history, redo, undo } from "@codemirror/commands";
+import { EditorView } from "@codemirror/view";
+import { indentMore, indentLess } from "@codemirror/commands";
+import { EditorState, Compartment } from "@codemirror/state";
+import { redo, undo } from "@codemirror/commands";
 import { oneDark } from "@codemirror/theme-one-dark";
-import { Compartment } from "@codemirror/state";
-import { defaultKeymap } from "@codemirror/commands";
+import { createEditorExtensions } from '../editor/config';
 
 interface ScriptEditorProps {
   socket: Socket;
@@ -62,26 +59,17 @@ const ScriptEditor = forwardRef<unknown, ScriptEditorProps>(({ socket, sessionID
       const state = EditorState.create({
         doc: savedContent || "this is a test",
         extensions: [
-          basicSetup,
-          keymap.of([
-            ...defaultKeymap,
-            indentWithTab,
-            {
-              mac: "Cmd-s",
-              win: "Ctrl-s",
-              linux: "Ctrl-s",
-              preventDefault: true,
-              run: () => {
-                console.log("Save shortcut triggered");
-                handleSave();
-                return true;
-              }
-            }
-          ]),
-          markdown(),
-          EditorView.lineWrapping,
-          history(),
-          themeCompartment.current.of(isDarkTheme ? oneDark : []),
+          createEditorExtensions({
+            onSave: () => {
+              console.log("Save shortcut triggered");
+              handleSave();
+              return true;
+            },
+            onEnter: () => false,
+            onSelectAll: () => false,
+            onRegularEnter: () => false,
+            theme: isDarkTheme ? oneDark : []
+          }),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) {
               const currentTime = Date.now();

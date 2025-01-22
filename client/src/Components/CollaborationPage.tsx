@@ -1,12 +1,14 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { Box, VStack, Heading, useToast, UseToastOptions } from "@chakra-ui/react";
+import { Box, VStack, Heading, useToast } from "@chakra-ui/react";
 import { Socket } from "socket.io-client";
-import { EditorView, basicSetup } from "codemirror";
-import { EditorState, Prec, RangeSet, EditorSelection, StateEffect, StateField, Range, Transaction } from "@codemirror/state";
-import { keymap } from "@codemirror/view";
+import { EditorView, keymap } from "@codemirror/view";
+import { EditorState, EditorSelection, StateEffect, Prec } from "@codemirror/state";
 import { defaultKeymap, indentWithTab, history } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import { Decoration, DecorationSet } from "@codemirror/view";
+import { ModeManager, EditorMode } from "@yeshie/shared";
+import { ChakraNotificationAdapter } from "../adapters/NotificationAdapter";
+import { SessionStorageAdapter } from "../adapters/StorageAdapter";
+import { createEditorExtensions, createBackgroundField } from "../editor/config";
 import { TEST_CONVERSATION } from './TestConversation';
 
 interface CollaborationPageProps {
@@ -27,54 +29,6 @@ const DEFAULT_CONTENT = `# Welcome to Yeshie
 Type 'test' for an interactive demo or 'testall' to see a complete conversation.
 
 `;  // Note the extra newline at the end
-
-const yeshieBackground = Decoration.mark({
-  class: "cm-yeshie-response",
-  inclusive: true
-});
-
-const userBackground = Decoration.mark({
-  class: "cm-user-response",
-  inclusive: true
-});
-
-const backgroundField = StateField.define<DecorationSet>({
-  create() {
-    return Decoration.none;
-  },
-  update(_, tr: Transaction) {
-    return RangeSet.of(getBackgroundRanges(tr.state.doc.toString()));
-  },
-  provide: f => EditorView.decorations.from(f)
-});
-
-function getBackgroundRanges(content: string): Range<Decoration>[] {
-  const ranges: Range<Decoration>[] = [];
-  let currentPos = 0;
-  
-  const lines = content.split('\n');
-  const lastLineIndex = lines.length - 1;
-  
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const lineStart = currentPos;
-    const lineLength = lines[i].length;
-    
-    if (line.trim() || i === lastLineIndex) {  // Check if it's the last line
-      // In testall mode, look for the '>' prefix, or style last line if it's being typed on
-      const isUserResponse = line.startsWith('> ') || (i === lastLineIndex && line.trim());
-      ranges.push({
-        from: lineStart,
-        to: lineStart + lineLength,
-        value: isUserResponse ? userBackground : yeshieBackground
-      });
-    }
-    
-    currentPos += lineLength + 1;
-  }
-  
-  return ranges;
-}
 
 // Function to update editor content
 const updateContent = (view: EditorView, newContent: string, mode: "append" | "replace" = "replace") => {
@@ -116,15 +70,19 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const handleEnterKeyRef = useRef<(view: EditorView) => boolean>();
-  const innerToast = useToast();
-  const toast = (opts: UseToastOptions) => {
-    innerToast(opts);
-  };
-  
+  const toast = useToast();
   const isIframe = window.self !== window.top;
-  const [mode, setMode] = useState(() => {
-    const savedMode = sessionStorage.getItem("editorMode");
-    return (savedMode as "default" | "command" | "llm") || "llm";
+  
+  // Initialize mode manager with adapters
+  const modeManagerRef = useRef<ModeManager>(
+    new ModeManager(
+      new SessionStorageAdapter(),
+      new ChakraNotificationAdapter(toast)
+    )
+  );
+  
+  const [mode, setMode] = useState<EditorMode>(() => {
+    return modeManagerRef.current.getMode();
   });
 
   const filterString = (inputString: string): string => {
@@ -267,26 +225,24 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     });
   };
 
-  // Add mode change helper
-  const changeMode = useCallback((newMode: "command" | "llm") => {
-    console.log(`Switching to ${newMode} mode`);
+  // Update mode change helper
+  const changeMode = useCallback((newMode: EditorMode) => {
+    console.log(`[changeMode] Attempting to switch to ${newMode} mode`);
+    modeManagerRef.current.changeMode(newMode);
     setMode(newMode);
-    viewRef.current?.dispatch({
-      changes: { from: 0, to: viewRef.current.state.doc.length, insert: "" },
-    });
-    showModeChangeToast(newMode);
-    sessionStorage.setItem("editorMode", newMode);
+    console.log(`[changeMode] Mode switched to ${newMode}`);
   }, []);
 
   // Wrap sendContent in useCallback
   const sendContent = useCallback(() => {
     const content = viewRef.current?.state.doc.toString() || "";
-    const filteredContent = content.replace(/\/\*[\s\S]*?\*\//g, "").trim();
+    const lines = content.split('\n');
+    const lastLine = lines[lines.length - 1].trim();
     
-    console.log("sendContent called:", {
+    console.log("[sendContent] called:", {
       mode,
       content,
-      filteredContent,
+      lastLine,
       isIframe,
       socketConnected: isSocketConnected,
       socketExists: !!socket
@@ -295,12 +251,24 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     // Save content to sessionStorage
     sessionStorage.setItem("editorContent", content);
 
-    // Check for mode change
-    if (filteredContent === "command" && isIframe) {
-      changeMode("command");
+    // Check for special commands first
+    if (lastLine === "test" || lastLine === "testall") {
+      if (viewRef.current && handleEnterKeyRef.current) {
+        handleEnterKeyRef.current(viewRef.current);
+      }
       return;
-    } else if (filteredContent === "llm") {
+    }
+
+    // Check for mode change
+    if (lastLine === "command" && isIframe) {
+      console.log("[sendContent] Switching to command mode");
+      changeMode("command");
+      showModeChangeToast("command");
+      return;
+    } else if (lastLine === "llm") {
+      console.log("[sendContent] Switching to llm mode");
       changeMode("llm");
+      showModeChangeToast("llm");
       return;
     }
 
@@ -335,14 +303,14 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     // If we get here, it's an invalid mode
     console.log("Invalid mode:", { mode, isIframe });
     showInvalidModeToast(mode);
-  }, [mode, isIframe, socket, isSocketConnected, sessionID, setMode]);  // Add all dependencies
+  }, [mode, isIframe, socket, isSocketConnected, sessionID, setMode, changeMode]);
 
   // Regular function that will always have current state values
   const handleEnterKey = (view: EditorView) => {
     const content = view.state.doc.toString();
     const lines = content.split('\n');
     const lastLine = lines[lines.length - 1].trim();
-    console.log("handleEnterKey called", { isTestMode, currentTestStep, lastLine });
+    console.log("[handleEnterKey] called with lastLine:", lastLine, { isTestMode, currentTestStep });
     
     // Handle test/testall commands
     if (lastLine === "test" || lastLine === "testall") {
@@ -445,11 +413,13 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
 
   // Add key handlers with useCallback
   const handleSave = useCallback(() => {
+    console.log("[handleSave] called");
     sendContent();
     return true;
   }, [sendContent]);
 
   const handleEnter = useCallback(() => {
+    console.log("[handleEnter] called");
     sendContent();
     return true;
   }, [sendContent]);
@@ -472,48 +442,76 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
   const initializeEditor = useCallback(() => {
     if (!editorRef.current) return;
 
-    const startState = EditorState.create({
-      doc: DEFAULT_CONTENT,
-      extensions: [
-        basicSetup,
-        Prec.highest(
-          keymap.of([
-            {
-              key: "Mod-s",
-              preventDefault: true,
-              run: handleSave,
-            },
-            {
-              key: "Mod-Enter",
-              preventDefault: true,
-              run: handleEnter,
-            },
-            {
-              key: "Mod-a",
-              preventDefault: true,
-              run: handleSelectAll,
-            },
-            {
-              key: "Enter",
-              run: (view) => {
-                return handleEnterKeyRef.current?.(view) ?? false;
+    try {
+      const extensions = createEditorExtensions({
+        onSave: handleSave,
+        onEnter: handleEnter,
+        onSelectAll: handleSelectAll,
+        onRegularEnter: (view) => handleEnterKeyRef.current?.(view) ?? false
+      });
+
+      const startState = EditorState.create({
+        doc: DEFAULT_CONTENT,
+        extensions: [
+          Prec.highest(
+            keymap.of([
+              {
+                key: "Mod-s",
+                preventDefault: true,
+                run: handleSave,
+              },
+              {
+                key: "Meta-Enter",
+                preventDefault: true,
+                run: handleEnter,
+              },
+              {
+                key: "Ctrl-Enter",
+                preventDefault: true,
+                run: handleEnter,
+              },
+              {
+                key: "Mod-a",
+                preventDefault: true,
+                run: handleSelectAll,
+              },
+              {
+                key: "Enter",
+                run: (view: EditorView) => {
+                  const content = view.state.doc.toString();
+                  const lines = content.split('\n');
+                  const lastLine = lines[lines.length - 1].trim();
+                  
+                  // For mode changes, let sendContent handle it
+                  if (lastLine === "command" || lastLine === "llm") {
+                    handleEnter();
+                    return true;
+                  }
+                  
+                  return handleEnterKeyRef.current?.(view) ?? false;
+                }
               }
-            }
-          ])
-        ),
-        keymap.of([...defaultKeymap, indentWithTab]),
-        markdown(),
-        EditorView.lineWrapping,
-        history(),
-        backgroundField
-      ],
-    });
+            ])
+          ),
+          keymap.of([...defaultKeymap, indentWithTab]),
+          markdown(),
+          EditorView.lineWrapping,
+          history(),
+          createBackgroundField()
+        ],
+      });
 
-    if (viewRef.current) {
-      viewRef.current.destroy();
+      if (viewRef.current) {
+        viewRef.current.destroy();
+      }
+
+      viewRef.current = new EditorView({
+        state: startState,
+        parent: editorRef.current
+      });
+    } catch (error) {
+      console.error('Error initializing editor:', error);
     }
-
-    viewRef.current = new EditorView({ state: startState, parent: editorRef.current });
   }, [handleSave, handleEnter, handleSelectAll]);
 
   // Initialize editor on mount
@@ -523,6 +521,15 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
       viewRef.current?.destroy();
     };
   }, [initializeEditor]);
+
+  // Update mode-related checks
+  const isCommandMode = useCallback(() => {
+    return modeManagerRef.current.isCommandMode();
+  }, []);
+
+  const isLLMMode = useCallback(() => {
+    return modeManagerRef.current.isLLMMode();
+  }, []);
 
   const styles = `
     .cm-yeshie-response {
@@ -558,7 +565,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
       <Box p={0} width="100hw" height="100vh" display="flex" flexDirection="column">
         <VStack width="100hw" spacing={2} align="stretch" flex="1" overflow="hidden">
           <Heading as="h2" size="lg">
-            A Collaboration Page - {mode.toUpperCase()} Mode
+            Q Collaboration Page - {mode.toUpperCase()} Mode
           </Heading>
           <h3>
             {isIframe ? " (Iframe)" : "Native"}

@@ -1,4 +1,4 @@
-import { setupBG } from "../extension/functions/extcomms";
+import { setupBG } from "../functions/extcomms";
 import type {PlasmoMessaging} from "@plasmohq/messaging"
 import { Storage } from "@plasmohq/storage"
 
