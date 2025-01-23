@@ -41,6 +41,16 @@ export interface ConversationEntry {
     4. Cursor Integration Demo`,
       actions: []
     },
+    /*
+    
+1. Navigate to GitHub's website: `navto https://www.github.com/`
+2. Click on the "Sign in" button: `click a "Sign in"`
+3. Enter your email in the login field: `type #login_field "mw@mike-wolf.com"`
+4. Enter your password: `type #password "XXX"`
+5. Click on the sign-in button: `click .js-sign-in-button`
+6. Click on the form submit button: `click .js-octocaptcha-form-submit`
+7. Enter your authentication code: `message "enter your authentication code"`
+*/
     {
       from: "U",
       text: "4"

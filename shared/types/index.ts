@@ -2,7 +2,7 @@ export type EditorMode = 'command' | 'llm';
 
 export interface IMessageSender {
   sendLLMMessage: (content: string, sessionId: string) => Promise<void>;
-  sendCommandMessage: (content: string) => Promise<void>;
+  sendCommandMessage: (line: string) => Promise<void>;
 }
 
 export interface INotificationProvider {

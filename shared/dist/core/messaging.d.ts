@@ -6,6 +6,7 @@ export declare class MessageHandler {
     private notifications;
     constructor(modeManager: ModeManager, messageSender: IMessageSender, notifications: INotificationProvider);
     sendMessage(content: string, sessionId: string, isIframe: boolean): Promise<void>;
+    private sendCommandContent;
     private handleModeChange;
     private filterCommandString;
 }

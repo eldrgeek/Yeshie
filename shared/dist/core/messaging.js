@@ -24,13 +24,33 @@ export class MessageHandler {
                     this.notifications.showError('Command mode only works in iframe context');
                     return;
                 }
-                await this.messageSender.sendCommandMessage(content);
-                this.notifications.showInfo('Command sent');
+                await this.sendCommandContent(content, sessionId);
             }
         }
         catch (error) {
             this.notifications.showError(`Failed to send message: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
+    }
+    async sendCommandContent(content, sessionId) {
+        content = this.filterCommandString(content);
+        const lines = content.split("\n").filter(line => line.trim());
+        const sendLine = async (index) => {
+            if (index >= lines.length)
+                return;
+            const line = lines[index].trim();
+            if (!line.startsWith("//")) {
+                if (line.startsWith('message ')) {
+                    this.notifications.showInfo(line.substring(8));
+                }
+                else {
+                    await this.messageSender.sendCommandMessage(line);
+                    this.notifications.showInfo(`Command sent: ${line}`);
+                }
+            }
+            // Schedule next line
+            setTimeout(() => sendLine(index + 1), 1000);
+        };
+        await sendLine(0);
     }
     handleModeChange(content, isIframe) {
         const lines = content.split('\n');
