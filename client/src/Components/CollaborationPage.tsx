@@ -5,7 +5,7 @@ import { EditorView, keymap } from "@codemirror/view";
 import { EditorState, EditorSelection, StateEffect, Prec } from "@codemirror/state";
 import { defaultKeymap, indentWithTab, history } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import { ModeManager, EditorMode, MessageHandler } from "@yeshie/shared";
+import { ModeManager, EditorMode, MessageHandler, TestManager } from "@yeshie/shared";
 import { ChakraNotificationAdapter } from "../adapters/NotificationAdapter";
 import { SessionStorageAdapter } from "../adapters/StorageAdapter";
 import { SocketMessageSender } from "../adapters/MessageSender";
@@ -31,37 +31,6 @@ Type 'test' for an interactive demo or 'testall' to see a complete conversation.
 
 `;  // Note the extra newline at the end
 
-// Function to update editor content
-const updateContent = (view: EditorView, newContent: string, mode: "append" | "replace" = "replace") => {
-  if (mode === "append") {
-    const currentContent = view.state.doc.toString();
-    // Remove trailing newlines from current content
-    const trimmedCurrent = currentContent.replace(/\n+$/, "");
-    // Add newlines between existing and new content if needed
-    const separator = trimmedCurrent ? "\n\n" : "";
-    const fullContent = trimmedCurrent + separator + newContent;
-
-    view.dispatch({
-      changes: {
-        from: 0,
-        to: view.state.doc.length,
-        insert: fullContent
-      },
-      selection: EditorSelection.cursor(fullContent.length)
-    });
-  } else {
-    // Replace mode - just replace everything
-    view.dispatch({
-      changes: {
-        from: 0,
-        to: view.state.doc.length,
-        insert: newContent
-      },
-      selection: EditorSelection.cursor(newContent.length)
-    });
-  }
-};
-
 const CollaborationPage: React.FC<CollaborationPageProps> = ({
   socket,
   sessionID,
@@ -69,12 +38,11 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
   const [currentTestStep, setCurrentTestStep] = useState<number>(0);
   const [isTestMode, setIsTestMode] = useState<boolean>(false);
   const editorRef = useRef<HTMLDivElement>(null);
-  const viewRef = useRef<EditorView | null>(null);
   const handleEnterKeyRef = useRef<(view: EditorView) => boolean>();
   const toast = useToast();
   const isIframe = window.self !== window.top;
   
-  // Initialize mode manager and message handler with adapters
+  // Initialize mode manager, message handler, and test manager with adapters
   const modeManagerRef = useRef<ModeManager>(
     new ModeManager(
       new SessionStorageAdapter(),
@@ -88,6 +56,10 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
       new SocketMessageSender(socket),
       new ChakraNotificationAdapter(toast)
     )
+  );
+
+  const testManagerRef = useRef<TestManager>(
+    new TestManager(TEST_CONVERSATION)
   );
   
   const [mode, setMode] = useState<EditorMode>(() => {
@@ -196,7 +168,82 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     };
   }, [socket]);
 
-  // Regular function that will always have current state values
+  const viewRef = useRef<EditorView | null>(null);
+
+  const updateContent = useCallback((newContent: string, mode: "append" | "replace" = "replace") => {
+    console.log("[updateContent] called with mode:", mode);
+    if (!viewRef.current) return;
+    const view = viewRef.current;
+
+    if (mode === "append") {
+      const currentContent = view.state.doc.toString();
+      // Remove trailing newlines from current content
+      const trimmedCurrent = currentContent.replace(/\n+$/, "");
+      // Add newlines between existing and new content if needed
+      const separator = trimmedCurrent ? "\n\n" : "";
+      const fullContent = trimmedCurrent + separator + newContent;
+
+      view.dispatch({
+        changes: {
+          from: 0,
+          to: view.state.doc.length,
+          insert: fullContent
+        },
+        selection: EditorSelection.cursor(fullContent.length)
+      });
+    } else {
+      // Replace mode - just replace everything
+      view.dispatch({
+        changes: {
+          from: 0,
+          to: view.state.doc.length,
+          insert: newContent
+        },
+        selection: EditorSelection.cursor(newContent.length)
+      });
+    }
+  }, [viewRef]);
+
+  // Declare clearEditor before use
+  const clearEditor = useCallback(() => {
+    if (viewRef.current) {
+      viewRef.current.dispatch({
+        changes: { from: 0, to: viewRef.current.state.doc.length, insert: "" }
+      });
+    }
+  }, []);
+
+  // Declare displayNextEntry before use
+  const displayNextEntry = useCallback(() => {
+    if (viewRef.current) {
+      const entry = TEST_CONVERSATION[currentTestStep];
+      updateContent(formatEntry(entry, true), "replace");
+      setCurrentTestStep(prev => prev + 1);
+    }
+  }, [currentTestStep]);
+
+  // Declare addBlankLine before use
+  const addBlankLine = useCallback(() => {
+    if (viewRef.current) {
+      viewRef.current.dispatch({
+        changes: { from: viewRef.current.state.doc.length, insert: "\n" },
+        selection: { anchor: viewRef.current.state.doc.length + 1 }
+      });
+      viewRef.current.dispatch({
+        effects: StateEffect.appendConfig.of([])
+      });
+    }
+  }, []);
+
+  // Modify startTest to reset state
+  const startTest = useCallback(() => {
+    setIsTestMode(true);
+    setCurrentTestStep(0);
+    clearEditor();
+    displayNextEntry();
+  }, [clearEditor, displayNextEntry]);
+
+  // Update handleEnterKey to handle Enter key presses correctly
   const handleEnterKey = useCallback((view: EditorView) => {
     const content = view.state.doc.toString();
     const lines = content.split('\n');
@@ -204,87 +251,19 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     console.log("[handleEnterKey] called with lastLine:", lastLine, { isTestMode, currentTestStep });
     
     // Handle test/testall commands
-    if (lastLine === "test" || lastLine === "testall") {
-      if (lastLine === "test") {
-        console.log("Starting test mode");
-        // Clear the editor first
-        view.dispatch({
-          changes: { from: 0, to: view.state.doc.length, insert: "" }
-        });
-        setIsTestMode(true);
-        // Display first entry after state updates
-        setTimeout(() => {
-          const entry = TEST_CONVERSATION[0];
-          updateContent(view, formatEntry(entry, true), "replace");
-        }, 0);
-        setCurrentTestStep(1);
-        return true;
-      } else { // testall
-        console.log("Starting testall mode");
-        setIsTestMode(false);
-        const allContent = TEST_CONVERSATION.map((entry, index) => 
-          formatEntry(entry, index === 0)
-        ).join("");
-        updateContent(view, allContent, "replace");
-        
-        if (isIframe) {
-          TEST_CONVERSATION.forEach(entry => {
-            if (entry.actions?.length) {
-              sendPostMessage(entry.actions.join("\n"));
-            }
-          });
-        }
-        return true;
-      }
+    if (lastLine === "test") {
+      console.log("Starting test mode");
+      startTest();
+      return true;
+    } else if (lastLine === "testall") {
+      setIsTestMode(false);
+      console.log("Calling startTestAll");
+      testManagerRef.current.startTestAll(updateContent, isIframe, sendPostMessage);
+      return true;
     }
     
     // Handle test mode conversation
-    if (isTestMode) {
-      console.log("Test mode state:", { currentTestStep, lastLine });
-      
-      if (currentTestStep >= TEST_CONVERSATION.length - 1) {
-        console.log("Reached end of conversation");
-        setIsTestMode(false);
-        return true;
-      }
-      
-      const currentEntry = TEST_CONVERSATION[currentTestStep];
-      const nextStep = currentTestStep + 1;
-      const nextEntry = TEST_CONVERSATION[nextStep];
-      
-      // If current entry is from user (U), check for input
-      if (currentEntry.from === "U") {
-        const hasResponse = lastLine.trim() !== "";
-        if (!hasResponse) {
-          // Add a blank line with user styling for input
-          view.dispatch({
-            changes: { from: view.state.doc.length, insert: "\n" },
-            selection: { anchor: view.state.doc.length + 1 }
-          });
-          // Force update of decorations
-          view.dispatch({
-            effects: StateEffect.appendConfig.of([])
-          });
-        } else {
-          // If response given, show the scripted user response
-          updateContent(view, formatEntry(currentEntry, true), "append");
-        }
-        // Move to next entry (Yeshie's response) after a delay
-        setTimeout(() => {
-          updateContent(view, formatEntry(nextEntry, true), "replace");
-          setCurrentTestStep(nextStep + 1);
-        }, 300);
-      } else {
-        // For Yeshie's entries, just show the next entry
-        updateContent(view, formatEntry(nextEntry, true), "replace");
-        setCurrentTestStep(nextStep);
-      }
-      
-      // Handle any actions for the new entry
-      if (isIframe && nextEntry.actions?.length) {
-        sendPostMessage(nextEntry.actions.join("\n"));
-      }
-      
+    if (testManagerRef.current.handleTestMode(lastLine, addBlankLine, updateContent, isIframe, sendPostMessage)) {
       return true;
     }
     
@@ -295,7 +274,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
       selection: { anchor: pos + 1 }
     });
     return true;
-  }, [isTestMode, currentTestStep, isIframe, sendPostMessage]);
+  }, [isIframe, sendPostMessage, setIsTestMode, clearEditor, displayNextEntry, updateContent, addBlankLine, startTest]);
 
   // Update the ref whenever relevant state changes
   useEffect(() => {

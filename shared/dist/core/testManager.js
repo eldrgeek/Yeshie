@@ -1,0 +1,67 @@
+export class TestManager {
+    constructor(testConversation) {
+        this.testConversation = testConversation;
+        this.currentTestStep = 0;
+        this.isTestMode = false;
+    }
+    startTest(clearEditor, displayNextEntry) {
+        console.log("Starting test mode");
+        this.isTestMode = true;
+        this.currentTestStep = 0;
+        clearEditor();
+        displayNextEntry();
+    }
+    startTestAll(updateContent, isIframe, sendPostMessage) {
+        console.log("Starting testall mode");
+        this.isTestMode = false;
+        const allContent = this.testConversation.map((entry, index) => this.formatEntry(entry, index === 0)).join("");
+        updateContent(allContent, "replace");
+        if (isIframe) {
+            this.testConversation.forEach(entry => {
+                if (entry.actions?.length) {
+                    sendPostMessage(entry.actions.join("\n"));
+                }
+            });
+        }
+    }
+    handleTestMode(lastLine, addBlankLine, updateContent, isIframe, sendPostMessage) {
+        if (!this.isTestMode)
+            return false;
+        console.log("Test mode state:", { currentTestStep: this.currentTestStep, lastLine });
+        if (this.currentTestStep >= this.testConversation.length - 1) {
+            console.log("Reached end of conversation");
+            this.isTestMode = false;
+            return true;
+        }
+        const currentEntry = this.testConversation[this.currentTestStep];
+        const nextStep = this.currentTestStep + 1;
+        const nextEntry = this.testConversation[nextStep];
+        if (currentEntry.from === "U") {
+            const hasResponse = lastLine.trim() !== "";
+            if (!hasResponse) {
+                addBlankLine();
+            }
+            else {
+                updateContent(this.formatEntry(currentEntry, true), "append");
+            }
+            setTimeout(() => {
+                updateContent(this.formatEntry(nextEntry, true), "replace");
+                this.currentTestStep = nextStep + 1;
+            }, 300);
+        }
+        else {
+            updateContent(this.formatEntry(nextEntry, true), "replace");
+            this.currentTestStep = nextStep;
+        }
+        if (isIframe && nextEntry.actions?.length) {
+            sendPostMessage(nextEntry.actions.join("\n"));
+        }
+        return true;
+    }
+    formatEntry(entry, isFirst = false) {
+        const formattedText = entry.from === "U"
+            ? `> ${entry.text.split('\n').join('\n> ')}`
+            : entry.text;
+        return (isFirst ? "" : "\n") + formattedText + "\n\n";
+    }
+}
