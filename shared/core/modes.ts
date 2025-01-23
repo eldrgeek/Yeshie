@@ -2,8 +2,11 @@ import { EditorMode, INotificationProvider, IStorageProvider } from '../types';
 
 const MODE_STORAGE_KEY = 'editorMode';
 
+type ModeChangeListener = (newMode: EditorMode) => void;
+
 export class ModeManager {
   private currentMode: EditorMode;
+  private listeners: Set<ModeChangeListener> = new Set();
 
   constructor(
     private storage: IStorageProvider,
@@ -24,6 +27,14 @@ export class ModeManager {
     this.currentMode = newMode;
     this.storage.setItem(MODE_STORAGE_KEY, newMode);
     this.notifications.showModeChange(newMode);
+    
+    // Notify all listeners
+    this.listeners.forEach(listener => listener(newMode));
+  }
+
+  public onModeChange(listener: ModeChangeListener): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
   }
 
   public isCommandMode(): boolean {

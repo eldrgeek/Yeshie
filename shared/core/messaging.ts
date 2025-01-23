@@ -9,6 +9,11 @@ export class MessageHandler {
   ) {}
 
   public async sendMessage(content: string, sessionId: string, isIframe: boolean): Promise<void> {
+    // Check for mode change first
+    if (this.handleModeChange(content, isIframe)) {
+      return;
+    }
+
     const mode = this.modeManager.getMode();
 
     try {
@@ -30,6 +35,25 @@ export class MessageHandler {
     } catch (error) {
       this.notifications.showError(`Failed to send message: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  private handleModeChange(content: string, isIframe: boolean): boolean {
+    const lines = content.split('\n');
+    const lastLine = lines[lines.length - 1].trim();
+
+    if (lastLine === 'command') {
+      if (!isIframe) {
+        this.notifications.showError('Command mode only works in iframe context');
+        return true;
+      }
+      this.modeManager.changeMode('command');
+      return true;
+    } else if (lastLine === 'llm') {
+      this.modeManager.changeMode('llm');
+      return true;
+    }
+
+    return false;
   }
 
   private filterCommandString(input: string): string {

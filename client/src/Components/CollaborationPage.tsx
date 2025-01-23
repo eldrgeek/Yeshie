@@ -5,10 +5,11 @@ import { EditorView, keymap } from "@codemirror/view";
 import { EditorState, EditorSelection, StateEffect, Prec } from "@codemirror/state";
 import { defaultKeymap, indentWithTab, history } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import { ModeManager, EditorMode } from "@yeshie/shared";
+import { ModeManager, EditorMode, MessageHandler } from "@yeshie/shared";
 import { ChakraNotificationAdapter } from "../adapters/NotificationAdapter";
 import { SessionStorageAdapter } from "../adapters/StorageAdapter";
-import { createEditorExtensions, createBackgroundField } from "../editor/config";
+import { SocketMessageSender } from "../adapters/MessageSender";
+import { createBackgroundField } from "../editor/config";
 import { TEST_CONVERSATION } from './TestConversation';
 
 interface CollaborationPageProps {
@@ -73,10 +74,18 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
   const toast = useToast();
   const isIframe = window.self !== window.top;
   
-  // Initialize mode manager with adapters
+  // Initialize mode manager and message handler with adapters
   const modeManagerRef = useRef<ModeManager>(
     new ModeManager(
       new SessionStorageAdapter(),
+      new ChakraNotificationAdapter(toast)
+    )
+  );
+
+  const messageHandlerRef = useRef<MessageHandler>(
+    new MessageHandler(
+      modeManagerRef.current,
+      new SocketMessageSender(socket),
       new ChakraNotificationAdapter(toast)
     )
   );
@@ -85,12 +94,23 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     return modeManagerRef.current.getMode();
   });
 
+  // Add effect to sync mode with ModeManager
+  useEffect(() => {
+    const modeManager = modeManagerRef.current;
+    // Set initial mode
+    setMode(modeManager.getMode());
+    
+    // Subscribe to mode changes
+    const unsubscribe = modeManager.onModeChange(setMode);
+    return unsubscribe;
+  }, []); // Empty deps since we only want to run this once on mount
+
   const filterString = (inputString: string): string => {
     const pattern = /\/\*\*[\s\S]*?\*\*\//g;
     return inputString.replace(pattern, '');
   };
 
-  const sendPostMessage = (content: string) => {
+  const sendPostMessage = useCallback((content: string) => {
     if (mode === "llm") {
       console.error("Attempted to send postMessage in LLM mode");
       return;
@@ -131,7 +151,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     };
 
     sendLine(0);
-  };
+  }, [mode, sessionID, toast]);
 
   // Add socket connection state
   const [isSocketConnected, setIsSocketConnected] = useState(false);
@@ -176,135 +196,8 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     };
   }, [socket]);
 
-  // Add these toast helper functions near the top of the component
-  const showModeChangeToast = (newMode: "command" | "llm") => {
-    toast({
-      title: `Switched to ${newMode.toUpperCase()} mode`,
-      status: "info",
-      duration: 2000,
-      isClosable: true,
-    });
-  };
-
-  const showSocketErrorToast = () => {
-    toast({
-      title: "Error",
-      description: "Socket not connected. Cannot send message in LLM mode.",
-      status: "error",
-      duration: 3000,
-      isClosable: true,
-    });
-  };
-
-  const showLLMSentToast = () => {
-    toast({
-      title: "Command sent to LLM via socket",
-      status: "info",
-      duration: 2000,
-      isClosable: true,
-    });
-  };
-
-  const showIframeErrorToast = () => {
-    toast({
-      title: "Error",
-      description: "Command mode only works in iframe context",
-      status: "error",
-      duration: 3000,
-      isClosable: true,
-    });
-  };
-
-  const showInvalidModeToast = (mode: string) => {
-    toast({
-      title: "Error",
-      description: `Invalid mode (${mode})`,
-      status: "error",
-      duration: 3000,
-      isClosable: true,
-    });
-  };
-
-  // Update mode change helper
-  const changeMode = useCallback((newMode: EditorMode) => {
-    console.log(`[changeMode] Attempting to switch to ${newMode} mode`);
-    modeManagerRef.current.changeMode(newMode);
-    setMode(newMode);
-    console.log(`[changeMode] Mode switched to ${newMode}`);
-  }, []);
-
-  // Wrap sendContent in useCallback
-  const sendContent = useCallback(() => {
-    const content = viewRef.current?.state.doc.toString() || "";
-    const lines = content.split('\n');
-    const lastLine = lines[lines.length - 1].trim();
-    
-    console.log("[sendContent] called:", {
-      mode,
-      content,
-      lastLine,
-      isIframe,
-      socketConnected: isSocketConnected,
-      socketExists: !!socket
-    });
-
-    // Save content to sessionStorage
-    sessionStorage.setItem("editorContent", content);
-
-    // Check for special commands first
-    if (lastLine === "test" || lastLine === "testall") {
-      if (viewRef.current && handleEnterKeyRef.current) {
-        handleEnterKeyRef.current(viewRef.current);
-      }
-      return;
-    }
-
-    // Check for mode change
-    if (lastLine === "command" && isIframe) {
-      console.log("[sendContent] Switching to command mode");
-      changeMode("command");
-      return;
-    } else if (lastLine === "llm") {
-      console.log("[sendContent] Switching to llm mode");
-      changeMode("llm");
-      return;
-    }
-
-    // Handle different modes
-    if (mode === "llm") {
-      if (!socket || !isSocketConnected) {
-        console.error("Socket not connected in LLM mode");
-        showSocketErrorToast();
-        return;
-      }
-
-      console.log("Sending to LLM via socket:", {
-        op: "llm",
-        from: sessionID,
-        content
-      });
-      
-      socket.emit("monitor", { op: "llm", from: sessionID, content });
-      showLLMSentToast();
-      return;
-    } else if (mode === "command") {
-      if (!isIframe) {
-        console.log("Command mode only works in iframe context");
-        showIframeErrorToast();
-        return;
-      }
-      console.log("Sending to command mode:", content);
-      sendPostMessage(content);
-      return;
-    }
-
-    // If we get here, it's an invalid mode
-    console.log("Invalid mode:", { mode, isIframe });
-    showInvalidModeToast(mode);
-  }, [mode, isIframe, socket, isSocketConnected, sessionID, setMode, changeMode]);
-
   // Regular function that will always have current state values
-  const handleEnterKey = (view: EditorView) => {
+  const handleEnterKey = useCallback((view: EditorView) => {
     const content = view.state.doc.toString();
     const lines = content.split('\n');
     const lastLine = lines[lines.length - 1].trim();
@@ -402,12 +295,42 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
       selection: { anchor: pos + 1 }
     });
     return true;
-  };
+  }, [isTestMode, currentTestStep, isIframe, sendPostMessage]);
 
   // Update the ref whenever relevant state changes
   useEffect(() => {
     handleEnterKeyRef.current = handleEnterKey;
-  }, [isTestMode, currentTestStep, mode, isIframe]);
+  }, [isTestMode, currentTestStep, mode, isIframe, handleEnterKey]);
+
+  // Wrap sendContent in useCallback
+  const sendContent = useCallback(() => {
+    const content = viewRef.current?.state.doc.toString() || "";
+    const lines = content.split('\n');
+    const lastLine = lines[lines.length - 1].trim();
+    
+    console.log("[sendContent] called:", {
+      mode,
+      content,
+      lastLine,
+      isIframe,
+      socketConnected: isSocketConnected,
+      socketExists: !!socket
+    });
+
+    // Save content to sessionStorage
+    sessionStorage.setItem("editorContent", content);
+
+    // Check for special commands first
+    if (lastLine === "test" || lastLine === "testall") {
+      if (viewRef.current && handleEnterKeyRef.current) {
+        handleEnterKeyRef.current(viewRef.current);
+      }
+      return;
+    }
+
+    // Use the shared MessageHandler for mode changes and message sending
+    messageHandlerRef.current.sendMessage(content, sessionID, isIframe);
+  }, [mode, isIframe, socket, isSocketConnected, sessionID]);
 
   // Add key handlers with useCallback
   const handleSave = useCallback(() => {
@@ -441,13 +364,6 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     if (!editorRef.current) return;
 
     try {
-      const extensions = createEditorExtensions({
-        onSave: handleSave,
-        onEnter: handleEnter,
-        onSelectAll: handleSelectAll,
-        onRegularEnter: (view) => handleEnterKeyRef.current?.(view) ?? false
-      });
-
       const startState = EditorState.create({
         doc: DEFAULT_CONTENT,
         extensions: [
@@ -519,15 +435,6 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
       viewRef.current?.destroy();
     };
   }, [initializeEditor]);
-
-  // Update mode-related checks
-  const isCommandMode = useCallback(() => {
-    return modeManagerRef.current.isCommandMode();
-  }, []);
-
-  const isLLMMode = useCallback(() => {
-    return modeManagerRef.current.isLLMMode();
-  }, []);
 
   const styles = `
     .cm-yeshie-response {
