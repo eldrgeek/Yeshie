@@ -11,6 +11,17 @@ import { SessionStorageAdapter } from "../adapters/StorageAdapter";
 import { SocketMessageSender } from "../adapters/MessageSender";
 import { createBackgroundField } from "../editor/config";
 import { TEST_CONVERSATION } from './TestConversation';
+import { 
+  processCommand, 
+  CommandResult, 
+  executeTerminalCommand,
+  executeWorkflow,
+  updateEnvFile,
+  parseFirebaseConfig,
+  parseNetlifyToken,
+  parseVercelToken,
+  saveConfigToEnv
+} from '../services/commandHandler';
 
 interface CollaborationPageProps {
   socket: Socket | null;
@@ -42,11 +53,15 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
   const toast = useToast();
   const isIframe = window.self !== window.top;
   
-  // Initialize mode manager, message handler, and test manager with adapters
+  // Set initial mode to 'pro'
+  const [mode, setMode] = useState<EditorMode>("pro");
+
+  // Initialize mode manager with 'pro' as default mode
   const modeManagerRef = useRef<ModeManager>(
     new ModeManager(
       new SessionStorageAdapter(),
-      new ChakraNotificationAdapter(toast)
+      new ChakraNotificationAdapter(toast),
+      "pro" // Set default mode to 'pro'
     )
   );
 
@@ -62,10 +77,6 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     new TestManager(TEST_CONVERSATION)
   );
   
-  const [mode, setMode] = useState<EditorMode>(() => {
-    return modeManagerRef.current.getMode();
-  });
-
   // Add effect to sync mode with ModeManager
   useEffect(() => {
     const modeManager = modeManagerRef.current;
@@ -415,6 +426,249 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     };
   }, [initializeEditor]);
 
+  // Function to send commands to the extension (command mode)
+  function commandModeSendLine(line: string) {
+    window.parent.postMessage({ type: "monitor", op: "command", line }, "*");
+  }
+
+  // Function to send user input to ChatGPT via command mode
+  function handleProSubmit(userText: string) {
+    console.log("Submitting to ChatGPT:", userText);
+
+    // Process special commands first
+    const commandResult = processCommand(userText);
+    if (commandResult) {
+      handleCommandResult(commandResult);
+      return;
+    }
+
+    // 1) Type the text into ChatGPT
+    commandModeSendLine(`type #prompt-textarea "${escapeForCommand(userText)}"`);
+
+    // 2) Click the send button
+    commandModeSendLine(`click [data-testid="send-button"]`);
+  }
+
+  // New function to handle command results
+  function handleCommandResult(result: CommandResult) {
+    console.log("Command result:", result);
+    
+    if (!result.success) {
+      // Show error notification
+      if (socket) {
+        socket.emit("notification", { type: "error", message: result.message });
+      }
+      return;
+    }
+    
+    switch (result.type) {
+      case 'deployment':
+        // Display the command to be executed
+        if (socket) {
+          socket.emit("message", { from: 'Y', text: `${result.message}\n\`\`\`\n${result.command}\n\`\`\`` });
+        }
+        
+        // Optionally, execute the command directly
+        if (window.confirm(`Do you want to execute the deployment command for ${result.provider}?`)) {
+          executeTerminalCommand(result.command);
+        }
+        break;
+        
+      case 'project-creation':
+        // Display the command to create a new project
+        if (socket) {
+          socket.emit("message", { 
+            from: 'Y', 
+            text: `${result.message}\n\`\`\`\n${result.command}\n\`\`\`\n\nAfter creating the project, you can generate configuration keys with: \`generate ${result.provider} keys project:<PROJECT_ID>\``
+          });
+        }
+        
+        // Optionally, execute the command directly
+        if (window.confirm(`Do you want to create a new ${result.provider} project?`)) {
+          executeTerminalCommand(result.command);
+        }
+        break;
+        
+      case 'key-generation':
+        // Display the command to generate keys
+        if (socket) {
+          socket.emit("message", { 
+            from: 'Y', 
+            text: `${result.message}\n\`\`\`\n${result.command}\n\`\`\`\n\nAfter generating the configuration, use \`save ${result.provider} config <CONFIG_JSON>\` to save it.`
+          });
+        }
+        
+        // Optionally, execute the command directly
+        if (window.confirm(`Do you want to generate ${result.provider} configuration?`)) {
+          executeTerminalCommand(result.command);
+        }
+        break;
+        
+      case 'workflow':
+        // Handle automated workflow
+        if (socket) {
+          socket.emit("message", { from: 'Y', text: `${result.message}` });
+          socket.emit("message", { from: 'Y', text: `Starting workflow with automatic .env file updates enabled...` });
+        }
+        
+        // Execute the workflow with progress updates
+        if (window.confirm(`Do you want to start the automated ${result.workflow.type} workflow?`)) {
+          executeWorkflowWithProgress(result.workflow, true);
+        }
+        break;
+        
+      case 'schema':
+        // Display the generated schema information
+        if (socket) {
+          socket.emit("message", { 
+            from: 'Y', 
+            text: `${result.message}\n\n**TypeScript Interface:**\n\`\`\`typescript\n${result.tsInterface}\n\`\`\`\n\n**Firestore Rules:**\n\`\`\`\n${result.firestoreRules}\n\`\`\`` 
+          });
+        }
+        break;
+        
+      case 'save-config':
+        // Process the configuration text based on provider
+        let parsedConfig = null;
+        
+        if (result.provider === 'firebase') {
+          parsedConfig = parseFirebaseConfig(result.configText);
+        } else if (result.provider === 'netlify') {
+          parsedConfig = parseNetlifyToken(result.configText);
+        } else if (result.provider === 'vercel') {
+          parsedConfig = parseVercelToken(result.configText);
+        }
+        
+        if (parsedConfig) {
+          const configResult = saveConfigToEnv(parsedConfig);
+          
+          if (socket) {
+            socket.emit("message", { 
+              from: 'Y', 
+              text: `${configResult.message}`
+            });
+          }
+        } else {
+          // Could not parse the configuration
+          if (socket) {
+            socket.emit("message", { 
+              from: 'Y', 
+              text: `Could not parse ${result.provider} configuration. Please check the format and try again.` 
+            });
+          }
+        }
+        break;
+        
+      case 'update-env':
+        // Directly update the .env file
+        updateEnvFile(result.configText)
+          .then(() => {
+            if (socket) {
+              socket.emit("message", { 
+                from: 'Y', 
+                text: `✅ Successfully updated .env file with the configuration.` 
+              });
+            }
+          })
+          .catch(error => {
+            if (socket) {
+              socket.emit("message", { 
+                from: 'Y', 
+                text: `❌ Failed to update .env file: ${error instanceof Error ? error.message : 'Unknown error'}` 
+              });
+            }
+          });
+        break;
+        
+      case 'config-saved':
+        // Config already saved, display confirmation
+        if (socket) {
+          socket.emit("message", { 
+            from: 'Y', 
+            text: `${result.message}` 
+          });
+        }
+        break;
+        
+      case 'upload-schema-request':
+      case 'upload-file-request':
+        // Display the request for schema definition or file
+        if (socket) {
+          socket.emit("message", { from: 'Y', text: result.message });
+        }
+        break;
+        
+      case 'schema-uploaded':
+      case 'file-uploaded':
+        // Display success message
+        if (socket) {
+          socket.emit("message", { from: 'Y', text: result.message });
+        }
+        break;
+    }
+  }
+
+  // Helper function to execute a workflow with progress updates
+  async function executeWorkflowWithProgress(workflow: any, autoUpdateEnv = true) {
+    try {
+      // Execute the workflow with progress feedback
+      await executeWorkflow(
+        workflow, 
+        (step, total, description) => {
+          // Send progress update messages
+          if (socket) {
+            const progressPercent = Math.round((step / total) * 100);
+            socket.emit("message", { 
+              from: 'Y', 
+              text: `🔄 **Workflow Step ${step}/${total}:** ${description} (${progressPercent}%)` 
+            });
+          }
+        },
+        autoUpdateEnv
+      ).then(result => {
+        // When workflow completes, show the final result
+        if (socket) {
+          socket.emit("message", { 
+            from: 'Y', 
+            text: `✅ **Workflow Completed**\n\n${result}` 
+          });
+        }
+      }).catch(error => {
+        // If workflow fails, show the error
+        if (socket) {
+          socket.emit("message", { 
+            from: 'Y', 
+            text: `❌ **Workflow Failed**\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}` 
+          });
+        }
+      });
+    } catch (error) {
+      console.error('Error executing workflow:', error);
+      if (socket) {
+        socket.emit("notification", { 
+          type: "error", 
+          message: `Failed to execute workflow: ${error instanceof Error ? error.message : 'Unknown error'}` 
+        });
+      }
+    }
+  }
+
+  // Prevent command injections
+  function escapeForCommand(s: string): string {
+    return s.replace(/"/g, '\\"'); // Escape quotes for command mode
+  }
+
+  // Main function to handle editor submission
+  const handleEditorSubmit = useCallback(() => {
+    const content = viewRef.current?.state.doc.toString() || ""; // Retrieve actual editor text
+
+    if (mode === "pro") {
+      handleProSubmit(content);
+    } else {
+      console.log("Other mode:", mode);
+    }
+  }, [mode]);
+
   const styles = `
     .cm-yeshie-response {
       background-color: rgba(230, 255, 230, 0.5);  /* Light green with transparency */
@@ -449,11 +703,16 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
       <Box p={0} width="100hw" height="100vh" display="flex" flexDirection="column">
         <VStack width="100hw" spacing={2} align="stretch" flex="1" overflow="hidden">
           <Heading as="h2" size="lg">
-            Q Collaboration Page - {mode.toUpperCase()} Mode
+            Collaboration Page - {mode.toUpperCase()} Mode
           </Heading>
           <h3>
             {isIframe ? " (Iframe)" : "Native"}
           </h3>
+          <select value={mode} onChange={(e) => setMode(e.target.value as EditorMode)}>
+            <option value="llm">LLM</option>
+            <option value="command">Command</option>
+            <option value="pro">Pro</option>
+          </select>
           <Box
             ref={editorRef}
             flex="1"
@@ -463,6 +722,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
             overflow="auto"
             padding="2px"
           />
+          <button onClick={handleEditorSubmit}>Submit</button>
         </VStack>
       </Box>
     </>

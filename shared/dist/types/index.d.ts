@@ -1,7 +1,9 @@
-export type EditorMode = 'command' | 'llm';
+export type EditorMode = 'command' | 'llm' | 'pro' | 'deploy' | 'schema';
 export interface IMessageSender {
     sendLLMMessage: (content: string, sessionId: string) => Promise<void>;
     sendCommandMessage: (line: string) => Promise<void>;
+    sendDeploymentCommand?: (provider: string, command: string) => Promise<void>;
+    sendSchemaOperation?: (operation: string, schema: any) => Promise<void>;
 }
 export interface INotificationProvider {
     showModeChange: (mode: EditorMode) => void;
@@ -16,6 +18,12 @@ export interface ConversationEntry {
     from: 'U' | 'Y';
     text: string;
     actions?: string[];
+    metadata?: {
+        type?: 'schema' | 'deployment' | 'file-upload' | 'command';
+        provider?: string;
+        command?: string;
+        schema?: any;
+    };
 }
 export interface IEditorProvider {
     getContent: () => string;

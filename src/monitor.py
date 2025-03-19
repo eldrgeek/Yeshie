@@ -11,6 +11,7 @@ import rewind
 import llmdebug
 import customprint
 import llmserver
+import monitor_env_handler
 # Redefine print function
 listener = None
 
@@ -151,6 +152,82 @@ class Application:
             print('Received Rewind message:', data)
             self.action = "rewind"
             rewind.getRewind().setSessionId(data.get("sessionId"))
+            
+        @self.sio.on('update_env')
+        def on_update_env(data):
+            try:
+                content = data.get("content", "")
+                path = data.get("path", None)
+                from_id = data.get("from")
+                
+                print(f"Received update_env request from {from_id}")
+                
+                result = monitor_env_handler.handle_update_env_command({
+                    "content": content,
+                    "path": path
+                })
+                
+                # Log the result
+                if result["success"]:
+                    print(f"✅ {result['message']}")
+                    # Send success response back to client
+                    if self.sio:
+                        self.sio.emit("forward", {
+                            "to": from_id,
+                            "op": "env_updated",
+                            "from": "monitor",
+                            "success": True,
+                            "message": result["message"]
+                        })
+                else:
+                    print(f"❌ {result['message']}")
+                    # Send error response back to client
+                    if self.sio:
+                        self.sio.emit("forward", {
+                            "to": from_id,
+                            "op": "env_updated",
+                            "from": "monitor",
+                            "success": False,
+                            "message": result["message"]
+                        })
+            except Exception as e:
+                error_msg = f"Error updating .env file: {str(e)}"
+                print(error_msg)
+                if self.sio and from_id:
+                    self.sio.emit("forward", {
+                        "to": from_id,
+                        "op": "error",
+                        "from": "monitor",
+                        "message": error_msg
+                    })
+                    
+        # Also handle the message via postMessage from client
+        @self.sio.on('message')
+        def on_message(data):
+            try:
+                op = data.get("op")
+                
+                # Handle update_env operation
+                if op == "update_env":
+                    content = data.get("content", "")
+                    path = data.get("path", None)
+                    from_id = data.get("from")
+                    
+                    result = monitor_env_handler.handle_update_env_command({
+                        "content": content,
+                        "path": path
+                    })
+                    
+                    # Log the result
+                    if result["success"]:
+                        print(f"✅ {result['message']}")
+                    else:
+                        print(f"❌ {result['message']}")
+                        
+                    # No need to send response as this is a one-way message
+            except Exception as e:
+                print(f"Error handling message: {str(e)}")
+                
         # Connect to the server
         timeout = 1
         while True:
@@ -205,3 +282,25 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+def handle_message(message):
+    # ... existing code ...
+    
+    # Handle update_env operation
+    if op == "update_env":
+        content = message.get("content", "")
+        path = message.get("path", None)
+        result = monitor_env_handler.handle_update_env_command({
+            "content": content,
+            "path": path
+        })
+        
+        # Log the result
+        if result["success"]:
+            print(f"✅ {result['message']}")
+        else:
+            print(f"❌ {result['message']}")
+        
+        return
+    
+    # ... rest of the existing code ...

@@ -1,8 +1,10 @@
-export type EditorMode = 'command' | 'llm';
+export type EditorMode = 'command' | 'llm' | 'pro' | 'deploy' | 'schema';
 
 export interface IMessageSender {
   sendLLMMessage: (content: string, sessionId: string) => Promise<void>;
   sendCommandMessage: (line: string) => Promise<void>;
+  sendDeploymentCommand?: (provider: string, command: string) => Promise<void>;
+  sendSchemaOperation?: (operation: string, schema: any) => Promise<void>;
 }
 
 export interface INotificationProvider {
@@ -20,6 +22,12 @@ export interface ConversationEntry {
   from: 'U' | 'Y';  // U for User, Y for Yeshie
   text: string;
   actions?: string[];  // Optional commands to execute
+  metadata?: {
+    type?: 'schema' | 'deployment' | 'file-upload' | 'command';
+    provider?: string;
+    command?: string;
+    schema?: any;
+  };
 }
 
 export interface IEditorProvider {
