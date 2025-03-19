@@ -57,3 +57,13 @@ client/.firebase/hosting.ZGlzdA.cache
 package-lock.json
 client/package.json
 node_modules
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Test artifacts
+current_state*
+error_state*
+github_with_yeshie*

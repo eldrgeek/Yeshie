@@ -1,0 +1,264 @@
+YeshieEditor.tsx:52: socket.on("connect", () => {
+YeshieEditor.tsx:58: socket.emit("init", { sessionId });
+YeshieEditor.tsx:61: socket.on("response", (data: WebSocketResponse) => {
+YeshieEditor.tsx:77: socket.on("connect_error", (error) => {
+YeshieEditor.tsx:82: socket.on("disconnect", () => {
+extcomms.ts:17: listener.emit(type, data, sender, sendResponse);
+extcomms.ts:39: listener.on("pageInfo", (data, sender) => {
+extcomms.ts:56: socket.on("extension", (msg) => {
+extcomms.ts:63: listener.on("navto", (data) => {
+extcomms.ts:67: listener.on("focusTab", (data) => {
+extcomms.ts:71: listener.on("socketMessage", (data) => {
+extcomms.ts:73: socket.emit(data.event, data.payload);
+extcomms.ts:135: listener.emit(type, data, sender, sendResponse);
+extcomms.ts:140: listener.on('click', (data) => {
+extcomms.ts:144: listener.on('select', (data) => {
+extcomms.ts:149: listener.on('enable', (data) => {
+extcomms.ts:153: listener.on('setvalue', (data) => {
+extcomms.ts:158: listener.on('screenshot', (data) => {
+web_ws.py:14:from ._websocket.writer import DEFAULT_LIMIT
+http_websocket.py:14:from ._websocket.writer import WebSocketWriter
+echo-server.py:15: await websocket.send(message)
+typing.py:172: type: Literal["websocket.send"]
+_lua_builtins.py:91: 'io.write'),
+__init__.py:911: elif message["type"] == "websocket.send":
+websockets.py:78: if message_type not in {"websocket.send", "websocket.close"}:
+websockets.py:80: f'Expected ASGI message "websocket.send" or "websocket.close", but got {message_type!r}'
+websockets.py:165: await self.send({"type": "websocket.send", "text": data})
+websockets.py:168: await self.send({"type": "websocket.send", "bytes": data})
+websockets.py:175: await self.send({"type": "websocket.send", "text": text})
+websockets.py:177: await self.send({"type": "websocket.send", "bytes": text.encode("utf-8")})
+protocol.py:1630: websocket.write_frame_sync(True, opcode, data)
+__main__.py:140: await websocket.send(message)
+server.py:105: socket.send(pkt)
+server.py:138: @eio.on('connect')
+server.py:146: @eio.on('message')
+base_server.py:132: @eio.on('connect')
+base_server.py:141: eio.send(sid, 'response')
+base_server.py:142: eio.on('message', message_handler)
+base_client.py:100: @eio.on('connect')
+base_client.py:107: eio.send('response')
+base_client.py:108: eio.on('message', message_handler)
+asgi.py:275: await self.asgi_send({'type': 'websocket.send',
+async_server.py:120: await socket.send(pkt)
+async_server.py:152: @eio.on('connect')
+async_server.py:160: @eio.on('message')
+_generated.py:1058: Event name, same one would pass into `webSocket.on(event)`.
+_generated.py:1050: Event name, same one would pass into `webSocket.on(event)`.
+_trio.py:438: bytes_sent = await self._trio_socket.send(view)
+_trio.py:500: await self._trio_socket.sendmsg(
+_trio.py:563: await self._trio_socket.sendto(*item)
+_trio.py:584: await self._trio_socket.send(item)
+_trio.py:606: await self._trio_socket.sendto(*item)
+_trio.py:629: await self._trio_socket.send(item)
+_asyncio.py:1389: bytes_sent = self._raw_socket.send(view)
+_asyncio.py:1460: self._raw_socket.sendmsg(
+_asyncio.py:1692: self._raw_socket.sendto(*item)
+_asyncio.py:1728: self._raw_socket.send(item)
+tls.py:149: self._read_bio.write_eof()
+tls.py:151: self._read_bio.write_eof()
+tls.py:152: self._write_bio.write_eof()
+tls.py:155: self._read_bio.write(data)
+tls.py:159: self._read_bio.write_eof()
+tls.py:160: self._write_bio.write_eof()
+tls.py:163: self._read_bio.write_eof()
+tls.py:164: self._write_bio.write_eof()
+tls.py:189: self._read_bio.write_eof()
+tls.py:190: self._write_bio.write_eof()
+ssltransport.py:211: self.socket.sendall(buf)
+securetransport.py:291: chunk_sent = base_socket.send(data)
+securetransport.py:424: self.socket.sendall(rec)
+server.py:353: @sio.on('connect')
+server.py:361: @sio.on('message')
+server.py:507: self.eio.send(eio_sid, ep)
+server.py:509: self.eio.send(eio_sid, encoded_packet)
+server.py:513: self.eio.send_packet(eio_sid, eio_pkt)
+base_server.py:35: self.eio.on('connect', self._handle_eio_connect)
+base_server.py:36: self.eio.on('message', self._handle_eio_message)
+base_server.py:37: self.eio.on('disconnect', self._handle_eio_disconnect)
+chat')
+base_server.py:99: sio.send(sid, 'response')
+chat', handler=message_handler)
+base_server.py:146: @sio.on('my_event')
+async_admin.py:44: self.sio.on('connect', self.admin_connect,
+async_admin.py:49: self.sio.on('emit', self.admin_emit,
+async_admin.py:51: self.sio.on('join', self.admin_enter_room,
+async_admin.py:53: self.sio.on('leave', self.admin_leave_room,
+async_admin.py:55: self.sio.on('_disconnect', self.admin_disconnect,
+async_admin.py:80: self.sio.eio.on('connect', self._handle_eio_connect)
+async_admin.py:81: self.sio.eio.on('disconnect', self._handle_eio_disconnect)
+async_admin.py:144: await self.sio.emit('config', {'supportedFeatures': features},
+async_admin.py:155: await self.sio.emit('all_sockets', all_sockets, to=sid,
+async_admin.py:164: await self.sio.emit(event, data, to=room_filter, namespace=namespace)
+async_admin.py:193: await self.sio.emit('socket_connected', (
+async_admin.py:200: await self.sio.emit('socket_disconnected', (
+async_admin.py:207: await self.sio.emit('event_received', (
+async_admin.py:221: await self.sio.emit('socket_updated', {
+async_admin.py:264: await self.sio.emit('event_sent', (
+async_admin.py:325: await self.sio.emit('socket_connected', (
+async_admin.py:337: await self.sio.emit('server_stats', {
+async_admin.py:355: await self.sio.emit(event, args,
+base_client.py:71: self.eio.on('connect', self._handle_eio_connect)
+base_client.py:72: self.eio.on('message', self._handle_eio_message)
+base_client.py:73: self.eio.on('disconnect', self._handle_eio_disconnect)
+base_client.py:125: @sio.on('connect')
+base_client.py:132: sio.send( 'response')
+base_client.py:133: sio.on('message', message_handler)
+base_client.py:177: @sio.on('my_event')
+client.py:364: self.eio.send(ep)
+client.py:366: self.eio.send(encoded_packet)
+admin.py:63: self.sio.on('connect', self.admin_connect,
+admin.py:68: self.sio.on('emit', self.admin_emit,
+admin.py:70: self.sio.on('join', self.admin_enter_room,
+admin.py:72: self.sio.on('leave', self.admin_leave_room,
+admin.py:74: self.sio.on('_disconnect', self.admin_disconnect,
+admin.py:99: self.sio.eio.on('connect', self._handle_eio_connect)
+admin.py:100: self.sio.eio.on('disconnect', self._handle_eio_disconnect)
+admin.py:159: self.sio.emit('config', {'supportedFeatures': features},
+admin.py:170: self.sio.emit('all_sockets', all_sockets, to=sid,
+admin.py:176: self.sio.emit(event, data, to=room_filter, namespace=namespace)
+admin.py:205: self.sio.emit('socket_connected', (
+admin.py:212: self.sio.emit('socket_disconnected', (
+admin.py:219: self.sio.emit('event_received', (
+admin.py:232: self.sio.emit('socket_updated', {
+admin.py:245: self.sio.emit('room_joined', (
+admin.py:255: self.sio.emit('room_left', (
+admin.py:275: self.sio.emit('event_sent', (
+admin.py:336: self.sio.emit('socket_connected', (
+admin.py:348: self.sio.emit('server_stats', {
+async_client.py:384: await self.eio.send(ep)
+async_client.py:386: await self.eio.send(encoded_packet)
+async_server.py:375: @eio.on('connect')
+async_server.py:383: @eio.on('message')
+async_server.py:525: await self.eio.send(eio_sid, ep)
+async_server.py:527: await self.eio.send(eio_sid, encoded_packet)
+async_server.py:531: await self.eio.send_packet(eio_sid, eio_pkt)
+telegram.py:131: self.tgio.write(self.format_meter(**fmt))
+telegram.py:136: self.tgio.write("")
+discord.py:134: self.dio.write(self.format_meter(**fmt))
+discord.py:139: self.dio.write("")
+slack.py:105: self.sio.write(self.format_meter(**fmt))
+slack.py:110: self.sio.write("")
+applications.py:1240: await websocket.send_text(f"Message text was: {data}")
+routing.py:1099: await websocket.send_text(f"Message text was: {data}")
+exceptions.py:105: await websocket.send_text(f"Session cookie is: {session}")
+exceptions.py:106: await websocket.send_text(f"Message text was: {data}, for item ID: {item_id}")
+asgi.py:40: await self._send({'type': 'websocket.send', 'text': data})
+asgi.py:42: await self._send({'type': 'websocket.send', 'bytes': data})
+_types.py:166: type: Literal["websocket.send"]
+_types.py:172: type: Literal["websocket.send"]
+websockets_impl.py:326: if message_type == "websocket.send":
+websockets_impl.py:341: msg = "Expected ASGI message 'websocket.send' or 'websocket.close'," " but got '%s'."
+wsproto_impl.py:326: if message_type == "websocket.send":
+wsproto_impl.py:347: msg = "Expected ASGI message 'websocket.send' or 'websocket.close'," " but got '%s'."
+ssltransport.py:261: self.socket.sendall(buf)
+request.py:196: socket.sendall() and an optional 'Content-Length' header.
+request.py:254: # Since it implements the buffer API can be passed directly to socket.sendall()
+__init__.py:140: diagram.diagram.writeSvg(io.write)
+__init__.py:140: diagram.diagram.writeSvg(io.write)
+stata.py:758: bio.write(struct.pack(byteorder + "i", self.len))
+stata.py:764: bio.write(labname)
+stata.py:768: bio.write(struct.pack("c", null_byte))
+stata.py:772: bio.write(struct.pack(byteorder + "i", self.n))
+stata.py:775: bio.write(struct.pack(byteorder + "i", self.text_len))
+stata.py:779: bio.write(struct.pack(byteorder + "i", offset))
+stata.py:783: bio.write(struct.pack(byteorder + "i", value))
+stata.py:787: bio.write(text + null_byte)
+stata.py:3182: bio.write(gso)
+stata.py:3185: bio.write(struct.pack(v_type, v))
+stata.py:3188: bio.write(struct.pack(o_type, o))
+stata.py:3191: bio.write(gso_type)
+stata.py:3195: bio.write(struct.pack(len_type, len(utf8_string) + 1))
+stata.py:3198: bio.write(utf8_string)
+stata.py:3199: bio.write(null)
+stata.py:3352: bio.write(self._tag(bytes(str(self._dta_version), "utf-8"), "release"))
+stata.py:3354: bio.write(self._tag(byteorder == ">" and "MSF" or "LSF", "byteorder"))
+stata.py:3357: bio.write(self._tag(struct.pack(byteorder + nvar_type, self.nvar), "K"))
+stata.py:3360: bio.write(self._tag(struct.pack(byteorder + nobs_size, self.nobs), "N"))
+stata.py:3367: bio.write(self._tag(encoded_label, "label"))
+stata.py:3397: bio.write(self._tag(stata_ts, "timestamp"))
+stata.py:3427: bio.write(struct.pack(self._byteorder + "Q", val))
+stata.py:3434: bio.write(struct.pack(self._byteorder + "H", typ))
+stata.py:3445: bio.write(name)
+stata.py:3458: bio.write(_pad_bytes_new(fmt.encode(self._encoding), fmt_len))
+stata.py:3473: bio.write(encoded_name)
+stata.py:3486: bio.write(blank)
+stata.py:3503: bio.write(_pad_bytes_new(encoded, vl_len + 1))
+stata.py:3505: bio.write(blank)
+stata.py:3531: bio.write(lab)
+collab.ts:16: socket.emit("getDocument");
+collab.ts:17: socket.once("getDocumentResponse", (version: number, doc: string) => {
+collab.ts:26: socket.emit("pullUpdates", version);
+collab.ts:27: socket.once("pullUpdateResponse", (updates) => {
+collab.ts:36: socket.emit("pushUpdates", version, JSON.stringify(updates));
+collab.ts:37: socket.once("pushUpdateResponse", (success) => {
+App.tsx:41: newSocket.on("connect", () => {
+App.tsx:45: newSocket.emit("session?", "client");
+App.tsx:47: newSocket.emit("session:", session);
+App.tsx:52: newSocket.on("session:", (session) => {
+App.tsx:53: newSocket.emit("session:", session, "client");
+App.tsx:60: newSocket.on("connect_error", (error) => {
+MessageSender.ts:11: this.socket.emit("monitor", { op: "llm", from: sessionId, content });
+CollaborationPage.tsx:164: socket.on('connect', handleConnect);
+CollaborationPage.tsx:165: socket.on('disconnect', handleDisconnect);
+CollaborationPage.tsx:166: socket.on('connect_error', handleConnectError);
+CollaborationPage.tsx:459: socket.emit("notification", { type: "error", message: result.message });
+CollaborationPage.tsx:468: socket.emit("message", { from: 'Y', text: `${result.message}\n\`\`\`\n${result.command}\n\`\`\`` });
+CollaborationPage.tsx:480: socket.emit("message", { 
+CollaborationPage.tsx:495: socket.emit("message", { 
+CollaborationPage.tsx:510: socket.emit("message", { from: 'Y', text: `${result.message}` });
+CollaborationPage.tsx:511: socket.emit("message", { from: 'Y', text: `Starting workflow with automatic .env file updates enabled...` });
+CollaborationPage.tsx:523: socket.emit("message", { 
+CollaborationPage.tsx:546: socket.emit("message", { 
+CollaborationPage.tsx:554: socket.emit("message", { 
+CollaborationPage.tsx:567: socket.emit("message", { 
+CollaborationPage.tsx:575: socket.emit("message", { 
+CollaborationPage.tsx:586: socket.emit("message", { 
+CollaborationPage.tsx:597: socket.emit("message", { from: 'Y', text: result.message });
+CollaborationPage.tsx:605: socket.emit("message", { from: 'Y', text: result.message });
+CollaborationPage.tsx:621: socket.emit("message", { 
+CollaborationPage.tsx:631: socket.emit("message", { 
+CollaborationPage.tsx:639: socket.emit("message", { 
+CollaborationPage.tsx:648: socket.emit("notification", { 
+Rewind.tsx:34: socket.on("testgo", handleGoClick);
+Rewind.tsx:51: socket.emit("monitor", { op: "rewind", sessionId, timestamp: timestamp });
+Rewind.tsx:61: socket.emit("monitor", { op: "calibrate" });
+Logging.tsx:16: socket.on('log', (log: string) => {
+save", sessionID, contents });
+ScriptEditor.tsx:45: socket.emit("monitor", { op: "save", sessionID, contents });
+append", handleAppend);
+load", handleLoad);
+monitor.py:90: self.sio.emit('session?', 'monitor')
+monitor.py:92: @self.sio.on('session:')
+monitor.py:100: @self.sio.on('calibrate')
+monitor.py:106: @self.sio.on('llm')
+monitor.py:125: self.sio.emit("forward", {
+monitor.py:142: self.sio.emit("forward", {
+monitor.py:149: @self.sio.on('rewind')
+monitor.py:156: @self.sio.on('update_env')
+monitor.py:175: self.sio.emit("forward", {
+monitor.py:186: self.sio.emit("forward", {
+monitor.py:197: self.sio.emit("forward", {
+monitor.py:205: @self.sio.on('message')
+collaborativeEditing.ts:6: sm.io.on('connection', (socket: Socket) => {
+collaborativeEditing.ts:8: socket.on("session:", (newSessionId: string, componentType: string) => {
+collaborativeEditing.ts:11: socket.on("conversation:", (sessionId: string, conversationId: string) => {
+collaborativeEditing.ts:15: socket.on('pullUpdates', (sessionId: string, version: number, conversationId: string) => {
+collaborativeEditing.ts:20: socket.emit('pullUpdates', updates);
+collaborativeEditing.ts:24: socket.on('pushUpdates', (sessionId: string, version: number, updates: Update[], conversationId: string) => {
+collaborativeEditing.ts:33: otherSession.socket.emit('receiveUpdates', conversationId, updates);
+messageForwarder.ts:5: sm.io.on('connection', (socket: Socket) => {
+messageForwarder.ts:6: socket.on('forward', (message: any) => {
+messageForwarder.ts:11: targetSession.socket.emit(op, data);
+messageForwarder.ts:18: sessionInfo.socket.emit(message.type, message.payload);
+monitorCommunication.ts:7: sm.io.on('connection', (socket: Socket) => {
+monitorCommunication.ts:8: socket.on('monitor', (payload: any) => {
+monitorCommunication.ts:11: monitorSocket.emit(op, data);
+monitorCommunication.ts:17: socket.on('session?', (componentType: string) => {
+sessionManager.ts:21: io.on('connection', (socket: Socket) => {
+sessionManager.ts:23: socket.on('session?', (componentType: string) => {
+sessionManager.ts:25: socket.emit('session:', sessionId);
+sessionManager.ts:27: socket.on('session:', (sesionId: string, componentType: string) => {
+sessionManager.ts:30: socket.on('disconnect', () => {
+append", {"timestamp": timestamp})
+moment", {"timestamp": timestamp})

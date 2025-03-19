@@ -11,7 +11,7 @@ interface Command {
 
 interface Message {
   id: string;
-  type: "user" | "yeshie";
+  type: "user" | "yeshie" | "system";
   content: string;
   isEdited?: boolean;
   commands?: Command[];
@@ -39,6 +39,7 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
   const [connectionType, setConnectionType] = useState<"websocket" | "extension">("extension");
   const [isTyping, setIsTyping] = useState(false);
   const socketRef = useRef<Socket | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
 
   useEffect(() => {
     const socket = io("http://localhost:3000", {
@@ -84,8 +85,46 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
       setIsConnected(false);
     });
 
+    // Add message event listener
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data) {
+        switch (event.data.type) {
+          case 'yeshie-message':
+            const newMessage: Message = {
+              id: Math.random().toString(36).substring(7),
+              type: "system",
+              content: event.data.text
+            };
+            setMessages(prev => [...prev, newMessage]);
+            break;
+
+          case 'yeshie-record-start':
+            setIsRecording(true);
+            const startMessage: Message = {
+              id: Math.random().toString(36).substring(7),
+              type: "system",
+              content: "Recording user actions..."
+            };
+            setMessages(prev => [...prev, startMessage]);
+            break;
+
+          case 'yeshie-record-stop':
+            setIsRecording(false);
+            const stopMessage: Message = {
+              id: Math.random().toString(36).substring(7),
+              type: "system",
+              content: "Recording stopped. Actions saved."
+            };
+            setMessages(prev => [...prev, stopMessage]);
+            break;
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
     return () => {
       socket.disconnect();
+      window.removeEventListener('message', handleMessage);
     };
   }, [sessionId]);
 
@@ -182,6 +221,17 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
       borderRadius: '8px',
       overflow: 'hidden'
     }}>
+      {isRecording && (
+        <div style={{
+          backgroundColor: '#ff4444',
+          color: 'white',
+          padding: '4px 8px',
+          textAlign: 'center',
+          fontSize: '12px'
+        }}>
+          Recording user actions...
+        </div>
+      )}
       <div className="messages" style={{
         flex: 1,
         overflowY: 'auto',
@@ -203,7 +253,8 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
           <div key={msg.id} className={`message ${msg.type}`} style={{
             maxWidth: '80%',
             alignSelf: msg.type === 'user' ? 'flex-end' : 'flex-start',
-            backgroundColor: msg.type === 'user' ? '#007AFF' : '#F0F0F0',
+            backgroundColor: msg.type === 'user' ? '#007AFF' : 
+                           msg.type === 'system' ? '#FFB74D' : '#F0F0F0',
             color: msg.type === 'user' ? '#fff' : '#000',
             padding: '12px 16px',
             borderRadius: '12px',

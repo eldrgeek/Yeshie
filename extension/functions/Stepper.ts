@@ -1,4 +1,4 @@
-  import { summarizeWebPage } from './pageSummary';
+import { summarizeWebPage } from './pageSummary';
 import { pageObserver, type ObserverEvent, type ObserverCallback, type ObserverEventType } from './observer';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -67,6 +67,18 @@ const commandTemplates = {
   changes: {
     regex: /^changes\s+(on|off|clear|request)$/,
     template: { command: 'changes', action: '$1' }
+  },
+  message: {
+    regex: /^message\s+"(.+)"$/,
+    template: { command: 'message', text: '$1' }
+  },
+  record: {
+    regex: /^record\s+(start|stop)$/,
+    template: { command: 'record', action: '$1' }
+  },
+  recipe: {
+    regex: /^recipe\s+(save|load)\s+"(.+)"$/,
+    template: { command: 'recipe', action: '$1', name: '$2' }
   }
 };
 
@@ -286,6 +298,53 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
             return JSON.stringify(pageObserver.request());
           default:
             return "Invalid changes command";
+        }
+
+      case 'message':
+        // Send message to UI for display
+        window.postMessage({
+          type: 'yeshie-message',
+          text: command.text
+        }, '*');
+        return `Displayed message: ${command.text}`;
+
+      case 'record':
+        if (command.action === 'start') {
+          pageObserver.start();
+          window.postMessage({
+            type: 'yeshie-record-start'
+          }, '*');
+          return "Started recording user actions";
+        } else {
+          const actions = pageObserver.request();
+          pageObserver.stop();
+          window.postMessage({
+            type: 'yeshie-record-stop',
+            actions
+          }, '*');
+          return "Stopped recording user actions";
+        }
+
+      case 'recipe':
+        if (command.action === 'save') {
+          const actions = pageObserver.request();
+          // Store recipe in chrome.storage
+          chrome.storage.local.set({
+            [`recipe:${command.name}`]: actions
+          });
+          return `Saved recipe: ${command.name}`;
+        } else {
+          // Load recipe from chrome.storage
+          return new Promise((resolve) => {
+            chrome.storage.local.get([`recipe:${command.name}`], (result) => {
+              const recipe = result[`recipe:${command.name}`];
+              if (recipe) {
+                resolve(`Loaded recipe: ${command.name}`);
+              } else {
+                resolve(`Recipe not found: ${command.name}`);
+              }
+            });
+          });
         }
 
       default:

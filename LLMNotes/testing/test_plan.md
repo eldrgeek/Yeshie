@@ -25,37 +25,62 @@ This document outlines the testing strategy and priorities for the Yeshie Chrome
 
 ## Priority Test Areas
 
-### 1. Core Extension Functionality (High Priority)
+### 1. GitHub Login Flow Recording (Highest Priority)
+- [ ] GitHub Navigation and Login Recording
+  - Direct navigation using Yeshie's `navto` command
+  - User prompt system for login guidance
+  - Action recording during manual login
+  - Recipe creation from recorded actions
+  - Verification of recorded steps
+  - Logout and replay testing
+
+#### Implementation Steps:
+1. Navigate to GitHub
+   - Use Yeshie's `navto` command
+   - Verify successful navigation
+
+2. User Interaction Recording
+   - Implement user prompt system
+   - Display "Log in to Github while I watch" message
+   - Monitor and record user actions:
+     - Click events
+     - Input field interactions
+     - Form submissions
+
+3. Action Recording to Recipe
+   - Convert user actions to Stepper commands
+   - Display recorded steps in Collaboration pane
+   - Allow user to signal completion
+   - Save recorded steps as recipe
+
+4. Verification and Testing
+   - Request user logout
+   - Save complete login flow as recipe
+   - Replay recorded steps
+   - Verify successful automated login
+
+### 2. Core Extension Functionality (High Priority)
 - [ ] Extension popup behavior
   - Opening/closing
   - State persistence
   - UI element verification
 - [ ] Editor functionality
-  - Text input/output
-  - Command history
-  - Syntax highlighting
-  - Auto-completion
+  - Text input/output from testing framework
+  - Submitting test requests
 
-### 2. Command Execution (High Priority)
+### 3. Command Execution (High Priority)
 - [ ] Basic navigation commands
   - `navto` with various URL formats
-  - Navigation history
+  - Stepper functions for GitHub flow
   - Error handling for invalid URLs
-- [ ] File operations
-  - Reading files
-  - Creating files
-  - Modifying files
-  - Error handling for file operations
-- [ ] Git operations
-  - Repository status
-  - Branch operations
-  - Commit operations
-  - Error handling for git commands
+- [ ] User interaction commands
+  - Message display
+  - Action recording
+  - Recipe management
 
-### 3. GitHub Integration (Medium Priority)
+### 4. GitHub Integration (Medium Priority)
 - [ ] Authentication
   - Login flow
-  - Token management
   - Error handling
 - [ ] Repository interactions
   - Repository listing
@@ -63,7 +88,7 @@ This document outlines the testing strategy and priorities for the Yeshie Chrome
   - Pull request interactions
   - Issue management
 
-### 4. Error Handling and Edge Cases (High Priority)
+### 5. Error Handling and Edge Cases (High Priority)
 - [ ] Network failures
   - Timeout handling
   - Retry mechanisms
@@ -77,12 +102,12 @@ This document outlines the testing strategy and priorities for the Yeshie Chrome
   - Memory constraints
   - Rate limiting
 
-### 5. Cross-browser Compatibility (Medium Priority)
+### 6. Cross-browser Compatibility (Medium Priority)
 - [ ] Chrome-specific features
 - [ ] Browser API compatibility
 - [ ] Extension manifest variations
 
-### 6. Performance Testing (Low Priority)
+### 7. Performance Testing (Low Priority)
 - [ ] Load time measurements
 - [ ] Memory usage monitoring
 - [ ] Command execution timing
@@ -90,12 +115,13 @@ This document outlines the testing strategy and priorities for the Yeshie Chrome
 
 ## Test Implementation Strategy
 
-### Phase 1: Core Functionality
+### Phase 1: Learning 
 1. Expand current E2E test to cover basic editor operations
-2. Add command execution tests for navigation
+2. Add command execution tests for navigation, click, set focus
 3. Implement error handling tests for common failures
 
 ### Phase 2: GitHub Integration
+Goal: navigate to a github page (login if not logged in) add user to github account
 1. Add authentication flow tests
 2. Implement repository operation tests
 3. Add error handling for GitHub API interactions
