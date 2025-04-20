@@ -46,6 +46,9 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
   }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // Stop event propagation to prevent interference with main page
+    e.stopPropagation();
+    
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       const target = e.target as HTMLDivElement;
@@ -114,16 +117,21 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
   }, [messages]);
 
   return (
-    <div className="yeshie-editor" style={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      width: '100%',
-      backgroundColor: '#ffffff',
-      border: '1px solid #e0e0e0',
-      borderRadius: '8px',
-      overflow: 'hidden'
-    }}>
+    <div 
+      className="yeshie-editor" 
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        width: '100%',
+        backgroundColor: '#ffffff',
+        border: '1px solid #e0e0e0',
+        borderRadius: '8px',
+        overflow: 'hidden'
+      }}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
       {isRecording && (
         <div style={{
           backgroundColor: '#ff4444',
@@ -135,14 +143,18 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
           Recording user actions...
         </div>
       )}
-      <div className="messages" style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: '16px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '12px'
-      }}>
+      <div 
+        className="messages" 
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px'
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {messages.length === 0 && (
           <div style={{ 
             textAlign: 'center', 
@@ -153,28 +165,40 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
           </div>
         )}
         {messages.map((msg) => (
-          <div key={msg.id} className={`message ${msg.type}`} style={{
-            maxWidth: '80%',
-            alignSelf: msg.type === 'user' ? 'flex-end' : 'flex-start',
-            backgroundColor: msg.type === 'user' ? '#007AFF' : 
-                           msg.type === 'system' ? '#FFB74D' : '#F0F0F0',
-            color: msg.type === 'user' ? '#fff' : '#000',
-            padding: '12px 16px',
-            borderRadius: '12px',
-            wordBreak: 'break-word'
-          }}>
+          <div 
+            key={msg.id} 
+            className={`message ${msg.type}`} 
+            style={{
+              maxWidth: '80%',
+              alignSelf: msg.type === 'user' ? 'flex-end' : 'flex-start',
+              backgroundColor: msg.type === 'user' ? '#007AFF' : 
+                             msg.type === 'system' ? '#FFB74D' : '#F0F0F0',
+              color: msg.type === 'user' ? '#fff' : '#000',
+              padding: '12px 16px',
+              borderRadius: '12px',
+              wordBreak: 'break-word'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="content">{msg.content}</div>
             {msg.commands && (
-              <div className="commands" style={{
-                marginTop: '8px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px'
-              }}>
+              <div 
+                className="commands" 
+                style={{
+                  marginTop: '8px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px'
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
                 {msg.commands.map((cmd) => (
                   <button 
                     key={cmd.id} 
-                    onClick={() => executeCommand(cmd)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      executeCommand(cmd);
+                    }}
                     disabled={cmd.executed}
                     style={{
                       padding: '6px 12px',
@@ -194,20 +218,28 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
           </div>
         ))}
         {isTyping && (
-          <div className="typing-indicator" style={{
-            color: '#666',
-            fontSize: '14px',
-            padding: '8px'
-          }}>
+          <div 
+            className="typing-indicator" 
+            style={{
+              color: '#666',
+              fontSize: '14px',
+              padding: '8px'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
             Yeshie is typing...
           </div>
         )}
       </div>
-      <div className="input-area" style={{
-        borderTop: '1px solid #e0e0e0',
-        padding: '16px',
-        backgroundColor: '#f8f8f8'
-      }}>
+      <div 
+        className="input-area" 
+        style={{
+          borderTop: '1px solid #e0e0e0',
+          padding: '16px',
+          backgroundColor: '#f8f8f8'
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div
           className="message-input"
           contentEditable
@@ -223,6 +255,10 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
             border: '1px solid #ddd',
             borderRadius: '6px',
             outline: 'none'
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            e.currentTarget.focus();
           }}
         />
       </div>
