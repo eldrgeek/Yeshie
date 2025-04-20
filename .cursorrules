@@ -1,0 +1,36 @@
+# Yeshie Project Rules
+
+## Context
+Always include the contents of .yeshie-context.md in the initial context of new chats. This file contains the current project status, implementation details, and next steps.
+
+## Guidelines
+1. Always reference the project plan and current implementation status
+2. Use Stepper functions as documented in stepper-documentation.md
+3. Follow the development workflow:
+   - Make code changes
+   - Test with automatic command execution
+   - Capture debugging output to clipboard
+4. Maintain consistency with existing patterns and implementations
+5. Document any new patterns or selectors discovered
+6. Use toast notifications for user guidance
+7. Implement error recovery mechanisms
+8. Follow TypeScript best practices
+9. Use Chrome extension APIs appropriately
+10. Maintain backward compatibility with existing functionality
+
+## File Structure
+- Keep implementation files in the extension/ directory
+- Documentation in root directory
+- Follow existing naming conventions
+
+## Testing
+- Always include test commands after implementation
+- Capture console output for debugging
+- Verify pattern storage and retrieval
+- Test error recovery mechanisms
+
+## Communication
+- Be explicit about implementation details
+- Document any assumptions
+- Provide clear next steps
+- Include relevant code snippets when discussing changes 
