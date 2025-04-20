@@ -162,6 +162,20 @@ const Yeshie: React.FC = () => {
         event.preventDefault()
         setIsOpen(prevIsOpen => !prevIsOpen)
       }
+      
+      // Add global Escape key handler to help with focus management
+      if (event.key === 'Escape' && isOpen) {
+        // If Escape is pressed while extension is open, blur any focused elements
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+          
+          // Focus back on the page - try to find a reasonable target
+          const pageInput = document.querySelector('input, textarea, [contenteditable="true"]') as HTMLElement;
+          if (pageInput && pageInput.closest('.yeshie-editor') === null) {
+            pageInput.focus();
+          }
+        }
+      }
     }
 
     const handleUrlChange = () => {

@@ -38,6 +38,13 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
       navigator.clipboard.writeText("Start test 'learn claude'")
         .then(() => {
           console.log("Successfully wrote to clipboard");
+          // Focus the chat input after clipboard operation
+          const chatInput = document.querySelector('textarea[data-id="root"]') as HTMLTextAreaElement;
+          if (chatInput) {
+            chatInput.focus();
+            // Optionally paste the content
+            chatInput.value = "Start test 'learn claude'";
+          }
         })
         .catch(error => {
           console.error("Failed to write to clipboard:", error);
@@ -64,10 +71,15 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
   }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    // Only stop propagation if the event originated from our editor
-    if (e.currentTarget.closest('.yeshie-editor')) {
+    // If we're in the editor input field, we need to stop ALL key events 
+    // from bubbling to prevent Claude/ChatGPT from stealing our focus
+    const isEditorInput = e.target === inputRef.current;
+    
+    if (isEditorInput) {
+      // Stop ALL key events from reaching the underlying page
       e.stopPropagation();
       
+      // Continue handling specific keys
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         const target = e.target as HTMLDivElement;
@@ -108,35 +120,298 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
             setMessages(prev => [...prev, newMessage]);
           });
         }
+      } else if (e.key === "Escape") {
+        // Handle Escape key to explicitly blur and return focus to page
+        inputRef.current.blur();
+        e.preventDefault();
+        
+        // Try to focus on the page's main input
+        const pageInput = document.querySelector('textarea[data-id="root"], #prompt-textarea') as HTMLElement;
+        if (pageInput) {
+          pageInput.focus();
+        }
+      }
+    } else if (e.currentTarget.closest('.yeshie-editor')) {
+      // For clicks elsewhere in the editor (not the input)
+      if (e.key === "Escape") {
+        // Handle Escape key to explicitly blur and return focus to page
+        if (inputRef.current) {
+          inputRef.current.blur();
+          e.preventDefault();
+        }
       }
     }
   }, [sessionId, messages]);
 
   // Add focus management
   useEffect(() => {
-    const handleFocus = (e: FocusEvent) => {
+    let isExtensionFocused = false;
+    
+    // Track if extension is focused
+    const handleExtensionFocus = () => {
+      isExtensionFocused = true;
+    };
+    
+    const handleExtensionBlur = () => {
+      isExtensionFocused = false;
+    };
+    
+    // Handle document clicks to release focus back to the page
+    const handleDocumentClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (!target.closest('.yeshie-editor')) {
-        e.preventDefault();
-        e.stopPropagation();
+      const isExtensionClick = target.closest('.yeshie-editor');
+      
+      // If clicking outside the extension while extension is focused
+      if (isExtensionFocused && !isExtensionClick) {
+        if (inputRef.current) {
+          inputRef.current.blur();
+        }
+        // Allow event to continue to page elements
+        isExtensionFocused = false;
       }
     };
-
-    const handleBlur = (e: FocusEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.closest('.yeshie-editor')) {
-        e.preventDefault();
-        e.stopPropagation();
-        target.focus();
-      }
-    };
-
-    document.addEventListener('focusin', handleFocus, true);
-    document.addEventListener('focusout', handleBlur, true);
-
+    
+    // Add all event listeners
+    if (inputRef.current) {
+      inputRef.current.addEventListener('focus', handleExtensionFocus);
+      inputRef.current.addEventListener('blur', handleExtensionBlur);
+    }
+    
+    document.addEventListener('click', handleDocumentClick);
+    
     return () => {
-      document.removeEventListener('focusin', handleFocus, true);
-      document.removeEventListener('focusout', handleBlur, true);
+      if (inputRef.current) {
+        inputRef.current.removeEventListener('focus', handleExtensionFocus);
+        inputRef.current.removeEventListener('blur', handleExtensionBlur);
+      }
+      document.removeEventListener('click', handleDocumentClick);
+    };
+  }, []);
+
+  // Add advanced focus management for LLM sites
+  useEffect(() => {
+    let isExtensionFocused = false;
+    
+    // Track if extension is focused
+    const handleExtensionFocus = () => {
+      isExtensionFocused = true;
+    };
+    
+    const handleExtensionBlur = () => {
+      isExtensionFocused = false;
+    };
+    
+    // Handle document clicks to release focus back to the page
+    const handleDocumentClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const isExtensionClick = target.closest('.yeshie-editor');
+      
+      // If clicking outside the extension while extension is focused
+      if (isExtensionFocused && !isExtensionClick) {
+        if (inputRef.current) {
+          inputRef.current.blur();
+        }
+        // Allow event to continue to page elements
+        isExtensionFocused = false;
+      }
+    };
+    
+    // Special handling for mousedown events on our input to prevent focus stealing
+    const captureInputMousedown = (e: MouseEvent) => {
+      // Stop the mousedown event from propagating to prevent ChatGPT/Claude from 
+      // capturing it and redirecting focus back to their input
+      e.stopPropagation();
+    };
+    
+    // Special handling for LLM sites that aggressively steal focus
+    const preventLLMFocusStealing = () => {
+      // For ChatGPT and Claude which aggressively steal focus
+      const isLLMSite = 
+        window.location.hostname.includes('openai.com') ||
+        window.location.hostname.includes('anthropic.com') ||
+        window.location.hostname.includes('claude.ai');
+        
+      if (isLLMSite) {
+        // Add more aggressive focus retention for these sites
+        const preventFocusStealing = (e: FocusEvent) => {
+          const target = e.target as HTMLElement;
+          // If focus is moving to the LLM textarea and we have our editor focused
+          if (isExtensionFocused && 
+              (target.id === 'prompt-textarea' || // ChatGPT
+               target.matches('textarea[data-id="root"]'))) { // Claude
+            // Prevent the focus change and keep our input focused
+            e.preventDefault();
+            e.stopPropagation();
+            if (inputRef.current) {
+              // Move focus back to our input
+              setTimeout(() => inputRef.current?.focus(), 0);
+            }
+            return false;
+          }
+        };
+        
+        // Use capture phase to intercept focus events
+        document.addEventListener('focusin', preventFocusStealing, true);
+        return () => document.removeEventListener('focusin', preventFocusStealing, true);
+      }
+    };
+    
+    // Set up all event listeners
+    if (inputRef.current) {
+      inputRef.current.addEventListener('focus', handleExtensionFocus);
+      inputRef.current.addEventListener('blur', handleExtensionBlur);
+      inputRef.current.addEventListener('mousedown', captureInputMousedown);
+    }
+    
+    document.addEventListener('click', handleDocumentClick);
+    
+    // Set up LLM-specific focus stealing prevention
+    const cleanup = preventLLMFocusStealing();
+    
+    return () => {
+      if (inputRef.current) {
+        inputRef.current.removeEventListener('focus', handleExtensionFocus);
+        inputRef.current.removeEventListener('blur', handleExtensionBlur);
+        inputRef.current.removeEventListener('mousedown', captureInputMousedown);
+      }
+      document.removeEventListener('click', handleDocumentClick);
+      if (cleanup) cleanup();
+    };
+  }, []);
+
+  // Add improved LLM site focus handling with MutationObserver
+  useEffect(() => {
+    let isExtensionFocused = false;
+    
+    // Track if extension is focused
+    const handleExtensionFocus = () => {
+      isExtensionFocused = true;
+    };
+    
+    const handleExtensionBlur = () => {
+      isExtensionFocused = false;
+    };
+    
+    // Handle document clicks to release focus back to the page
+    const handleDocumentClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const isExtensionClick = target.closest('.yeshie-editor');
+      
+      // If clicking outside the extension while extension is focused
+      if (isExtensionFocused && !isExtensionClick) {
+        if (inputRef.current) {
+          inputRef.current.blur();
+        }
+        // Allow event to continue to page elements
+        isExtensionFocused = false;
+      }
+    };
+    
+    // Special handling for mousedown events on our input to prevent focus stealing
+    const captureInputMousedown = (e: MouseEvent) => {
+      // Stop the mousedown event from propagating to prevent ChatGPT/Claude from 
+      // capturing it and redirecting focus back to their input
+      e.stopPropagation();
+    };
+    
+    // Special handling for LLM sites that aggressively steal focus
+    const preventLLMFocusStealing = () => {
+      // For ChatGPT and Claude which aggressively steal focus
+      const isLLMSite = 
+        window.location.hostname.includes('openai.com') ||
+        window.location.hostname.includes('anthropic.com') ||
+        window.location.hostname.includes('claude.ai');
+        
+      if (isLLMSite) {
+        // Add MutationObserver to detect when Claude/ChatGPT tries to force focus to their input
+        const observeDOM = new MutationObserver((mutations) => {
+          if (isExtensionFocused) {
+            // If we're supposed to be focused, but we've lost focus to the LLM textarea
+            const llmTextarea = document.querySelector('#prompt-textarea, textarea[data-id="root"]') as HTMLElement;
+            if (llmTextarea && document.activeElement === llmTextarea && inputRef.current) {
+              // Force focus back to our input
+              setTimeout(() => inputRef.current?.focus(), 0);
+            }
+          }
+        });
+        
+        // Monitor for any focus change events
+        observeDOM.observe(document.body, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['class', 'style', 'data-focused']
+        });
+        
+        // Add more aggressive focus retention for these sites
+        const preventFocusStealing = (e: FocusEvent) => {
+          const target = e.target as HTMLElement;
+          // If focus is moving to the LLM textarea and we have our editor focused
+          if (isExtensionFocused && 
+              (target.id === 'prompt-textarea' || // ChatGPT
+               target.matches('textarea[data-id="root"]'))) { // Claude
+            // Prevent the focus change and keep our input focused
+            e.preventDefault();
+            e.stopPropagation();
+            if (inputRef.current) {
+              // Move focus back to our input
+              setTimeout(() => inputRef.current?.focus(), 0);
+            }
+            return false;
+          }
+        };
+        
+        // Use capture phase to intercept focus events
+        document.addEventListener('focusin', preventFocusStealing, true);
+        
+        // Also intercept keydown events that might be intended for LLM textareas
+        const preventKeyCapture = (e: KeyboardEvent) => {
+          // If we have focus in our editor
+          if (isExtensionFocused) {
+            // Check if the key event is intended for the LLM textarea
+            const target = e.target as HTMLElement;
+            if (target.id === 'prompt-textarea' || target.matches('textarea[data-id="root"]')) {
+              // Stop the event and refocus our input
+              e.stopPropagation();
+              if (inputRef.current) {
+                inputRef.current.focus();
+              }
+            }
+          }
+        };
+        
+        document.addEventListener('keydown', preventKeyCapture, true);
+        
+        return () => {
+          observeDOM.disconnect();
+          document.removeEventListener('focusin', preventFocusStealing, true);
+          document.removeEventListener('keydown', preventKeyCapture, true);
+        };
+      }
+      
+      return undefined;
+    };
+    
+    // Set up all event listeners
+    if (inputRef.current) {
+      inputRef.current.addEventListener('focus', handleExtensionFocus);
+      inputRef.current.addEventListener('blur', handleExtensionBlur);
+      inputRef.current.addEventListener('mousedown', captureInputMousedown);
+    }
+    
+    document.addEventListener('click', handleDocumentClick);
+    
+    // Set up LLM-specific focus stealing prevention
+    const cleanup = preventLLMFocusStealing();
+    
+    return () => {
+      if (inputRef.current) {
+        inputRef.current.removeEventListener('focus', handleExtensionFocus);
+        inputRef.current.removeEventListener('blur', handleExtensionBlur);
+        inputRef.current.removeEventListener('mousedown', captureInputMousedown);
+      }
+      document.removeEventListener('click', handleDocumentClick);
+      if (cleanup) cleanup();
     };
   }, []);
 
@@ -177,10 +452,16 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
         borderRadius: '8px',
         overflow: 'hidden',
         position: 'relative',
-        zIndex: 2147483647 // Maximum z-index
+        zIndex: 1000 // Reduced from maximum
       }}
       onClick={(e) => {
-        if (e.currentTarget.closest('.yeshie-editor')) {
+        // Only stop propagation for clicks directly on the editor itself
+        // This allows clicks outside the editor to reach the page
+        const isMessageOrInput = e.target instanceof HTMLElement && 
+          (e.target.closest('.messages') || e.target.closest('.input-area'));
+        
+        // Only capture clicks in the message area and input area
+        if (isMessageOrInput) {
           e.stopPropagation();
         }
       }}
@@ -206,7 +487,13 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
           flexDirection: 'column',
           gap: '12px'
         }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          // Only stop propagation for clicks on message elements
+          // but allow bubbling for clicks on empty space
+          if (e.target !== e.currentTarget) {
+            e.stopPropagation();
+          }
+        }}
       >
         {messages.length === 0 && (
           <div style={{ 
@@ -231,7 +518,16 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
               borderRadius: '12px',
               wordBreak: 'break-word'
             }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              // Only stop propagation for interaction elements inside messages
+              const isInteractive = e.target instanceof HTMLElement && 
+                (e.target.tagName === 'BUTTON' || e.target.closest('button'));
+              
+              // Only capture clicks on interactive elements
+              if (isInteractive) {
+                e.stopPropagation();
+              }
+            }}
           >
             <div className="content">{msg.content}</div>
             {msg.commands && (
@@ -243,7 +539,6 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
                   flexDirection: 'column',
                   gap: '4px'
                 }}
-                onClick={(e) => e.stopPropagation()}
               >
                 {msg.commands.map((cmd) => (
                   <button 
@@ -290,12 +585,31 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
           borderTop: '1px solid #e0e0e0',
           padding: '16px',
           backgroundColor: '#f8f8f8',
-          position: 'relative',
-          zIndex: 2147483647
+          position: 'relative'
         }}
         onClick={(e) => {
-          if (e.currentTarget.closest('.yeshie-editor')) {
-            e.stopPropagation();
+          // Stop propagation to prevent the event from reaching the page's handlers
+          e.stopPropagation();
+          e.preventDefault();
+          
+          // Force focus on our input
+          if (inputRef.current && document.activeElement !== inputRef.current) {
+            inputRef.current.focus();
+            
+            // Detect if we're on an LLM site
+            const isLLMSite = 
+              window.location.hostname.includes('openai.com') ||
+              window.location.hostname.includes('anthropic.com') ||
+              window.location.hostname.includes('claude.ai');
+              
+            if (isLLMSite) {
+              // For ChatGPT/Claude, use setTimeout to ensure our focus remains after their focus stealing
+              setTimeout(() => {
+                if (document.activeElement !== inputRef.current && inputRef.current) {
+                  inputRef.current.focus();
+                }
+              }, 10);
+            }
           }
         }}
       >
@@ -304,6 +618,8 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
           className="message-input"
           contentEditable
           onKeyDown={handleKeyDown}
+          onFocus={(e) => e.currentTarget.style.boxShadow = '0 0 0 2px #007AFF'}
+          onBlur={(e) => e.currentTarget.style.boxShadow = 'none'}
           role="textbox"
           aria-multiline="true"
           style={{
@@ -314,24 +630,7 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
             backgroundColor: '#fff',
             border: '1px solid #ddd',
             borderRadius: '6px',
-            outline: 'none',
-            position: 'relative',
-            zIndex: 2147483647
-          }}
-          onClick={(e) => {
-            if (e.currentTarget.closest('.yeshie-editor')) {
-              e.stopPropagation();
-              e.currentTarget.focus();
-            }
-          }}
-          onFocus={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-          }}
-          onBlur={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            e.currentTarget.focus();
+            outline: 'none'
           }}
         />
       </div>
