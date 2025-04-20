@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { sendToBackground } from "@plasmohq/messaging";
 import { Stepper } from "../functions/Stepper";
-import { io, Socket } from "socket.io-client";
 
 interface Command {
   id: string;
@@ -17,16 +16,6 @@ interface Message {
   commands?: Command[];
 }
 
-type WebSocketResponse = {
-  type: "response";
-  message: string;
-  commands?: string[];
-};
-
-type WebSocketRequest = 
-  | { type: "message"; message: string; sessionId: string }
-  | { type: "command"; command: string; sessionId: string };
-
 interface YeshieEditorProps {
   sessionId: string;
   onClose?: () => void;
@@ -35,98 +24,26 @@ interface YeshieEditorProps {
 const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
   console.log("YeshieEditor rendering with sessionId:", sessionId);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [connectionType, setConnectionType] = useState<"websocket" | "extension">("extension");
   const [isTyping, setIsTyping] = useState(false);
-  const socketRef = useRef<Socket | null>(null);
   const [isRecording, setIsRecording] = useState(false);
 
   useEffect(() => {
-    const socket = io("http://localhost:3000", {
-      transports: ["websocket"],
-      reconnectionDelay: 5000,
-      reconnectionDelayMax: 10000
-    });
-
-    socketRef.current = socket;
-
-    socket.on("connect", () => {
-      console.log("Socket.IO connected");
-      setIsConnected(true);
-      setConnectionType("websocket");
-      
-      // Send session initialization message
-      socket.emit("init", { sessionId });
-    });
-
-    socket.on("response", (data: WebSocketResponse) => {
-      if (data.type === "response") {
+    // Add message event listener for command results
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === "commandResult") {
+        const { command, result, error } = event.data;
         const newMessage: Message = {
           id: Math.random().toString(36).substring(7),
-          type: "yeshie",
-          content: data.message,
-          commands: data.commands?.map((cmd, i) => ({
-            id: `cmd-${Date.now()}-${i}`,
-            text: cmd,
-            executed: false
-          }))
+          type: "system",
+          content: error ? `Error executing command: ${error}` : `Command executed: ${result}`,
         };
         setMessages(prev => [...prev, newMessage]);
-      }
-    });
-
-    socket.on("connect_error", (error) => {
-      console.error("Socket.IO connection error:", error);
-      setConnectionType("extension");
-    });
-
-    socket.on("disconnect", () => {
-      console.log("Socket.IO disconnected");
-      setIsConnected(false);
-    });
-
-    // Add message event listener
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data) {
-        switch (event.data.type) {
-          case 'yeshie-message':
-            const newMessage: Message = {
-              id: Math.random().toString(36).substring(7),
-              type: "system",
-              content: event.data.text
-            };
-            setMessages(prev => [...prev, newMessage]);
-            break;
-
-          case 'yeshie-record-start':
-            setIsRecording(true);
-            const startMessage: Message = {
-              id: Math.random().toString(36).substring(7),
-              type: "system",
-              content: "Recording user actions..."
-            };
-            setMessages(prev => [...prev, startMessage]);
-            break;
-
-          case 'yeshie-record-stop':
-            setIsRecording(false);
-            const stopMessage: Message = {
-              id: Math.random().toString(36).substring(7),
-              type: "system",
-              content: "Recording stopped. Actions saved."
-            };
-            setMessages(prev => [...prev, stopMessage]);
-            break;
-        }
       }
     };
 
     window.addEventListener('message', handleMessage);
-    return () => {
-      socket.disconnect();
-      window.removeEventListener('message', handleMessage);
-    };
-  }, [sessionId]);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -144,40 +61,33 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
         setMessages(prev => [...prev, newMessage]);
         target.innerText = "";
 
-        // Send message through appropriate channel
-        if (connectionType === "websocket" && socketRef.current) {
-          socketRef.current.emit("message", {
+        // Send message to background script
+        sendToBackground({
+          name: "message",
+          body: { 
             message,
-            sessionId
-          });
-        } else {
-          sendToBackground({
-            name: "message",
-            body: { 
-              message,
-              sessionId,
-              conversation: messages.map(m => ({
-                role: m.type === "yeshie" ? "assistant" : "user",
-                content: m.content
-              }))
-            }
-          }).then(response => {
-            const newMessage: Message = {
-              id: Math.random().toString(36).substring(7),
-              type: "yeshie",
-              content: response.message,
-              commands: response.commands?.map((cmd, i) => ({
-                id: `cmd-${Date.now()}-${i}`,
-                text: cmd,
-                executed: false
-              }))
-            };
-            setMessages(prev => [...prev, newMessage]);
-          });
-        }
+            sessionId,
+            conversation: messages.map(m => ({
+              role: m.type === "yeshie" ? "assistant" : "user",
+              content: m.content
+            }))
+          }
+        }).then(response => {
+          const newMessage: Message = {
+            id: Math.random().toString(36).substring(7),
+            type: "yeshie",
+            content: response.message,
+            commands: response.commands?.map((cmd, i) => ({
+              id: `cmd-${Date.now()}-${i}`,
+              text: cmd,
+              executed: false
+            }))
+          };
+          setMessages(prev => [...prev, newMessage]);
+        });
       }
     }
-  }, [connectionType, sessionId, messages]);
+  }, [sessionId, messages]);
 
   const executeCommand = useCallback((command: Command) => {
     if (command.executed) return;
@@ -196,19 +106,12 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
 
     setMessages(updatedMessages);
 
-    // Send command execution to backend
-    if (connectionType === "websocket" && socketRef.current) {
-      socketRef.current.emit("command", {
-        command: command.text,
-        sessionId
-      });
-    } else {
-      sendToBackground({
-        name: "command",
-        body: { command: command.text, sessionId }
-      });
-    }
-  }, [connectionType, sessionId, messages]);
+    // Send command to parent window for execution
+    window.postMessage({ 
+      type: "command", 
+      command: command.text 
+    }, "*");
+  }, [messages]);
 
   return (
     <div className="yeshie-editor" style={{

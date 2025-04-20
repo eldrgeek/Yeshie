@@ -118,9 +118,16 @@ body.plasmo-google-sidebar-show {
 
 /* Icon styles */
 .resizing-icon {
-  width: 128px;
-  height: 128px;
-  transition: width 2s, height 2s;
+  width: 64px;
+  height: 64px;
+  transition: all 0.3s ease;
+  margin: 0 auto;
+  display: block;
+}
+
+.resizing-icon.small {
+  width: 24px;
+  height: 24px;
 }
 
 #sidebar.open .resizing-icon {

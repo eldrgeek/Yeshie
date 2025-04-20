@@ -63,7 +63,6 @@ const Yeshie: React.FC = () => {
   const [tabId, setTabId] = useState<number | null>(null)
   const [sessionID, setSessionID] = useState<string | null>(null)
   const [context, setContext] = useState<TabContext | null>(null)
-  const [canLoadIframe, setCanLoadIframe] = useState(true)
   const [connectionError, setConnectionError] = useState(false)
   const initCalled = useRef(false)
 
@@ -81,39 +80,27 @@ const Yeshie: React.FC = () => {
   )
 
   const handleMessage = useCallback(async (event: MessageEvent) => {
-    if (event.origin !== "http://localhost:3000") return;
-
-    if (event.data && event.data.type === "monitor") {
-      console.log("Received message from CollaborationPage iframe:", event.origin, event.data);
-      if (event.data.op === "command") {
-        console.log("Command", event.data.line);
-        try {
-          const result = await Stepper(event.data.line);
-          console.log("Result", result);
-          event.source?.postMessage({ 
-            type: "commandResult", 
-            command: event.data.line,
-            result: result,
-            timestamp: new Date().toISOString()
-          }, { targetOrigin: event.origin });
-        } catch (error) {
-          console.error("Error processing command:", error);
-          event.source?.postMessage({ 
-            type: "commandResult", 
-            data: {
-              command: event.data.line,
-              result: null,
-              error: error.message,
-              timestamp: new Date().toISOString()
-            }
-          }, { targetOrigin: event.origin });
-        }
+    if (event.data && event.data.type === "command") {
+      console.log("Received command from YeshieEditor:", event.data);
+      try {
+        const result = await Stepper(event.data.command);
+        console.log("Command result:", result);
+        window.postMessage({ 
+          type: "commandResult", 
+          command: event.data.command,
+          result: result,
+          timestamp: new Date().toISOString()
+        }, "*");
+      } catch (error) {
+        console.error("Error processing command:", error);
+        window.postMessage({ 
+          type: "commandResult", 
+          command: event.data.command,
+          result: null,
+          error: error.message,
+          timestamp: new Date().toISOString()
+        }, "*");
       }
-    }
-
-    if (event.data && event.data.type === "sessionID") {
-      console.log("Received session ID from iframe:", event.data.sessionID);
-      setSessionID(event.data.sessionID);
     }
   }, []);
 
@@ -222,7 +209,7 @@ const Yeshie: React.FC = () => {
   }
 
   return (
-    <div id="plasmo-google-sidebar">
+    <div id={getShadowHostId()}>
       <div
         id="sidebar"
         style={{
@@ -248,21 +235,8 @@ const Yeshie: React.FC = () => {
           overflow: 'hidden',
           width: '100%'
         }}>
-          {/* Top half - iframe */}
-          <div style={{ height: '50%', borderBottom: '1px solid #e0e0e0', width: '100%' }}>
-            {canLoadIframe && !connectionError ? (
-              <iframe 
-                src={`http://localhost:3000?tabId=${tabId}&mode=${context?.mode}`} 
-                width="100%" 
-                height="100%" 
-                style={{ border: 'none' }}
-                title="Localhost Iframe" 
-                onError={() => setConnectionError(true)}
-              />
-            ) : null}
-          </div>
-          {/* Bottom half - YeshieEditor */}
-          <div style={{ height: '50%', width: '100%' }}>
+          {/* Full height YeshieEditor */}
+          <div style={{ height: '100%', width: '100%' }}>
             <YeshieEditor sessionId={sessionID || ''} />
           </div>
         </div>
