@@ -46,51 +46,81 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
   }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    // Stop event propagation to prevent interference with main page
-    e.stopPropagation();
-    
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      const target = e.target as HTMLDivElement;
-      const message = target.innerText.trim();
+    // Only stop propagation if the event originated from our editor
+    if (e.currentTarget.closest('.yeshie-editor')) {
+      e.stopPropagation();
       
-      if (message) {
-        const newMessage: Message = {
-          id: Math.random().toString(36).substring(7),
-          type: "user",
-          content: message,
-        };
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        const target = e.target as HTMLDivElement;
+        const message = target.innerText.trim();
         
-        setMessages(prev => [...prev, newMessage]);
-        target.innerText = "";
-
-        // Send message to background script
-        sendToBackground({
-          name: "message",
-          body: { 
-            message,
-            sessionId,
-            conversation: messages.map(m => ({
-              role: m.type === "yeshie" ? "assistant" : "user",
-              content: m.content
-            }))
-          }
-        }).then(response => {
+        if (message) {
           const newMessage: Message = {
             id: Math.random().toString(36).substring(7),
-            type: "yeshie",
-            content: response.message,
-            commands: response.commands?.map((cmd, i) => ({
-              id: `cmd-${Date.now()}-${i}`,
-              text: cmd,
-              executed: false
-            }))
+            type: "user",
+            content: message,
           };
+          
           setMessages(prev => [...prev, newMessage]);
-        });
+          target.innerText = "";
+
+          // Send message to background script
+          sendToBackground({
+            name: "message",
+            body: { 
+              message,
+              sessionId,
+              conversation: messages.map(m => ({
+                role: m.type === "yeshie" ? "assistant" : "user",
+                content: m.content
+              }))
+            }
+          }).then(response => {
+            const newMessage: Message = {
+              id: Math.random().toString(36).substring(7),
+              type: "yeshie",
+              content: response.message,
+              commands: response.commands?.map((cmd, i) => ({
+                id: `cmd-${Date.now()}-${i}`,
+                text: cmd,
+                executed: false
+              }))
+            };
+            setMessages(prev => [...prev, newMessage]);
+          });
+        }
       }
     }
   }, [sessionId, messages]);
+
+  // Add focus management
+  useEffect(() => {
+    const handleFocus = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.yeshie-editor')) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    const handleBlur = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('.yeshie-editor')) {
+        e.preventDefault();
+        e.stopPropagation();
+        target.focus();
+      }
+    };
+
+    document.addEventListener('focusin', handleFocus, true);
+    document.addEventListener('focusout', handleBlur, true);
+
+    return () => {
+      document.removeEventListener('focusin', handleFocus, true);
+      document.removeEventListener('focusout', handleBlur, true);
+    };
+  }, []);
 
   const executeCommand = useCallback((command: Command) => {
     if (command.executed) return;
@@ -127,10 +157,15 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
         backgroundColor: '#ffffff',
         border: '1px solid #e0e0e0',
         borderRadius: '8px',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        position: 'relative',
+        zIndex: 2147483647 // Maximum z-index
       }}
-      onClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        if (e.currentTarget.closest('.yeshie-editor')) {
+          e.stopPropagation();
+        }
+      }}
     >
       {isRecording && (
         <div style={{
@@ -236,9 +271,15 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
         style={{
           borderTop: '1px solid #e0e0e0',
           padding: '16px',
-          backgroundColor: '#f8f8f8'
+          backgroundColor: '#f8f8f8',
+          position: 'relative',
+          zIndex: 2147483647
         }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          if (e.currentTarget.closest('.yeshie-editor')) {
+            e.stopPropagation();
+          }
+        }}
       >
         <div
           className="message-input"
@@ -254,10 +295,23 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
             backgroundColor: '#fff',
             border: '1px solid #ddd',
             borderRadius: '6px',
-            outline: 'none'
+            outline: 'none',
+            position: 'relative',
+            zIndex: 2147483647
           }}
           onClick={(e) => {
+            if (e.currentTarget.closest('.yeshie-editor')) {
+              e.stopPropagation();
+              e.currentTarget.focus();
+            }
+          }}
+          onFocus={(e) => {
             e.stopPropagation();
+            e.preventDefault();
+          }}
+          onBlur={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
             e.currentTarget.focus();
           }}
         />
