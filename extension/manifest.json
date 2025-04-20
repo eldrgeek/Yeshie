@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Yeshie",
+  "version": "1.0",
+  "description": "AI-powered assistant",
+  "permissions": [
+    "clipboardWrite",
+    "clipboardRead",
+    "activeTab",
+    "scripting",
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background/index.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/index.tsx"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup/index.html"
+  }
+} 

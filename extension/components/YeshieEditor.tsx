@@ -26,6 +26,24 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const inputRef = useRef<HTMLDivElement>(null);
+
+  // Set default prompt and clipboard on mount
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.innerText = "learn claude";
+      
+      // Handle clipboard operation directly in content script
+      console.log("Attempting to set clipboard");
+      navigator.clipboard.writeText("Start test 'learn claude'")
+        .then(() => {
+          console.log("Successfully wrote to clipboard");
+        })
+        .catch(error => {
+          console.error("Failed to write to clipboard:", error);
+        });
+    }
+  }, []);
 
   useEffect(() => {
     // Add message event listener for command results
@@ -282,6 +300,7 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
         }}
       >
         <div
+          ref={inputRef}
           className="message-input"
           contentEditable
           onKeyDown={handleKeyDown}
