@@ -10,6 +10,7 @@ import { Stepper, getOrCreateInstanceId } from "../functions/Stepper"
 import { sendToBackground } from "@plasmohq/messaging"
 import YeshieEditor from "../components/YeshieEditor"
 import "./google-sidebar-base.css"
+import PromptDialogHelper from "./PromptDialogHelper"
 
 setupCS()
 export const config: PlasmoCSConfig = {
@@ -225,7 +226,7 @@ const Yeshie: React.FC = () => {
   return (
     <div id={getShadowHostId()}>
       <div
-        id="sidebar"
+        id="yeshie-sidebar"
         style={{
           display: "flex",
           alignItems: "center",
@@ -265,14 +266,39 @@ const Yeshie: React.FC = () => {
           <span>Tab ID: {tabId !== null ? tabId : 'Loading...'}</span>
           <span style={{ marginLeft: '12px' }}>Session ID: {sessionID !== null ? sessionID : 'Loading...'}</span>
         </div>
-        <button className="sidebar-toggle" onClick={() => setIsOpen(!isOpen)}>
-          <img src={iconBase64} alt="Yeshie Icon" width={32} height={32} />
-          {isOpen ? "🟡" : "🟣"}
-        </button>
       </div>
+      
+      {/* Toggle button */}
+      <button 
+        className="sidebar-toggle" 
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          position: 'fixed',
+          right: '20px',
+          bottom: '20px',
+          zIndex: 2147483647,
+          background: 'white',
+          border: '1px solid #ddd',
+          borderRadius: '50%',
+          width: '48px',
+          height: '48px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+          transition: 'transform 0.2s ease'
+        }}
+      >
+        <img src={iconBase64} alt="Yeshie Icon" width={32} height={32} />
+      </button>
+      
+      {/* Add our helper component for the prompt dialog */}
+      <PromptDialogHelper isOpen={isOpen} isReady={isReady} />
     </div>
   )
 }
+
 
 export default Yeshie
 

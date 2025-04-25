@@ -13,6 +13,7 @@ Stepper is a powerful browser automation tool that provides a set of commands fo
 ### Element Interaction
 - `click <selector> ["text"]`: Click an element, optionally matching text content
 - `type <selector> "text"`: Type text into an input element
+- `sendkeys <selector> "keys"`: Send keyboard events to an element with special keys support
 - `hover <selector>`: Hover over an element
 - `getattribute <selector> <attribute>`: Get an element's attribute value
 - `getcomputedstyle <selector> <property>`: Get computed style of an element
@@ -20,6 +21,8 @@ Stepper is a powerful browser automation tool that provides a set of commands fo
 ### Page State
 - `waitfor <condition> [timeout]`: Wait for a condition to be met
 - `waitforelement <selector> [timeout]`: Wait for an element to appear
+- `waitforelementgone <selector> [timeout]`: Wait for an element to disappear
+- `waitforstable [quiet_time]`: Wait for DOM to be stable (no changes for specified time)
 - `waitfornetwork [timeout]`: Wait for network activity to complete
 - `changes <action>`: Monitor page changes (on/off/clear/request)
 
@@ -44,6 +47,18 @@ await Stepper('waitfor quiet');
 await Stepper('type #username "myuser"');
 await Stepper('type #password "mypass"');
 await Stepper('click #submit');
+```
+
+### Advanced Waiting and Input
+```typescript
+// Wait for an element to disappear
+await Stepper('waitforelementgone #loading-spinner 10000');
+
+// Wait for page to be stable (no DOM changes for 500ms)
+await Stepper('waitforstable 500');
+
+// Send special keys to an element
+await Stepper('sendkeys #searchbox "Hello world"');
 ```
 
 ### Element Discovery

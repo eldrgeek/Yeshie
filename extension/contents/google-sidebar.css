@@ -1,4 +1,4 @@
-#sidebar {
+#yeshie-sidebar {
   position: absolute;
 
   background-color: #ffffff;
@@ -18,19 +18,19 @@
   transition: width 2s, height 2s;
 }
 
-#sidebar.open .resizing-icon {
+#yeshie-sidebar.open .resizing-icon {
   width: 32px;
   height: 32px;
 }
-#sidebar.open {
+#yeshie-sidebar.open {
   left: calc(var(--plasmo-google-sidebar-width) * -1);
 }
 
-#sidebar.closed {
+#yeshie-sidebar.closed {
   left: 0px;
 }
 
-#sidebar p {
+#yeshie-sidebar p {
   font-weight: normal;
   text-align: left;
   font-size: 14px;

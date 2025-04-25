@@ -4,7 +4,7 @@
   right: 0;
   height: 100vh;
   z-index: 2147483647;
-  transition: all 0.5s ease;
+  transition: all 0.3s ease;
 }
 
 :root {
@@ -12,14 +12,13 @@
 }
 
 body.plasmo-google-sidebar-show {
-  margin-right: var(--plasmo-google-sidebar-width);
+  margin-right: 0;
 }
 
-#sidebar {
+#yeshie-sidebar {
   position: fixed;
   top: 0;
   right: 0;
-  color: "red";
   width: var(--plasmo-google-sidebar-width);
   height: 100vh;
   background-color: #ffffff;
@@ -27,35 +26,54 @@ body.plasmo-google-sidebar-show {
   align-items: center;
   justify-content: flex-start;
   flex-direction: column;
-  transition: right 0.5s ease;
+  transition: transform 0.3s ease, opacity 0.3s ease;
   border: 2px solid #e2e8f0;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+  transform-origin: right center;
 }
 
-#sidebar.open {
-  right: calc(var(--plasmo-google-sidebar-width) * -1);
+#yeshie-sidebar.open {
+  transform: translateX(0);
+  opacity: 1;
 }
 
-#sidebar.closed {
-  right: 0;
+#yeshie-sidebar.closed {
+  transform: translateX(100%);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .sidebar-toggle {
   position: fixed;
-  right: 4.7px;
-  bottom: 47px;
+  right: 20px;
+  bottom: 20px;
   z-index: 2147483647;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  transition: transform 0.2s ease;
 }
 
-#sidebar span {
+.sidebar-toggle:hover {
+  transform: scale(1.1);
+}
+
+#yeshie-sidebar span {
   margin: 0;
 }
 
-#sidebar img {
+#yeshie-sidebar img {
   margin: 0;
 }
 
-#sidebar iframe {
+#yeshie-sidebar iframe {
   margin: 0;
   padding: 0;
   flex-grow: 1;
@@ -130,12 +148,12 @@ body.plasmo-google-sidebar-show {
   height: 24px;
 }
 
-#sidebar.open .resizing-icon {
+#yeshie-sidebar.open .resizing-icon {
   width: 32px;
   height: 32px;
 }
 
-#sidebar p {
+#yeshie-sidebar p {
   font-weight: normal;
   text-align: left;
   font-size: 14px;

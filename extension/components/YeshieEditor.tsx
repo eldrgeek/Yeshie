@@ -2,6 +2,9 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { sendToBackground } from "@plasmohq/messaging";
 import { Stepper } from "../functions/Stepper";
 
+// Import the diagnostic logger
+import DiagnosticLogger from '../functions/DiagnosticLogger';
+
 interface Command {
   id: string;
   text: string;
@@ -21,11 +24,18 @@ interface YeshieEditorProps {
   onClose?: () => void;
 }
 
+// Add ChatGPT textarea interface with our custom property
+interface ChatGPTTextarea extends HTMLTextAreaElement {
+  _yeshieOriginalTabIndex?: number;
+}
+
 const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
   console.log("YeshieEditor rendering with sessionId:", sessionId);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  // Add diagnostic logging state
+  const [isDiagnosticLoggingEnabled, setIsDiagnosticLoggingEnabled] = useState(false);
   const inputRef = useRef<HTMLDivElement>(null);
 
   // Set default prompt and clipboard on mount
@@ -52,6 +62,37 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
     }
   }, []);
 
+  // Add start diagnostic logging at mount
+  useEffect(() => {
+    // Initialize diagnostic logging
+    DiagnosticLogger.startMonitoring();
+    
+    // Check for specific key combinations to toggle logging or copy logs
+    const handleSpecialKeys = (e: KeyboardEvent) => {
+      // Alt+Shift+D = Toggle diagnostic logging
+      if (e.altKey && e.shiftKey && e.key === 'd') {
+        e.preventDefault();
+        setIsDiagnosticLoggingEnabled(prev => {
+          const newValue = !prev;
+          DiagnosticLogger.setLoggingEnabled(newValue);
+          return newValue;
+        });
+      }
+      
+      // Alt+Shift+C = Copy logs to clipboard
+      if (e.altKey && e.shiftKey && e.key === 'c') {
+        e.preventDefault();
+        DiagnosticLogger.copyLogsToClipboard();
+      }
+    };
+    
+    document.addEventListener('keydown', handleSpecialKeys);
+    
+    return () => {
+      document.removeEventListener('keydown', handleSpecialKeys);
+    };
+  }, []);
+
   useEffect(() => {
     // Add message event listener for command results
     const handleMessage = (event: MessageEvent) => {
@@ -71,6 +112,15 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
   }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // Log the keydown event
+    DiagnosticLogger.log('editor_keydown', {
+      key: e.key,
+      shiftKey: e.shiftKey,
+      ctrlKey: e.ctrlKey,
+      metaKey: e.metaKey,
+      activeElementBeforeKeyDown: document.activeElement?.tagName
+    });
+    
     // If we're in the editor input field, we need to stop ALL key events 
     // from bubbling to prevent Claude/ChatGPT from stealing our focus
     const isEditorInput = e.target === inputRef.current;
@@ -125,10 +175,22 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
         inputRef.current.blur();
         e.preventDefault();
         
+        // Log the escape action
+        DiagnosticLogger.log('escape_from_editor', {
+          activeElementBeforeEscape: document.activeElement?.tagName
+        });
+        
         // Try to focus on the page's main input
         const pageInput = document.querySelector('textarea[data-id="root"], #prompt-textarea') as HTMLElement;
         if (pageInput) {
           pageInput.focus();
+          
+          // Log the focus attempt
+          DiagnosticLogger.log('focus_attempt_on_page_input', {
+            targetId: pageInput.id,
+            targetTag: pageInput.tagName,
+            activeElementAfterFocusAttempt: document.activeElement?.tagName
+          });
         }
       }
     } else if (e.currentTarget.closest('.yeshie-editor')) {
@@ -415,6 +477,146 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
     };
   }, []);
 
+  // Add ChatGPT-specific focus handling - DIRECT APPROACH
+  useEffect(() => {
+    // Only apply this on ChatGPT
+    if (!window.location.hostname.includes('openai.com')) {
+      return;
+    }
+
+    // Add a global click handler to the entire document
+    const handleGlobalClick = (e: MouseEvent) => {
+      // Check if click happened within our extension
+      const target = e.target as HTMLElement;
+      const isExtensionClick = target.closest("#plasmo-google-sidebar") !== null;
+      
+      DiagnosticLogger.log('global_click', {
+        isExtensionClick,
+        targetId: target.id,
+        targetTag: target.tagName,
+        targetClass: target.className
+      });
+      
+      if (isExtensionClick) {
+        // When extension is clicked, force focus to our input
+        if (inputRef.current) {
+          // Stop event to prevent ChatGPT from handling it
+          e.stopPropagation();
+          e.preventDefault();
+          
+          // Hard focus on our input
+          inputRef.current.focus();
+          
+          DiagnosticLogger.log('focused_input', {
+            inputRef: !!inputRef.current,
+            activeElement: document.activeElement === inputRef.current
+          });
+        }
+      }
+    };
+    
+    // Capture key events at the document level
+    const captureKeyEvents = (e: KeyboardEvent) => {
+      // Check if active element is our input
+      const isOurInputActive = document.activeElement === inputRef.current;
+      
+      DiagnosticLogger.log('key_event', {
+        key: e.key,
+        isOurInputActive,
+        activeElement: document.activeElement?.tagName,
+        activeElementId: document.activeElement?.id,
+        eventTargetId: (e.target as HTMLElement)?.id
+      });
+      
+      // If we want to direct all typing to our input
+      if (!isOurInputActive) {
+        // If this key would type text
+        if (e.key.length === 1 || e.key === 'Backspace') {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Focus our input
+          if (inputRef.current) {
+            inputRef.current.focus();
+            
+            // If it's a character key, add it to the input
+            if (e.key.length === 1) {
+              // Insert at cursor or end
+              const selection = window.getSelection();
+              if (selection && selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                const textNode = document.createTextNode(e.key);
+                range.insertNode(textNode);
+                
+                // Move cursor after inserted character
+                range.setStartAfter(textNode);
+                range.setEndAfter(textNode);
+                selection.removeAllRanges();
+                selection.addRange(range);
+              } else {
+                // No selection, just append
+                inputRef.current.textContent += e.key;
+                
+                // Move cursor to end
+                const range = document.createRange();
+                range.selectNodeContents(inputRef.current);
+                range.collapse(false);
+                selection?.removeAllRanges();
+                selection?.addRange(range);
+              }
+            } else if (e.key === 'Backspace') {
+              // Handle backspace
+              const selection = window.getSelection();
+              if (selection && selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                if (range.collapsed) {
+                  // If cursor is at position, delete previous character
+                  range.setStart(range.startContainer, Math.max(0, range.startOffset - 1));
+                  range.deleteContents();
+                } else {
+                  // If text is selected, delete selection
+                  range.deleteContents();
+                }
+              }
+            }
+            
+            DiagnosticLogger.log('key_processed', {
+              key: e.key,
+              newContent: inputRef.current.textContent
+            });
+          }
+        }
+      }
+    };
+    
+    // Add the click handler at capture phase to get it first
+    document.addEventListener('click', handleGlobalClick, true);
+    
+    // Add key event handler
+    document.addEventListener('keydown', captureKeyEvents, true);
+    
+    // Set the input ID for easier targeting
+    if (inputRef.current) {
+      inputRef.current.id = 'yeshie-editor-input';
+    }
+    
+    // Set initial focus
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        DiagnosticLogger.log('initial_focus_set', {
+          activeElement: document.activeElement === inputRef.current
+        });
+      }
+    }, 100);
+    
+    // Cleanup
+    return () => {
+      document.removeEventListener('click', handleGlobalClick, true);
+      document.removeEventListener('keydown', captureKeyEvents, true);
+    };
+  }, []);
+
   const executeCommand = useCallback((command: Command) => {
     if (command.executed) return;
 
@@ -439,6 +641,86 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
     }, "*");
   }, [messages]);
 
+  // Add a function to run diagnostics on ChatGPT
+  const runChatGPTDiagnostics = useCallback(() => {
+    if (!window.location.hostname.includes('openai.com')) {
+      return; // Only run on ChatGPT
+    }
+    
+    DiagnosticLogger.log('chatgpt_diagnostics', {
+      hostname: window.location.hostname,
+      pathname: window.location.pathname
+    });
+    
+    // Find ChatGPT's textarea
+    const chatGPTTextarea = document.querySelector('#prompt-textarea') as HTMLTextAreaElement;
+    
+    if (chatGPTTextarea) {
+      DiagnosticLogger.log('chatgpt_textarea_found', {
+        id: chatGPTTextarea.id,
+        className: chatGPTTextarea.className,
+        disabled: chatGPTTextarea.disabled,
+        readOnly: chatGPTTextarea.readOnly,
+        tabIndex: chatGPTTextarea.tabIndex,
+        ariaHidden: chatGPTTextarea.getAttribute('aria-hidden'),
+        cssVisibility: window.getComputedStyle(chatGPTTextarea).visibility,
+        cssDisplay: window.getComputedStyle(chatGPTTextarea).display,
+        // Find parent elements that might be capturing events
+        parents: collectParentInfo(chatGPTTextarea, 5)
+      });
+      
+      // Test event listeners by simulating a focus
+      try {
+        // Log before
+        DiagnosticLogger.log('before_chatgpt_focus_test', {
+          activeElement: document.activeElement?.tagName
+        });
+        
+        // Try to focus it
+        chatGPTTextarea.focus();
+        
+        // Log after
+        setTimeout(() => {
+          DiagnosticLogger.log('after_chatgpt_focus_test', {
+            activeElement: document.activeElement?.tagName,
+            focusChanged: document.activeElement === chatGPTTextarea
+          });
+          
+          // Return focus to our input
+          if (inputRef.current) {
+            inputRef.current.focus();
+          }
+        }, 100);
+      } catch (err) {
+        DiagnosticLogger.log('chatgpt_focus_test_error', { error: String(err) });
+      }
+    } else {
+      DiagnosticLogger.log('chatgpt_textarea_not_found', {});
+    }
+  }, []);
+
+  // Helper function to collect parent element info
+  const collectParentInfo = (element: Element, depth: number) => {
+    const parents = [];
+    let current = element.parentElement;
+    let level = 0;
+    
+    while (current && level < depth) {
+      parents.push({
+        level,
+        tagName: current.tagName,
+        id: current.id,
+        className: current.className,
+        cssPosition: window.getComputedStyle(current).position,
+        cssZIndex: window.getComputedStyle(current).zIndex
+      });
+      current = current.parentElement;
+      level++;
+    }
+    
+    return parents;
+  };
+
   return (
     <div 
       className="yeshie-editor" 
@@ -455,6 +737,14 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
         zIndex: 1000 // Reduced from maximum
       }}
       onClick={(e) => {
+        // Log clicks on the editor
+        DiagnosticLogger.log('editor_container_click', {
+          target: e.target instanceof Element ? {
+            tagName: e.target.tagName,
+            className: e.target.className
+          } : 'unknown'
+        });
+        
         // Only stop propagation for clicks directly on the editor itself
         // This allows clicks outside the editor to reach the page
         const isMessageOrInput = e.target instanceof HTMLElement && 
@@ -466,15 +756,133 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
         }
       }}
     >
-      {isRecording && (
+      {(isRecording || isDiagnosticLoggingEnabled) && (
         <div style={{
-          backgroundColor: '#ff4444',
+          backgroundColor: isDiagnosticLoggingEnabled ? '#4caf50' : '#ff4444',
           color: 'white',
           padding: '4px 8px',
           textAlign: 'center',
-          fontSize: '12px'
+          fontSize: '12px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
         }}>
-          Recording user actions...
+          <span>{isRecording ? 'Recording user actions...' : ''}</span>
+          {isDiagnosticLoggingEnabled && <span>Diagnostic Logging Active</span>}
+          <div>
+            <button
+              onClick={() => {
+                DiagnosticLogger.copyLogsToClipboard();
+              }}
+              style={{
+                padding: '2px 6px',
+                backgroundColor: '#ffffff',
+                color: '#000',
+                border: 'none',
+                borderRadius: '4px',
+                marginRight: '6px',
+                fontSize: '10px'
+              }}
+            >
+              Copy Logs
+            </button>
+            <button
+              onClick={() => {
+                // Clear logs
+                DiagnosticLogger.clearLogEntries();
+                
+                // Show notification
+                const toast = document.createElement('div');
+                toast.style.position = 'fixed';
+                toast.style.bottom = '20px';
+                toast.style.right = '20px';
+                toast.style.backgroundColor = '#4CAF50';
+                toast.style.color = 'white';
+                toast.style.padding = '10px';
+                toast.style.borderRadius = '5px';
+                toast.style.zIndex = '10000';
+                toast.textContent = 'Diagnostic logs cleared';
+                document.body.appendChild(toast);
+                
+                // Remove toast after 2 seconds
+                setTimeout(() => {
+                  if (document.body.contains(toast)) {
+                    document.body.removeChild(toast);
+                  }
+                }, 2000);
+              }}
+              style={{
+                padding: '2px 6px',
+                backgroundColor: '#ffffff',
+                color: '#000',
+                border: 'none',
+                borderRadius: '4px',
+                marginRight: '6px',
+                fontSize: '10px'
+              }}
+            >
+              Clear Logs
+            </button>
+            <button
+              onClick={() => {
+                DiagnosticLogger.saveLogsToStorage()
+                  .then(key => {
+                    if (key) {
+                      console.log("Logs saved with key:", key);
+                      // Show toast or notification
+                      const toast = document.createElement('div');
+                      toast.style.position = 'fixed';
+                      toast.style.bottom = '20px';
+                      toast.style.right = '20px';
+                      toast.style.backgroundColor = '#4CAF50';
+                      toast.style.color = 'white';
+                      toast.style.padding = '10px';
+                      toast.style.borderRadius = '5px';
+                      toast.style.zIndex = '10000';
+                      toast.textContent = 'Diagnostic logs saved successfully';
+                      document.body.appendChild(toast);
+                      
+                      // Remove toast after 3 seconds
+                      setTimeout(() => {
+                        document.body.removeChild(toast);
+                      }, 3000);
+                    }
+                  });
+              }}
+              style={{
+                padding: '2px 6px',
+                backgroundColor: '#ffffff',
+                color: '#000',
+                border: 'none',
+                borderRadius: '4px',
+                marginRight: '6px',
+                fontSize: '10px'
+              }}
+            >
+              Save
+            </button>
+            {window.location.hostname.includes('openai.com') && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  runChatGPTDiagnostics();
+                }}
+                style={{
+                  padding: '2px 6px',
+                  backgroundColor: '#ff9800',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '10px',
+                  marginLeft: '4px',
+                  cursor: 'pointer'
+                }}
+                title="Test focus handling on ChatGPT"
+              >
+                Test GPT
+              </button>
+            )}
+          </div>
         </div>
       )}
       <div 
@@ -630,9 +1038,156 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
             backgroundColor: '#fff',
             border: '1px solid #ddd',
             borderRadius: '6px',
-            outline: 'none'
+            outline: 'none',
+            marginBottom: '12px'
           }}
         />
+
+        {/* Diagnostic toolbar */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          borderTop: '1px solid #e0e0e0',
+          paddingTop: '8px',
+          marginTop: '4px'
+        }}>
+          <div style={{ fontSize: '10px', color: '#888' }}>
+            v1.0.3
+          </div>
+          <div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsDiagnosticLoggingEnabled(prev => {
+                  const newValue = !prev;
+                  DiagnosticLogger.setLoggingEnabled(newValue);
+                  
+                  // Clear logs when turning logging on
+                  if (newValue) {
+                    DiagnosticLogger.clearLogEntries();
+                    
+                    // Show a small notification
+                    const toast = document.createElement('div');
+                    toast.style.position = 'fixed';
+                    toast.style.bottom = '20px';
+                    toast.style.right = '20px';
+                    toast.style.backgroundColor = '#4CAF50';
+                    toast.style.color = 'white';
+                    toast.style.padding = '10px';
+                    toast.style.borderRadius = '5px';
+                    toast.style.zIndex = '10000';
+                    toast.textContent = 'Logs cleared, diagnostic logging started';
+                    document.body.appendChild(toast);
+                    
+                    // Remove toast after 2 seconds
+                    setTimeout(() => {
+                      if (document.body.contains(toast)) {
+                        document.body.removeChild(toast);
+                      }
+                    }, 2000);
+                  }
+                  
+                  return newValue;
+                });
+              }}
+              style={{
+                padding: '4px 8px',
+                backgroundColor: isDiagnosticLoggingEnabled ? '#4CAF50' : '#f0f0f0',
+                color: isDiagnosticLoggingEnabled ? '#fff' : '#333',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '10px',
+                cursor: 'pointer'
+              }}
+              title="Toggle diagnostic logging (Alt+Shift+D)"
+            >
+              {isDiagnosticLoggingEnabled ? 'Logging On' : 'Logging Off'}
+            </button>
+            
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                DiagnosticLogger.copyLogsToClipboard();
+              }}
+              style={{
+                padding: '4px 8px',
+                backgroundColor: '#f0f0f0',
+                color: '#333',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '10px',
+                marginLeft: '4px',
+                cursor: 'pointer',
+                display: isDiagnosticLoggingEnabled ? 'inline-block' : 'none'
+              }}
+              title="Copy logs to clipboard (Alt+Shift+C)"
+            >
+              Copy
+            </button>
+            
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                DiagnosticLogger.saveLogsToStorage()
+                  .then(key => {
+                    if (key) {
+                      // Show toast notification
+                      const toast = document.createElement('div');
+                      toast.style.position = 'fixed';
+                      toast.style.bottom = '20px';
+                      toast.style.right = '20px';
+                      toast.style.backgroundColor = '#4CAF50';
+                      toast.style.color = 'white';
+                      toast.style.padding = '10px';
+                      toast.style.borderRadius = '5px';
+                      toast.style.zIndex = '10000';
+                      toast.textContent = 'Diagnostic logs saved successfully';
+                      document.body.appendChild(toast);
+                      
+                      setTimeout(() => document.body.removeChild(toast), 3000);
+                    }
+                  });
+              }}
+              style={{
+                padding: '4px 8px',
+                backgroundColor: '#f0f0f0',
+                color: '#333',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '10px',
+                marginLeft: '4px',
+                cursor: 'pointer',
+                display: isDiagnosticLoggingEnabled ? 'inline-block' : 'none'
+              }}
+              title="Save logs to persistent storage"
+            >
+              Save
+            </button>
+              
+            {window.location.hostname.includes('openai.com') && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  runChatGPTDiagnostics();
+                }}
+                style={{
+                  padding: '4px 8px',
+                  backgroundColor: '#ff9800',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '10px',
+                  marginLeft: '4px',
+                  cursor: 'pointer'
+                }}
+                title="Test focus handling on ChatGPT"
+              >
+                Test GPT
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
