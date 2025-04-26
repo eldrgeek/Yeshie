@@ -10,7 +10,6 @@ import { Stepper, getOrCreateInstanceId } from "../functions/Stepper"
 import { sendToBackground } from "@plasmohq/messaging"
 import YeshieEditor from "../components/YeshieEditor"
 import "./google-sidebar-base.css"
-import PromptDialogHelper from "./PromptDialogHelper"
 
 setupCS()
 export const config: PlasmoCSConfig = {
@@ -294,7 +293,6 @@ const Yeshie: React.FC = () => {
       </button>
       
       {/* Add our helper component for the prompt dialog */}
-      <PromptDialogHelper isOpen={isOpen} isReady={isReady} />
     </div>
   )
 }
