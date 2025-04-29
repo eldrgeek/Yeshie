@@ -284,6 +284,7 @@ export const SpeechInput = ({
     const [statusMessage, setStatusMessage] = useState('Initializing...');
     const [micPosition, setMicPosition] = useState<'top' | 'bottom'>('bottom');
     const [logBuffer, setLogBuffer] = useState<string[]>([]); // Store logs
+    const [isTranscribing, setIsTranscribing] = useState(false); // New state to control transcription
 
     const textAreaRef = useRef<HTMLTextAreaElement>(null);
     const finalProcessedTranscriptRef = useRef(''); // Keep for potential future use/debug
@@ -323,6 +324,20 @@ export const SpeechInput = ({
     const handleErrorRef = useRef(null);
     const handleEndRef = useRef(null);
 
+    // Memoize the callback functions that will be passed to the hook
+    const memoizedOnResult = useCallback((event) => {
+        handleResultRef.current?.(event);
+    }, []); // Dependencies should include anything from the outer scope if used inside, but handleResultRef.current is stable itself
+
+    const memoizedOnError = useCallback((event) => {
+        handleErrorRef.current?.(event);
+    }, []); // Same as above
+
+    const memoizedOnEnd = useCallback(() => {
+        handleEndRef.current?.();
+    }, []); // Same as above
+
+
     const {
         isListening,
         isSupported,
@@ -331,27 +346,32 @@ export const SpeechInput = ({
         stopListening,
         // setIsListening, // Avoid using the direct setter if possible
     } = useSpeechRecognition({
-        onResult: (event) => handleResultRef.current?.(event),
-        onError: (event) => handleErrorRef.current?.(event),
-        onEnd: () => handleEndRef.current?.(),
+        onResult: memoizedOnResult, // Use memoized callback
+        onError: memoizedOnError,   // Use memoized callback
+        onEnd: memoizedOnEnd,     // Use memoized callback
         onLog: addToLog, // Pass the logging function to the hook
     });
 
      // --- Update Status Message based on State ---
      useEffect(() => {
+        addToLog(`Status Effect: isSupported=${isSupported}, permission=${permissionStatus}, isListening=${isListening}, wasIntentional=${wasListeningIntentionallyRef.current}`, 'debug');
         if (!isSupported) {
             setStatusMessage('Speech recognition not supported.');
         } else if (permissionStatus === 'denied') {
             setStatusMessage('Microphone permission denied.');
-        } else if (isListening) {
-            setStatusMessage('Listening...');
+        } else if (isTranscribing) {
+            setStatusMessage('Transcribing...');
         } else if (permissionStatus === 'prompt') {
              setStatusMessage('Click the mic icon to grant permission.');
         } else {
-            // Not listening, permission granted/prompt
-            setStatusMessage('Mic idle. Click to start listening.');
+            // Not transcribing, permission granted/prompt
+            if (!wasListeningIntentionallyRef.current) {
+                 setStatusMessage('Transcription stopped. Click mic to restart.'); // User manually stopped
+            } else {
+                 setStatusMessage('Mic idle. Click to start transcribing.'); // Initial state or stopped by other means (e.g. error, silence)
+            }
         }
-    }, [isListening, isSupported, permissionStatus]);
+    }, [isListening, isSupported, permissionStatus, addToLog, isTranscribing]); // Added isTranscribing
 
 
     // --- Processing Transcript ---
@@ -385,34 +405,33 @@ export const SpeechInput = ({
             if (word === 'end' && words[i+1] === 'caps') { currentIsAllCaps = false; setIsAllCaps(false); i++; addToLog('Command: ALL CAPS OFF', 'debug'); continue; }
 
             // --- Punctuation Handling ---
-            const punctuation = PUNCTUATION_MAP[word];
-            if (punctuation) {
-                addToLog(`Command: Punctuation "${word}" -> "${punctuation}"`, 'debug');
-                const spacing = PUNCTUATION_SPACING[word];
-                let wordToAdd = punctuation;
+            const punctuationInfo = PUNCTUATION_MAP[word]; // Use the correct map
+            if (punctuationInfo) {
+                const symbol: string = punctuation[punctuation.findIndex(([name]) => name === word)][1] as string; // Get symbol and assert type
+                addToLog(`Command: Punctuation "${word}" -> "${symbol}"`, 'debug');
+
                 let needsSpaceAfter = false;
-                if (spacing) {
-                    // Remove trailing space from previous word if needed
-                    if (processedWords.length > 0 && !spacing.before && /\s$/.test(processedWords[processedWords.length - 1])) {
-                        processedWords[processedWords.length - 1] = processedWords[processedWords.length - 1].trimEnd();
-                    }
-                    // Add space before if needed (uncommon for map but possible)
-                    if (spacing.before && processedWords.length > 0 && !/\s$/.test(processedWords[processedWords.length - 1])) {
-                        processedWords.push(' ');
-                    }
-                    needsSpaceAfter = spacing.after;
+                // Remove trailing space from previous word if needed (no space BEFORE symbol)
+                if (processedWords.length > 0 && !punctuationInfo.before && /\s$/.test(processedWords[processedWords.length - 1])) {
+                    processedWords[processedWords.length - 1] = processedWords[processedWords.length - 1].trimEnd();
                 }
-                processedWords.push(wordToAdd);
+                // Add space before if needed (rare for punctuation but check map)
+                if (punctuationInfo.before && processedWords.length > 0 && !/\s$/.test(processedWords[processedWords.length - 1])) {
+                    processedWords.push(' ');
+                }
+                needsSpaceAfter = punctuationInfo.after;
+
+                processedWords.push(symbol);
 
                 // Determine if next word needs capitalization based on this punctuation
-                 requiresCapitalization = ['.', '!', '?'].includes(punctuation);
+                requiresCapitalization = ['.', '!', '?'].includes(symbol);
 
                 if (needsSpaceAfter) {
                      processedWords.push(' ');
                      // If space added, next word doesn't need cap unless punctuation dictates it
                 } else {
                      // If no space added after (e.g., closing bracket), next word doesn't automatically need cap
-                     requiresCapitalization = false;
+                     requiresCapitalization = false; // Adjusted: Assume no cap if no space follows
                 }
                 continue;
             }
@@ -473,6 +492,81 @@ export const SpeechInput = ({
         }
         const currentText = textarea.value; // Get fresh value
 
+        // --- Process Results ---
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            const result = event.results[i];
+            const transcript = result[0].transcript; // Assuming maxAlternatives=1
+
+            if (result.isFinal) {
+                 addToLog(`handleResult: Final transcript segment: "${transcript}"`, 'debug');
+                 finalTranscriptSegment += transcript + ' '; // Append raw final segments
+            } else {
+                interimTranscript += transcript + ' '; // Append raw interim segments
+            }
+        }
+        interimTranscript = interimTranscript.trim();
+        finalTranscriptSegment = finalTranscriptSegment.trim();
+
+        // --- Check for Commands ---
+        if (finalTranscriptSegment) {
+            const lowerFinal = finalTranscriptSegment.toLowerCase().trim();
+            
+            // Handle command words
+            if (lowerFinal === 'transcribe') {
+                addToLog('Command detected: "Transcribe". Starting transcription.', 'info');
+                setIsTranscribing(true);
+                interimRangeRef.current = { start: null, end: null };
+                return;
+            } 
+            else if (lowerFinal === 'stop') {
+                addToLog('Command detected: "Stop". Stopping transcription.', 'info');
+                setIsTranscribing(false);
+                interimRangeRef.current = { start: null, end: null };
+                return;
+            }
+            else if (lowerFinal === 'send') {
+                addToLog('Command detected: "Send". Submitting text.', 'info');
+                if (text.trim().toLowerCase() === 'help') {
+                    onShowHelp();
+                } else {
+                    onSubmit(text);
+                }
+                interimRangeRef.current = { start: null, end: null };
+                return;
+            }
+            else if (lowerFinal === 'back') {
+                addToLog('Command detected: "Back". Deleting last word.', 'info');
+                const cursorPos = textarea.selectionStart;
+                
+                // Find the last word before cursor
+                const textBeforeCursor = currentText.substring(0, cursorPos);
+                const lastWordMatch = textBeforeCursor.match(/\S+\s*$/);
+                
+                if (lastWordMatch) {
+                    const lastWordStart = textBeforeCursor.lastIndexOf(lastWordMatch[0]);
+                    const newText = currentText.substring(0, lastWordStart) + currentText.substring(cursorPos);
+                    setText(newText);
+                    
+                    // Update cursor position
+                    setTimeout(() => {
+                        if (textAreaRef.current) {
+                            textAreaRef.current.value = newText;
+                            textAreaRef.current.setSelectionRange(lastWordStart, lastWordStart);
+                        }
+                    }, 0);
+                }
+                
+                interimRangeRef.current = { start: null, end: null };
+                return;
+            }
+        }
+
+        // If not transcribing, don't process or insert any other text
+        if (!isTranscribing) {
+            addToLog('Not transcribing, ignoring transcript.', 'debug');
+            return;
+        }
+
         // --- Determine Range for Replacement ---
         let replaceStart: number;
         let replaceEnd: number;
@@ -495,21 +589,6 @@ export const SpeechInput = ({
         replaceStart = Math.max(0, Math.min(replaceStart, currentText.length));
         replaceEnd = Math.max(replaceStart, Math.min(replaceEnd, currentText.length));
 
-        // --- Process Results ---
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-            const result = event.results[i];
-            const transcript = result[0].transcript; // Assuming maxAlternatives=1
-
-            if (result.isFinal) {
-                 addToLog(`handleResult: Final transcript segment: "${transcript}"`, 'debug');
-                 finalTranscriptSegment += transcript + ' '; // Append raw final segments
-            } else {
-                interimTranscript += transcript + ' '; // Append raw interim segments
-            }
-        }
-        interimTranscript = interimTranscript.trim();
-        finalTranscriptSegment = finalTranscriptSegment.trim();
-
         // --- Apply Changes ---
         const textBefore = currentText.substring(0, replaceStart);
         const textAfter = currentText.substring(replaceEnd);
@@ -520,8 +599,10 @@ export const SpeechInput = ({
         if (finalTranscriptSegment) {
             // Process final segment first if available
             const processedFinal = processTranscriptSegment(finalTranscriptSegment, true, textBefore);
-            newText = textBefore + processedFinal + textAfter;
-            newCursorPos = replaceStart + processedFinal.length;
+            // Add a space if this is the first segment after restarting transcription
+            const needsSpace = textBefore.length > 0 && !textBefore.endsWith(' ');
+            newText = textBefore + (needsSpace ? ' ' : '') + processedFinal + textAfter;
+            newCursorPos = replaceStart + (needsSpace ? 1 : 0) + processedFinal.length;
 
             addToLog(`handleResult: Applying final text. New length: ${newText.length}, Cursor: ${newCursorPos}`, 'debug');
 
@@ -532,8 +613,10 @@ export const SpeechInput = ({
         } else if (interimTranscript) {
             // Process interim segment if no final segment in this event
             const processedInterim = processTranscriptSegment(interimTranscript, interimRangeRef.current.start === textarea.selectionStart, textBefore);
-             newText = textBefore + processedInterim + textAfter;
-             newCursorPos = replaceStart + processedInterim.length;
+             // Add a space if this is the first segment after restarting transcription
+             const needsSpace = textBefore.length > 0 && !textBefore.endsWith(' ');
+             newText = textBefore + (needsSpace ? ' ' : '') + processedInterim + textAfter;
+             newCursorPos = replaceStart + (needsSpace ? 1 : 0) + processedInterim.length;
 
              addToLog(`handleResult: Applying interim text. New length: ${newText.length}, Cursor: ${newCursorPos}`, 'debug');
 
@@ -558,7 +641,7 @@ export const SpeechInput = ({
             addToLog(`handleResult: No change in text.`, 'debug');
         }
 
-    }, [processTranscriptSegment, setText, addToLog]); // Dependencies
+    }, [processTranscriptSegment, setText, addToLog, isAllCaps, setIsTranscribing, isTranscribing, onSubmit, onShowHelp]); // Added onSubmit and onShowHelp
 
     handleErrorRef.current = useCallback((event) => {
         addToLog(`handleError: ${event.error}`, 'error', event.message);
@@ -645,10 +728,10 @@ export const SpeechInput = ({
         addToLog('Component Mounted', 'info');
         if (isSupported) {
             if (permissionStatus === 'granted') {
-                addToLog('Initial Effect: Permission granted.', 'info');
-                // Optional: Automatically start listening on mount if desired
-                // handleToggleListen(); // Or directly call start sequence
-                // setStatusMessage('Click mic to start.'); // If not auto-starting
+                addToLog('Initial Effect: Permission granted. Starting recognition service.', 'info');
+                // Start the recognition service once, but don't transcribe yet
+                startListening(); // Start the service
+                setIsTranscribing(true); // Start transcribing immediately on mount
             } else if (permissionStatus === 'prompt') {
                  setStatusMessage('Click the mic icon to grant permission.');
             } else if (permissionStatus === 'denied') {
@@ -726,43 +809,23 @@ export const SpeechInput = ({
         if (permissionStatus === 'prompt') {
             addToLog('Toggle: Permission is prompt. Requesting via start...', 'info');
             // Starting will trigger the browser's permission prompt
+            startListening(); // Start the service if not already started
+            setIsTranscribing(true); // Start transcribing if permission granted
+            return; // Exit early, let the permission result handle further state
         }
 
-        if (isListening) {
-            // --- STOP LISTENING ---
-            addToLog('Toggle: User stopping listening.', 'info');
-            // CRUCIAL: Set intent to false *before* calling stop
-            wasListeningIntentionallyRef.current = false;
-            // Clear any pending manual start grace period
-            if (manualStartTimerRef.current) clearTimeout(manualStartTimerRef.current);
-            justManuallyStartedRef.current = false;
+        // Toggle the transcribing state
+        const newTranscribingState = !isTranscribing;
+        addToLog(`Toggle: Setting transcribing to ${newTranscribingState}.`, 'info');
+        setIsTranscribing(newTranscribingState);
 
-            stopListening();
-            // Status message update will happen via useEffect reacting to isListening change
-
-        } else {
-            // --- START LISTENING ---
-            addToLog('Toggle: User starting listening.', 'info');
-            // Reset tracking for new utterance/session
+        // Reset tracking for new utterance/session if starting transcription
+        if (newTranscribingState) {
             finalProcessedTranscriptRef.current = '';
             interimRangeRef.current = { start: null, end: null };
-
-            // Set flags for restart logic *before* starting
-            wasListeningIntentionallyRef.current = true; // Mark intentional start
-            justManuallyStartedRef.current = true;  // Mark we just manually started
-
-            startListening(); // Attempt to start
-
-            // Clear the 'just started' flag after a grace period
-            // If startListening fails immediately, onError should clear it
-             if (manualStartTimerRef.current) clearTimeout(manualStartTimerRef.current); // Clear previous timer just in case
-             manualStartTimerRef.current = setTimeout(() => {
-                justManuallyStartedRef.current = false;
-                addToLog('Toggle: Manual start grace period ended.', 'debug');
-             }, 750); // Grace period (e.g., 750ms) - adjust as needed
-
-             // Status message update will happen via useEffect reacting to isListening change
         }
+
+        // Status message update will happen via useEffect reacting to isTranscribing change
     };
 
     const handleSelectionChange = () => {
@@ -811,7 +874,7 @@ export const SpeechInput = ({
         let baseClass = 'mic-button';
         if (!isSupported) return `${baseClass} disabled`;
         if (permissionStatus === 'denied') return `${baseClass} denied`;
-        if (isListening) return `${baseClass} listening`;
+        if (isTranscribing) return `${baseClass} listening`; // Use isTranscribing for icon state
         return `${baseClass} idle`;
     }
 
@@ -845,14 +908,14 @@ export const SpeechInput = ({
                 type="button"
                 onClick={handleToggleListen}
                 className={getMicButtonClass()}
-                title={isListening ? 'Stop Listening (Mic On)' : 'Start Listening (Mic Off)'}
+                title={isTranscribing ? 'Stop Transcribing (Mic On)' : 'Start Transcribing (Mic Off)'}
                 disabled={!isSupported || permissionStatus === 'denied'}
                 style={{
                     position: 'absolute',
                     right: '10px',
                     ...(micPosition === 'top' ? { top: '10px' } : { bottom: '45px' }), // Adjusted bottom to make space for debug btn
-                    width: '40px',
-                    height: '40px',
+                    width: '20px', // Reduced from 40px
+                    height: '20px', // Reduced from 40px
                     borderRadius: '50%',
                     border: 'none',
                     color: '#fff',
@@ -862,7 +925,7 @@ export const SpeechInput = ({
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
                     boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                    fontSize: '20px',
+                    fontSize: '10px', // Reduced from 20px
                     padding: '0',
                     zIndex: 1, // Ensure it's above status/debug button potentially
                 }}
@@ -870,14 +933,14 @@ export const SpeechInput = ({
                 {/* SVG Icon */}
                  <svg
                     viewBox="0 0 24 24"
-                    width="24"
-                    height="24"
+                    width="12" // Reduced from 24
+                    height="12" // Reduced from 24
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="2"
                     style={{
                         transition: 'transform 0.2s ease',
-                        transform: isListening ? 'scale(1.1)' : 'scale(1)'
+                        transform: isTranscribing ? 'scale(1.1)' : 'scale(1)'
                     }}
                 >
                     <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
