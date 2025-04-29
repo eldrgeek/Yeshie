@@ -69,10 +69,9 @@ export const log = (type: string, details: any) => {
     }
   };
   
-  // Add to log entries, keeping only most recent MAX_LOG_ENTRIES
-  logEntries.push(entry);
-  if (logEntries.length > MAX_LOG_ENTRIES) {
-    logEntries.shift();
+  // Add to log entries, stopping after MAX_LOG_ENTRIES
+  if (logEntries.length < MAX_LOG_ENTRIES) {
+    logEntries.push(entry);
   }
   
   // Log to console for immediate visibility
@@ -98,7 +97,11 @@ export const clearLogEntries = () => {
  * Copy log entries to clipboard as JSON
  */
 export const copyLogsToClipboard = () => {
-  const logText = JSON.stringify(logEntries, null, 2);
+  // Limit to the most recent MAX_LOG_ENTRIES_CLIPBOARD entries
+  const MAX_LOG_ENTRIES_CLIPBOARD = 100;
+  const entriesToCopy = logEntries.slice(-MAX_LOG_ENTRIES_CLIPBOARD);
+
+  const logText = JSON.stringify(entriesToCopy, null, 2);
   navigator.clipboard.writeText(logText)
     .then(() => {
       console.log('[Yeshie Diagnostic] Logs copied to clipboard');

@@ -36,7 +36,7 @@ const isMatchingURL = (pattern: string) => {
 
 export const getShadowHostId = () => "plasmo-google-sidebar"
 
-const storage = new Storage()
+const storage = new Storage({ area: "local" })
 
 interface TabContext {
   url: string
@@ -58,7 +58,10 @@ function debounce(func: Function, wait: number) {
 }
 
 const Yeshie: React.FC = () => {
-  const [isOpen, setIsOpen] = useStorage("isOpen" + window.location.hostname, false)
+  const [isOpen, setIsOpen] = useStorage({
+    key: "isOpen" + window.location.hostname,
+    instance: new Storage({ area: "local" }),
+  }, false)
   const [isReady, setIsReady] = useState(false)
   const [tabId, setTabId] = useState<number | null>(null)
   const [sessionID, setSessionID] = useState<string | null>(null)
@@ -66,13 +69,32 @@ const Yeshie: React.FC = () => {
   const [connectionError, setConnectionError] = useState(false)
   const initCalled = useRef(false)
 
-  const updateContext = useCallback(async (newContext: Partial<TabContext>) => {
-    if (tabId === null) return
+  const updateContext = useCallback(async (newContextPart: Partial<TabContext>) => {
+    if (tabId === null) {
+        console.warn("updateContext called before tabId was set.");
+        return;
+    }
 
-    const updatedContext = { ...context, ...newContext }
-    await storage.set(`tabContext:${tabId}`, updatedContext)
-    setContext(updatedContext as TabContext)
-  }, [tabId, context])
+    // Use functional update for setContext to avoid dependency on 'context'
+    setContext(prevContext => {
+      // Ensure prevContext is not null/undefined before spreading
+      const currentContext = prevContext || { url: window.location.href, content: "", mode: "llm" };
+      const updated = { ...currentContext, ...newContextPart };
+
+      // Persist to storage immediately after calculating the new state
+      // Use a separate async function or IIFE to handle the promise
+      (async () => {
+          try {
+              await storage.set(`tabContext:${tabId}`, updated);
+              console.log(`Context updated and saved for tab ${tabId}:`, updated); // Added log
+          } catch (error) {
+              console.error(`Failed to save context for tab ${tabId}:`, error);
+          }
+      })();
+
+      return updated as TabContext;
+    });
+  }, [tabId]); // Now only depends on tabId
 
   const debouncedUpdateContext = useCallback(
     debounce((newContext: Partial<TabContext>) => updateContext(newContext), 1000),
@@ -195,7 +217,6 @@ const Yeshie: React.FC = () => {
   }, [handleMessage, updateContext, isOpen, isReady])
 
   useEffect(() => {
-    setupCS()
     if (document.body && isReady) {
       document.body.classList.toggle("plasmo-google-sidebar-show", isOpen)
     }

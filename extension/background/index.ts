@@ -1,6 +1,7 @@
 import { setupBG } from "../functions/extcomms";
 import type {PlasmoMessaging} from "@plasmohq/messaging"
 import { Storage } from "@plasmohq/storage"
+import 'url:../tabs/index.html'; // Ensure the tab page is included in the build
 
 const storage = new Storage()
 
@@ -17,45 +18,80 @@ interface FetchEvent extends Event {
   preloadResponse: Promise<Response | undefined>;
 }
 
-console.log("Background script loaded");
-self.addEventListener('offline', () => {
-  console.log('The browser is offline.');
-  // Handle offline situation, e.g., cache resources or notify the user
-});
+console.log("Yeshie background service worker started.");
 
-// Optionally, you can also add an 'online' event listener to handle reconnection
-self.addEventListener('online', () => {
-  console.log('The browser is back online.');
-  // Handle reconnection logic, e.g., sync with server or fetch updates
-});
+// Function to log storage usage
+async function logStorageUsage() {
+    try {
+        const localItems = await chrome.storage.local.get(null);
+        // Check if localItems is defined before using Object.keys
+        const localCount = localItems ? Object.keys(localItems).length : 0;
+        console.log(`chrome.storage.local item count: ${localCount}`);
+        // Optionally log local keys if needed for debugging
+        // if (localItems) console.log("Local storage keys:", Object.keys(localItems));
 
-// Update the fetch event listener
-self.addEventListener('fetch', (event: FetchEvent) => {
-  if (event.request.mode === 'navigate') {
-    event.respondWith((async () => {
-      try {
-        const preloadResponse = await event.preloadResponse;
-        if (preloadResponse) {
-          return preloadResponse;
+        const syncItems = await chrome.storage.sync.get(null);
+        // Check if syncItems is defined before using Object.keys
+        const syncCount = syncItems ? Object.keys(syncItems).length : 0;
+        console.log(`chrome.storage.sync item count: ${syncCount}`);
+        if (syncCount >= 500) { // Check against the 512 limit
+            console.warn("chrome.storage.sync is near or at its MAX_ITEMS limit!");
+            // Log the keys to see what's filling up sync storage
+            if (syncItems) {
+                console.log("Sync storage keys:", Object.keys(syncItems));
+            }
         }
+    } catch (error) {
+        console.error("Error checking storage usage:", error);
+    }
+}
 
-        return await fetch(event.request);
-      } catch (error) {
-        console.error('Fetch failed; returning offline page instead.', error);
-        // You might want to return a custom offline page here
-        return new Response('Offline page', { status: 503, statusText: 'Service Unavailable' });
+const TAB_URL = chrome.runtime.getURL("tabs/index.html");
+const CONTEXT_REMOVAL_DELAY = 10000; // 10 seconds
+
+// --- Helper Functions ---
+
+/**
+ * Opens or focuses the extension's dedicated tab page.
+ * If the tab exists, it's focused and reloaded.
+ * If not, it's created.
+ */
+async function openOrFocusExtensionTab() {
+  try {
+    const tabs = await chrome.tabs.query({ url: TAB_URL });
+
+    if (tabs.length > 0) {
+      // Tab exists, focus the first one found and reload it
+      const tab = tabs[0];
+      if (tab.id) {
+        await chrome.tabs.update(tab.id, { active: true });
+        // Reload the tab to ensure it has the latest extension code
+        await chrome.tabs.reload(tab.id);
+        console.log(`Focused and reloaded existing tab: ${tab.id}`);
+      } else {
+          console.error("Found tab has no ID:", tab);
       }
-    })());
+    } else {
+      // No tab exists, create a new one
+      const newTab = await chrome.tabs.create({ url: TAB_URL });
+      console.log(`Created new tab: ${newTab.id}`);
+    }
+  } catch (error) {
+      console.error("Error opening or focusing extension tab:", error);
   }
-});
+}
 
-// Function to get the current tab ID
+
+/**
+ * Gets the ID of the currently active tab in the current window.
+ * @returns The tab ID or -1 if an error occurs or no active tab is found.
+ */
 async function getCurrentTabId(): Promise<number> {
   try {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    console.log("All active tabs:", tabs);
+    // console.log("All active tabs:", tabs); // Debugging: uncomment if needed
     const tabId = tabs[0]?.id ?? -1;
-    console.log("Selected tab ID:", tabId);
+    // console.log("Selected tab ID:", tabId); // Debugging: uncomment if needed
     return tabId;
   } catch (error) {
     console.error("Error getting current tab ID:", error);
@@ -63,127 +99,194 @@ async function getCurrentTabId(): Promise<number> {
   }
 }
 
-// Log tab ID when a new tab is activated
+/**
+ * Logs the current tab ID and details of all open tabs.
+ */
+async function logCurrentTabState() {
+  try {
+    const tabId = await getCurrentTabId();
+    console.log("Current Active Tab ID (from background):", tabId);
+    const allTabs = await chrome.tabs.query({});
+    console.log("All open tabs:", allTabs.map(tab => ({ id: tab.id, url: tab.url, active: tab.active, windowId: tab.windowId })));
+  } catch (error) {
+      console.error("Error logging current tab state:", error);
+  }
+}
+
+/**
+ * Sends a message to a specific tab.
+ * @param tabId The ID of the target tab.
+ * @param message The message payload to send.
+ */
+function sendMessageToTab(tabId: number, message: any) {
+  chrome.tabs.sendMessage(tabId, message, (response) => {
+    if (chrome.runtime.lastError) {
+      console.log(`Could not send message to tab ${tabId}: ${chrome.runtime.lastError.message}`);
+    } else {
+      // console.log(`Message sent to tab ${tabId}, response:`, response); // Debugging
+    }
+  });
+}
+
+
+// --- Event Listeners ---
+
+/**
+ * Listener for extension installation or update events.
+ * Opens the dedicated tab page on first install or update.
+ */
+chrome.runtime.onInstalled.addListener((details) => {
+  try {
+    console.log("Extension installed or updated:", details.reason);
+    if (details.reason === 'install' || details.reason === 'update') {
+      // Open the tab page on first install or update
+      // openOrFocusExtensionTab(); // Temporarily commented out
+    }
+    // Perform other setup tasks if needed
+    logCurrentTabState().catch(error => console.error("Error during onInstalled logCurrentTabState:", error)); // Log initial state
+  } catch (error) {
+      console.error("Error in onInstalled listener:", error);
+  }
+});
+
+
+/**
+ * Optional: Listener for browser startup
+ * chrome.runtime.onStartup.addListener(() => {
+ *   console.log("Browser started, checking for extension tab...");
+ *   openOrFocusExtensionTab(); // Or a modified version that doesn't always reload
+ *   logCurrentTabState();
+ * });
+ */
+
+
+// Log tab state changes
 chrome.tabs.onActivated.addListener((activeInfo) => {
   console.log("Activated Tab ID:", activeInfo.tabId);
-  logCurrentTabId();
+  // logCurrentTabState().catch(error => console.error("Error during onActivated logCurrentTabState:", error)); // Temporarily commented out
 });
 
-// Log tab ID when a tab is updated
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  // Log state when a tab finishes loading
   if (changeInfo.status === 'complete') {
-    console.log("Updated Tab ID:", tabId);
-    logCurrentTabId();
+    console.log("Updated Tab (completed loading):", tabId);
+    // logCurrentTabState().catch(error => console.error("Error during onUpdated logCurrentTabState:", error)); // Temporarily commented out
   }
 });
 
-// Log tab ID when a new tab is created
 chrome.tabs.onCreated.addListener((tab) => {
   console.log("New tab created:", tab.id);
-  logCurrentTabId();
+  // logCurrentTabState().catch(error => console.error("Error during onCreated logCurrentTabState:", error)); // Temporarily commented out
 });
 
-const CONTEXT_REMOVAL_DELAY = 10000
-// Log tab ID when a tab is removed
+// Clean up tab-specific context data shortly after a tab is closed
 chrome.tabs.onRemoved.addListener((tabId) => {
-  // Schedule context removal
+  console.log("Tab removed:", tabId);
   setTimeout(async () => {
-    await storage.remove(`tabContext:${tabId}`)
-  }, CONTEXT_REMOVAL_DELAY)
-});
-
-// Log tab ID when extension icon is clicked
-chrome.action.onClicked.addListener(async (tab) => {
-  logCurrentTabId();
-});
-
-// Log the current tab ID every 30 seconds
-setInterval(logCurrentTabId, 30000);
-
-setupBG();
-
-const captureScreenshot = (windowId) => {
-  chrome.tabs.captureVisibleTab(windowId, { format: 'png' }, (dataUrl) => {
-    if (!dataUrl) {
-      console.error(chrome.runtime.lastError.message);
-    } else {
-      console.log('Screenshot taken:', dataUrl);
-      chrome.tabs.create({ url: dataUrl });
-    }
-  });
-};
-
-// Add message handler for getTabId
-chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-  if (message.name === "getTabId") {
     try {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      const tabId = tabs[0]?.id ?? -1;
-      console.log("Selected tab ID:", tabId);
-      sendResponse({ tabId });
-    } catch (error) {
-      console.error("Error getting current tab ID:", error);
-      sendResponse({ tabId: -1 });
+      await storage.remove(`tabContext:${tabId}`);
+      console.log(`Removed context for tab ${tabId}`);
+      // Log state after removal attempt
+      // logCurrentTabState().catch(error => console.error("Error during onRemoved logCurrentTabState:", error)); // Temporarily commented out
+    } catch(error) {
+        console.error(`Error removing context for tab ${tabId}:`, error);
     }
-    return true; // Keep the message channel open for async response
+  }, CONTEXT_REMOVAL_DELAY);
+});
+
+// Log state when extension icon is clicked (if applicable)
+// chrome.action.onClicked.addListener(async (tab) => {
+//   console.log("Extension action clicked for tab:", tab.id);
+//   logCurrentTabState();
+// });
+
+// Runtime Message Listener (for communication from content scripts/popup)
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log("Message received:", message, "from:", sender);
+  try {
+    if (message.name === "getTabId") {
+      getCurrentTabId().then(tabId => {
+        sendResponse({ tabId });
+      }).catch(error => {
+        console.error("Error processing getTabId message:", error);
+        sendResponse({ tabId: -1 }); // Send error state
+      });
+      return true; // Indicate async response
+    }
+
+    if (message.action === "captureScreenshotToClipboard") {
+      chrome.tabs.captureVisibleTab(null, { format: 'png' }, (dataUrl) => {
+        try {
+          if (chrome.runtime.lastError) {
+            console.error('Failed to capture screenshot:', chrome.runtime.lastError.message);
+            sendResponse({ status: "error", message: chrome.runtime.lastError.message });
+            return;
+          }
+          if (dataUrl) {
+            fetch(dataUrl)
+                .then(res => res.blob())
+                .then(blob => {
+                    navigator.clipboard.write([
+                        new ClipboardItem({ [blob.type]: blob })
+                    ]).then(() => {
+                        console.log('Screenshot copied to clipboard');
+                        sendResponse({ status: "copied" });
+                    }).catch(err => {
+                        console.error('Error copying screenshot blob to clipboard:', err);
+                        sendResponse({ status: "error", message: err.message });
+                    });
+                })
+                .catch(err => {
+                    console.error('Error fetching blob from data URL:', err);
+                    sendResponse({ status: "error", message: err.message });
+                });
+
+          } else {
+            console.error('Failed to capture screenshot, no data URL returned.');
+            sendResponse({ status: "error", message: "Failed to capture screenshot." });
+          }
+        } catch (error) {
+          console.error('Unexpected error during screenshot capture/clipboard write:', error);
+          sendResponse({ status: "error", message: "Unexpected error during screenshot operation." });
+        }
+      });
+      return true; // Indicate async response
+    }
+
+    // Handle other messages...
+
+    // Return true if you intend to send an asynchronous response
+    // return true;
+  } catch (error) {
+    console.error("Error in onMessage listener:", error);
+    // Optionally send an error response if appropriate for the message type
+    // sendResponse({ status: "error", message: "Internal background error." });
   }
-  return true;
+  return false; // Default to synchronous response if not handled
 });
 
-const captureScreenshotToClipboard = (sendResponse) => {
-  chrome.tabs.captureVisibleTab(null, { format: 'png' }, (dataUrl) => {
-    if (dataUrl) {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
 
-        canvas.toBlob((blob) => {
-          navigator.clipboard.write([
-            new ClipboardItem({
-              [blob.type]: blob,
-            }),
-          ])
-            .then(() => {
-              sendResponse("copied");
-              console.log('Screenshot copied to clipboard');
-            })
-            .catch((error) => {
-              sendResponse("error");
-              console.error('Error copying screenshot to clipboard:', error);
-            });
-        }, 'image/png');
-      };
-      img.src = dataUrl;
-    } else {
-      console.error('Failed to capture screenshot');
-    }
-  });
-};
-
-chrome.runtime.onInstalled.addListener(() => {
-  console.log("Extension installed");
+// Add offline/online listeners (if needed, already present in original code)
+self.addEventListener('offline', () => {
+  console.log('The browser is offline.');
+  // Handle offline situation
 });
 
-// Function to send a message to a specific tab
-function sendMessageToTab(tabId, message) {
-  chrome.tabs.sendMessage(tabId, message);
-}
+self.addEventListener('online', () => {
+  console.log('The browser is back online.');
+  // Handle reconnection logic
+});
 
-// Add this function to your background.ts file
-function logCurrentTabId() {
-  getCurrentTabId().then(tabId => {
-    console.log("Current Tab ID (from background):", tabId);
-    logAllTabs();
-  });
-}
+// Fetch listener (if needed for PWA features, already present)
+// self.addEventListener('fetch', (event: FetchEvent) => { ... });
 
-async function logAllTabs() {
-  const allTabs = await chrome.tabs.query({});
-  console.log("All open tabs:", allTabs.map(tab => ({ id: tab.id, url: tab.url })));
-}
 
-console.log("Background loaded") 
+// --- Initialization ---
+// setupBG(); // Temporarily commented out // Setup background communication provided by extcomms
+logStorageUsage(); // Log storage usage on startup
+logCurrentTabState().catch(error => console.error("Error during initial logCurrentTabState:", error)); // Log initial state when script loads
+
+// Periodic state logging (consider reducing frequency or removing if too noisy)
+// setInterval(logCurrentTabState, 60000); // Temporarily commented out // e.g., every minute
+
+console.log("Background script fully initialized."); 
