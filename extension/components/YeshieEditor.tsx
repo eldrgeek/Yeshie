@@ -51,7 +51,7 @@ interface Message {
   content: string;
 }
 interface YeshieEditorProps {
-  sessionId: string;
+  sessionId?: string;
   onClose?: () => void;
 }
 

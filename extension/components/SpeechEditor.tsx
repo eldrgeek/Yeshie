@@ -518,7 +518,7 @@ export const SpeechInput = ({
                 interimRangeRef.current = { start: null, end: null };
                 return;
             } 
-            else if (lowerFinal === 'stop' && !isTranscribing) {
+            else if (lowerFinal === 'stop') {
                 addToLog('Command detected: "Stop". Stopping transcription.', 'info');
                 setIsTranscribing(false);
                 interimRangeRef.current = { start: null, end: null };
@@ -534,7 +534,7 @@ export const SpeechInput = ({
                 interimRangeRef.current = { start: null, end: null };
                 return;
             }
-            else if (lowerFinal === 'back' && !isTranscribing) {
+            else if (lowerFinal === 'back') {
                 addToLog('Command detected: "Back". Deleting last word.', 'info');
                 const cursorPos = textarea.selectionStart;
                 

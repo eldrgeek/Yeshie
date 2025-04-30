@@ -18,28 +18,102 @@ interface FetchEvent extends Event {
   preloadResponse: Promise<Response | undefined>;
 }
 
+// Add these type declarations at the top of the file
+declare namespace chrome {
+    namespace storage {
+        interface StorageArea {
+            get(keys: string | string[] | object | null): Promise<{ [key: string]: any }>;
+            set(items: object): Promise<void>;
+            remove(keys: string | string[]): Promise<void>;
+            clear(): Promise<void>;
+        }
+        const local: StorageArea;
+        const sync: StorageArea;
+    }
+
+    namespace runtime {
+        const lastError: { message: string } | undefined;
+        function getURL(path: string): string;
+        function sendMessage(message: any): Promise<any>;
+        function connect(): { postMessage: (message: any) => void };
+        const onMessage: {
+            addListener: (callback: (message: any, sender: any, sendResponse: (response?: any) => void) => void) => void;
+        };
+        const onInstalled: {
+            addListener: (callback: (details: { reason: string }) => void) => void;
+        };
+        const onStartup: {
+            addListener: (callback: () => void) => void;
+        };
+    }
+
+    namespace tabs {
+        interface Tab {
+            id?: number;
+            url?: string;
+            active: boolean;
+            windowId: number;
+        }
+        interface TabChangeInfo {
+            status?: string;
+            url?: string;
+            pinned?: boolean;
+            audible?: boolean;
+            muted?: boolean;
+            favIconUrl?: string;
+            title?: string;
+        }
+        function query(queryInfo: object): Promise<Tab[]>;
+        function update(tabId: number, updateProperties: object): Promise<Tab>;
+        function create(createProperties: object): Promise<Tab>;
+        function reload(tabId: number): Promise<void>;
+        function captureVisibleTab(
+            windowId?: number,
+            options?: {
+                format?: 'jpeg' | 'png',
+                quality?: number
+            },
+            callback?: (dataUrl: string) => void
+        ): Promise<string>;
+        function sendMessage(
+            tabId: number,
+            message: any,
+            options?: object,
+            callback?: (response: any) => void
+        ): Promise<any>;
+        const onActivated: {
+            addListener: (callback: (activeInfo: { tabId: number }) => void) => void;
+        };
+        const onUpdated: {
+            addListener: (callback: (tabId: number, changeInfo: TabChangeInfo, tab: Tab) => void) => void;
+        };
+        const onCreated: {
+            addListener: (callback: (tab: Tab) => void) => void;
+        };
+        const onRemoved: {
+            addListener: (callback: (tabId: number) => void) => void;
+        };
+    }
+}
+
 console.log("Yeshie background service worker started.");
 
 // Function to log storage usage
 async function logStorageUsage() {
     try {
         const localItems = await chrome.storage.local.get(null);
-        // Check if localItems is defined before using Object.keys
-        const localCount = localItems ? Object.keys(localItems).length : 0;
+        const localCount = Object.keys(localItems).length;
         console.log(`chrome.storage.local item count: ${localCount}`);
         // Optionally log local keys if needed for debugging
-        // if (localItems) console.log("Local storage keys:", Object.keys(localItems));
+        // console.log("Local storage keys:", Object.keys(localItems));
 
         const syncItems = await chrome.storage.sync.get(null);
-        // Check if syncItems is defined before using Object.keys
-        const syncCount = syncItems ? Object.keys(syncItems).length : 0;
+        const syncCount = Object.keys(syncItems).length;
         console.log(`chrome.storage.sync item count: ${syncCount}`);
         if (syncCount >= 500) { // Check against the 512 limit
             console.warn("chrome.storage.sync is near or at its MAX_ITEMS limit!");
             // Log the keys to see what's filling up sync storage
-            if (syncItems) {
-                console.log("Sync storage keys:", Object.keys(syncItems));
-            }
+            console.log("Sync storage keys:", Object.keys(syncItems));
         }
     } catch (error) {
         console.error("Error checking storage usage:", error);
@@ -140,7 +214,7 @@ chrome.runtime.onInstalled.addListener((details) => {
     console.log("Extension installed or updated:", details.reason);
     if (details.reason === 'install' || details.reason === 'update') {
       // Open the tab page on first install or update
-      // openOrFocusExtensionTab(); // Temporarily commented out
+      openOrFocusExtensionTab();
     }
     // Perform other setup tasks if needed
     logCurrentTabState().catch(error => console.error("Error during onInstalled logCurrentTabState:", error)); // Log initial state
@@ -151,13 +225,13 @@ chrome.runtime.onInstalled.addListener((details) => {
 
 
 /**
- * Optional: Listener for browser startup
- * chrome.runtime.onStartup.addListener(() => {
- *   console.log("Browser started, checking for extension tab...");
- *   openOrFocusExtensionTab(); // Or a modified version that doesn't always reload
- *   logCurrentTabState();
- * });
+ * Listener for browser startup
  */
+chrome.runtime.onStartup.addListener(() => {
+  console.log("Browser started, checking for extension tab...");
+  openOrFocusExtensionTab();
+  logCurrentTabState();
+});
 
 
 // Log tab state changes
@@ -167,11 +241,10 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  // Log state when a tab finishes loading
-  if (changeInfo.status === 'complete') {
-    console.log("Updated Tab (completed loading):", tabId);
-    // logCurrentTabState().catch(error => console.error("Error during onUpdated logCurrentTabState:", error)); // Temporarily commented out
-  }
+    // Log state when a tab finishes loading
+    if (changeInfo.status === 'complete') {
+        console.log("Updated Tab (completed loading):", tabId);
+    }
 });
 
 chrome.tabs.onCreated.addListener((tab) => {
