@@ -121,8 +121,8 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
   const results = [];
 
   let lastEventTime = Date.now();
-  const observerCallback: ObserverCallback = () => {
-    console.log("CALLBACK")
+  const observerCallback: ObserverCallback = (event) => {
+    console.log("Observer callback received event:", event);
     lastEventTime = Date.now();
   };
 
@@ -310,19 +310,36 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
 
       case 'record':
         if (command.action === 'start') {
-          pageObserver.start();
+          console.log('Starting record command');
+          pageObserver.clear(); // Clear any existing events
+          pageObserver.start(); // Start collecting events
+          const startTime = Date.now();
+          
+          // Set up a callback to collect events
+          const collectedEvents: ObserverEvent[] = [];
+          const recordCallback: ObserverCallback = (event) => {
+            console.log("Recording event:", event);
+            collectedEvents.push(event);
+            lastEventTime = Date.now();
+          };
+          
+          pageObserver.registerCallback(recordCallback);
+          
           window.postMessage({
             type: 'yeshie-record-start'
           }, '*');
           return "Started recording user actions";
         } else {
+          console.log('Stopping record command');
           const actions = pageObserver.request();
+          console.log('Recorded actions:', actions);
           pageObserver.stop();
+          pageObserver.unregisterCallback();
           window.postMessage({
             type: 'yeshie-record-stop',
             actions
           }, '*');
-          return "Stopped recording user actions";
+          return JSON.stringify(actions);
         }
 
       case 'recipe':

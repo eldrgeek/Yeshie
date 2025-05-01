@@ -49,22 +49,42 @@ class PageObserver {
     // Observe focused element
     document.addEventListener('focus', this.checkFocusedElement.bind(this), true);
 
+    // Observe mouse events - only clicks
+    document.addEventListener('click', this.handleMouseEvent.bind(this));
+
     // Observe keyboard events
     document.addEventListener('keydown', this.handleKeyEvent.bind(this));
-    document.addEventListener('keyup', this.handleKeyEvent.bind(this));
-
-    // Observe mouse events
-    document.addEventListener('click', this.handleMouseEvent.bind(this));
-    document.addEventListener('mousemove', this.handleMouseEvent.bind(this));
   }
 
   private handleMutations(mutations: MutationRecord[]): void {
-    for (const mutation of mutations) {
+    // Only track mutations that are direct results of user interactions
+    const significantMutations = mutations.filter(mutation => {
+      const target = mutation.target as Element;
+      // Only track changes to form elements that are likely user-initiated
+      return (
+        (target instanceof HTMLInputElement ||
+         target instanceof HTMLTextAreaElement ||
+         target instanceof HTMLSelectElement) &&
+        (mutation.type === 'attributes' && 
+         (mutation.attributeName === 'value' || 
+          mutation.attributeName === 'checked' ||
+          mutation.attributeName === 'selected'))
+      );
+    });
+
+    if (significantMutations.length > 0) {
       this.addToBuffer({
         type: 'dom',
         details: {
-          type: mutation.type,
-          target: mutation.target
+          type: 'significant',
+          mutations: significantMutations.map(mutation => ({
+            type: mutation.type,
+            target: this.getSimpleSelector(mutation.target as Element),
+            attributeName: mutation.attributeName,
+            newValue: mutation.target instanceof HTMLInputElement ? 
+              mutation.target.value : 
+              mutation.target.textContent
+          }))
         }
       });
     }
@@ -86,45 +106,39 @@ class PageObserver {
     }
   }
 
-  private handleKeyEvent(event: KeyboardEvent): void {
-    this.addToBuffer({
-      type: event.type as 'keydown' | 'keyup',
-      details: {
-        key: event.key,
-        code: event.code,
-        altKey: event.altKey,
-        ctrlKey: event.ctrlKey,
-        metaKey: event.metaKey,
-        shiftKey: event.shiftKey
-      }
-    });
-  }
-
   private handleMouseEvent(event: MouseEvent): void {
-    // Filter out events with both x and y coordinates at 0
-    if (event.type === 'click' && event.clientX === 0 && event.clientY === 0) {
-      return; // Skip this event
-    }
-
     const target = event.target as Element;
     const selector = this.getSimpleSelector(target);
     const label = this.getElementText(target);
 
+    // Track all clicks, but add more details for interactive elements
+    const isInteractive = 
+      target instanceof HTMLButtonElement ||
+      target instanceof HTMLAnchorElement ||
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLSelectElement ||
+      target instanceof HTMLTextAreaElement;
+
     this.addToBuffer({
-      type: event.type as 'click' | 'mousemove',
+      type: 'click',
       details: {
-        x: event.clientX,
-        y: event.clientY,
-        button: event.button,
-        altKey: event.altKey,
-        ctrlKey: event.ctrlKey,
-        metaKey: event.metaKey,
-        shiftKey: event.shiftKey,
-        target: target,
-        selector: selector,
-        label: label || undefined  // Only include if there's text content
+        selector,
+        label: label || undefined,
+        isInteractive,
+        tagName: target.tagName.toLowerCase(),
+        id: target.id || undefined,
+        className: target.className || undefined,
+        attributes: this.getElementAttributes(target)
       }
     });
+  }
+
+  private getElementAttributes(element: Element): Record<string, string> {
+    const attributes: Record<string, string> = {};
+    for (const attr of element.attributes) {
+      attributes[attr.name] = attr.value;
+    }
+    return attributes;
   }
 
   private getSimpleSelector(element: Element | null): string {
@@ -134,7 +148,9 @@ class PageObserver {
 
     let selector = element.tagName.toLowerCase();
     
-    if (element.className) {
+    if (element.id) {
+      selector += `#${element.id}`;
+    } else if (element.className) {
       // Split class names and join them with dots to create a proper CSS class selector
       const classes = Array.from(element.classList).join('.');
       selector += classes ? '.' + classes : '';
@@ -165,21 +181,54 @@ class PageObserver {
     return text || null;
   }
 
+  private handleKeyEvent(event: KeyboardEvent): void {
+    // Filter out Ctrl-Shift-L keypress
+    if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'l') {
+      return;
+    }
+
+    // Only track significant key events
+    if (
+      event.key === 'Enter' ||
+      event.key === 'Escape' ||
+      event.key === 'Tab' ||
+      (event.ctrlKey && event.key.toLowerCase() === 'c') ||
+      (event.ctrlKey && event.key.toLowerCase() === 'v')
+    ) {
+      this.addToBuffer({
+        type: 'keydown',
+        details: {
+          key: event.key,
+          ctrlKey: event.ctrlKey,
+          shiftKey: event.shiftKey,
+          metaKey: event.metaKey,
+          target: this.getSimpleSelector(event.target as Element)
+        }
+      });
+    }
+  }
+
   private addToBuffer(event: ObserverEvent): void {
+    console.log('Observer event received:', event);
     if (this.isCollecting) {
+      console.log('Adding event to buffer:', event);
       this.buffer.push(event);
       if (this.callback) {
         this.callback(event);
       }
+    } else {
+      console.log('Event not collected - isCollecting is false');
     }
   }
 
   public start(): void {
+    console.log('Observer starting collection');
     this.buffer = [];
     this.isCollecting = true;
   }
 
   public stop(): void {
+    console.log('Observer stopping collection');
     this.isCollecting = false;
   }
 
