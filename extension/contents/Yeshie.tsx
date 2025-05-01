@@ -13,6 +13,8 @@ import "./google-sidebar-base.css"
 import DialogPanel from "./DialogPanel"
 import { createRoot } from "react-dom/client"
 import { rememberCurrentTab, attemptTabFocusWithRetries, storedTabId } from "../functions/tabFocus"
+import ReportDialog from "../components/ReportDialog"
+import ReportsPanel from "../components/ReportsPanel"
 
 // Create a global variable to track if DialogPanel has been mounted
 let dialogPanelMounted = false
@@ -81,6 +83,10 @@ const Yeshie: React.FC = () => {
   const [context, setContext] = useState<TabContext | null>(null)
   const [connectionError, setConnectionError] = useState(false)
   const initCalled = useRef(false)
+  const [showReportDialog, setShowReportDialog] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+  const [showReportsPanel, setShowReportsPanel] = useState(false)
+  const [reportCount, setReportCount] = useState(0)
 
   const updateContext = useCallback(async (newContextPart: Partial<TabContext>) => {
     if (tabId === null) {
@@ -256,6 +262,32 @@ const Yeshie: React.FC = () => {
     }
   }, [isReady]);
 
+  useEffect(() => {
+    if (isReady) {
+      // Load report count
+      const storage = new Storage();
+      storage.get<Report[]>('reports').then(reports => {
+        setReportCount(reports?.length || 0);
+      });
+    }
+  }, [isReady]);
+
+  const handleReportSubmit = async (report: { type: 'bug' | 'feature', title: string, description: string }) => {
+    try {
+      await chrome.runtime.sendMessage({
+        type: 'ADD_REPORT',
+        report
+      });
+      // Show success toast
+      setToast('Report submitted successfully');
+      setTimeout(() => setToast(null), 2000);
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      setToast('Error submitting report');
+      setTimeout(() => setToast(null), 2000);
+    }
+  };
+
   if (!isReady) {
     console.log("Yeshie is not ready to render yet")
     return null
@@ -341,6 +373,52 @@ const Yeshie: React.FC = () => {
         dialogPanelMounted = true;
         return <DialogPanel />;
       })()}
+
+      <div style={{
+        position: 'fixed',
+        right: '20px',
+        bottom: '80px',
+        zIndex: 2147483647,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px'
+      }}>
+        <button
+          onClick={() => setShowReportDialog(true)}
+          style={{
+            background: 'white',
+            border: '1px solid #ddd',
+            borderRadius: '50%',
+            width: '48px',
+            height: '48px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+            transition: 'transform 0.2s ease'
+          }}
+          title="Report Bug or Feature"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Report Dialog */}
+      <ReportDialog
+        isOpen={showReportDialog}
+        onClose={() => setShowReportDialog(false)}
+        onSubmit={handleReportSubmit}
+      />
     </div>
   )
 }

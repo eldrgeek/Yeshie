@@ -3,6 +3,7 @@ import type {PlasmoMessaging} from "@plasmohq/messaging"
 import { Storage } from "@plasmohq/storage"
 import 'url:../tabs/index.html'; // Ensure the tab page is included in the build
 import { initTabTracking } from "./tabHistory"; // Import tab tracking
+import { addReport } from './reportHandler';
 
 const storage = new Storage()
 
@@ -325,6 +326,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
       });
       return true; // Indicate async response
+    }
+
+    if (message.type === 'ADD_REPORT') {
+      addReport(message.report)
+        .then(() => sendResponse({ success: true }))
+        .catch(error => {
+          console.error('Error adding report:', error);
+          sendResponse({ success: false, error: error.message });
+        });
+      return true; // Keep the message channel open for async response
     }
 
     // Handle other messages...

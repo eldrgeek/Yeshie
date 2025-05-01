@@ -278,6 +278,7 @@ export const SpeechInput = ({
     onSubmit = (text) => console.log('Submitted:', text), // Keep console for demo submit
     onShowHelp = () => alert('Help: ...'), // Provide default help message
     initialText = '',
+    onChange = (text) => {}, // Add optional onChange prop with default no-op
 }) => {
     const [text, setText] = useState(initialText);
     const [isAllCaps, setIsAllCaps] = useState(false);
@@ -878,22 +879,31 @@ export const SpeechInput = ({
         return `${baseClass} idle`;
     }
 
+    // Update text state and call onChange
+    const updateText = useCallback((newText: string) => {
+        setText(newText);
+        onChange(newText);
+    }, [onChange]);
+
+    // Update textarea onChange handler
+    const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        addToLog('Text changed via keyboard/input event', 'debug');
+        updateText(e.target.value);
+        // When user types manually, reset the interim range as it's no longer valid
+        if (interimRangeRef.current.start !== null) {
+            addToLog('Manual typing detected, resetting interim range.', 'debug');
+            interimRangeRef.current = { start: null, end: null };
+        }
+        // Also update selection state immediately
+        handleSelectionChange();
+    }, [updateText, addToLog]);
+
     return (
         <div className="speech-input-container">
             <textarea
                 ref={textAreaRef}
                 value={text}
-                onChange={(e) => {
-                    addToLog('Text changed via keyboard/input event', 'debug');
-                    setText(e.target.value);
-                     // When user types manually, reset the interim range as it's no longer valid
-                     if (interimRangeRef.current.start !== null) {
-                        addToLog('Manual typing detected, resetting interim range.', 'debug');
-                         interimRangeRef.current = { start: null, end: null };
-                     }
-                     // Also update selection state immediately
-                     handleSelectionChange();
-                }}
+                onChange={handleTextChange}
                 onKeyDown={handleKeyDown}
                 // Track selection/cursor changes accurately
                 onSelect={handleSelectionChange}

@@ -9,6 +9,7 @@ This directory contains detailed information about bugs and issues discovered in
 | [BUG-001](./BUG-001.md) | ✅ Fixed | 🟨 Medium | Build number not updating on Plasmo rebuilds | 2025-05-01 | 2025-05-01 |
 | [BUG-002](./BUG-002.md) | ✅ Fixed | 🟩 Low | SpeechInput component causing undefined error in tab page | 2025-05-01 | 2025-05-01 |
 | [BUG-003](./BUG-003.md) | ⚠️ Open | 🟨 Medium | Extension tabs not updating last visited tab | 2025-05-01 | - |
+| [BUG-004](./BUG-004.md) | ⚠️ Open | 🟨 Medium | Tab Page showing repeated getLastTab messages in console | 2025-05-01 | - |
 
 ## Status Legend
 - ⚠️ Open
