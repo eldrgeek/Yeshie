@@ -18,8 +18,20 @@ interface LastTabInfo {
   timestamp: number;
 }
 
+interface BuildInfo {
+  manifestVersion: string;
+  buildCounter: number;
+  buildId: string;
+  isDev: boolean;
+}
+
 function TabsIndex() {
-  const [version, setVersion] = useState("Loading...");
+  const [buildInfo, setBuildInfo] = useState<BuildInfo>({
+    manifestVersion: "Loading...",
+    buildCounter: 0,
+    buildId: "Loading...",
+    isDev: false
+  });
   const [lastTab, setLastTab] = useState<LastTabInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -45,6 +57,20 @@ function TabsIndex() {
     };
 
     loadAndUpdateTime();
+  }, []);
+
+  // Fetch build information
+  useEffect(() => {
+    const fetchBuildInfo = async () => {
+      try {
+        const response = await sendToBackground({ name: "getBuildInfo" });
+        setBuildInfo(response);
+      } catch (error) {
+        console.error("Error fetching build info:", error);
+      }
+    };
+    
+    fetchBuildInfo();
   }, []);
 
   // Fetch the last active tab
@@ -77,10 +103,6 @@ function TabsIndex() {
 
   // Effect: Immediately fetch tab info when component mounts
   useEffect(() => {
-    // Get version from manifest
-    const manifest = chrome.runtime.getManifest();
-    setVersion(manifest.version);
-
     // Immediately fetch last tab info when page loads
     console.log("Tab page loaded, immediately fetching last tab info");
     fetchLastTab();
@@ -153,7 +175,10 @@ function TabsIndex() {
       <div className="header">
         <h1>Yeshie</h1>
         <div className="version-info">
-          <div className="version">Version: {version}</div>
+          <div className="version">
+            Version: {buildInfo.manifestVersion}
+            {buildInfo.isDev && <span className="build-id"> (Build: {buildInfo.buildCounter})</span>}
+          </div>
           {lastLoadedTime && (
             <div className="last-loaded">Last opened: {lastLoadedTime}</div>
           )}

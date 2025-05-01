@@ -423,4 +423,10 @@
   cursor: pointer;
   transition: background-color 0.2s;
   margin: 0;
+}
+
+.build-id {
+  font-size: 0.9em;
+  color: #666;
+  margin-left: 4px;
 } 

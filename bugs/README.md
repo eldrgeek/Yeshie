@@ -6,8 +6,9 @@ This directory contains detailed information about bugs and issues discovered in
 
 | ID | Status | Priority | Title | Added | Fixed | 
 |---|:---:|:---:|---|:---:|:---:|
-| [BUG-001](./BUG-001.md) | ⚠️ Open | 🟨 Medium | Build number not updating on Plasmo rebuilds | 2025-05-01 | - |
+| [BUG-001](./BUG-001.md) | ✅ Fixed | 🟨 Medium | Build number not updating on Plasmo rebuilds | 2025-05-01 | 2025-05-01 |
 | [BUG-002](./BUG-002.md) | ✅ Fixed | 🟩 Low | SpeechInput component causing undefined error in tab page | 2025-05-01 | 2025-05-01 |
+| [BUG-003](./BUG-003.md) | ⚠️ Open | 🟨 Medium | Extension tabs not updating last visited tab | 2025-05-01 | - |
 
 ## Status Legend
 - ⚠️ Open
