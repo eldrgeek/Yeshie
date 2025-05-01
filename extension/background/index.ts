@@ -2,6 +2,7 @@ import { setupBG } from "../functions/extcomms";
 import type {PlasmoMessaging} from "@plasmohq/messaging"
 import { Storage } from "@plasmohq/storage"
 import 'url:../tabs/index.html'; // Ensure the tab page is included in the build
+import { initTabTracking } from "./tabHistory"; // Import tab tracking
 
 const storage = new Storage()
 
@@ -361,5 +362,10 @@ logCurrentTabState().catch(error => console.error("Error during initial logCurre
 
 // Periodic state logging (consider reducing frequency or removing if too noisy)
 // setInterval(logCurrentTabState, 60000); // Temporarily commented out // e.g., every minute
+
+// Initialize tab tracking when the background script starts
+initTabTracking()
+  .then(() => console.log("Tab tracking initialized"))
+  .catch(error => console.error("Error initializing tab tracking:", error));
 
 console.log("Background script fully initialized."); 

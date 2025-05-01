@@ -262,4 +262,165 @@
   right: 10px;
   font-size: 0.8em;
   color: #888;
+}
+
+.last-tab-info {
+  margin: 20px 0;
+  padding: 15px;
+  background-color: #f0f8ff;
+  border: 1px solid #d0e3f7;
+  border-radius: 6px;
+}
+
+.last-tab-info h2 {
+  margin-top: 0;
+  color: #2c5282;
+  font-size: 18px;
+  margin-bottom: 15px;
+}
+
+.last-tab-details {
+  background-color: white;
+  padding: 12px;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+}
+
+.last-tab-details p {
+  margin: 8px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-all;
+}
+
+.return-button {
+  background-color: #4299e1;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: background-color 0.2s;
+}
+
+.return-button:hover {
+  background-color: #3182ce;
+}
+
+.return-button:disabled {
+  background-color: #a0aec0;
+  cursor: not-allowed;
+}
+
+.no-last-tab {
+  color: #718096;
+  font-style: italic;
+}
+
+/* Remove auto-focus toggle styling since we're removing that feature */
+.auto-focus-toggle {
+  /* Removed */
+}
+
+.auto-focus-toggle label {
+  /* Removed */
+}
+
+.auto-focus-toggle input[type="checkbox"] {
+  /* Removed */
+}
+
+/* Version info */
+.version-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 14px;
+  color: #666;
+}
+
+.last-loaded {
+  font-size: 12px;
+  color: #888;
+  margin-top: 4px;
+}
+
+/* Last tab info with compact layout */
+.last-tab-info.compact {
+  padding: 12px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  background-color: #f8fafc;
+  margin-bottom: 16px;
+}
+
+.last-tab-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.last-tab-header h2 {
+  margin: 0;
+  font-size: 16px;
+  color: #444;
+}
+
+.last-tab-details.compact {
+  font-size: 14px;
+}
+
+.tab-detail-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  align-items: center;
+}
+
+.tab-title {
+  font-weight: 500;
+  color: #2563eb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 70%;
+  flex-shrink: 1;
+}
+
+.tab-id {
+  color: #64748b;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.tab-domain {
+  color: #334155;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 50%;
+  flex-shrink: 1;
+}
+
+.tab-time {
+  color: #64748b;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* Update return button to be more compact */
+.last-tab-header .return-button {
+  background-color: #2563eb;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin: 0;
 } 

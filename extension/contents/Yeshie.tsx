@@ -10,6 +10,19 @@ import { Stepper, getOrCreateInstanceId } from "../functions/Stepper"
 import { sendToBackground } from "@plasmohq/messaging"
 import YeshieEditor from "../components/YeshieEditor"
 import "./google-sidebar-base.css"
+import DialogPanel from "./DialogPanel"
+import { createRoot } from "react-dom/client"
+import { rememberCurrentTab, attemptTabFocusWithRetries, storedTabId } from "../functions/tabFocus"
+
+// Create a global variable to track if DialogPanel has been mounted
+let dialogPanelMounted = false
+
+// Remember current tab as soon as possible
+rememberCurrentTab().then(tabId => {
+  if (tabId) {
+    console.log(`Tab ID ${tabId} will be restored after extension loads`);
+  }
+});
 
 setupCS()
 export const config: PlasmoCSConfig = {
@@ -130,7 +143,9 @@ const Yeshie: React.FC = () => {
     if (window.top !== window.self || !document.getElementById(getShadowHostId())) {
       console.log("Yeshie is in an iframe or shadow host not found, not rendering")
       return
+
     }
+    
 
     async function init() {
       if (initCalled.current) return 
@@ -233,6 +248,14 @@ const Yeshie: React.FC = () => {
     }
   }, [])
 
+  useEffect(() => {
+    if (isReady && storedTabId) {
+      console.log("Extension is ready, attempting to restore tab focus to:", storedTabId);
+      // Use exponential backoff strategy for multiple attempts
+      attemptTabFocusWithRetries(storedTabId);
+    }
+  }, [isReady]);
+
   if (!isReady) {
     console.log("Yeshie is not ready to render yet")
     return null
@@ -313,7 +336,11 @@ const Yeshie: React.FC = () => {
         <img src={iconBase64} alt="Yeshie Icon" width={32} height={32} />
       </button>
       
-      {/* Add our helper component for the prompt dialog */}
+      {/* Add our helper component for the prompt dialog, but only mount it once */}
+      {!dialogPanelMounted && (() => {
+        dialogPanelMounted = true;
+        return <DialogPanel />;
+      })()}
     </div>
   )
 }
