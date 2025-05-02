@@ -365,3 +365,5 @@ root.render(
     <TabsIndex />
   </React.StrictMode>
 ); 
+
+export default TabsIndex;
