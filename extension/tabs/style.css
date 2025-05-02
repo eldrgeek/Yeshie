@@ -563,7 +563,7 @@
 
 .last-tab-link {
   color: #2563eb;
-  text-decoration: none;
+  cursor: pointer;
   max-width: 300px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -577,25 +577,30 @@
 .header-right {
   display: flex;
   align-items: center;
+  gap: 12px; /* Adjusted gap for potentially three elements */
+}
+
+.timestamps {
+  display: flex;
+  flex-direction: column; /* Stack timestamps vertically */
+  align-items: flex-end; /* Align text to the right */
+  gap: 4px; /* Space between timestamps */
+}
+
+.timestamp {
+  font-size: 0.75rem; /* Smaller font size */
+  color: #6b7280; /* Gray color */
+  white-space: nowrap;
+}
+
+/* Adjust spacing within the last-tab-info as well */
+.last-tab-info .timestamp {
+  margin-left: 8px; /* Space between button and timestamp */
 }
 
 .reports-button {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background-color: #f3f4f6;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  color: #374151;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.reports-button:hover {
-  background-color: #e5e7eb;
 }
 
 .reports-button svg {
@@ -614,4 +619,30 @@
   font-size: 0.75rem;
   font-weight: 600;
   border-radius: 10px;
+}
+
+/* General Icon Button Style (can be reused) */
+.icon-button {
+  padding: 6px;
+  background-color: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.icon-button:hover {
+  background-color: #e5e7eb;
+}
+
+.icon-button svg {
+  color: #6b7280;
+}
+
+/* Specific style for the report icon if needed, otherwise general is fine */
+.report-icon-button {
+  /* Add specific styles here if needed, e.g., different color */
 } 

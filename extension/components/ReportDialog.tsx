@@ -6,7 +6,7 @@ import { getBuildInfo } from '../background/buildCounter';
 interface ReportDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit?: (text: string) => void;
+  onSubmit?: (report: { type: "bug" | "feature"; title: string; description: string; }) => void;
 }
 
 const ReportDialog = ({ isOpen, onClose, onSubmit }: ReportDialogProps) => {
@@ -61,7 +61,7 @@ const ReportDialog = ({ isOpen, onClose, onSubmit }: ReportDialogProps) => {
 
       // Call onSubmit if provided
       if (onSubmit) {
-        onSubmit(currentText);
+        onSubmit({ type, title, description });
       }
 
       onClose();

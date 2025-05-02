@@ -51,6 +51,9 @@ function TabsIndex() {
   const [lastLoadedTime, setLastLoadedTime] = useState<string | null>(null);
   const [showReportsPanel, setShowReportsPanel] = useState(false);
   const [reportCount, setReportCount] = useState(0);
+  const [tabPaneFocusedTime, setTabPaneFocusedTime] = useState<number | null>(null);
+  const [showReportDialog, setShowReportDialog] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   // Save current page load time and retrieve last loaded time
   useEffect(() => {
@@ -76,24 +79,26 @@ function TabsIndex() {
   // Fetch the last active tab
   const fetchLastTab = async () => {
     try {
-      console.log("Fetching last tab info...");
+      console.log("TabsIndex: Fetching last tab info...");
       const response = await sendToBackground({ name: "getLastTab" });
+      // Log the raw response from the background script
+      console.log("TabsIndex: Received response from background for getLastTab:", JSON.stringify(response));
       
       if (response && response.success && response.lastTab) {
-        console.log("Got last tab info:", response.lastTab);
+        console.log("TabsIndex: Got valid last tab info:", response.lastTab);
         setLastTabInfo(response.lastTab);
         setErrorMessage("");
         setTabInfoReady(true);
         return response.lastTab;
       } else {
-        console.log("No last tab info available:", response?.error);
+        console.log("TabsIndex: No valid last tab info returned:", response?.error);
         setLastTabInfo(null);
         setErrorMessage(response?.error || "No previous tab information available");
         setTabInfoReady(true);
         return null;
       }
     } catch (error) {
-      console.error("Error fetching last tab:", error);
+      console.error("TabsIndex: Error fetching last tab:", error);
       setLastTabInfo(null);
       setErrorMessage("Failed to retrieve last tab information");
       setTabInfoReady(true);
@@ -146,6 +151,25 @@ function TabsIndex() {
     chrome.storage.onChanged.addListener(handleStorageChange);
     return () => {
       chrome.storage.onChanged.removeListener(handleStorageChange);
+    };
+  }, []);
+
+  // Add listener for window focus
+  useEffect(() => {
+    const handleFocus = () => {
+      const now = Date.now();
+      console.log("Tab Pane focused at:", now);
+      setTabPaneFocusedTime(now);
+      // Optionally store this focus time
+      // storage.set('tabPaneLastFocusTime', now);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    // Set initial focus time on mount
+    handleFocus(); 
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
     };
   }, []);
 
@@ -204,6 +228,30 @@ function TabsIndex() {
     }
   };
 
+  // Add handleReportSubmit logic (can be simplified)
+  const handleReportSubmit = async (report: { type: 'bug' | 'feature', title: string, description: string }) => {
+    console.log("TabsIndex: Handling report submission:", report);
+    try {
+      // Directly send message to background
+      await chrome.runtime.sendMessage({
+        type: 'ADD_REPORT',
+        report: {
+          ...report,
+          // Add any extra context if needed from the tabs page
+        }
+      });
+      // Provide feedback (optional toast)
+      setToast('Report submitted successfully from Tabs page!');
+      setTimeout(() => setToast(null), 2000);
+      setShowReportDialog(false); // Close dialog on submit
+    } catch (error) {
+      console.error('TabsIndex: Error submitting report:', error);
+      setToast('Error submitting report from Tabs page');
+      setTimeout(() => setToast(null), 2000);
+      // Consider leaving dialog open on error?
+    }
+  };
+
   return (
     <div className="tabs-container">
       <div className="tabs-header">
@@ -213,22 +261,47 @@ function TabsIndex() {
             {lastTabInfo ? (
               <>
                 <span className="last-tab-label">Last Active Tab:</span>
-                <a
-                  href={lastTabInfo.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <span
+                  onClick={returnToLastTab}
                   className="last-tab-link"
-                  title={lastTabInfo.url}
+                  title={`${lastTabInfo.title}\n${lastTabInfo.url}`}
+                  style={{ cursor: 'pointer' }}
                 >
                   {lastTabInfo.title}
-                </a>
+                </span>
+                <button 
+                  onClick={returnToLastTab} 
+                  disabled={loading}
+                  className="return-button-inline"
+                >
+                  {loading ? "..." : "Return"}
+                </button>
+                <span className="timestamp" title={new Date(lastTabInfo.timestamp).toISOString()}>
+                  (Updated: {formatTimestamp(lastTabInfo.timestamp)})
+                </span>
               </>
             ) : (
-              <span className="last-tab-label">No recent tabs</span>
+              <span className="last-tab-label">{errorMessage || "No recent tabs"}</span>
             )}
           </div>
         </div>
         <div className="header-right">
+          <div className="timestamps">
+            {tabPaneFocusedTime && (
+              <span className="timestamp" title={new Date(tabPaneFocusedTime).toISOString()}>
+                Pane Focused: {formatTimestamp(tabPaneFocusedTime)}
+              </span>
+            )}
+          </div>
+          <button
+            className="icon-button report-icon-button"
+            onClick={() => setShowReportDialog(true)}
+            title="Report Bug or Feature"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+            </svg>
+          </button>
           <button
             className="reports-button"
             onClick={() => setShowReportsPanel(true)}
@@ -257,43 +330,6 @@ function TabsIndex() {
         </div>
       </div>
 
-      {/* Last active tab information - compact layout */}
-      <div className="last-tab-info compact">
-        <div className="last-tab-header">
-          <div className="last-tab-title">
-            <h2>Last Active Tab</h2>
-            {lastTabInfo && (
-              <button 
-                onClick={returnToLastTab} 
-                disabled={loading}
-                className="return-button"
-              >
-                {loading ? "Returning..." : `Return to Tab`}
-              </button>
-            )}
-          </div>
-        </div>
-        
-        {lastTabInfo ? (
-          <div className="last-tab-details compact">
-            <div className="tab-detail-row">
-              <span className="tab-title" title={lastTabInfo.title}>{lastTabInfo.title}</span>
-              <span className="tab-id">ID: {lastTabInfo.id}</span>
-            </div>
-            <div className="tab-detail-row">
-              <span className="tab-domain" title={lastTabInfo.url}>{getDomainFromUrl(lastTabInfo.url)}</span>
-              <span className="tab-time" title={formatTimestamp(lastTabInfo.timestamp)}>
-                Last active: {new Date(lastTabInfo.timestamp).toLocaleTimeString()}
-              </span>
-            </div>
-          </div>
-        ) : (
-          <p className="no-last-tab">
-            {errorMessage || "No previous tab information available"}
-          </p>
-        )}
-      </div>
-
       {/* Reports Panel */}
       <ReportsPanel
         isOpen={showReportsPanel}
@@ -312,9 +348,12 @@ function TabsIndex() {
       </div>
 
       <ReportDialog
-        isOpen={showReportsPanel}
-        onClose={() => setShowReportsPanel(false)}
+        isOpen={showReportDialog}
+        onClose={() => setShowReportDialog(false)}
+        onSubmit={handleReportSubmit}
       />
+
+      {toast && <div className="toast-notification">{toast}</div>}
     </div>
   );
 }

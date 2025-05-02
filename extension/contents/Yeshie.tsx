@@ -1,7 +1,10 @@
 import iconBase64 from "data-base64:~assets/icon.png"
-import cssTextBase from "data-text:~/contents/google-sidebar-base.css"
-import cssText from "data-text:~/contents/google-sidebar.css"
+import "../content/safeActionListener"
+
+import cssTextBase from "data-text:../css/google-sidebar-base.css"
+import cssText from "data-text:../css/google-sidebar.css"
 import type { PlasmoCSConfig } from "plasmo"
+
 import React, { useEffect, useState, useCallback, useRef } from "react"
 import { useStorage } from "@plasmohq/storage/hook"
 import { Storage } from "@plasmohq/storage"
@@ -9,12 +12,13 @@ import { setupCS } from "../functions/extcomms"
 import { Stepper, getOrCreateInstanceId } from "../functions/Stepper"
 import { sendToBackground } from "@plasmohq/messaging"
 import YeshieEditor from "../components/YeshieEditor"
-import "./google-sidebar-base.css"
-import DialogPanel from "./DialogPanel"
+import "../css/google-sidebar-base.css"
+import DialogPanel from "../content/DialogPanel"
 import { createRoot } from "react-dom/client"
 import { rememberCurrentTab, attemptTabFocusWithRetries, storedTabId } from "../functions/tabFocus"
-import ReportDialog from "../components/ReportDialog"
 import ReportsPanel from "../components/ReportsPanel"
+
+
 
 // Create a global variable to track if DialogPanel has been mounted
 let dialogPanelMounted = false
@@ -272,22 +276,6 @@ const Yeshie: React.FC = () => {
     }
   }, [isReady]);
 
-  const handleReportSubmit = async (report: { type: 'bug' | 'feature', title: string, description: string }) => {
-    try {
-      await chrome.runtime.sendMessage({
-        type: 'ADD_REPORT',
-        report
-      });
-      // Show success toast
-      setToast('Report submitted successfully');
-      setTimeout(() => setToast(null), 2000);
-    } catch (error) {
-      console.error('Error submitting report:', error);
-      setToast('Error submitting report');
-      setTimeout(() => setToast(null), 2000);
-    }
-  };
-
   if (!isReady) {
     console.log("Yeshie is not ready to render yet")
     return null
@@ -373,52 +361,6 @@ const Yeshie: React.FC = () => {
         dialogPanelMounted = true;
         return <DialogPanel />;
       })()}
-
-      <div style={{
-        position: 'fixed',
-        right: '20px',
-        bottom: '80px',
-        zIndex: 2147483647,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '10px'
-      }}>
-        <button
-          onClick={() => setShowReportDialog(true)}
-          style={{
-            background: 'white',
-            border: '1px solid #ddd',
-            borderRadius: '50%',
-            width: '48px',
-            height: '48px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
-            transition: 'transform 0.2s ease'
-          }}
-          title="Report Bug or Feature"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="24"
-            height="24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-          </svg>
-        </button>
-      </div>
-
-      {/* Report Dialog */}
-      <ReportDialog
-        isOpen={showReportDialog}
-        onClose={() => setShowReportDialog(false)}
-        onSubmit={handleReportSubmit}
-      />
     </div>
   )
 }
