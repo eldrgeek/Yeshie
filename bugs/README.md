@@ -10,6 +10,7 @@ This directory contains detailed information about bugs and issues discovered in
 | [BUG-002](./BUG-002.md) | ✅ Fixed | 🟩 Low | SpeechInput component causing undefined error in tab page | 2025-05-01 | 2025-05-01 |
 | [BUG-003](./BUG-003.md) | ⚠️ Open | 🟨 Medium | Extension tabs not updating last visited tab | 2025-05-01 | - |
 | [BUG-004](./BUG-004.md) | ⚠️ Open | 🟨 Medium | Tab Page showing repeated getLastTab messages in console | 2025-05-01 | - |
+| [BUG-005](./BUG-005.md) | ⚠️ Open | 🟨 Medium | Yeshie Tab fails to load without `<React.StrictMode>""</React.StrictMode>` | 2024-07-29 | - |
 
 ## Status Legend
 - ⚠️ Open
