@@ -53,6 +53,7 @@ interface Message {
 interface YeshieEditorProps {
   sessionId?: string;
   onClose?: () => void;
+  onSubmit?: (text: string) => void;
 }
 
 // --- Punctuation Map ---
@@ -79,29 +80,38 @@ const punctuationMap: { [key: string]: string } = {
   'ellipsis': '...'
 };
 
-const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
+const YeshieEditor: React.FC<YeshieEditorProps> = ({ 
+  sessionId, 
+  onClose, 
+  onSubmit: externalOnSubmit
+}) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [showHelp, setShowHelp] = useState(false);
 
-  const handleTextSubmit = (text: string) => {
+  const defaultHandleTextSubmit = (text: string) => {
     if (text.trim()) {
-      // Add user message
       const userMessage: Message = {
         id: Math.random().toString(36).substring(7),
         type: "user",
         content: text,
       };
       setMessages(prev => [...prev, userMessage]);
-
-      // Simulate response after 500ms
       setTimeout(() => {
         const responseMessage: Message = {
           id: Math.random().toString(36).substring(7),
           type: "yeshie",
-          content: "response here",
+          content: "Default response placeholder",
         };
         setMessages(prev => [...prev, responseMessage]);
       }, 500);
+    }
+  };
+
+  const handleSubmitFromSpeechInput = (text: string) => {
+    if (externalOnSubmit) {
+      externalOnSubmit(text);
+    } else {
+      defaultHandleTextSubmit(text);
     }
   };
 
@@ -161,7 +171,7 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({ sessionId, onClose }) => {
         backgroundColor: '#f8f8f8'
       }}>
         <SpeechInput
-          onSubmit={handleTextSubmit}
+          onSubmit={handleSubmitFromSpeechInput}
           onShowHelp={displayHelp}
           initialText=""
         />

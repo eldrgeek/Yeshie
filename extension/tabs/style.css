@@ -645,4 +645,124 @@
 /* Specific style for the report icon if needed, otherwise general is fine */
 .report-icon-button {
   /* Add specific styles here if needed, e.g., different color */
+}
+
+/* --- API Key Modal Styles --- */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black backdrop */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000; /* Ensure it's above other content */
+}
+
+.modal-content {
+  background-color: white;
+  padding: 20px 30px;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  min-width: 300px;
+  max-width: 500px;
+  z-index: 1001;
+}
+
+.modal-content h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.modal-content p {
+  margin-bottom: 20px;
+  font-size: 0.9em;
+  color: #555;
+}
+
+.modal-content .input-group {
+  margin-bottom: 15px;
+}
+
+.modal-content label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+  font-size: 0.9em;
+}
+
+.modal-content input[type="password"], 
+.modal-content input[type="text"] { /* If you add other inputs */
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box; 
+}
+
+.modal-actions {
+  text-align: right;
+  margin-top: 20px;
+}
+
+.modal-actions button {
+  padding: 8px 15px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.modal-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.modal-actions button:first-of-type { /* Cancel button */
+  background-color: #eee;
+  color: #333;
+  margin-right: 10px;
+}
+
+.modal-actions button:last-of-type { /* Save button */
+  background-color: #007bff;
+  color: white;
+}
+
+/* Added these styles */
+.api-key-section {
+  /* align-items: center; */ /* Let flexbox handle alignment within header-right */
+  display: flex; 
+  gap: 10px; 
+}
+
+.settings-button {
+  background: none;
+  border: none;
+  font-size: 1.2em; 
+  cursor: pointer;
+  padding: 0 5px; 
+  line-height: 1; /* Ensure icon aligns well */
+}
+
+/* --- Toast Notification --- */
+.toast-notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background-color: #333;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 5px;
+  z-index: 1050; 
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  animation: fadeInOut 3s ease-in-out;
+}
+
+@keyframes fadeInOut {
+  0%, 100% { opacity: 0; }
+  10%, 90% { opacity: 1; }
 } 

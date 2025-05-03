@@ -1,6 +1,8 @@
 import type { PlasmoMessaging } from "@plasmohq/messaging"
 import { getLastActiveTab } from "../tabHistory"
 
+const DEBUG_TABS = false; // Control tab-related logging
+
 /**
  * Message handler to retrieve information about the last active tab.
  * This is used to display the last tab in the extension UI and to allow
@@ -23,7 +25,10 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
           url: currentTab.url || lastTab.url
         }
         
-        console.log("Retrieved last active tab (verified):", updatedTab)
+        // Don't log the full object unless debugging
+        if (DEBUG_TABS) console.log("Retrieved last active tab (verified):", updatedTab)
+        else console.log("Retrieved last active tab (verified): ID", updatedTab.id)
+
         res.send({
           success: true,
           lastTab: updatedTab
@@ -36,7 +41,7 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
         })
       }
     } else {
-      console.log("No last active tab found")
+      if (DEBUG_TABS) console.log("No last active tab found")
       res.send({
         success: false,
         error: "No last active tab found"
