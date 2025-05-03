@@ -10,7 +10,7 @@ import { Storage } from "@plasmohq/storage"
 // }
 
 // Debug logging for module load
-console.log("DialogPanel.tsx component module loaded at", new Date().toISOString());
+console.log("LearnMode.tsx component module loaded at", new Date().toISOString());
 
 const styles = {
   toast: {
@@ -30,27 +30,27 @@ const styles = {
   }
 } as const
 
-export default function DialogPanel() { // Renamed component export for clarity
-  console.log("DialogPanel component initializing");
+export default function LearnMode() { // Renamed component export for clarity
+  console.log("LearnMode component initializing");
   const [isProcessing, setIsProcessing] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   
   // Function to toggle the Yeshie sidebar by simulating the keyboard shortcut
   const toggleYeshieSidebar = async () => {
     try {
-      console.log("DialogPanel: Ensuring Yeshie sidebar is open...");
+      console.log("LearnMode: Ensuring Yeshie sidebar is open...");
       
       // Get current state from storage
       const storage = new Storage({ area: "local" })
       const isOpenKey = "isOpen" + window.location.hostname
       const currentIsOpen = await storage.get(isOpenKey) || false
       
-      console.log(`DialogPanel: Current sidebar state is: ${currentIsOpen ? 'open' : 'closed'}`);
+      console.log(`LearnMode: Current sidebar state is: ${currentIsOpen ? 'open' : 'closed'}`);
       
       if (!currentIsOpen) {
         // Directly update the storage value to open the sidebar
         await storage.set(isOpenKey, true)
-        console.log("DialogPanel: Opened Yeshie sidebar via storage update")
+        console.log("LearnMode: Opened Yeshie sidebar via storage update")
         
         // Also dispatch an event to trigger any listeners
         // This simulates pressing Ctrl+Shift+Y
@@ -62,47 +62,42 @@ export default function DialogPanel() { // Renamed component export for clarity
           metaKey: navigator.platform.includes('Mac'),
           bubbles: true
         });
-        console.log("DialogPanel: Dispatching simulated Ctrl+Shift+Y event");
+        console.log("LearnMode: Dispatching simulated Ctrl+Shift+Y event");
         document.dispatchEvent(yEvent);
         
         // Verify the storage update
         const updatedIsOpen = await storage.get(isOpenKey);
-        console.log(`DialogPanel: Verified sidebar state after update: ${updatedIsOpen ? 'open' : 'still closed'}`);
+        console.log(`LearnMode: Verified sidebar state after update: ${updatedIsOpen ? 'open' : 'still closed'}`);
       } else {
-        console.log("DialogPanel: Sidebar already open, no action needed");
+        console.log("LearnMode: Sidebar already open, no action needed");
       }
     } catch (error) {
-      console.error("DialogPanel: Error toggling Yeshie sidebar:", error)
+      console.error("LearnMode: Error toggling Yeshie sidebar:", error)
     }
   }
 
   useEffect(() => {
-    console.log("DialogPanel: Setting up key event listener");
+    console.log("LearnMode: Setting up key event listener");
     
     const handleKey = (e: KeyboardEvent) => {
       // Check for Ctrl+Shift+L (or Cmd+Shift+L on Mac)
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "l") {
-        console.log("DialogPanel: Ctrl+Shift+L detected");
+        console.log("LearnMode: Ctrl+Shift+L detected");
         e.preventDefault()
         
         // Don't process if already processing
         if (isProcessing) {
-          console.log("DialogPanel: Already processing, ignoring keypress");
+          console.log("LearnMode: Already processing, ignoring keypress");
           return;
         }
         
-        console.log("DialogPanel: Starting learn mode sequence");
+        console.log("LearnMode: Starting learn mode sequence");
         setIsProcessing(true)
         
-        // First ensure the Yeshie sidebar is open
-        toggleYeshieSidebar()
-          .then(() => {
-            console.log("DialogPanel: Sidebar toggle complete, calling toggleLearnMode()");
-            // Then toggle learn mode
-            return toggleLearnMode();
-          })
+        // Removed the explicit sidebar toggle - Learn mode doesn't need to open the sidebar
+        toggleLearnMode() // Directly toggle learn mode
           .then((response) => {
-            console.log("DialogPanel: Learn mode toggle result:", response);
+            console.log("LearnMode: Learn mode toggle result:", response);
             if (response.success) {
               if (response.action === 'stop' && response.result) {
                 const { result } = response;
@@ -119,27 +114,27 @@ export default function DialogPanel() { // Renamed component export for clarity
             setTimeout(() => setToast(null), 2000);
           })
           .catch(err => {
-            console.error("DialogPanel: Error in learn mode process:", err);
+            console.error("LearnMode: Error in learn mode process:", err);
             setToast("Error in learn mode process");
             setTimeout(() => setToast(null), 2000);
           })
           .finally(() => {
-            console.log("DialogPanel: Learn mode sequence completed");
+            console.log("LearnMode: Learn mode sequence completed");
             setIsProcessing(false);
           });
       }
     }
     
-    console.log("DialogPanel: Adding keydown listener for Ctrl+Shift+L");
+    console.log("LearnMode: Adding keydown listener for Ctrl+Shift+L");
     window.addEventListener("keydown", handleKey)
     
     return () => {
-      console.log("DialogPanel: Removing keydown listener");
+      console.log("LearnMode: Removing keydown listener");
       window.removeEventListener("keydown", handleKey)
     }
   }, [isProcessing])
 
-  console.log("DialogPanel component rendered");
+  console.log("LearnMode component rendered");
   return (
     <div className="yeshie-ui">
       {toast && (

@@ -13,15 +13,11 @@ import { Stepper, getOrCreateInstanceId } from "../functions/Stepper"
 import { sendToBackground } from "@plasmohq/messaging"
 import YeshieEditor from "../components/YeshieEditor"
 import "../css/google-sidebar-base.css"
-import DialogPanel from "../content/DialogPanel"
 import { createRoot } from "react-dom/client"
 import { rememberCurrentTab, attemptTabFocusWithRetries, storedTabId } from "../functions/tabFocus"
 import ReportsPanel from "../components/ReportsPanel"
 
 
-
-// Create a global variable to track if DialogPanel has been mounted
-let dialogPanelMounted = false
 
 // Remember current tab as soon as possible
 rememberCurrentTab().then(tabId => {
@@ -356,11 +352,11 @@ const Yeshie: React.FC = () => {
         <img src={iconBase64} alt="Yeshie Icon" width={32} height={32} />
       </button>
       
-      {/* Add our helper component for the prompt dialog, but only mount it once */}
-      {!dialogPanelMounted && (() => {
+      {/* Removed manual mounting of DialogPanel/LearnMode - now auto-injected */}
+      {/* {!dialogPanelMounted && (() => {
         dialogPanelMounted = true;
         return <DialogPanel />;
-      })()}
+      })()} */}
     </div>
   )
 }
