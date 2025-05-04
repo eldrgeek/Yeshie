@@ -10,11 +10,14 @@ import { getBuildInfo } from '../background/buildCounter';
 
 import "./style.css"; // Assuming you might want some basic styling
 
+// --- Constants ---
+const PAGE_TITLE = "Yeshie Control";
 const DEBUG_TABS = false; // Control tab-related logging
-
-// Storage key for the last loaded time
 const LAST_LOADED_TIME_KEY = "yeshie_tab_page_last_loaded";
 const API_KEY_STORAGE_KEY = 'openai-api-key'; // Add key constant
+const RELOAD_COUNT_KEY = "yeshie_tab_reload_count"; // Key for reload counter
+
+// --- Storage ---
 const storage = new Storage({ area: "local" });
 
 interface TabInfo {
@@ -57,6 +60,7 @@ function TabsIndex() {
   const [tabPaneFocusedTime, setTabPaneFocusedTime] = useState<number | null>(null);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [reloadCount, setReloadCount] = useState<number>(0); // State for reload count
 
   // --- State for API Key Management ---
   const [hasApiKey, setHasApiKey] = useState(false);
@@ -181,6 +185,23 @@ function TabsIndex() {
       window.removeEventListener('focus', handleFocus);
     };
   }, []);
+
+  // --- Effect to increment and display reload count ---
+  useEffect(() => {
+    const incrementReloadCount = async () => {
+      try {
+        const currentCount = await storage.get<number>(RELOAD_COUNT_KEY) || 0;
+        const newCount = currentCount + 1;
+        await storage.set(RELOAD_COUNT_KEY, newCount);
+        setReloadCount(newCount);
+        console.log(`Yeshie Tab Page Reload Count: ${newCount}`);
+      } catch (error) {
+        console.error("Error managing reload count:", error);
+      }
+    };
+
+    incrementReloadCount();
+  }, []); // Run only once on component mount
 
   // --- Effect to check for API Key on load ---
   useEffect(() => {
@@ -359,89 +380,126 @@ function TabsIndex() {
     <div className="tabs-container">
       {toast && <div className="toast-notification">{toast}</div>}
 
-      <div className="tabs-header"> 
-        <div className="header-left">
-           <h1>Yeshie Testamen 6</h1>
-           <div className="last-tab-info">
-             {lastTabInfo ? (
-               <>
-                 <span className="last-tab-label">Last Active Tab:</span>
-                 <span
-                   onClick={returnToLastTab}
-                   className="last-tab-link"
-                   title={`${lastTabInfo.title}\n${lastTabInfo.url}`}
-                   style={{ cursor: 'pointer' }}
-                 >
-                   {lastTabInfo.title}
-                 </span>
-                 
-                 <button 
-                   onClick={returnToLastTab} 
-                   disabled={loading}
-                   className="return-button-inline"
-                 >
-                   {loading ? "..." : "Return"}
-                 </button>
-                 <span className="timestamp" title={new Date(lastTabInfo.timestamp).toISOString()}>
-                   (Updated: {formatTimestamp(lastTabInfo.timestamp)})
-                 </span>
-               </>
-             ) : (
-               <span className="last-tab-label">{errorMessage || "No recent tabs"}</span>
-             )}
-           </div>
+      {/* Grid Header */}
+      <div 
+        className="tabs-header" 
+        style={{ 
+            display: 'grid',
+            gridTemplateColumns: 'auto auto auto', // Use auto for all columns for compactness
+            gap: '20px', // Spacing between columns
+            alignItems: 'start', 
+            padding: '5px 20px 10px 20px', 
+            justifyContent: 'start' 
+        }}
+      > 
+        {/* --- Grid Area 1: Title, Reload, Focused --- */}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+           <h1 style={{ marginTop: '0', marginBottom: '0' }}>{PAGE_TITLE}</h1> {/* Removed default H1 margin */} 
+           <span style={{ fontSize: '0.8em', color: '#888', marginTop: '2px' }}>
+              Reload #{reloadCount}
+           </span>
+           {tabPaneFocusedTime && (
+             <span style={{ fontSize: '0.8em', color: '#888', marginTop: '2px' }} title={new Date(tabPaneFocusedTime).toISOString()}>
+                Focused: {formatTimestamp(tabPaneFocusedTime)}
+             </span>
+           )}
         </div>
-        <div className="header-right">
-          {/* --- API Key Section (Added to header-right) --- */}
-          <div className="api-key-section">
+
+        {/* --- Grid Area 2: Last Tab Info --- */} 
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'start' }}>
+           {lastTabInfo ? (
+             <>
+               {/* Link with limited width */}
+               <span
+                 onClick={returnToLastTab}
+                 className="last-tab-link"
+                 title={`${lastTabInfo.title}\n${lastTabInfo.url}`}
+                 style={{
+                    cursor: 'pointer',
+                    display: 'inline-block',
+                    maxWidth: '250px', // Limit width
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    fontWeight: '500' // Slightly bolder
+                 }}
+               >
+                 {lastTabInfo.title}
+               </span>
+               {/* Updated Timestamp Below Link */}
+               <span 
+                  className="timestamp"
+                  title={new Date(lastTabInfo.timestamp).toISOString()}
+                  style={{ fontSize: '0.8em', color: '#888', marginTop: '2px' }}
+                >
+                 Updated: {formatTimestamp(lastTabInfo.timestamp)}
+               </span>
+             </>
+           ) : (
+             <span style={{ fontSize: '0.9em', color: '#aaa' }}>{errorMessage || "No recent tabs"}</span>
+           )}
+         </div>
+
+        {/* --- Grid Area 3: API Key & Actions (Combined) --- */} 
+        <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '15px', 
+            // justifyContent: 'flex-end' // Removed this to keep content left-aligned within the area
+          }}>
+          {/* API Key Section */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span>OpenAI API Key: {hasApiKey ? 'Set ✅' : 'Not Set ❌'}</span>
             <button onClick={handleOpenApiKeyModal} className="settings-button" title={hasApiKey ? "Replace API Key" : "Set API Key"}>
               🔑
             </button>
           </div>
-           {/* ... existing header-right content (timestamps, buttons) ... */} 
-          <div className="timestamps">
-            {tabPaneFocusedTime && (
-              <span className="timestamp" title={new Date(tabPaneFocusedTime).toISOString()}>
-                Pane Focused: {formatTimestamp(tabPaneFocusedTime)}
-              </span>
-            )}
-          </div>
-          <button
-            className="icon-button report-icon-button"
-            onClick={() => setShowReportDialog(true)}
-            title="Report Bug or Feature"
-          >
-             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
-               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-             </svg>
-          </button>
-          <button
-            className="reports-button"
-            onClick={() => setShowReportsPanel(true)}
-          >
-             <svg
-               width="16"
-               height="16"
-               viewBox="0 0 24 24"
-               fill="none"
-               stroke="currentColor"
-               strokeWidth="2"
-               strokeLinecap="round"
-               strokeLinejoin="round"
-             >
-               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-               <polyline points="14 2 14 8 20 8" />
-               <line x1="16" y1="13" x2="8" y2="13" />
-               <line x1="16" y1="17" x2="8" y2="17" />
-               <polyline points="10 9 9 9 8 9" />
-             </svg>
-            Reports
-            {reportCount > 0 && (
-              <span className="report-count">{reportCount}</span>
-            )}
-          </button>
+          
+          {/* Divider (Optional) */} 
+          <div style={{ borderLeft: '1px solid #ccc', height: '20px' }}></div>
+
+          {/* Action Buttons Section */} 
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              className="icon-button report-icon-button"
+              onClick={() => setShowReportDialog(true)}
+              title="Report Bug or Feature"
+              style={{ padding: '5px' }} 
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+              </svg>
+            </button>
+            <button
+              className="reports-button"
+              onClick={() => setShowReportsPanel(true)}
+              style={{ padding: '5px 10px' }} 
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ marginRight: '4px' }} 
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
+             Reports
+             {reportCount > 0 && (
+               <span className="report-count" style={{ marginLeft: '4px' }}>{reportCount}</span>
+             )}
+           </button>
+         </div>
         </div>
+
       </div>
 
       <ReportsPanel
@@ -452,7 +510,6 @@ function TabsIndex() {
       <div className="main-content">
         <div className="left-panel">
           <div className="editor-section">
-            {/* Pass the ACTUAL LLM handler to YeshieEditor */}
             <YeshieEditor onSubmit={handleEditorSubmit} />
           </div>
         </div>
@@ -467,7 +524,6 @@ function TabsIndex() {
         onSubmit={handleReportSubmit}
       />
  
-      {/* --- API Key Input Modal --- */}
       {isApiKeyModalOpen && (
         <div className="modal-backdrop"> 
           <div className="modal-content"> 
