@@ -661,7 +661,7 @@ function TabsIndex() {
 const root = ReactDOM.createRoot(document.getElementById("root")!);
 root.render(
   <React.StrictMode>
-    <TabsIndex />
+   ""
   </React.StrictMode>
 ); 
 

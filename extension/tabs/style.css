@@ -50,17 +50,18 @@
 }
 
 .left-panel {
-  flex: 3; /* Example: Left panel takes 3 parts of the space */
+  flex: 1; /* Take up available space */
   display: flex;
   flex-direction: column;
   min-width: 0; /* Prevent content from overflowing */
 }
 
 .right-panel {
-  flex: 2; /* Example: Right panel takes 2 parts of the space */
+  flex: 1; /* Change flex to 1 for equal distribution */
+  min-width: 300px; /* Ensure some width for the tab list */
+  max-height: 400px; /* Limit height and allow scrolling */
   display: flex;
   flex-direction: column;
-  min-width: 0; /* Prevent content from overflowing */
   border: 1px solid #ddd;
   border-radius: 4px;
   padding: 15px;
@@ -127,12 +128,13 @@
 }
 
 .tab-item {
-  padding: 5px 12px; /* Adjusted padding */
-  border-bottom: 1px solid #eee;
-  display: flex; /* Use flexbox for alignment */
-  align-items: center;
-  gap: 5px; /* Space between elements */
-  /* Removed transition and hover background - interaction is on buttons/name */
+  /* Add some bottom margin for spacing between items */
+  margin-bottom: 5px;
+  /* Ensure items align nicely - flex might be good if needed */
+  display: flex;
+  align-items: center; /* Vertically center items in the row */
+  padding: 4px 0; /* Add a little vertical padding */
+  border-bottom: 1px solid #f5f5f5; /* Subtle separator */
 }
 
 /* Add alternating row color */
@@ -150,9 +152,12 @@
 } */
 
 .tab-number {
+    /* Give the number a fixed width to help alignment */
+    min-width: 25px; /* Adjust as needed */
+    display: inline-block; /* Allow width */
+    margin-right: 4px; /* Reduced Space between number and buttons */
+    color: #666; /* Slightly muted color for number */
     font-weight: bold;
-    color: #555;
-    white-space: nowrap;
 }
 
 .tab-button {
@@ -766,3 +771,265 @@
   0%, 100% { opacity: 0; }
   10%, 90% { opacity: 1; }
 }  */
+
+/* General styles */
+body {
+  font-family: sans-serif;
+  padding: 10px;
+  min-width: 500px; /* Ensure some minimum width */
+}
+
+/* Style for the main container */
+.tabs-container {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+/* Header Grid */
+.tabs-header {
+  display: grid;
+  grid-template-columns: auto auto auto; 
+  gap: 20px; 
+  align-items: start; 
+  padding: 5px 20px 10px 20px; 
+  justify-content: start; 
+  border-bottom: 1px solid #eee; /* Add separator */
+}
+
+.tabs-header h1 {
+  margin-top: 0;
+  margin-bottom: 0;
+  font-size: 1.5em;
+}
+
+.tabs-header .last-tab-link {
+  cursor: pointer;
+  display: inline-block;
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: #007bff; /* Link color */
+  text-decoration: underline;
+}
+
+.tabs-header .timestamp,
+.tabs-header .reload-info {
+  font-size: 0.8em;
+  color: #888;
+  margin-top: 2px;
+}
+
+.settings-button, .icon-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 5px;
+  font-size: 1.2em; 
+}
+
+.reports-button {
+    padding: 5px 10px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.report-count {
+  background-color: #f0ad4e;
+  color: white;
+  border-radius: 50%;
+  padding: 1px 5px;
+  font-size: 0.7em;
+  margin-left: 4px;
+  vertical-align: super; /* Align count slightly higher */
+}
+
+/* Main content layout */
+.main-content {
+  display: flex;
+  gap: 20px; /* Space between left and right panels */
+  padding: 0 20px; /* Add horizontal padding */
+}
+
+.left-panel {
+  flex: 1; /* Take up available space */
+}
+
+.right-panel {
+  flex: 1; /* Change flex to 1 for equal distribution */
+  min-width: 300px; /* Ensure some width for the tab list */
+  max-height: 400px; /* Limit height and allow scrolling */
+  overflow-y: auto;
+  border-left: 1px solid #eee; /* Separator */
+  padding-left: 20px;
+}
+
+/* TabList specific styles */
+.tablist-ul {
+  list-style-type: none; /* Remove default bullets */
+  padding-left: 0;       /* Remove default left padding */
+  margin-left: 0;        /* Ensure no extra margin */
+}
+
+.tab-item {
+  /* Add some bottom margin for spacing between items */
+  margin-bottom: 5px;
+  /* Ensure items align nicely - flex might be good if needed */
+  display: flex;
+  align-items: center; /* Vertically center items in the row */
+  padding: 4px 0; /* Add a little vertical padding */
+  border-bottom: 1px solid #f5f5f5; /* Subtle separator */
+}
+
+.tab-number {
+  /* Give the number a fixed width to help alignment */
+  min-width: 25px; /* Adjust as needed */
+  display: inline-block; /* Allow width */
+  margin-right: 4px; /* Reduced Space between number and buttons */
+  color: #666; /* Slightly muted color for number */
+  font-weight: bold;
+}
+
+.tab-button {
+    margin-right: 5px; /* Space between buttons */
+    padding: 3px 6px;
+    font-size: 0.8em;
+    cursor: pointer;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    background-color: #f8f8f8;
+}
+
+.tab-button:hover {
+    background-color: #eee;
+}
+
+.tab-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.tab-name {
+    /* Allow the name to take remaining space */
+    flex-grow: 1;
+    /* Add padding for editing comfort if needed */
+    padding: 2px 4px;
+    cursor: text;
+    border: 1px solid transparent; /* Invisible border for spacing */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tab-name:focus {
+    outline: none;
+    border: 1px solid #aaa; /* Border when focused for editing */
+    background-color: #fff;
+}
+
+.tab-name.custom-name {
+    font-style: italic; /* Indicate custom names */
+}
+
+/* Toast Notification */
+.toast-notification {
+  position: fixed; /* Fixed positioning */
+  top: 20px; /* Position from the top */
+  left: 50%; /* Center horizontally */
+  transform: translateX(-50%); /* Adjust centering */
+  background-color: rgba(0, 0, 0, 0.75); /* Dark background */
+  color: white; /* White text */
+  padding: 10px 20px; /* Padding */
+  border-radius: 5px; /* Rounded corners */
+  z-index: 1000; /* Ensure it's on top */
+  font-size: 0.9em;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+/* Modal styles */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999; /* Below toast */
+}
+
+.modal-content {
+  background-color: white;
+  padding: 20px;
+  border-radius: 5px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  min-width: 300px;
+  max-width: 500px;
+}
+
+.modal-content h3 {
+  margin-top: 0;
+}
+
+.modal-content .input-group {
+  margin-bottom: 15px;
+}
+
+.modal-content label {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.modal-content input[type="password"] {
+  width: calc(100% - 12px); /* Adjust width considering padding/border */
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.modal-actions button {
+  padding: 8px 15px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.modal-actions button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Style the save button specifically */
+.modal-actions button:last-child { 
+    background-color: #28a745; /* Green */
+    color: white;
+    border: 1px solid #28a745;
+}
+
+.modal-actions button:last-child:hover {
+    background-color: #218838;
+    border-color: #1e7e34;
+}
+
+/* Style the cancel button */
+.modal-actions button:first-child {
+    background-color: #f8f9fa; /* Light grey */
+    color: #333;
+    border: 1px solid #ccc;
+}
+
+.modal-actions button:first-child:hover {
+    background-color: #e2e6ea;
+    border-color: #dae0e5;
+}

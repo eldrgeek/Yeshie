@@ -1,8 +1,12 @@
 import { storageGet, storageSet, storageRemove } from "../functions/storage"
 import { log } from "../functions/DiagnosticLogger"
+// import debounce from 'lodash/debounce'; // Remove lodash import
 
 // Store for last active tabs (not including our extension tabs)
 export const LAST_TAB_KEY = "yeshie_last_active_tab"
+// Store for list of all relevant application tabs
+export const APPLICATION_TABS_KEY = "yeshie_application_tabs"
+
 const EXTENSION_URL_PATTERN = chrome.runtime.getURL("")
 
 // Set a minimum "visibility time" to consider a tab worth tracking (in ms)
@@ -16,6 +20,13 @@ export interface TabInfo {
   url: string
   title: string
   timestamp: number
+}
+
+// --- Add simplified type for storing application tabs ---
+export interface StoredApplicationTab {
+  id: number;
+  url: string;
+  title: string;
 }
 
 // Track the last time tab focus changed to avoid rapid flickering
@@ -51,7 +62,7 @@ export async function initTabTracking() {
       console.log("Initial active tab:", currentTab.id, currentTab.url)
       
       // Force immediate tracking of the initial tab
-      if (currentTab && currentTab.id && !isExtensionUrl(currentTab.url || "")) {
+      if (currentTab && currentTab.id && !isExtensionUrl(currentTab.url || "", EXTENSION_URL_PATTERN)) {
         saveTabInfo({
           id: currentTab.id,
           url: currentTab.url || "",
@@ -63,14 +74,18 @@ export async function initTabTracking() {
   } catch (error) {
     console.error("Error getting initial active tab:", error)
   }
+  
+  // Initial population of the application tabs list
+  await updateStoredApplicationTabs(); 
 }
 
 // Check if a URL is from our extension or a browser internal page
-function isExtensionUrl(url: string): boolean {
+function isExtensionUrl(url: string, currentOrigin: string): boolean {
   return (
-    url.startsWith(EXTENSION_URL_PATTERN) || 
-    url.startsWith("chrome://") ||
-    url.startsWith("chrome-extension://") ||
+    url.startsWith(currentOrigin) || // Filter out this extension's own pages
+    url.startsWith("chrome://") ||   // Keep filtering standard chrome:// pages (except extensions)
+    // Keep filtering *other* chrome-extension pages unless explicitly allowed above
+    (url.startsWith("chrome-extension://") && !url.startsWith(currentOrigin) && url !== "chrome-extension://chphlpgkkbolifaimnlloiipkdnihall/onetab.html") || // Use oneTabUrl variable here
     url.startsWith("about:")
   )
 }
@@ -91,6 +106,9 @@ async function saveTabInfo(tabInfo: TabInfo): Promise<void> {
 // Handle tab removed events - save the tab that was active before removal
 async function handleTabRemoved(tabId: number, removeInfo: { windowId: number, isWindowClosing: boolean }) {
   console.log(`Tab ${tabId} removed, isWindowClosing: ${removeInfo.isWindowClosing}`)
+  
+  // Update the application tab list
+  debouncedUpdateStoredApplicationTabs();
   
   // If this is the last tab in a window that's closing, we don't need to track
   if (removeInfo.isWindowClosing) {
@@ -118,6 +136,9 @@ async function handleTabActivated(activeInfo: { tabId: number; windowId: number 
     // Store the window ID for focus tracking
     lastFocusedWindowId = activeInfo.windowId
     
+    // Update application tabs list (debounced)
+    debouncedUpdateStoredApplicationTabs();
+    
     // If two tab activations happen quickly, cancel the pending update
     if (pendingTabUpdate) {
       clearTimeout(pendingTabUpdate)
@@ -142,7 +163,7 @@ async function handleTabActivated(activeInfo: { tabId: number; windowId: number 
       const tab = await chrome.tabs.get(activeInfo.tabId)
       
       // Skip tabs without a valid URL or extension/chrome URLs
-      if (!tab.url || isExtensionUrl(tab.url)) {
+      if (!tab.url || isExtensionUrl(tab.url, EXTENSION_URL_PATTERN)) {
         console.log("Skipping tab with no URL or extension URL:", tab.id, tab.url)
         return
       }
@@ -187,7 +208,7 @@ async function handleTabActivated(activeInfo: { tabId: number; windowId: number 
         }
         
         // Skip extension tabs and chrome:// URLs
-        if (isExtensionUrl(tab.url)) {
+        if (isExtensionUrl(tab.url, EXTENSION_URL_PATTERN)) {
           console.log("Skipping browser/extension tab:", tab.id, tab.url)
           return
         }
@@ -226,7 +247,12 @@ async function handleTabActivated(activeInfo: { tabId: number; windowId: number 
 
 // Handle tab updated events (title changes, etc.)
 function handleTabUpdated(tabId: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) {
-  // Only track if this is the active tab and it has completed loading
+  // Update application tabs list if URL or status changes (debounced)
+  if (changeInfo.status || changeInfo.url) {
+      debouncedUpdateStoredApplicationTabs();
+  }
+  
+  // Only track focus history for the active tab completing load
   if (!tab.active || changeInfo.status !== 'complete') {
     return
   }
@@ -314,4 +340,52 @@ export async function focusLastActiveTab(): Promise<boolean> {
     console.error("Error in focusLastActiveTab:", error)
     return false
   }
-} 
+}
+
+// --- Basic Debounce Implementation ---
+function debounce<F extends (...args: any[]) => any>(
+  func: F, 
+  waitFor: number
+): (...args: Parameters<F>) => void {
+  let timeoutId: NodeJS.Timeout | null = null;
+
+  return (...args: Parameters<F>): void => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    timeoutId = setTimeout(() => {
+      timeoutId = null; // Clear the timeout ID before calling the function
+      func(...args);
+    }, waitFor);
+  };
+}
+
+// --- Function to get, filter, and store application tabs --- 
+async function updateStoredApplicationTabs() {
+  console.log('Updating stored application tabs...');
+  try {
+    // Query all tabs
+    const allTabs = await chrome.tabs.query({});
+
+    const applicationTabs: StoredApplicationTab[] = allTabs
+      // Remove filtering - simply ensure tab.id exists before mapping
+      .filter(tab => tab.id)
+      .map(tab => ({
+        id: tab.id as number,
+        url: tab.url || "", // Handle potentially undefined URL
+        title: tab.title || "Untitled",
+      }));
+
+    await storageSet(APPLICATION_TABS_KEY, applicationTabs);
+    log('storage_set', { key: APPLICATION_TABS_KEY, count: applicationTabs.length });
+    console.log(`Stored ${applicationTabs.length} application tabs.`);
+
+  } catch (error) {
+      console.error("Error updating stored application tabs:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log('storage_error', { operation: 'updateStoredApplicationTabs', error: errorMessage });
+  }
+}
+
+// Debounce the update function to avoid excessive writes during rapid events
+const debouncedUpdateStoredApplicationTabs = debounce(updateStoredApplicationTabs, 1000); 

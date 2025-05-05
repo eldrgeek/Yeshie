@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { sendToBackground } from '@plasmohq/messaging';
 import { storageGet, storageSet } from "../functions/storage"; // Import new storage functions
 import { log } from "../functions/DiagnosticLogger"; // Assuming DiagnosticLogger is setup
+import { APPLICATION_TABS_KEY, type StoredApplicationTab } from '../background/tabHistory';
 
 interface TabInfo {
   id: number;
@@ -35,10 +37,12 @@ const isRestrictedUrl = (url: string | undefined): boolean => {
 // type ContentScriptMessage = StayMessage | RemoveOverlayMessage;
 
 const TabList: React.FC = () => {
-  const [tabs, setTabs] = useState<TabInfo[]>([]);
+  const [appTabs, setAppTabs] = useState<StoredApplicationTab[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [extensionTabId, setExtensionTabId] = useState<number | null>(null);
   const switchBackTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [customNames, setCustomNames] = useState<CustomNameMap>({}); // Persistent names
+  const [inputValues, setInputValues] = useState<{[url: string]: string}>({}); // Track input values separately for controlled editing
 
   // Get the extension's tab ID when the component mounts
   useEffect(() => {
@@ -61,6 +65,7 @@ const TabList: React.FC = () => {
   useEffect(() => {
       storageGet<CustomNameMap>(STORAGE_KEY).then(loadedNames => { // Use storageGet
           setCustomNames(loadedNames || {});
+          setInputValues(loadedNames || {}); // Initialize input values with stored names
           log('storage_get', { key: STORAGE_KEY, found: !!loadedNames, count: loadedNames ? Object.keys(loadedNames).length : 0 });
           console.log("Loaded custom names:", loadedNames || {});
       }).catch(error => {
@@ -71,17 +76,65 @@ const TabList: React.FC = () => {
       });
   }, []);
 
-  // Fetch tabs
   useEffect(() => {
-    chrome.tabs.query({}, (result) => {
-      const tabData = result.map(tab => ({
-        id: tab.id!,
-        title: tab.title,
-        url: tab.url,
-      }));
-      setTabs(tabData);
-    });
-  }, []);
+    const loadTabs = async () => {
+      setIsLoading(true);
+      try {
+        const storedTabs = await storageGet<StoredApplicationTab[]>(APPLICATION_TABS_KEY) || [];
+        setAppTabs(storedTabs);
+        console.log('TabList: Loaded tabs from storage:', storedTabs);
+      } catch (error) {
+        console.error('TabList: Error loading tabs from storage:', error);
+        // Handle error display if needed
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadTabs(); // Load initially
+
+    // --- Listener for storage changes ---
+    const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => {
+      if (areaName === 'local' && changes[APPLICATION_TABS_KEY]) {
+        const newTabs = changes[APPLICATION_TABS_KEY].newValue as StoredApplicationTab[] | undefined || [];
+        setAppTabs(newTabs);
+        console.log('TabList: Updated tabs via storage listener:', newTabs);
+      }
+    };
+
+    chrome.storage.onChanged.addListener(handleStorageChange);
+
+    return () => {
+      chrome.storage.onChanged.removeListener(handleStorageChange);
+    };
+  }, []); // Run only on mount
+
+  // --- Debounce Helper ---
+  function debounce<F extends (...args: any[]) => any>(
+      func: F,
+      waitFor: number
+  ): (...args: Parameters<F>) => void {
+      let timeoutId: NodeJS.Timeout | null = null;
+      return (...args: Parameters<F>): void => {
+          if (timeoutId) {
+              clearTimeout(timeoutId);
+          }
+          timeoutId = setTimeout(() => {
+              timeoutId = null;
+              func(...args);
+          }, waitFor);
+      };
+  }
+
+  // Debounced storage set function
+  const debouncedStorageSet = useCallback(
+      debounce((key: string, value: any) => {
+          storageSet(key, value)
+              .then(() => console.log(`Debounced storage set successful for key: ${key}`))
+              .catch(err => console.error(`Debounced storage set failed for key: ${key}`, err));
+      }, 500), // Debounce time of 500ms
+      [] // Dependencies array is empty
+  );
 
   // Function to save a custom name (updates customNames, storage, AND inputValues)
   const saveCustomName = (url: string | undefined, name: string) => {
@@ -99,15 +152,8 @@ const TabList: React.FC = () => {
              console.log(`Setting custom name for ${url} to ${finalName}`);
           }
           
-          storageSet(STORAGE_KEY, updatedNames).then(() => { // Use storageSet
-              log('storage_set', { key: STORAGE_KEY, action: finalName ? 'set' : 'remove', url: url });
-          }).catch(error => {
-              console.error("Error saving custom names:", error);
-              const errorMessage = error instanceof Error ? error.message : String(error);
-              log('storage_error', { operation: 'saveCustomName', key: STORAGE_KEY, error: errorMessage });
-              // Optional: Could add logic here to revert state if save failed
-              // For simplicity, we currently don't revert the local state optimistic update
-          });
+          setInputValues(prev => ({ ...prev, [url]: finalName })); // Keep input values in sync
+          debouncedStorageSet(STORAGE_KEY, updatedNames); // Use debounced set
           return updatedNames;
       });
   };
@@ -209,6 +255,10 @@ const TabList: React.FC = () => {
       if (event.key === 'Enter') {
           event.preventDefault(); // Prevent potential line break in contentEditable
           event.currentTarget.blur(); // Trigger blur to save
+      } else if (event.key === 'Escape') {
+          // Restore original value on Escape
+          setInputValues(prev => ({ ...prev, [url]: customNames[url] || '' }));
+          event.currentTarget.blur();
       }
   };
 
@@ -216,24 +266,20 @@ const TabList: React.FC = () => {
       saveCustomName(url, event.currentTarget.textContent || '');
   };
 
-  return (
-    <div className="tab-list-container">
-      <h2>Open Tabs</h2>
-      <ul className="tab-list">
-        {tabs.map((tab, index) => {
-          const url = tab.url;
-          // Determine the base title: Check for self, then Custom Name > API Title > URL > Fallback
-          let baseTitle: string;
-          if (tab.id === extensionTabId) {
-              baseTitle = "Yeshie Commander";
-          } else {
-              baseTitle = customNames[url || ''] || tab.title || url || 'Unknown Tab';
-          }
-          const isRestricted = isRestrictedUrl(url) || (!tab.title && !url); // Check if analysis should be disabled
+  if (isLoading) {
+    return <div className="tablist-loading">Loading tabs...</div>; // Add a class for styling
+  }
 
-          return (
-            <li key={tab.id} className={`tab-item`}>
-              <span className="tab-number">{`${index + 1}:`}</span>
+  return (
+    <div className="tablist-container"> {/* Add a class for styling */}
+      <h2>Open Tabs</h2>
+      {appTabs.length === 0 ? (
+        <p>No application tabs found.</p>
+      ) : (
+        <ul className="tablist-ul"> {/* Add a class for styling */}
+          {appTabs.map((tab, index) => (
+            <li key={tab.id} title={`ID: ${tab.id}\nURL: ${tab.url}`} className="tab-item"> 
+              <span className="tab-number">{`${index + 1}:`}</span> 
               <button 
                   className="tab-button visit-return" 
                   onClick={() => handleVisitReturn(tab.id)}
@@ -250,29 +296,27 @@ const TabList: React.FC = () => {
               </button>
               <button 
                   className="tab-button analyze" 
-                  onClick={() => handleAnalyze(tab.id, url)}
-                  disabled={isRestricted}
-                  title={isRestricted ? "Cannot analyze restricted page" : "Analyze Page (Copy HTML)"}
+                  onClick={() => handleAnalyze(tab.id, tab.url)}
+                  disabled={isRestrictedUrl(tab.url) || (!tab.title && !tab.url)}
+                  title={isRestrictedUrl(tab.url) ? "Cannot analyze restricted page" : "Analyze Page (Copy HTML)"}
               >
                   Analyze
               </button>
               <span 
-                className="tab-name"
+                className={`tab-name ${customNames[tab.url] ? 'custom-name' : ''}`}
                 contentEditable={true}
                 suppressContentEditableWarning={true}
                 onClick={(e) => e.stopPropagation()} // Prevent li click
-                onKeyDown={(e) => handleNameKeyDown(e, url)}
-                onBlur={(e) => handleNameBlur(e, url)}
-                // Set initial content using key prop trick or dangerouslySetInnerHTML if needed
-                // Using key forces re-render if baseTitle changes, simpler than dangerouslySetInnerHTML
+                onKeyDown={(e) => handleNameKeyDown(e, tab.url)}
+                onBlur={(e) => handleNameBlur(e, tab.url)}
                 key={`${tab.id}-name`}
               >
-                {baseTitle} 
+                {inputValues[tab.url] !== undefined ? inputValues[tab.url] : (customNames[tab.url] || tab.title || tab.url || 'Unknown Tab')} 
               </span>
             </li>
-          );
-        })}
-      </ul>
+          ))}
+        </ul>
+      )}
     </div>
   );
 };

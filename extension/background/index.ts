@@ -1,7 +1,7 @@
 import { setupBG } from "../functions/extcomms";
 import type {PlasmoMessaging} from "@plasmohq/messaging"
 import 'url:../tabs/index.html'; // Ensure the tab page is included in the build
-import { initTabTracking, getLastActiveTab, focusLastActiveTab } from "./tabHistory";
+import { initTabTracking, getLastActiveTab, focusLastActiveTab, APPLICATION_TABS_KEY, type StoredApplicationTab } from "./tabHistory";
 import type { TabInfo } from "./tabHistory"; // Separate type import
 import { addReport } from './reportHandler';
 import OpenAI from "openai";
@@ -67,26 +67,35 @@ const CONTEXT_REMOVAL_DELAY = 10000; // 10 seconds
  */
 async function openOrFocusExtensionTab() {
   try {
+    console.log(`---> Checking for existing tab with URL: ${TAB_URL}`);
     const tabs = await chrome.tabs.query({ url: TAB_URL });
+    console.log(`---> Found ${tabs.length} tabs matching URL.`);
 
     if (tabs.length > 0) {
       // Tab exists, focus the first one found and reload it
       const tab = tabs[0];
       if (tab.id) {
+        console.log(`---> Found existing tab ID: ${tab.id}. Focusing and reloading.`);
         await chrome.tabs.update(tab.id, { active: true });
         // Reload the tab to ensure it has the latest extension code
         await chrome.tabs.reload(tab.id);
-        console.log(`Focused and reloaded existing tab: ${tab.id}`);
+        console.log(`---> Focused and reloaded existing tab: ${tab.id}`);
       } else {
-          console.error("Found tab has no ID:", tab);
+          console.error("---> Found tab has no ID:", tab);
       }
     } else {
       // No tab exists, create a new one
+      console.log(`---> No existing tab found. Attempting to create new tab with URL: ${TAB_URL}`);
       const newTab = await chrome.tabs.create({ url: TAB_URL });
-      console.log(`Created new tab: ${newTab.id}`);
+      // Check if creation succeeded (newTab object might be populated)
+      if (newTab && newTab.id) {
+          console.log(`---> Successfully created new tab ID: ${newTab.id}`);
+      } else {
+          console.error("---> chrome.tabs.create call did not return a valid tab object.", newTab);
+      }
     }
   } catch (error) {
-      console.error("Error opening or focusing extension tab:", error);
+      console.error("---> Error in openOrFocusExtensionTab:", error);
   }
 }
 
@@ -144,13 +153,57 @@ function sendMessageToTab(tabId: number, message: any) {
  * Listener for extension installation or update events.
  * Opens the dedicated tab page on first install or update.
  */
-chrome.runtime.onInstalled.addListener((details) => {
+chrome.runtime.onInstalled.addListener(async (details) => {
   try {
     console.log("Extension installed or updated:", details.reason);
-    if (details.reason === 'install' || details.reason === 'update') {
-      // Open the tab page on first install or update
+
+    if (details.reason === 'install') {
+      // Open the tab page on first install
+      console.log("Reason: install. Opening or focusing tab page.");
       openOrFocusExtensionTab();
+    } else if (details.reason === 'update') {
+      console.log("Reason: update. Reloading application tabs based on stored list.");
+      try {
+        // Read the list of application tabs maintained by tabHistory.ts
+        const tabsToReload = await storageGet<StoredApplicationTab[]>(APPLICATION_TABS_KEY);
+        
+        if (tabsToReload && tabsToReload.length > 0) {
+          console.log(`Found ${tabsToReload.length} application tabs in storage to reload.`);
+          for (const tab of tabsToReload) {
+            if (tab && tab.id) { // Check tab and tab.id exist
+              try {
+                // Verify tab still exists before reloading (optional but safer)
+                await chrome.tabs.get(tab.id);
+                // Attempt reload
+                await chrome.tabs.reload(tab.id);
+                console.log(`Reloaded application tab ID: ${tab.id} (${tab.title})`);
+              } catch (reloadOrGetError: any) {
+                // Log if tab doesn't exist anymore or reload failed
+                if (reloadOrGetError.message?.includes("No tab with id")) {
+                    console.warn(`Application tab ID ${tab.id} no longer exists.`);
+                } else {
+                    console.error(`Error reloading application tab ID ${tab.id}:`, reloadOrGetError.message || reloadOrGetError);
+                }
+              }
+            } else {
+              console.warn("Found invalid tab data in storage:", tab);
+            }
+          }
+        } else {
+            console.log("No application tabs found in storage to reload.");
+        }
+
+        // After reloading app tabs, ensure the main extension UI tab is open and focused.
+        console.log("Ensuring extension UI tab is open/focused after update.");
+        openOrFocusExtensionTab();
+
+      } catch (storageError) {
+        console.error("Error reading application tab list from storage:", storageError);
+        const errorMessage = storageError instanceof Error ? storageError.message : String(storageError);
+        log('storage_error', { operation: 'readAppTabsOnUpdate', error: errorMessage });
+      }
     }
+
     // Perform other setup tasks if needed
     logCurrentTabState().catch(error => console.error("Error during onInstalled logCurrentTabState:", error)); // Log initial state
   } catch (error) {
@@ -512,6 +565,12 @@ console.log("Background script fully initialized.");
 
 // --- Test LLM call on Install/Update/Reload ---
 chrome.runtime.onInstalled.addListener(async (details) => {
+  // ----> Run test ONLY on install <----
+  if (details.reason !== 'install') { 
+    console.log(`LLM Test skipped (reason: ${details.reason})`);
+    return;
+  }
+  
   console.log(`Extension installed/updated (${details.reason}). Running LLM test.`);
 
   // Give a slight delay to ensure storage might be ready, though callLLMService handles checks
