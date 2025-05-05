@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { storageGet, storageRemove } from '../functions/storage';
 import { logInfo, logWarn, logError, logDebug } from '../functions/logger';
 import type { LogEntry } from '../functions/logger'; // Import the LogEntry type
@@ -17,6 +17,7 @@ function LogViewer({ isOpen, onClose, showToast }: LogViewerProps) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null); // Ref for the content area
 
   useEffect(() => {
     if (isOpen) {
@@ -60,6 +61,33 @@ function LogViewer({ isOpen, onClose, showToast }: LogViewerProps) {
     }
   }, [isOpen, showToast]); // Rerun when isOpen changes
 
+  // Effect to handle closing on escape key or click outside
+  useEffect(() => {
+    if (!isOpen) return; // Only run when the viewer is open
+
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (contentRef.current && !contentRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+
+    // Add event listeners
+    document.addEventListener('keydown', handleEscapeKey);
+    document.addEventListener('mousedown', handleClickOutside); // Use mousedown to catch clicks before potential modal interactions
+
+    // Cleanup function to remove listeners
+    return () => {
+      document.removeEventListener('keydown', handleEscapeKey);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen, onClose]); // Rerun if isOpen or onClose changes
+
   const handleClearLogs = async () => {
     try {
       await storageRemove(LOG_STORAGE_KEY);
@@ -98,7 +126,7 @@ function LogViewer({ isOpen, onClose, showToast }: LogViewerProps) {
 
   return (
     <div className="log-viewer-backdrop">
-      <div className="log-viewer-content">
+      <div className="log-viewer-content" ref={contentRef}>
         <h3>Session Logs</h3>
         <div className="log-viewer-area">
           {loading && <p>Loading logs...</p>}
