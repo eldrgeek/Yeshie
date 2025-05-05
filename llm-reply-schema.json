@@ -1,0 +1,106 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Yeshie LLM Reply",
+  "type": "object",
+  "required": ["tasks"],
+  "additionalProperties": false,
+
+  "properties": {
+    "meta": { "$ref": "#/definitions/meta" },
+    "tasks": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/task" },
+      "minItems": 1
+    },
+    "fallback": { "$ref": "#/definitions/fallback" }
+  },
+
+  "definitions": {
+    "meta": {
+      "type": "object",
+      "required": ["llmVersion"],
+      "additionalProperties": false,
+      "properties": {
+        "llmVersion": { "type": "string" },
+        "conversationId": { "type": "string" },
+        "summary": { "type": "string" }
+      }
+    },
+
+    "task": {
+      "type": "object",
+      "required": ["tab", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "tab": { "$ref": "#/definitions/tab" },
+        "steps": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/step" },
+          "minItems": 1
+        }
+      }
+    },
+
+    "tab": {
+      "type": "object",
+      "required": ["name", "action"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "action": {
+          "type": "string",
+          "enum": ["open", "reuse", "focus"]
+        },
+        "url": { "type": "string", "format": "uri" }
+      }
+    },
+
+    "step": {
+      "type": "object",
+      "required": ["id", "cmd"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string" },
+
+        "cmd": {
+          "type": "string",
+          "enum": [
+            "navto","scrollto","setviewport",
+            "click","type","sendkeys","hover",
+            "getattribute","getcomputedstyle",
+            "waitfor","waitforelement","waitforelementgone","waitforstable","waitfornetwork",
+            "changes","executejs","takescreenshot","handledialog","message",
+            "record","recipe","toast"
+          ]
+        },
+
+        "sel":  { "type": "string" },
+        "text": { "type": "string" },
+        "to":   { "type": "integer", "minimum": 0 },
+        "watch":{ "$ref": "#/definitions/watch" },
+        "msg":  { "type": "string" }
+      }
+    },
+
+    "watch": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "url":   { "type": "boolean" },
+        "el":    { "type": "string" },
+        "gone":  { "type": "string" }
+      }
+    },
+
+    "fallback": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "askUser": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+} 
