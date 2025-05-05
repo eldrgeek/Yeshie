@@ -749,7 +749,7 @@
 }
 
 /* --- Toast Notification --- */
-.toast-notification {
+/* .toast-notification {
   position: fixed;
   top: 20px;
   right: 20px;
@@ -765,4 +765,4 @@
 @keyframes fadeInOut {
   0%, 100% { opacity: 0; }
   10%, 90% { opacity: 1; }
-} 
+}  */
