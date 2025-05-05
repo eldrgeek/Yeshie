@@ -10,6 +10,7 @@ import { logInfo, logWarn, logError, logDebug } from "../functions/logger"; // I
 import { handleError } from "../functions/errorHandler"; // Import the new error handler
 // Import types from the tabs page (or a shared types file in the future)
 import type { SendToLLMPayload, SendToLLMResponse, NewReportPayload } from '../tabs/index.tsx';
+import type { RawStepData } from '../functions/learn'; // Adjust path if necessary
 
 // --- Remove redundant types ---
 // interface SendToLLMRequestBody {
@@ -28,40 +29,32 @@ console.log("Yeshie background service worker started.");
 // --- Variable to hold API key in memory ---
 let backgroundApiKey: string | null = null;
 
-// --- Log storage usage using the new utility ---
-async function logStorageUsage() {
-    try {
-        await logStorageUsageUtil(); // Call the centralized function
-        // Keep sync storage check for now, though ideally it would also be in the util
-        // Note: sync storage usage needs separate handling if required.
-        const syncItems = await chrome.storage.sync.get(null) as {[key: string]: any} | void;
-        // Initialize count and update only if syncItems is a valid object
-        let syncCount = 0;
-        if (syncItems && typeof syncItems === 'object') {
-          // Now syncItems is confirmed to be an object
-          syncCount = Object.keys(syncItems).length;
-        }
-        // console.log(`chrome.storage.sync item count: ${syncCount}`);
-        logInfo(`chrome.storage.sync item count: ${syncCount}`);
-        if (syncCount >= 510) { // Check against the 512 limit
-            // log('storage_warning', { area: 'sync', message: 'MAX_ITEMS limit nearing', count: syncCount });
-            logWarn("chrome.storage.sync is near or at its MAX_ITEMS limit!", { area: 'sync', count: syncCount });
-            // console.warn("chrome.storage.sync is near or at its MAX_ITEMS limit!");
-            // Log the keys to see what's filling up sync storage
-            // console.log("Sync storage keys:", Object.keys(syncItems)); // Log keys if needed
-        }
-    } catch (error) {
-        // console.error("Error checking storage usage:", error);
-        handleError(error, { operation: 'logStorageUsage' });
-        // Log the error using the diagnostic logger if available
-        // const errorMessage = error instanceof Error ? error.message : String(error);
-        // log('storage_error', { operation: 'logStorageUsage', error: errorMessage });
-    }
-}
+// --- Constants ---
+const TAB_URL = chrome.runtime.getURL("tabs/index.html"); // Re-added
+const CONTEXT_REMOVAL_DELAY = 10000; // Re-added (10 seconds)
+const CONTROL_TAB_ID_KEY = "yeshieControlTabId"; // Re-added
+const TASK_COUNTER_KEY = "yeshieTaskCounter";
+const LEARNED_TASK_PREFIX = "learnedTask:";
+const RECORDING_TIMEOUT_MS = 10000; // 10 seconds timeout to wait for content scripts
 
-const TAB_URL = chrome.runtime.getURL("tabs/index.html");
-const CONTEXT_REMOVAL_DELAY = 10000; // 10 seconds
-const CONTROL_TAB_ID_KEY = "yeshieControlTabId"; // Storage key for the control tab ID
+// --- Recording State ---
+let isRecordingActive: boolean = false;
+let currentRecordingRawSteps: RawStepData[] = [];
+let activeRecordingTabs: Set<number> = new Set();
+let expectedResponsesFromTabs: Set<number> = new Set(); // Tabs we expect FORWARD_RECORDED_STEPS from
+let taskCounter: number = 1;
+let llmProcessingTimeout: NodeJS.Timeout | null = null; // Timeout handle
+
+// --- Load Task Counter on Startup ---
+storageGet<number>(TASK_COUNTER_KEY).then(count => {
+    if (count) {
+        taskCounter = count;
+        logInfo(`Loaded initial task counter: ${taskCounter}`);
+    } else {
+        logInfo(`Initializing task counter to 1.`);
+        // Optionally save the initial value: storageSet(TASK_COUNTER_KEY, 1);
+    }
+}).catch(error => handleError(error, { operation: 'loadTaskCounter' }));
 
 // --- Helper Functions ---
 
@@ -391,201 +384,401 @@ async function callLLMService(prompt: string): Promise<SendToLLMResponse> {
   }
 }
 
-// --- Listener for messages from content scripts or UI ---
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (DEBUG_TABS) console.log("Message received:", message, "from:", sender);
-  try {
-    // --- Handle setting API key in memory ---
-    if (message.name === 'setApiKeyInMemory') {
-      if (message.body && typeof message.body.apiKey === 'string') {
-        backgroundApiKey = message.body.apiKey;
-        console.log("** Background script received and stored API key in memory. **");
-        sendResponse({ success: true });
-      } else {
-        console.error("Invalid payload received for setApiKeyInMemory");
-        sendResponse({ success: false, error: "Invalid API key payload" });
-      }
-      return false; // Synchronous response
-    }
-    // --- Handle sendToLLM ---
-    else if (message.name === 'sendToLLM') {
-      // Ensure message.body conforms to SendToLLMPayload
-      const payload = message.body as SendToLLMPayload;
-      if (!payload || typeof payload.prompt !== 'string') {
-         console.error("Invalid payload received for sendToLLM");
-         sendResponse({ error: "Invalid prompt payload" } as SendToLLMResponse);
-         return true; // Indicate response sent
-      }
+// --- Helper Function to Send Messages to Content Scripts ---
+async function sendMessageToContentScripts(tabIds: number[], message: any) { /* ... */ }
 
-      callLLMService(payload.prompt)
-        .then(response => {
-          console.log("Sending response for sendToLLM:", response);
-          sendResponse(response); // Response should already match SendToLLMResponse
-        })
-        .catch(error => {
-           handleError(error, { operation: 'callLLMService - promiseCatch' });
-           sendResponse({ error: "Unexpected background error during LLM call." } as SendToLLMResponse);
-        });
-      return true; // Indicate async response
-    }
-    // --- Existing handlers ---
-    else if (message.name === "getTabId") {
-      getCurrentTabId().then(tabId => {
-        sendResponse({ tabId });
-      }).catch(error => {
-        handleError(error, { messageName: 'getTabId' });
-        sendResponse({ tabId: -1 }); // Send error state
-      });
-      return true; // Indicate async response
-    }
-    else if (message.action === "captureScreenshotToClipboard") {
-      chrome.tabs.captureVisibleTab(null, { format: 'png' }, (dataUrl) => {
-        try {
-          if (chrome.runtime.lastError) {
-            console.error('Failed to capture screenshot:', chrome.runtime.lastError.message);
-            handleError(chrome.runtime.lastError, { operation: 'captureScreenshotToClipboard' });
-            sendResponse({ status: "error", message: chrome.runtime.lastError.message });
-            return;
-          }
-          if (dataUrl) {
-            fetch(dataUrl)
-                .then(res => res.blob())
-                .then(blob => {
-                    // Use ClipboardItem for modern browsers
-                    navigator.clipboard.write([ 
-                        new ClipboardItem({ [blob.type]: blob })
-                    ]).then(() => {
-                        console.log('Screenshot copied to clipboard');
-                        sendResponse({ status: "copied" });
-                    }).catch(err => {
-                        console.error('Error copying screenshot blob to clipboard:', err);
-                        handleError(err, { operation: 'copyScreenshotBlob' });
-                        sendResponse({ status: "error", message: err.message });
-                    });
-                })
-                .catch(err => {
-                    console.error('Error fetching blob from data URL:', err);
-                    handleError(err, { operation: 'fetchScreenshotBlob' });
-                    sendResponse({ status: "error", message: err.message });
-                });
+// --- Recording Logic Functions ---
 
-          } else {
-            console.error('Failed to capture screenshot, no data URL returned.');
-            handleError('Failed to capture screenshot, no data URL returned.', { operation: 'captureScreenshotToClipboard' });
-            sendResponse({ status: "error", message: "Failed to capture screenshot." });
-          }
-        } catch (error) {
-          console.error('Unexpected error during screenshot capture/clipboard write:', error);
-          handleError(error, { operation: 'captureScreenshotOuterCatch' });
-          // Ensure response is sent even if nested async code fails unexpectedly
-          if (typeof sendResponse === 'function') {
-             try { sendResponse({ status: "error", message: "Unexpected error during screenshot operation." }); } catch(e) {console.error("Failed to send error response",e); handleError(e, { stage: 'sendErrorResponseCatch' });}
-          } else {
-             console.error("sendResponse is not a function in screenshot error handler");
-          }
+async function startRecordingLogic() { // Restore async
+    // 1. Check if already active
+    if (isRecordingActive) {
+        logWarn("Start recording called, but already active.");
+        return;
+    }
+    // 2. Log start
+    logInfo("Starting test recording session...");
+
+    try { // Encompass everything after the initial check
+        logDebug("startRecordingLogic: Entered function body (inside try)");
+
+        isRecordingActive = true; // Set early
+        logDebug("startRecordingLogic: isRecordingActive set to true");
+
+        currentRecordingRawSteps = [];
+        logDebug("startRecordingLogic: currentRecordingRawSteps initialized");
+
+        activeRecordingTabs.clear();
+        logDebug("startRecordingLogic: activeRecordingTabs cleared");
+
+        expectedResponsesFromTabs.clear();
+        logDebug("startRecordingLogic: expectedResponsesFromTabs cleared");
+
+        if (llmProcessingTimeout) {
+            logDebug("startRecordingLogic: Clearing previous timeout", { handle: llmProcessingTimeout });
+            clearTimeout(llmProcessingTimeout);
+            logDebug("startRecordingLogic: Timeout cleared");
         }
-      });
-      return true; // Indicate async response
-    }
-    else if (message.type === 'ADD_REPORT') {
-      // Ensure message.report conforms to NewReportPayload
-      const reportPayload = message.report as NewReportPayload;
-      if (!reportPayload || !reportPayload.type || !reportPayload.title || !reportPayload.description) {
-        console.error("Invalid payload received for ADD_REPORT");
-        sendResponse({ success: false, error: "Invalid report payload" });
-        return true; // Indicate response sent
-      }
+        logDebug("startRecordingLogic: State fully initialized");
 
-      addReport(reportPayload) // Pass the validated payload
-        .then(() => sendResponse({ success: true }))
-        .catch(error => {
-          handleError(error, { operation: 'addReport' });
-          sendResponse({ success: false, error: error.message });
-        });
-      return true; // Keep the message channel open for async response
-    }
-    else if (message.action === "saveDiagnosticLog") { // Adjusted message action name
-        try {
-          // Store the diagnostic data in persistent storage
-          if (message.body.diagnosticData) { // Adjusted to use message.body
-            const timestamp = new Date().toISOString().replace(/:/g, '-');
-            const key = `diagnosticLog_${timestamp}`;
+        // Restore async operations
+        const currentTabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        logDebug("startRecordingLogic: Queried active tabs", { count: currentTabs.length });
 
-            // Use storageSet to save the diagnostic data
-            storageSet(key, { // Use storageSet
-              timestamp,
-              data: message.body.diagnosticData, // Adjusted to use message.body
-              userAgent: navigator.userAgent,
-              url: message.body.url || "unknown" // Adjusted to use message.body
-            }).then(() => {
-               console.log(`Diagnostic log saved with key: ${key}`);
-               sendResponse({
-                 success: true,
-                 message: "Diagnostic log saved",
-                 key
+        if (currentTabs.length > 0 && currentTabs[0].id) {
+            const initialTabId = currentTabs[0].id;
+            logDebug(`startRecordingLogic: Initial active tab ID: ${initialTabId}`);
+            activeRecordingTabs.add(initialTabId);
+            expectedResponsesFromTabs.add(initialTabId);
+            logDebug("startRecordingLogic: Added tab to sets");
+
+            logDebug("startRecordingLogic: Attempting to send ACTIVATE_RECORDING message...", { initialTabId });
+            await sendMessageToContentScripts([initialTabId], { type: "ACTIVATE_RECORDING", payload: { tabId: initialTabId } });
+            logDebug("startRecordingLogic: ACTIVATE_RECORDING message sent (or attempted)");
+
+        } else {
+            logWarn("startRecordingLogic: Could not get initial active tab for recording.");
+        }
+
+        logDebug("startRecordingLogic: Attempting to add tab event listeners...");
+        chrome.tabs.onActivated.addListener(handleTabActivated);
+        chrome.tabs.onUpdated.addListener(handleTabUpdated);
+        logDebug("startRecordingLogic: Tab event listeners added.");
+
+        // Notify the Tab Page UI that recording has started (with retry)
+        logDebug("startRecordingLogic: Attempting to send RECORDING_STARTED message to UI...");
+        const sendRecordingStarted = () => {
+            chrome.runtime.sendMessage({ type: "RECORDING_STARTED", payload: { message: "Recording started" } })
+               .catch(e => {
+                    const error = e as Error;
+                    // Check for the specific error message
+                    if (error.message?.includes("Receiving end does not exist")) {
+                        logWarn("Failed to send RECORDING_STARTED to UI (Receiving end does not exist), retrying in 200ms...");
+                        setTimeout(sendRecordingStarted, 200); // Retry after 200ms
+                    } else {
+                         logWarn("Failed to send RECORDING_STARTED to UI (Unknown error)", { error: error.message });
+                         // Optionally handle other errors differently
+                    }
                });
-            }).catch(error => {
-                handleError(error, { operation: 'saveDiagnosticLog - storageSetCatch' });
-                sendResponse({
-                  success: false,
-                  message: `Error saving diagnostic log: ${error instanceof Error ? error.message : String(error)}`
-                });
-            });
+        };
+        sendRecordingStarted(); // Initial attempt
+        logDebug("startRecordingLogic: Initial RECORDING_STARTED message sent (or attempted).");
 
-          } else {
-            sendResponse({
-              success: false,
-              message: "No diagnostic data provided"
-            });
-          }
-        } catch (error) {
-          handleError(error, { operation: 'saveDiagnosticLog - outerCatch' });
-          sendResponse({
-            success: false,
-            message: "Error saving diagnostic log"
-          });
+    } catch (error) {
+        const operation = 'startRecordingLogic';
+        logError(`Error during ${operation}`, { errorMessage: (error as Error)?.message, errorObj: error });
+        handleError(error, { operation });
+        if (isRecordingActive) {
+             logWarn(`${operation}: Resetting state due to error.`);
+             isRecordingActive = false;
+             chrome.tabs.onActivated.removeListener(handleTabActivated);
+             chrome.tabs.onUpdated.removeListener(handleTabUpdated);
+        } else {
+            logWarn(`${operation}: Error occurred before recording state was fully activated.`);
         }
-        return true; // Indicate async response
-      }
-      else if (message.action === "getDiagnosticLogs") { // Adjusted message action name
-        storageGetAll().then(items => { // Use storageGetAll
-           // Filter for only diagnostic logs
-           const logs = Object.entries(items)
-             .filter(([key]) => key.startsWith('diagnosticLog_'))
-             .map(([key, value]) => ({ key, ...value }));
-
-           sendResponse({
-             success: true,
-             logs
-           });
-        }).catch(error => {
-            handleError(error, { operation: 'getDiagnosticLogs' });
-            sendResponse({
-              success: false,
-              message: "Error retrieving diagnostic logs"
-            });
-        });
-        return true; // Indicate async response
-      }
-
-    // Handle other messages or unknown messages...
-    // Check if the message name looks like one handled by Plasmo
-    const isPotentiallyPlasmoHandled = ['getLastTab', 'focusLastTab', 'focusTab'].includes(message?.name);
-    if (!isPotentiallyPlasmoHandled) {
-      if (DEBUG_TABS) console.warn("Unhandled message type received in background listener:", message);
     }
-    // sendResponse({ status: "unhandled", message: "Message type not recognized." }); // Optional
+}
 
-  } catch (error) {
-    handleError(error, { stage: 'topLevelOnMessageListener' });
-    if (typeof sendResponse === 'function') {
-        try { sendResponse({ status: "error", message: "Internal background error." }); } catch(e) {console.error("Failed to send error response",e); handleError(e, { stage: 'sendErrorResponseCatch' });}
+async function stopRecordingLogic() {
+    if (!isRecordingActive) {
+        logWarn("Stop recording called, but not active.");
+        return;
+    }
+    logInfo("Stopping test recording session...");
+    isRecordingActive = false;
+
+    chrome.tabs.onActivated.removeListener(handleTabActivated);
+    chrome.tabs.onUpdated.removeListener(handleTabUpdated);
+
+    const tabsToDeactivate = Array.from(activeRecordingTabs);
+    expectedResponsesFromTabs = new Set(tabsToDeactivate);
+
+    logInfo(`Expecting step data from tabs: [${tabsToDeactivate.join(', ')}]`);
+    sendMessageToContentScripts(tabsToDeactivate, { type: "DEACTIVATE_RECORDING", payload: {} });
+
+    if (llmProcessingTimeout) clearTimeout(llmProcessingTimeout);
+    llmProcessingTimeout = setTimeout(() => {
+        logWarn(`Recording stopped: Timeout waiting for steps from tabs [${Array.from(expectedResponsesFromTabs).join(', ')}]. Processing with received steps.`);
+        llmProcessingTimeout = null;
+        processAndSaveRecording();
+    }, RECORDING_TIMEOUT_MS);
+
+    // Notify the Tab Page UI that recording has stopped / is processing
+     chrome.runtime.sendMessage({ type: "RECORDING_STOPPED", payload: { message: "Recording stopped, processing..." } })
+       .catch(e => logWarn("Failed to send RECORDING_STOPPED to UI", { error: (e as Error).message }));
+}
+
+// --- Tab Event Handlers (Active only during recording) ---
+const handleTabActivated = (activeInfo: chrome.tabs.TabActiveInfo) => {
+    if (!isRecordingActive) return;
+    const tabId = activeInfo.tabId;
+    logDebug(`handleTabActivated: Fired for tab ${tabId}`); // Log entry
+
+    // Record the switch step
+    const step: RawStepData = {
+        timestamp: Date.now(),
+        type: 'switchTab',
+        tabId: tabId,
+        url: '', // URL will be captured later
+        value: tabId
+    };
+    currentRecordingRawSteps.push(step);
+    logDebug(`handleTabActivated: Recorded switch step for tab ${tabId}`);
+
+    // If this is a new tab for this recording session...
+    if (!activeRecordingTabs.has(tabId)) {
+        logInfo(`handleTabActivated: Tab ${tabId} is NEW for this recording session. Adding.`); // Log if new
+        activeRecordingTabs.add(tabId);
+        logDebug(`handleTabActivated: activeRecordingTabs now: [${Array.from(activeRecordingTabs).join(', ')}]`);
+        // Activate listeners in its content script
+        logDebug(`handleTabActivated: Attempting to send ACTIVATE_RECORDING to tab ${tabId}...`);
+        sendMessageToContentScripts([tabId], { type: "ACTIVATE_RECORDING", payload: { tabId: tabId } })
+           .then(() => logDebug(`handleTabActivated: Sent ACTIVATE_RECORDING to tab ${tabId} (or tried).`))
+           .catch(e => logWarn(`handleTabActivated: Error sending ACTIVATE_RECORDING to tab ${tabId}`, { error: e }));
     } else {
-       console.error("sendResponse is not a function in top-level error handler");
+        logDebug(`handleTabActivated: Tab ${tabId} was already in activeRecordingTabs.`); // Log if already present
     }
-  }
-  // If none of the async cases match, return false or undefined implicitly
-  return false;
+};
+
+const handleTabUpdated = (tabId: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => { /* ... */ };
+
+// --- Processing and Saving ---
+
+function checkIfReadyToProcessRecording() {
+    // ... (ensure this function exists as defined previously) ...
+     if (isRecordingActive) return;
+     if (expectedResponsesFromTabs.size === 0) {
+         logInfo("All expected content script responses received.");
+         if (llmProcessingTimeout) {
+             clearTimeout(llmProcessingTimeout);
+             llmProcessingTimeout = null;
+         }
+         processAndSaveRecording();
+     } else { /* log waiting */ }
+}
+
+// Add the notification function
+function notifyUIRecordingProcessed(success: boolean, taskName: string | null, error?: string) {
+    logDebug("Notifying UI about recording processing result", { success, taskName, error });
+    chrome.runtime.sendMessage({
+        type: "RECORDING_PROCESSED",
+        payload: {
+            success: success,
+            taskName: taskName,
+            error: error
+        }
+    }).catch(e => logWarn("Failed to send RECORDING_PROCESSED status to UI", { error: (e as Error).message }));
+}
+
+async function processAndSaveRecording() {
+    logInfo("Processing recorded steps...");
+    if (currentRecordingRawSteps.length === 0) {
+        logWarn("No steps were recorded. Aborting save.");
+        notifyUIRecordingProcessed(false, null, "No steps recorded."); // Notify UI
+        return;
+    }
+
+    const stepsForProcessing = [...currentRecordingRawSteps]; // Use a copy
+    const originalTaskCounter = taskCounter; // Store counter before async calls
+    const taskName = `Task ${originalTaskCounter}`;
+
+    // Clear state for next recording BEFORE async LLM call
+    currentRecordingRawSteps = [];
+    activeRecordingTabs.clear();
+    expectedResponsesFromTabs.clear(); // Ensure this is cleared
+
+    try {
+        // 1. Sort by timestamp
+        stepsForProcessing.sort((a, b) => a.timestamp - b.timestamp);
+
+        // 2. Construct LLM Prompt
+        const formattedSteps = stepsForProcessing.map(step => JSON.stringify(step)).join('\n');
+        const prompt = `Generate a Yeshie script in JSON format, strictly conforming to the provided llm-reply-schema.json.
+The script should represent the following sequence of user actions recorded across browser tabs.
+The script should be named "${taskName}".
+Use the provided selectors, values, URLs, and tab IDs appropriately within the schema's structure (tasks, steps, cmd, sel, text, etc.).
+Map recorded action types ('click', 'type', 'change', 'navigate', 'switchTab') to appropriate 'cmd' values in the schema (e.g., 'click', 'type', 'navto'). Handle tab switches by potentially starting new tasks for different tabs if logical, or using focus actions.
+
+Recorded Actions (RawStepData format):
+${formattedSteps}
+
+Generate only the valid JSON output conforming to the schema.`;
+
+        logInfo(`Sending ${stepsForProcessing.length} steps to LLM for ${taskName}...`);
+        const response = await callLLMService(prompt);
+
+        // 3. Handle LLM Response
+        if (response.result) {
+            // Clean the LLM response string
+            let cleanedResult = response.result.trim();
+            logDebug("Raw LLM Result:", { cleanedResult });
+            if (cleanedResult.startsWith("```json")) {
+                cleanedResult = cleanedResult.substring(7); // Remove ```json
+            }
+            if (cleanedResult.startsWith("```")) { // Handle cases with just ```
+                 cleanedResult = cleanedResult.substring(3);
+            }
+            if (cleanedResult.endsWith("```")) {
+                cleanedResult = cleanedResult.substring(0, cleanedResult.length - 3);
+            }
+            cleanedResult = cleanedResult.trim(); // Trim again after removing fences
+            logDebug("Cleaned LLM Result:", { cleanedResult });
+
+            // Basic validation: Can it be parsed?
+            const parsedResult = JSON.parse(cleanedResult); // Use cleaned result
+            logInfo(`LLM generated script for ${taskName}. Saving...`);
+
+            const storageKey = `${LEARNED_TASK_PREFIX}${taskName.replace(/\s+/g, '_')}`;
+            await storageSet(storageKey, {
+                name: taskName,
+                createdAt: new Date().toISOString(),
+                script: parsedResult
+            });
+            logInfo(`Successfully saved ${taskName} to storage with key ${storageKey}`);
+
+            // Increment and save task counter only on successful save
+            taskCounter = originalTaskCounter + 1;
+            await storageSet(TASK_COUNTER_KEY, taskCounter);
+            logInfo(`Incremented task counter to ${taskCounter}`);
+
+            notifyUIRecordingProcessed(true, taskName); // Notify success
+
+        } else {
+            throw new Error(response.error || "LLM did not return a result.");
+        }
+    } catch (error) {
+        handleError(error, { operation: 'processAndSaveRecording', taskName: taskName });
+        logError(`Failed to process or save recording for ${taskName}.`);
+        notifyUIRecordingProcessed(false, taskName, (error as Error).message); // Notify failure
+    }
+}
+
+
+// --- Message Listener --- (Ensure this replaces the old listener entirely)
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    logDebug("Background: Message received", { message, sender: { id: sender.id, url: sender.url, origin: sender.origin, tabId: sender.tab?.id } });
+    let isAsync = false; // Flag to indicate if sendResponse will be called asynchronously
+
+    try {
+        // --- Recording Control Messages ---
+        if (message.type === 'START_RECORDING_FROM_UI') {
+            startRecordingLogic();
+            sendResponse({ success: true, message: "Recording started command received" });
+        }
+        else if (message.type === 'STOP_RECORDING_FROM_UI') {
+            stopRecordingLogic();
+            sendResponse({ success: true, message: "Recording stopped command received" });
+        }
+        else if (message.type === 'TOGGLE_RECORDING_FROM_SHORTCUT') {
+            if (isRecordingActive) {
+                stopRecordingLogic();
+                sendResponse({ success: true, message: "Recording stopped via shortcut command received" });
+            } else {
+                startRecordingLogic();
+                sendResponse({ success: true, message: "Recording started via shortcut command received" });
+            }
+        }
+        // --- Step Collection Message ---
+        else if (message.type === 'FORWARD_RECORDED_STEPS') {
+            if (!sender.tab || !sender.tab.id) {
+                logWarn("Received FORWARD_RECORDED_STEPS without sender tab ID.", { sender });
+                sendResponse({ success: false, error: "Missing sender tab ID" });
+            } else {
+                const tabId = sender.tab.id;
+                const steps = message.payload?.steps as RawStepData[];
+                if (!Array.isArray(steps)) {
+                    logWarn(`Received invalid steps data from tab ${tabId}`, { payload: message.payload });
+                    sendResponse({ success: false, error: "Invalid steps data" });
+                } else {
+                    logInfo(`Received ${steps.length} steps from content script in tab ${tabId}`);
+                    currentRecordingRawSteps.push(...steps);
+                    if (expectedResponsesFromTabs.has(tabId)) {
+                        expectedResponsesFromTabs.delete(tabId);
+                        logDebug(`Tab ${tabId} has responded. Remaining expected: [${Array.from(expectedResponsesFromTabs).join(', ')}]`);
+                        checkIfReadyToProcessRecording();
+                    } else {
+                        logWarn(`Received steps from unexpected tab ${tabId} or tab already responded.`);
+                    }
+                    sendResponse({ success: true });
+                }
+            }
+        }
+
+        // --- Existing Handlers ---
+        else if (message.name === 'setApiKeyInMemory') {
+            if (message.body && typeof message.body.apiKey === 'string') {
+                backgroundApiKey = message.body.apiKey;
+                logInfo("** Background script received and stored API key in memory. **");
+                sendResponse({ success: true });
+            } else {
+                logError("Invalid payload received for setApiKeyInMemory");
+                sendResponse({ success: false, error: "Invalid API key payload" });
+            }
+        }
+        else if (message.name === 'sendToLLM') {
+            const payload = message.body as SendToLLMPayload;
+            if (!payload || typeof payload.prompt !== 'string') {
+                logError("Invalid payload received for sendToLLM");
+                sendResponse({ error: "Invalid prompt payload" } as SendToLLMResponse);
+                return false; // Send response sync
+            }
+            isAsync = true; // Mark as async
+            callLLMService(payload.prompt)
+                .then(response => {
+                    logInfo("Sending response for sendToLLM");
+                    sendResponse(response);
+                })
+                .catch(error => {
+                    handleError(error, { operation: 'callLLMService - promiseCatch' });
+                    sendResponse({ error: "Unexpected background error during LLM call." } as SendToLLMResponse);
+                });
+        }
+        else if (message.name === "getTabId") {
+             if (sender.tab?.id) {
+                 logDebug("Responding to getTabId request", { tabId: sender.tab.id });
+                 sendResponse({ tabId: sender.tab.id });
+             } else {
+                 isAsync = true; // Mark as async
+                 getCurrentTabId().then(tabId => {
+                     logDebug("Responding to getTabId request (fallback)", { tabId });
+                     sendResponse({ tabId });
+                 }).catch(error => {
+                     handleError(error, { messageName: 'getTabId - fallback' });
+                     sendResponse({ tabId: -1 });
+                 });
+             }
+         }
+        // ... Add other existing handlers for captureScreenshot, ADD_REPORT, saveDiagnosticLog, getDiagnosticLogs here ...
+        // Example:
+        // else if (message.action === "captureScreenshotToClipboard") { isAsync = true; /* ... logic ... */ }
+        // else if (message.type === 'ADD_REPORT') { isAsync = true; /* ... logic ... */ }
+        // else if (message.action === "saveDiagnosticLog") { isAsync = true; /* ... logic ... */ }
+        // else if (message.action === "getDiagnosticLogs") { isAsync = true; /* ... logic ... */ }
+
+        // --- Unhandled --- // Moved Plasmo check before the warning
+        else {
+            const isPotentiallyPlasmoHandled = ['getLastTab', 'focusLastTab', 'focusTab'].includes(message?.name);
+            if (!isPotentiallyPlasmoHandled && message.type !== 'ACTIVATE_RECORDING' && message.type !== 'DEACTIVATE_RECORDING') {
+                logWarn("Unhandled message type received in background listener:", { message });
+            }
+            // If it's not one of ours and not Plasmo's, we don't send a response
+        }
+
+    } catch (error) {
+        handleError(error, { stage: 'topLevelOnMessageListener', messageReceived: message });
+        // Try to send an error response if possible and not already handled asynchronously
+        if (!isAsync && typeof sendResponse === 'function') {
+            try {
+                sendResponse({ success: false, status: "error", message: "Internal background error processing message." });
+            } catch (e) {
+                handleError(e, { stage: 'sendErrorResponseCatch' });
+            }
+        } else if (isAsync) {
+           logError("Error occurred during async message processing", { error });
+        }
+    }
+
+    // Return true if sendResponse will be called asynchronously, false otherwise.
+    return isAsync;
 });
 
 
@@ -606,7 +799,7 @@ self.addEventListener('online', () => {
 
 // --- Initialization ---
 // setupBG(); // Temporarily commented out // Setup background communication provided by extcomms
-logStorageUsage(); // Log storage usage on startup using the updated function
+logStorageUsage(); // Call the re-added/verified wrapper function
 logCurrentTabState().catch(error => handleError(error, { stage: 'initialLogCurrentTabState' }));
 
 // Periodic state logging (consider reducing frequency or removing if too noisy)
@@ -617,7 +810,7 @@ initTabTracking()
   .then(() => console.log("Tab tracking initialized"))
   .catch(error => handleError(error, { operation: 'initTabTracking' }));
 
-console.log("Background script fully initialized.");
+console.log("Background script fully initialized and message listener updated.");
 
 // --- Test LLM call on Install/Update/Reload ---
 chrome.runtime.onInstalled.addListener(async (details) => {
@@ -683,3 +876,25 @@ console.log("Background script fully initialized.");
 
 // Remove the old handleSendToLLM definition entirely if it's fully replaced
 // (Check the diff carefully) 
+
+// --- Log storage usage using the new utility ---
+// Re-add this wrapper function if it was removed, or adjust initialization call
+async function logStorageUsage() {
+    try {
+        await logStorageUsageUtil(); // Call the centralized function
+        // Keep sync storage check for now
+        const syncItems = await chrome.storage.sync.get(null) as {[key: string]: any} | void;
+        let syncCount = 0;
+        if (syncItems && typeof syncItems === 'object') {
+          syncCount = Object.keys(syncItems).length;
+        }
+        logInfo(`chrome.storage.sync item count: ${syncCount}`);
+        if (syncCount >= 510) {
+            logWarn("chrome.storage.sync is near or at its MAX_ITEMS limit!", { area: 'sync', count: syncCount });
+        }
+    } catch (error) {
+        handleError(error, { operation: 'logStorageUsage' });
+    }
+}
+
+// ... rest of initialization ... 

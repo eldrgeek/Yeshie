@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import ReactDOM from "react-dom/client";
 import YeshieEditor from "../components/YeshieEditor";
 import TabList from "./TabList";
@@ -108,12 +108,25 @@ function TabsIndex() {
   const [customNames, setCustomNames] = useState<CustomNameMap>({});
   const [lastErrorDetails, setLastErrorDetails] = useState<string | null>(null);
   const [showLogViewer, setShowLogViewer] = useState<boolean>(false); // State for LogViewer visibility
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [isProcessingRecording, setIsProcessingRecording] = useState<boolean>(false);
 
   // --- State for API Key Management ---
   const [hasApiKey, setHasApiKey] = useState(false);
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [apiKeyLoading, setApiKeyLoading] = useState(false);
+
+  // Ref to prevent setting state on unmounted component
+  const isMounted = useRef(true); // Ensure this is defined
+
+  // Set isMounted to false when component unmounts
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+        isMounted.current = false;
+    };
+  }, []);
 
   // --- Effect to set Document Title --- 
   useEffect(() => {
@@ -325,6 +338,70 @@ function TabsIndex() {
     };
     checkApiKey();
   }, []);
+
+  // --- Add Listener for Background Recording Status Updates ---
+  useEffect(() => {
+      logDebug("TabsIndex: Setting up message listener EFFECT START"); // Added log
+
+      const handleMessage = (message: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
+          logDebug("TabsIndex: handleMessage RECEIVED:", { message, senderId: sender?.id }); // Log ALL messages, check sender?.id
+
+          if (!isMounted.current) { // Check the ref value
+              logWarn("TabsIndex: handleMessage received but component not mounted.");
+              return false;
+          }
+
+          // Keep existing handlers
+          if (message.type === "RECORDING_STARTED") {
+              logInfo("TabsIndex: Received RECORDING_STARTED update from background.");
+              setIsRecording(true);
+              setIsProcessingRecording(false);
+              setToast(message.payload?.message || "Recording started.");
+              setTimeout(() => setToast(null), 2000);
+              sendResponse({success: true});
+              return false; // Indicate sync response handled
+          }
+          else if (message.type === "RECORDING_STOPPED") {
+              logInfo("TabsIndex: Received RECORDING_STOPPED update from background.");
+              setIsRecording(false);
+              setIsProcessingRecording(true);
+              setToast(message.payload?.message || "Recording stopped, processing...");
+              sendResponse({success: true});
+              return false; // Indicate sync response handled
+          }
+          else if (message.type === "RECORDING_PROCESSED") {
+               logInfo("TabsIndex: Received RECORDING_PROCESSED update from background.");
+               setIsProcessingRecording(false);
+               if (message.payload?.success) {
+                   setToast(`Task "${message.payload.taskName}" saved successfully!`);
+                   // TODO: Refresh task list here
+               } else {
+                    const errorDetails = handleError(message.payload?.error || "Unknown processing error", { operation: 'recordingProcessedError' });
+                    setLastErrorDetails(errorDetails);
+                    setToast(`Error saving task: ${message.payload?.error || 'Unknown error'}. Click to copy details.`);
+               }
+               setTimeout(() => {
+                 setToast(null);
+                 if (!message.payload?.success) setLastErrorDetails(null);
+               }, 5000);
+               sendResponse({success: true});
+               return false; // Indicate sync response handled
+          }
+
+          // Log if message wasn't handled by this listener, but don't return true unless needed for async
+          logDebug("TabsIndex: Message not handled by recording status listener", { type: message?.type });
+          // Explicitly return false if this listener doesn't handle the message or need to keep channel open
+          return false;
+      };
+
+      chrome.runtime.onMessage.addListener(handleMessage);
+      logDebug("TabsIndex: Added listener for recording status updates.");
+
+      return () => {
+          logDebug("TabsIndex: Removing listener for recording status updates (CLEANUP)");
+          chrome.runtime.onMessage.removeListener(handleMessage);
+      };
+  }, []); // Ensure correct closing bracket and dependency array
 
   // Return to the last active tab
   const returnToLastTab = async () => {
@@ -548,6 +625,45 @@ function TabsIndex() {
     }
   };
 
+  // --- Function to handle Recording Button Click ---
+  const handleRecordButtonClick = () => {
+    if (isProcessingRecording) {
+        setToast("Please wait, previous recording is processing...");
+        setTimeout(() => setToast(null), 2000);
+        return;
+    }
+
+    const messageType = isRecording ? "STOP_RECORDING_FROM_UI" : "START_RECORDING_FROM_UI";
+    logInfo(`Sending ${messageType} to background script.`);
+    // Optimistically update UI? Maybe wait for background confirmation.
+    // setIsRecording(!isRecording); // Example optimistic update
+
+    chrome.runtime.sendMessage({ type: messageType }, (response) => {
+        if (chrome.runtime.lastError) {
+            const errorDetails = handleError(chrome.runtime.lastError, { operation: 'handleRecordButtonClick', messageType });
+            setLastErrorDetails(errorDetails);
+            setToast(`Error ${isRecording ? 'stopping' : 'starting'} recording. Click to copy details.`);
+            // Revert optimistic update if needed: setIsRecording(isRecording);
+        } else if (response && response.success) {
+            logInfo(`Background acknowledged ${messageType}: ${response.message}`);
+            // Update state based on actual background action (handled by listener now)
+            // setIsRecording(!isRecording); // Let listener handle state changes
+        } else {
+             const errorDetails = handleError(response?.error || "Unknown error from background", { operation: 'handleRecordButtonClick', messageType, response });
+             setLastErrorDetails(errorDetails);
+             setToast(`Failed to ${isRecording ? 'stop' : 'start'} recording: ${response?.error || 'Unknown error'}. Click to copy details.`);
+             // Revert optimistic update if needed: setIsRecording(isRecording);
+        }
+         // Clear error toast after delay
+         if (lastErrorDetails || (response && !response.success)) {
+              setTimeout(() => {
+                  setToast(null);
+                  setLastErrorDetails(null);
+              }, 5000);
+         }
+    });
+  };
+
   return (
     <div className="tabs-container">
       {toast && (
@@ -562,133 +678,128 @@ function TabsIndex() {
       )}
 
       {/* Grid Header */}
-      <div 
-        className="tabs-header" 
-        style={{ 
+      <div
+        className="tabs-header"
+        style={{
             display: 'grid',
-            gridTemplateColumns: 'auto auto auto auto', // Use auto for all columns for compactness
-            gap: '20px', // Spacing between columns
-            alignItems: 'start', 
-            padding: '5px 20px 10px 20px', 
-            justifyContent: 'start' 
+            // Adjust columns to make space - should be 5 auto columns
+            gridTemplateColumns: 'auto auto auto auto auto', // Updated to 5 columns
+            gap: '15px', // Slightly reduced gap
+            alignItems: 'center', // Align items vertically center
+            padding: '5px 20px 10px 20px',
+            justifyContent: 'start'
         }}
-      > 
+      >
         {/* --- Grid Area 1: Title, Reload, Focused --- */}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-           <h1 style={{ marginTop: '0', marginBottom: '0' }}>{PAGE_TITLE}</h1> {/* Removed default H1 margin */} 
-           <span style={{ fontSize: '0.8em', color: '#888', marginTop: '2px' }}>
-              Reload #{reloadCount}
-           </span>
-           {tabPaneFocusedTime && (
-             <span style={{ fontSize: '0.8em', color: '#888', marginTop: '2px' }} title={new Date(tabPaneFocusedTime).toISOString()}>
-                Focused: {formatTimestamp(tabPaneFocusedTime)}
+             <h1 style={{ marginTop: '0', marginBottom: '0' }}>{PAGE_TITLE}</h1>
+             <span style={{ fontSize: '0.8em', color: '#888', marginTop: '2px' }}>
+                 Reload #{reloadCount}
              </span>
-           )}
-        </div>
-
-        {/* --- Grid Area 2: Last Tab Info --- */} 
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'start' }}>
-           {lastTabInfo ? (
-             <>
-               {/* Link with limited width */}
-               <span
-                 onClick={returnToLastTab}
-                 className="last-tab-link"
-                 title={`${lastTabInfo.title}\n${lastTabInfo.url}`}
-                 style={{
-                    cursor: 'pointer',
-                    display: 'inline-block',
-                    maxWidth: '250px', // Limit width
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    fontWeight: '500' // Slightly bolder
-                 }}
-               >
-                 {lastTabInfo.title}
-               </span>
-               {/* Updated Timestamp Below Link */}
-               <span 
-                  className="timestamp"
-                  title={new Date(lastTabInfo.timestamp).toISOString()}
-                  style={{ fontSize: '0.8em', color: '#888', marginTop: '2px' }}
-                >
-                 Updated: {formatTimestamp(lastTabInfo.timestamp)}
-               </span>
-             </>
-           ) : (
-             <span style={{ fontSize: '0.9em', color: '#aaa' }}>{errorMessage || "No recent tabs"}</span>
-           )}
-         </div>
-
-         
-
-        {/* --- Grid Area 3: API Key & Actions (Combined) --- */} 
-        <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '15px', 
-            // justifyContent: 'flex-end' // Removed this to keep content left-aligned within the area
-          }}>
-          {/* API Key Section */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>OpenAI API Key: {hasApiKey ? 'Set ✅' : 'Not Set ❌'}</span>
-            <button onClick={handleOpenApiKeyModal} className="settings-button" title={hasApiKey ? "Replace API Key" : "Set API Key"}>
-              🔑
-            </button>
-          </div>
-          
-          {/* Divider (Optional) */} 
-          <div style={{ borderLeft: '1px solid #ccc', height: '20px' }}></div>
-
-          {/* Action Buttons Section */} 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button
-              className="icon-button report-icon-button"
-              onClick={() => setShowReportDialog(true)}
-              title="Report Bug or Feature"
-              style={{ padding: '5px' }} 
-            >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-              </svg>
-            </button>
-            <button
-              className="reports-button"
-              onClick={() => setShowReportsPanel(true)}
-              style={{ padding: '5px 10px' }} 
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{ marginRight: '4px' }} 
-              >
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-                <line x1="16" y1="13" x2="8" y2="13" />
-                <line x1="16" y1="17" x2="8" y2="17" />
-                <polyline points="10 9 9 9 8 9" />
-              </svg>
-             Reports
-             {reportCount > 0 && (
-               <span className="report-count" style={{ marginLeft: '4px' }}>{reportCount}</span>
+             {tabPaneFocusedTime && (
+                 <span style={{ fontSize: '0.8em', color: '#888', marginTop: '2px' }} title={new Date(tabPaneFocusedTime).toISOString()}>
+                     Focused: {formatTimestamp(tabPaneFocusedTime)}
+                 </span>
              )}
-           </button>
          </div>
 
-        {/* --- Grid Area 4: Log Viewer Button --- */}
+
+        {/* --- Grid Area 2: Last Tab Info --- */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'start' }}>
+             {lastTabInfo ? (
+               <>
+                 {/* Link with limited width */}
+                 <span
+                   onClick={returnToLastTab}
+                   className="last-tab-link"
+                   title={`${lastTabInfo.title}\n${lastTabInfo.url}`}
+                   style={{
+                      cursor: 'pointer',
+                      display: 'inline-block',
+                      maxWidth: '250px', // Limit width
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      fontWeight: '500' // Slightly bolder
+                   }}
+                 >
+                   {lastTabInfo.title}
+                 </span>
+                 {/* Updated Timestamp Below Link */}
+                 <span
+                    className="timestamp"
+                    title={new Date(lastTabInfo.timestamp).toISOString()}
+                    style={{ fontSize: '0.8em', color: '#888', marginTop: '2px' }}
+                  >
+                   Updated: {formatTimestamp(lastTabInfo.timestamp)}
+                 </span>
+               </>
+             ) : (
+               <span style={{ fontSize: '0.9em', color: '#aaa' }}>{errorMessage || "No recent tabs"}</span>
+             )}
+         </div>
+
+        {/* --- Grid Area 3: API Key & Actions (Combined) --- */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {/* API Key Section */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                 <span>OpenAI API Key: {hasApiKey ? 'Set ✅' : 'Not Set ❌'}</span>
+                 <button onClick={handleOpenApiKeyModal} className="settings-button" title={hasApiKey ? "Replace API Key" : "Set API Key"}>
+                     🔑
+                 </button>
+             </div>
+             {/* Divider */}
+             <div style={{ borderLeft: '1px solid #ccc', height: '20px' }}></div>
+             {/* Action Buttons Section */}
+             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  className="icon-button report-icon-button"
+                  onClick={() => setShowReportDialog(true)}
+                  title="Report Bug or Feature"
+                  style={{ padding: '5px' }}
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                  </svg>
+                </button>
+                <button
+                  className="reports-button"
+                  onClick={() => setShowReportsPanel(true)}
+                  style={{ padding: '5px 10px' }}
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ marginRight: '4px' }}
+                  >
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                    <polyline points="10 9 9 9 8 9" />
+                  </svg>
+                 Reports
+                 {reportCount > 0 && (
+                   <span className="report-count" style={{ marginLeft: '4px' }}>{reportCount}</span>
+                 )}
+               </button>
+             </div>
+         </div>
+
+
+        {/* --- Grid Area 4: Log Viewer Button (Ensuring this is present) --- */}
         <div style={{ display: 'flex', alignItems: 'center' }}>
             <button
               className="icon-button log-viewer-button" // Use a similar style or create a new one
               onClick={() => setShowLogViewer(true)}
               title="View Session Logs"
-              style={{ padding: '5px' }} 
+              style={{ padding: '5px' }}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                 <path d="M0 2.5A1.5 1.5 0 0 1 1.5 1h11A1.5 1.5 0 0 1 14 2.5v10.528c0 .3-.05.654-.238.972h.738a.5.5 0 0 0 .5-.5v-9a.5.5 0 0 1 1 0v9a1.5 1.5 0 0 1-1.5 1.5H1.497A1.5 1.5 0 0 1 0 13.5zM1.5 2a.5.5 0 0 0-.5.5v11a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5v-11a.5.5 0 0 0-.5-.5z"/>
@@ -696,9 +807,24 @@ function TabsIndex() {
               </svg>
             </button>
         </div>
+
+        {/* --- Grid Area 5: Recording Control (Ensuring this is present) --- */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+                onClick={handleRecordButtonClick}
+                className={`record-button ${isRecording ? 'recording' : ''}`}
+                disabled={isProcessingRecording}
+                title={isRecording ? "Stop recording user actions" : "Start recording a new test task"}
+            >
+                {isProcessingRecording ? 'Processing...' : (isRecording ? 'Stop Recording' : 'Start Recording')}
+            </button>
+             {/* Placeholder for checkbox */}
+             {/* <label style={{ display: 'flex', alignItems: 'center', fontSize: '0.9em', cursor: 'pointer' }}>
+                 <input type="checkbox" style={{ marginRight: '5px' }} /> Run last task on reload
+             </label> */}
         </div>
 
-      </div>
+      </div> {/* End Grid Header */}
 
       <ReportsPanel
         isOpen={showReportsPanel}
