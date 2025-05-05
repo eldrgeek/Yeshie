@@ -14,7 +14,17 @@ interface CustomNameMap { // Type for our custom names storage
     [url: string]: string;
 }
 
-const STORAGE_KEY = 'yeshieTabCustomNames'; // Key for chrome.storage
+// Type for custom window names
+interface WindowNameMap {
+    [windowId: string]: string;
+}
+
+// Define Control Tab details here (Ideally move to shared constants later)
+// const CONTROL_TAB_URL = chrome.runtime.getURL("tabs/index.html"); // No longer needed here
+// const CONTROL_TAB_TITLE = "Yeshie Control"; // No longer needed here
+
+const TAB_NAMES_STORAGE_KEY = 'yeshieTabCustomNames'; // Key for chrome.storage
+const WINDOW_NAMES_STORAGE_KEY = 'yeshieWindowCustomNames'; // New key for window names
 
 // Helper to check for restricted URLs
 const isRestrictedUrl = (url: string | undefined): boolean => {
@@ -37,12 +47,19 @@ const isRestrictedUrl = (url: string | undefined): boolean => {
 // type ContentScriptMessage = StayMessage | RemoveOverlayMessage;
 
 const TabList: React.FC = () => {
-  const [appTabs, setAppTabs] = useState<StoredApplicationTab[]>([]);
+  // State for the grouped tabs: { windowId: [tab1, tab2], ... }
+  const [groupedTabs, setGroupedTabs] = useState<Record<string, StoredApplicationTab[]>>({}); 
   const [isLoading, setIsLoading] = useState(true);
   const [extensionTabId, setExtensionTabId] = useState<number | null>(null);
   const switchBackTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const [customNames, setCustomNames] = useState<CustomNameMap>({}); // Persistent names
-  const [inputValues, setInputValues] = useState<{[url: string]: string}>({}); // Track input values separately for controlled editing
+  
+  // State for custom tab names
+  const [customTabNames, setCustomTabNames] = useState<CustomNameMap>({}); 
+  const [tabInputValues, setTabInputValues] = useState<{[url: string]: string}>({}); 
+
+  // State for custom window names
+  const [customWindowNames, setCustomWindowNames] = useState<WindowNameMap>({});
+  const [windowInputValues, setWindowInputValues] = useState<{[windowId: string]: string}>({});
 
   // Get the extension's tab ID when the component mounts
   useEffect(() => {
@@ -63,42 +80,80 @@ const TabList: React.FC = () => {
 
   // Load custom names from storage on mount
   useEffect(() => {
-      storageGet<CustomNameMap>(STORAGE_KEY).then(loadedNames => { // Use storageGet
-          setCustomNames(loadedNames || {});
-          setInputValues(loadedNames || {}); // Initialize input values with stored names
-          log('storage_get', { key: STORAGE_KEY, found: !!loadedNames, count: loadedNames ? Object.keys(loadedNames).length : 0 });
-          console.log("Loaded custom names:", loadedNames || {});
+      // Load Tab Names
+      storageGet<CustomNameMap>(TAB_NAMES_STORAGE_KEY).then(loadedNames => { 
+          setCustomTabNames(loadedNames || {});
+          setTabInputValues(loadedNames || {}); 
+          log('storage_get', { key: TAB_NAMES_STORAGE_KEY, found: !!loadedNames, count: loadedNames ? Object.keys(loadedNames).length : 0 });
+          console.log("Loaded custom tab names:", loadedNames || {});
       }).catch(error => {
-          console.error("Error loading custom names:", error);
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          log('storage_error', { operation: 'loadCustomNames', key: STORAGE_KEY, error: errorMessage });
-          setCustomNames({}); // Default to empty on error
+          console.error("Error loading custom tab names:", error);
+          log('storage_error', { operation: 'loadCustomTabNames', key: TAB_NAMES_STORAGE_KEY, error: String(error) });
+          setCustomTabNames({}); // Default to empty on error
       });
+
+      // Load Window Names
+      storageGet<WindowNameMap>(WINDOW_NAMES_STORAGE_KEY).then(loadedNames => { 
+          setCustomWindowNames(loadedNames || {});
+          setWindowInputValues(loadedNames || {}); 
+          log('storage_get', { key: WINDOW_NAMES_STORAGE_KEY, found: !!loadedNames, count: loadedNames ? Object.keys(loadedNames).length : 0 });
+          console.log("Loaded custom window names:", loadedNames || {});
+      }).catch(error => {
+          console.error("Error loading custom window names:", error);
+          log('storage_error', { operation: 'loadCustomWindowNames', key: WINDOW_NAMES_STORAGE_KEY, error: String(error) });
+          setCustomWindowNames({}); // Default to empty on error
+      });
+
   }, []);
 
   useEffect(() => {
-    const loadTabs = async () => {
+    const loadGroupedTabs = async () => {
       setIsLoading(true);
       try {
-        const storedTabs = await storageGet<StoredApplicationTab[]>(APPLICATION_TABS_KEY) || [];
-        setAppTabs(storedTabs);
-        console.log('TabList: Loaded tabs from storage:', storedTabs);
+        // Fetch the grouped structure { windowId: [tab, tab], ... }
+        const storedGroupedTabs = await storageGet<Record<string, StoredApplicationTab[]>>(APPLICATION_TABS_KEY) || {};
+        
+        // The list per window should already be sorted by index from the background script
+        setGroupedTabs(storedGroupedTabs); 
+        console.log('TabList: Loaded grouped tabs from storage:', storedGroupedTabs);
       } catch (error) {
-        console.error('TabList: Error loading tabs from storage:', error);
-        // Handle error display if needed
+        console.error('TabList: Error loading grouped tabs from storage:', error);
+        setGroupedTabs({}); // Set to empty object on error
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadTabs(); // Load initially
+    loadGroupedTabs(); // Load initially
 
     // --- Listener for storage changes ---
     const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => {
-      if (areaName === 'local' && changes[APPLICATION_TABS_KEY]) {
-        const newTabs = changes[APPLICATION_TABS_KEY].newValue as StoredApplicationTab[] | undefined || [];
-        setAppTabs(newTabs);
-        console.log('TabList: Updated tabs via storage listener:', newTabs);
+      if (areaName !== 'local') return; 
+
+      // Handle Tab List Changes
+      if (changes[APPLICATION_TABS_KEY]) {
+        const storedGroupedTabs = changes[APPLICATION_TABS_KEY].newValue as Record<string, StoredApplicationTab[]> | undefined || {};
+        // Data should already be grouped and sorted by background script
+        setGroupedTabs(storedGroupedTabs);
+        console.log('TabList: Updated grouped tabs via storage listener:', storedGroupedTabs);
+      }
+
+      // Handle Tab Name Changes
+      if (changes[TAB_NAMES_STORAGE_KEY]) {
+          const loadedNames = (changes[TAB_NAMES_STORAGE_KEY].newValue as CustomNameMap) || {};
+          setCustomTabNames(loadedNames);
+          setTabInputValues(loadedNames); 
+          log('storage_change', { key: TAB_NAMES_STORAGE_KEY, updated: true });
+          console.log('TabList: Custom tab names updated via listener', loadedNames);
+      }
+
+      // Handle Window Name Changes
+      if (changes[WINDOW_NAMES_STORAGE_KEY]) {
+          const loadedNames = (changes[WINDOW_NAMES_STORAGE_KEY].newValue as WindowNameMap) || {};
+          setCustomWindowNames(loadedNames);
+          setWindowInputValues(loadedNames); 
+          log('storage_change', { key: WINDOW_NAMES_STORAGE_KEY, updated: true });
+          console.log('TabList: Custom window names updated via listener', loadedNames);
       }
     };
 
@@ -136,25 +191,44 @@ const TabList: React.FC = () => {
       [] // Dependencies array is empty
   );
 
-  // Function to save a custom name (updates customNames, storage, AND inputValues)
-  const saveCustomName = (url: string | undefined, name: string) => {
+  // Function to save a custom TAB name
+  const saveCustomTabName = (url: string | undefined, name: string) => {
       if (!url) return;
-      const finalName = name.trim(); // Processed name (trimmed)
+      const finalName = name.trim(); 
       
-      // Update persistent state (customNames) and storage
-      setCustomNames(prevNames => {
+      setCustomTabNames(prevNames => {
           const updatedNames = { ...prevNames };
           if (finalName === '') {
              delete updatedNames[url];
-             console.log(`Removing custom name for ${url}`);
           } else {
              updatedNames[url] = finalName;
-             console.log(`Setting custom name for ${url} to ${finalName}`);
           }
-          
-          setInputValues(prev => ({ ...prev, [url]: finalName })); // Keep input values in sync
-          debouncedStorageSet(STORAGE_KEY, updatedNames); // Use debounced set
+          setTabInputValues(prev => ({ ...prev, [url]: finalName })); 
+          debouncedStorageSet(TAB_NAMES_STORAGE_KEY, updatedNames); 
           return updatedNames;
+      });
+  };
+
+  // Function to save a custom WINDOW name
+  const saveCustomWindowName = (windowId: string, name: string) => {
+      const finalName = name.trim();
+      setCustomWindowNames(prevNames => {
+          const updatedNames = { ...prevNames };
+           if (finalName === '' || finalName === `Window ${windowId}`) { // Remove if empty or default
+               delete updatedNames[windowId];
+               // Also reset input value if reverting to default
+               if (finalName === `Window ${windowId}`) {
+                   setWindowInputValues(prev => ({ ...prev, [windowId]: `Window ${windowId}` }));
+               }
+           } else {
+               updatedNames[windowId] = finalName;
+           }
+           // Update input value regardless of save/delete
+           if (finalName !== `Window ${windowId}`) { // Only sync input if it's not the default we just set
+               setWindowInputValues(prev => ({ ...prev, [windowId]: finalName }));
+           }
+           debouncedStorageSet(WINDOW_NAMES_STORAGE_KEY, updatedNames);
+           return updatedNames;
       });
   };
 
@@ -251,71 +325,127 @@ const TabList: React.FC = () => {
     }
   };
 
-  const handleNameKeyDown = (event: React.KeyboardEvent<HTMLSpanElement>, url: string | undefined) => {
+  // --- Event Handlers for Editable Names ---
+  
+  // TAB Name Handlers
+  const handleTabNameKeyDown = (event: React.KeyboardEvent<HTMLSpanElement>, url: string | undefined) => {
+      if (!url) return;
       if (event.key === 'Enter') {
-          event.preventDefault(); // Prevent potential line break in contentEditable
+          event.preventDefault(); 
           event.currentTarget.blur(); // Trigger blur to save
       } else if (event.key === 'Escape') {
           // Restore original value on Escape
-          setInputValues(prev => ({ ...prev, [url]: customNames[url] || '' }));
+          setTabInputValues(prev => ({ ...prev, [url]: customTabNames[url] || '' }));
           event.currentTarget.blur();
       }
   };
 
-  const handleNameBlur = (event: React.FocusEvent<HTMLSpanElement>, url: string | undefined) => {
-      saveCustomName(url, event.currentTarget.textContent || '');
+  const handleTabNameBlur = (event: React.FocusEvent<HTMLSpanElement>, url: string | undefined) => {
+      saveCustomTabName(url, event.currentTarget.textContent || '');
+  };
+
+  // WINDOW Name Handlers
+  const handleWindowNameKeyDown = (event: React.KeyboardEvent<HTMLHeadingElement>, windowId: string) => {
+      if (event.key === 'Enter') {
+          event.preventDefault();
+          event.currentTarget.blur();
+      } else if (event.key === 'Escape') {
+          const defaultName = `Window ${windowId}`;
+          setWindowInputValues(prev => ({ ...prev, [windowId]: customWindowNames[windowId] || defaultName }));
+          event.currentTarget.blur();
+      }
+  };
+
+  const handleWindowNameBlur = (event: React.FocusEvent<HTMLHeadingElement>, windowId: string) => {
+      saveCustomWindowName(windowId, event.currentTarget.textContent || '');
   };
 
   if (isLoading) {
     return <div className="tablist-loading">Loading tabs...</div>; // Add a class for styling
   }
 
+  const windowIds = Object.keys(groupedTabs).sort((a,b) => parseInt(a) - parseInt(b)); // Sort window IDs numerically
+
   return (
     <div className="tablist-container"> {/* Add a class for styling */}
-      <h2>Open Tabs</h2>
-      {appTabs.length === 0 ? (
+      <h2>Open Tabs By Window</h2>
+      {windowIds.length === 0 ? (
         <p>No application tabs found.</p>
       ) : (
-        <ul className="tablist-ul"> {/* Add a class for styling */}
-          {appTabs.map((tab, index) => (
-            <li key={tab.id} title={`ID: ${tab.id}\nURL: ${tab.url}`} className="tab-item"> 
-              <span className="tab-number">{`${index + 1}:`}</span> 
-              <button 
-                  className="tab-button visit-return" 
-                  onClick={() => handleVisitReturn(tab.id)}
-                  title="Visit & Return"
-              >
-                  VR
-              </button>
-              <button 
-                  className="tab-button visit-stay" 
-                  onClick={() => handleVisitStay(tab.id)}
-                  title="Visit & Stay"
-              >
-                  VS
-              </button>
-              <button 
-                  className="tab-button analyze" 
-                  onClick={() => handleAnalyze(tab.id, tab.url)}
-                  disabled={isRestrictedUrl(tab.url) || (!tab.title && !tab.url)}
-                  title={isRestrictedUrl(tab.url) ? "Cannot analyze restricted page" : "Analyze Page (Copy HTML)"}
-              >
-                  Analyze
-              </button>
-              <span 
-                className={`tab-name ${customNames[tab.url] ? 'custom-name' : ''}`}
+        windowIds.map(windowId => {
+          const tabsInWindow = groupedTabs[windowId];
+          const windowDisplayName = windowInputValues[windowId] !== undefined 
+                ? windowInputValues[windowId] 
+                : (customWindowNames[windowId] || `Window ${windowId}`);
+          
+          return (
+            <div key={windowId} className="window-group"> {/* Add class for styling */} 
+              <h3 
+                className="window-header" // Add class for styling
                 contentEditable={true}
                 suppressContentEditableWarning={true}
-                onClick={(e) => e.stopPropagation()} // Prevent li click
-                onKeyDown={(e) => handleNameKeyDown(e, tab.url)}
-                onBlur={(e) => handleNameBlur(e, tab.url)}
-                key={`${tab.id}-name`}
+                onClick={(e) => e.stopPropagation()} 
+                onKeyDown={(e) => handleWindowNameKeyDown(e, windowId)}
+                onBlur={(e) => handleWindowNameBlur(e, windowId)}
+                key={`${windowId}-header`}
               >
-                {inputValues[tab.url] !== undefined ? inputValues[tab.url] : (customNames[tab.url] || tab.title || tab.url || 'Unknown Tab')} 
-              </span>
-            </li>
-          ))}
-        </ul>
+                  {windowDisplayName}
+              </h3>
+              {tabsInWindow && tabsInWindow.length > 0 ? (
+                  <ul className="tablist-ul"> 
+                    {tabsInWindow.map((tab, index) => {
+                       const tabDisplayName = tabInputValues[tab.url] !== undefined 
+                            ? tabInputValues[tab.url] 
+                            : (customTabNames[tab.url] || tab.title || tab.url || 'Unknown Tab');
+                      return (
+                        <li key={tab.id} title={`ID: ${tab.id}\nIndex: ${tab.index}\nURL: ${tab.url}`} className="tab-item">
+                          {/* Use index within the window group for display number */}
+                          <span className="tab-number">{`${index + 1}:`}</span> 
+                          <button 
+                              className="tab-button visit-return" 
+                              onClick={() => handleVisitReturn(tab.id)}
+                              title="Visit & Return"
+                              disabled={tab.id === -1} // Disable actions for placeholder control tab if needed
+                          >
+                              VR
+                          </button>
+                          <button 
+                              className="tab-button visit-stay" 
+                              onClick={() => handleVisitStay(tab.id)}
+                              title="Visit & Stay"
+                              disabled={tab.id === -1} 
+                          >
+                              VS
+                          </button>
+                          <button 
+                              className="tab-button analyze" 
+                              onClick={() => handleAnalyze(tab.id, tab.url)}
+                              disabled={isRestrictedUrl(tab.url) || (!tab.title && !tab.url) || tab.id === -1}
+                              title={isRestrictedUrl(tab.url) ? "Cannot analyze restricted page" : "Analyze Page (Copy HTML)"}
+                          >
+                              Analyze
+                          </button>
+                          <span 
+                            className={`tab-name ${customTabNames[tab.url] ? 'custom-name' : ''}`}
+                            contentEditable={tab.id !== -1} // Don't allow editing placeholder control tab name
+                            suppressContentEditableWarning={true}
+                            onClick={(e) => e.stopPropagation()} 
+                            onKeyDown={(e) => handleTabNameKeyDown(e, tab.url)}
+                            onBlur={(e) => handleTabNameBlur(e, tab.url)}
+                            key={`${tab.id}-name`}
+                          >
+                            {tabDisplayName}
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+              ) : (
+                  <p>No tabs found in this window.</p> // Should ideally not happen if window has ID
+              )}
+            </div>
+          )
+        })
       )}
     </div>
   );

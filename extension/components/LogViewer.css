@@ -1,0 +1,197 @@
+.log-viewer-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000; /* Ensure it's above other content */
+}
+
+.log-viewer-content {
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  width: 80%;
+  max-width: 800px;
+  height: 70%;
+  max-height: 600px;
+  display: flex;
+  flex-direction: column;
+}
+
+.log-viewer-content h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #333;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.log-viewer-area {
+  flex-grow: 1;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  overflow-y: auto; /* Enable vertical scrolling */
+  padding: 10px;
+  margin-bottom: 15px;
+}
+
+.log-viewer-area pre {
+  margin: 0;
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+  font-size: 0.85em;
+  white-space: pre-wrap; /* Wrap long lines */
+  word-wrap: break-word; /* Break words if necessary */
+  color: #495057;
+}
+
+/* Remove the single pre block styling if we switch to divs */
+/* 
+.log-viewer-area pre { ... } 
+*/
+
+/* Styling for individual log entries */
+.log-entry {
+  padding: 5px 8px;
+  margin-bottom: 4px;
+  border-radius: 3px;
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+  font-size: 0.85em;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  border: 1px solid transparent; /* Base border */
+}
+
+.log-entry-timestamp {
+  color: #6c757d; /* Gray for timestamp */
+  margin-right: 8px;
+  font-size: 0.9em;
+}
+
+.log-entry-level {
+  display: inline-block;
+  padding: 0px 5px;
+  border-radius: 3px;
+  font-weight: bold;
+  text-transform: uppercase;
+  margin-right: 8px;
+  font-size: 0.8em;
+  color: white;
+}
+
+.log-entry-message {
+  /* Main message styling */
+}
+
+.log-entry-context {
+  margin-top: 3px;
+  margin-left: 20px; /* Indent context */
+  font-size: 0.9em;
+  color: #555;
+  background-color: #e9ecef; /* Light background for context block */
+  padding: 4px 8px;
+  border-radius: 3px;
+  display: block; /* Ensure it takes its own block */
+  white-space: pre-wrap; /* Keep formatting */
+}
+
+/* Level specific styling */
+.log-entry-info {
+  background-color: #f8f9fa; /* Light gray background */
+  border-left: 3px solid #007bff; /* Blue left border for info */
+}
+.log-entry-info .log-entry-level {
+  background-color: #007bff; /* Blue */
+}
+
+.log-entry-debug {
+  background-color: #f8f9fa;
+  border-left: 3px solid #6c757d; /* Gray border for debug */
+  color: #495057; /* Slightly muted text for debug */
+}
+.log-entry-debug .log-entry-level {
+  background-color: #6c757d; /* Gray */
+}
+
+.log-entry-warn {
+  background-color: #fffbeb; /* Light yellow background */
+  border-left: 3px solid #ffc107; /* Yellow border for warn */
+}
+.log-entry-warn .log-entry-level {
+  background-color: #ffc107; /* Yellow */
+  color: #333; /* Darker text on yellow */
+}
+
+.log-entry-error {
+  background-color: #fef2f2; /* Light red background */
+  border-left: 3px solid #dc3545; /* Red border for error */
+  color: #721c24; /* Darker red text */
+}
+.log-entry-error .log-entry-level {
+  background-color: #dc3545; /* Red */
+}
+
+.log-viewer-error {
+    color: #dc3545; /* Bootstrap danger color */
+    font-weight: bold;
+}
+
+.log-viewer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* Basic button styling (reuse or adapt from existing styles if available) */
+.log-viewer-actions button {
+    padding: 8px 15px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+
+.log-viewer-actions button:last-child { /* Assuming Close is the last button */
+    background-color: #007bff; /* Primary color */
+    color: white;
+    border-color: #007bff;
+}
+.log-viewer-actions button:last-child:hover {
+    background-color: #0056b3;
+    border-color: #0056b3;
+}
+
+.log-viewer-actions .button-secondary { /* Style for the Clear button */
+    background-color: #6c757d; /* Secondary color */
+    color: white;
+    border-color: #6c757d;
+}
+
+.log-viewer-actions .button-secondary:hover {
+    background-color: #5a6268;
+    border-color: #545b62;
+}
+
+/* Style for the Copy button */
+.log-viewer-actions .button-copy {
+    background-color: #17a2b8; /* Info color (like Bootstrap) */
+    color: white;
+    border-color: #17a2b8;
+}
+
+.log-viewer-actions .button-copy:hover {
+    background-color: #138496;
+    border-color: #117a8b;
+}
+
+.log-viewer-actions button:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+} 
