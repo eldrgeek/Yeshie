@@ -1,20 +1,23 @@
 import { setupBG } from "../functions/extcomms";
 import type {PlasmoMessaging} from "@plasmohq/messaging"
 import 'url:../tabs/index.html'; // Ensure the tab page is included in the build
-import { initTabTracking } from "./tabHistory"; // Import tab tracking
+import { initTabTracking, getLastActiveTab, focusLastActiveTab } from "./tabHistory";
+import type { TabInfo } from "./tabHistory"; // Separate type import
 import { addReport } from './reportHandler';
 import OpenAI from "openai";
 import { storageGet, storageSet, storageRemove, storageGetAll, logStorageUsage as logStorageUsageUtil } from "../functions/storage";
 import { log } from "../functions/DiagnosticLogger"; // Assuming DiagnosticLogger is setup
+// Import types from the tabs page (or a shared types file in the future)
+import type { SendToLLMPayload, SendToLLMResponse, NewReportPayload } from '../tabs/index.tsx';
 
-// --- Define types for LLM messaging --- 
-interface SendToLLMRequestBody {
-  prompt: string;
-}
-interface SendToLLMResponseBody {
-  result?: string;
-  error?: string;
-}
+// --- Remove redundant types ---
+// interface SendToLLMRequestBody {
+//   prompt: string;
+// }
+// interface SendToLLMResponseBody {
+//   result?: string;
+//   error?: string;
+// }
 // --- End Types ---
 
 const DEBUG_TABS = false; // Control tab-related logging
@@ -30,10 +33,13 @@ async function logStorageUsage() {
         await logStorageUsageUtil(); // Call the centralized function
         // Keep sync storage check for now, though ideally it would also be in the util
         // Note: sync storage usage needs separate handling if required.
-        const syncItems = await chrome.storage.sync.get(null);
-        // chrome.storage.sync.get(null) should return an object, even if empty.
-        // The catch block handles actual errors.
-        const syncCount = Object.keys(syncItems).length;
+        const syncItems = await chrome.storage.sync.get(null) as {[key: string]: any} | void;
+        // Initialize count and update only if syncItems is a valid object
+        let syncCount = 0;
+        if (syncItems && typeof syncItems === 'object') {
+          // Now syncItems is confirmed to be an object
+          syncCount = Object.keys(syncItems).length;
+        }
         console.log(`chrome.storage.sync item count: ${syncCount}`);
         if (syncCount >= 510) { // Check against the 512 limit
             log('storage_warning', { area: 'sync', message: 'MAX_ITEMS limit nearing', count: syncCount });
@@ -206,7 +212,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // });
 
 // --- Function to perform the actual LLM call ---
-async function callLLMService(prompt: string): Promise<SendToLLMResponseBody> {
+async function callLLMService(prompt: string): Promise<SendToLLMResponse> {
   console.log(`** callLLMService invoked with prompt: "${prompt.substring(0, 50)}..." **`);
   let apiKeyToUse: string | null = null;
 
@@ -231,14 +237,14 @@ async function callLLMService(prompt: string): Promise<SendToLLMResponseBody> {
        // Log error using diagnostic logger
        const errorMessage = storageError instanceof Error ? storageError.message : String(storageError);
        log('storage_error', { operation: 'getApiKey', error: errorMessage });
-       return { error: 'Failed to read API key from storage.' };
+       return { error: 'Failed to read API key from storage.' } as SendToLLMResponse;
     }
   }
 
   // 3. Check if we have a key now
   if (!apiKeyToUse) {
     console.error('OpenAI API key not set (checked memory and storage).');
-    return { error: 'OpenAI API key not set. Please set it via the tab page.' };
+    return { error: 'OpenAI API key not set. Please set it via the tab page.' } as SendToLLMResponse;
   }
 
   // 4. Proceed with API call
@@ -256,10 +262,10 @@ async function callLLMService(prompt: string): Promise<SendToLLMResponseBody> {
     console.log('OpenAI API Response received.');
 
     if (result) {
-      return { result: result.trim() };
+      return { result: result.trim() } as SendToLLMResponse;
     } else {
       console.error('OpenAI API response did not contain content.', completion);
-      return { error: 'LLM did not return a valid response.' };
+      return { error: 'LLM did not return a valid response.' } as SendToLLMResponse;
     }
   } catch (error) {
     console.error('Error calling OpenAI API:', error);
@@ -268,7 +274,7 @@ async function callLLMService(prompt: string): Promise<SendToLLMResponseBody> {
     // Add specific error checks as before
     if (String(errorMessage).includes('Incorrect API key')) { errorMessage = 'Invalid OpenAI API key. Please check and save your key again.'; }
     else if ((error as any)?.status === 429) { errorMessage = 'OpenAI API rate limit exceeded or quota reached. Check account.'; }
-    return { error: `LLM Error: ${errorMessage}` };
+    return { error: `LLM Error: ${errorMessage}` } as SendToLLMResponse;
   }
 }
 
@@ -290,16 +296,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     // --- Handle sendToLLM ---
     else if (message.name === 'sendToLLM') {
-      // Use the new refactored function
-      callLLMService(message.body.prompt)
+      // Ensure message.body conforms to SendToLLMPayload
+      const payload = message.body as SendToLLMPayload;
+      if (!payload || typeof payload.prompt !== 'string') {
+         console.error("Invalid payload received for sendToLLM");
+         sendResponse({ error: "Invalid prompt payload" } as SendToLLMResponse);
+         return true; // Indicate response sent
+      }
+
+      callLLMService(payload.prompt)
         .then(response => {
           console.log("Sending response for sendToLLM:", response);
-          sendResponse(response);
+          sendResponse(response); // Response should already match SendToLLMResponse
         })
         .catch(error => {
-           // This catch might be redundant if callLLMService handles all errors internally
            console.error("Unexpected error calling callLLMService:", error);
-           sendResponse({ error: "Unexpected background error during LLM call." });
+           sendResponse({ error: "Unexpected background error during LLM call." } as SendToLLMResponse);
         });
       return true; // Indicate async response
     }
@@ -358,7 +370,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true; // Indicate async response
     }
     else if (message.type === 'ADD_REPORT') {
-      addReport(message.report)
+      // Ensure message.report conforms to NewReportPayload
+      const reportPayload = message.report as NewReportPayload;
+      if (!reportPayload || !reportPayload.type || !reportPayload.title || !reportPayload.description) {
+        console.error("Invalid payload received for ADD_REPORT");
+        sendResponse({ success: false, error: "Invalid report payload" });
+        return true; // Indicate response sent
+      }
+
+      addReport(reportPayload) // Pass the validated payload
         .then(() => sendResponse({ success: true }))
         .catch(error => {
           console.error('Error adding report:', error);

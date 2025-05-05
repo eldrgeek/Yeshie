@@ -9,24 +9,16 @@ import { getBuildInfo } from '../background/buildCounter';
 import { storageGet, storageSet, storageGetAll } from "../functions/storage";
 import { log } from "../functions/DiagnosticLogger";
 import { LAST_TAB_KEY } from "../background/tabHistory"; // Import the key
-
 import "./style.css"; // Assuming you might want some basic styling
 
-// --- Constants ---
-const PAGE_TITLE = "Yeshie Control";
-const DEBUG_TABS = false; // Control tab-related logging
-const LAST_LOADED_TIME_KEY = "yeshie_tab_page_last_loaded";
-const API_KEY_STORAGE_KEY = 'openai-api-key'; // Add key constant
-const RELOAD_COUNT_KEY = "yeshie_tab_reload_count"; // Key for reload counter
+// --- Type Definitions ---
 
-// Define STORAGE_KEY locally as it's not exported from TabList
-const STORAGE_KEY = 'yeshieTabCustomNames';
-
-// Define CustomNameMap locally
+// Map of URL strings to custom names
 interface CustomNameMap {
     [url: string]: string;
 }
 
+// Information about a browser tab
 interface TabInfo {
   id: number;
   url: string;
@@ -34,6 +26,7 @@ interface TabInfo {
   timestamp: number;
 }
 
+// Information about the extension build
 interface BuildInfo {
   manifestVersion: string;
   buildCounter: number;
@@ -41,6 +34,7 @@ interface BuildInfo {
   isDev: boolean;
 }
 
+// Structure for user reports (bugs or features)
 interface Report {
   id: string;
   type: 'bug' | 'feature';
@@ -55,8 +49,49 @@ interface Report {
   };
 }
 
+// Payload for creating a new report
+export interface NewReportPayload {
+  type: 'bug' | 'feature';
+  title: string;
+  description: string;
+}
+
+// Response structure for getLastTab background message
+export interface GetLastTabResponse {
+  success: boolean;
+  lastTab?: TabInfo;
+  error?: string;
+}
+
+// Response structure for focusLastTab background message
+export interface FocusTabResponse {
+  success: boolean;
+  error?: string;
+}
+
+// Payload for sendToLLM background message
+export interface SendToLLMPayload {
+  prompt: string;
+}
+
+// Response structure for sendToLLM background message
+export interface SendToLLMResponse {
+  result?: string;
+  error?: string;
+}
+
+// --- Constants ---
+const PAGE_TITLE = "Yeshie Control";
+const DEBUG_TABS = false; // Control tab-related logging
+const LAST_LOADED_TIME_KEY = "yeshie_tab_page_last_loaded";
+const API_KEY_STORAGE_KEY = 'openai-api-key'; // Add key constant
+const RELOAD_COUNT_KEY = "yeshie_tab_reload_count"; // Key for reload counter
+
+// Define STORAGE_KEY locally as it's not exported from TabList
+const STORAGE_KEY = 'yeshieTabCustomNames';
+
 function TabsIndex() {
-  const [buildInfo] = useState(getBuildInfo());
+  const [buildInfo] = useState<BuildInfo>(getBuildInfo());
   const [lastTabInfo, setLastTabInfo] = useState<TabInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -102,11 +137,10 @@ function TabsIndex() {
   }, []);
 
   // Fetch the last active tab
-  const fetchLastTab = async () => {
+  const fetchLastTab = async (): Promise<TabInfo | null> => {
     try {
       if (DEBUG_TABS) console.log("TabsIndex: Fetching last tab info...");
-      const response = await sendToBackground({ name: "getLastTab" });
-      // Log the raw response from the background script
+      const response: GetLastTabResponse = await sendToBackground({ name: "getLastTab" });
       if (DEBUG_TABS) console.log("TabsIndex: Received response from background for getLastTab:", JSON.stringify(response));
       
       if (response && response.success && response.lastTab) {
@@ -296,7 +330,7 @@ function TabsIndex() {
     try {
       if (DEBUG_TABS) console.log(`Attempting to focus tab ID: ${lastTabInfo.id}`);
       
-      const response = await sendToBackground({ 
+      const response: FocusTabResponse = await sendToBackground({
         name: "focusLastTab",
         body: { force: true } // Always force focus for manual clicks
       });
@@ -339,14 +373,14 @@ function TabsIndex() {
   };
 
   // Add handleReportSubmit logic (can be simplified)
-  const handleReportSubmit = async (report: { type: 'bug' | 'feature', title: string, description: string }) => {
-    console.log("TabsIndex: Handling report submission:", report);
+  const handleReportSubmit = async (reportData: NewReportPayload) => {
+    console.log("TabsIndex: Handling report submission:", reportData);
     try {
       // Directly send message to background
       await chrome.runtime.sendMessage({
         type: 'ADD_REPORT',
         report: {
-          ...report,
+          ...reportData,
           // Add any extra context if needed from the tabs page
         }
       });
@@ -411,9 +445,11 @@ function TabsIndex() {
         return;
       }
 
-      const response = await sendToBackground({
-        name: 'sendToLLM' as any, // Using type assertion
-        body: { prompt: text }
+      // Use the new payload and response types
+      const payload: SendToLLMPayload = { prompt: text };
+      const response: SendToLLMResponse = await sendToBackground({
+        name: 'sendToLLM' as any, // Keep type assertion for name if needed by plasmo
+        body: payload
       });
 
       console.log("TabsIndex: Raw response from sendToLLM background handler:", JSON.stringify(response, null, 2));
@@ -623,10 +659,9 @@ function TabsIndex() {
 }
 
 const root = ReactDOM.createRoot(document.getElementById("root")!);
-console.log("TabsIndex", TabsIndex);
 root.render(
   <React.StrictMode>
-    ""
+    <TabsIndex />
   </React.StrictMode>
 ); 
 

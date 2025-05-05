@@ -10,7 +10,8 @@ const EXTENSION_URL_PATTERN = chrome.runtime.getURL("")
 const MIN_TAB_FOCUS_TIME = 800
 const MIN_TAB_FOCUS_TIME_BEFORE_NAVIGATION = 300
 
-interface TabInfo {
+// Export the interface
+export interface TabInfo {
   id: number
   url: string
   title: string

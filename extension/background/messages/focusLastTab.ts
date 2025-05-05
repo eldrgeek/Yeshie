@@ -1,5 +1,6 @@
 import type { PlasmoMessaging } from "@plasmohq/messaging"
 import { focusLastActiveTab, getLastActiveTab } from "../tabHistory"
+import type { FocusTabResponse } from "../../tabs/index.tsx"
 
 /**
  * Message handler to focus the last active tab.
@@ -15,7 +16,7 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
       res.send({
         success: false,
         error: "No valid tab to focus"
-      })
+      } as FocusTabResponse)
       return
     }
     
@@ -74,9 +75,7 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
     if (success) {
       console.log("Successfully focused tab after attempts")
       res.send({
-        success: true,
-        message: "Tab focused successfully"
-      })
+      } as FocusTabResponse)
       return
     }
     
@@ -87,22 +86,18 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
     if (fallbackSuccess) {
       console.log("Successfully focused last active tab via focusLastActiveTab")
       res.send({
-        success: true,
-        message: "Tab focused successfully via fallback method"
-      })
+      } as FocusTabResponse)
     } else {
       console.warn("Failed to focus last active tab with any method")
       res.send({
-        success: false,
-        error: "Failed to focus tab with any method"
-      })
+      } as FocusTabResponse)
     }
   } catch (error) {
     console.error("Error in focusLastTab handler:", error)
     res.send({
       success: false,
       error: error.message || "Unknown error focusing tab"
-    })
+    } as FocusTabResponse)
   }
 }
 
