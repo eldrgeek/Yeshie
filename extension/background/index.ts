@@ -182,56 +182,67 @@ function sendMessageToTab(tabId: number, message: any) {
  * Opens the dedicated tab page on first install or update.
  */
 chrome.runtime.onInstalled.addListener(async (details) => {
+  // *** REMOVE ENTRY LOG (was likely cleared/missed anyway) ***
+  // console.log(`>>> onInstalled listener triggered. Reason: ${details.reason}`); 
+  // logInfo(">>> onInstalled listener triggered.", { reason: details.reason });
+
+  // --- REMOVE TEMPORARY DEBUG FLAG --- 
+  // const forceUpdate = true; 
+  // --- END TEMPORARY DEBUG --- 
+
   try {
-    // console.log("Extension installed or updated:", details.reason);
-    logInfo("Extension installed or updated", { reason: details.reason });
+    logInfo("Extension installed or updated (inside try block)", { reason: details.reason });
 
     if (details.reason === 'install') {
-      // Open the tab page on first install
-      // console.log("Reason: install. Opening or focusing tab page.");
       logInfo("Reason: install. Opening or focusing tab page.");
       openOrFocusExtensionTab();
-    } else if (details.reason === 'update') {
-      // console.log("Reason: update. Reloading application tabs based on stored list.");
-      logInfo("Reason: update. Reloading application tabs based on stored list.");
+    } 
+    // --- REVERT DEBUG CONDITION --- 
+    // else if (details.reason === 'update' || forceUpdate) { 
+    else if (details.reason === 'update') { 
+    // --- END REVERT DEBUG CONDITION --- 
+      // logInfo(`Reason: update (or forced: ${forceUpdate}). Reloading application tabs based on stored list.`);
+      logInfo("Reason: update. Reloading application tabs based on stored list."); // Revert log message
       try {
-        // Read the list of application tabs maintained by tabHistory.ts
-        const tabsToReload = await storageGet<StoredApplicationTab[]>(APPLICATION_TABS_KEY);
+        logInfo("Attempting to read application tabs from storage...");
+        const tabsToReloadGroupedRaw = await storageGet<Record<string, StoredApplicationTab[]>>(APPLICATION_TABS_KEY);
         
-        if (tabsToReload && tabsToReload.length > 0) {
-          // console.log(`Found ${tabsToReload.length} application tabs in storage to reload.`);
-          logInfo(`Found ${tabsToReload.length} application tabs in storage to reload.`);
-          for (const tab of tabsToReload) {
-            if (tab && tab.id) { // Check tab and tab.id exist
-              try {
-                // Verify tab still exists before reloading (optional but safer)
-                await chrome.tabs.get(tab.id);
-                // Attempt reload
-                await chrome.tabs.reload(tab.id);
-                // console.log(`Reloaded application tab ID: ${tab.id} (${tab.title})`);
-                logInfo(`Reloaded application tab ID: ${tab.id}`, { title: tab.title });
-              } catch (reloadOrGetError: any) {
-                // Log if tab doesn't exist anymore or reload failed
-                if (reloadOrGetError.message?.includes("No tab with id")) {
-                    // console.warn(`Application tab ID ${tab.id} no longer exists.`);
-                    logWarn(`Application tab ID ${tab.id} no longer exists.`);
+        // *** REMOVE EXTRA DEBUG LOGGING ***
+        // console.log("[onInstalled Update] Raw data read from storage for APPLICATION_TABS_KEY:", tabsToReloadGroupedRaw);
+        // logInfo("[onInstalled Update] Raw data read from storage.", { rawData: tabsToReloadGroupedRaw }); 
+
+        if (!tabsToReloadGroupedRaw || Object.keys(tabsToReloadGroupedRaw).length === 0) {
+             // console.log("[onInstalled Update] Condition met: Data is null, undefined, or empty object.");
+             logInfo("No application tabs found in storage (or data is empty/null). No tabs to reload.");
+        } else {
+             // console.log("[onInstalled Update] Condition NOT met: Data seems valid, proceeding to flatten.");
+             // Flatten the grouped tabs into a single list for reloading
+             const allTabsToReload: StoredApplicationTab[] = Object.values(tabsToReloadGroupedRaw).flat();
+             logInfo(`Found ${allTabsToReload.length} total application tabs across all windows in storage to reload.`);
+             
+             // *** REMOVE EXTRA DEBUG LOGGING ***
+             // console.log(`[onInstalled Update] Entering loop to reload ${allTabsToReload.length} tabs...`);
+
+             for (const tab of allTabsToReload) {
+                if (tab && tab.id) { 
+                  try {
+                    await chrome.tabs.get(tab.id);
+                    await chrome.tabs.reload(tab.id);
+                    logInfo(`Reloaded application tab ID: ${tab.id}`, { title: tab.title });
+                  } catch (reloadOrGetError: any) {
+                    if (reloadOrGetError.message?.includes("No tab with id")) {
+                        logWarn(`Application tab ID ${tab.id} no longer exists.`);
+                    } else {
+                        handleError(reloadOrGetError, { operation: 'reloadAppTabOnUpdate', tabId: tab.id });
+                    }
+                  }
                 } else {
-                    // logError(`Error reloading application tab ID ${tab.id}`, reloadOrGetError);
-                    handleError(reloadOrGetError, { operation: 'reloadAppTabOnUpdate', tabId: tab.id });
+                  logWarn("Found invalid tab data in flattened list:", { tab });
                 }
               }
-            } else {
-              // console.warn("Found invalid tab data in storage:", tab);
-              logWarn("Found invalid tab data in storage", { tab });
-            }
-          }
-        } else {
-            // console.log("No application tabs found in storage to reload.");
-            logInfo("No application tabs found in storage to reload.");
         }
 
         // After reloading app tabs, ensure the main extension UI tab is open and focused.
-        // console.log("Ensuring extension UI tab is open/focused after update.");
         logInfo("Ensuring extension UI tab is open/focused after update.");
         openOrFocusExtensionTab();
 
