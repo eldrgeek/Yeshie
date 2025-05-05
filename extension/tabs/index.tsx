@@ -223,10 +223,34 @@ function TabsIndex() {
   // --- Effect to increment and display reload count ---
   useEffect(() => {
     const incrementReloadCount = async () => {
+      let numericCount = 0; // Initialize as number
+      const RESET_THRESHOLD = 10000; // Define a threshold for resetting
       try {
-        const currentCount = await storageGet<number>(RELOAD_COUNT_KEY) || 0;
-        log('storage_get', { key: RELOAD_COUNT_KEY, found: currentCount > 0, value: currentCount });
-        const newCount = currentCount + 1;
+        const storedValue = await storageGet<number | string>(RELOAD_COUNT_KEY);
+        log('storage_get', { key: RELOAD_COUNT_KEY, found: storedValue !== undefined, value: storedValue });
+
+        if (typeof storedValue === 'number' && !isNaN(storedValue)) {
+          numericCount = storedValue;
+        } else if (typeof storedValue === 'string') {
+          const parsed = parseInt(storedValue, 10);
+          if (!isNaN(parsed)) {
+            numericCount = parsed;
+          } else {
+             log('reload_counter_warning', { message: 'Stored value was non-numeric string, resetting', value: storedValue });
+             numericCount = 0;
+          }
+        } else {
+             log('reload_counter_info', { message: 'No valid stored value found, starting from 0' });
+             numericCount = 0;
+        }
+
+        // Reset if the count is unreasonably high
+        if (numericCount > RESET_THRESHOLD) {
+            log('reload_counter_reset', { message: `Count ${numericCount} exceeded threshold ${RESET_THRESHOLD}, resetting.`, value: numericCount });
+            numericCount = 0;
+        }
+
+        const newCount = numericCount + 1; // Perform numerical addition
         await storageSet(RELOAD_COUNT_KEY, newCount);
         log('storage_set', { key: RELOAD_COUNT_KEY, value: newCount });
         setReloadCount(newCount);
@@ -235,6 +259,7 @@ function TabsIndex() {
         console.error("Error managing reload count:", error);
         const errorMessage = error instanceof Error ? error.message : String(error);
         log('storage_error', { operation: 'incrementReloadCount', error: errorMessage });
+        setReloadCount(0); // Reset on error
       }
     };
 
