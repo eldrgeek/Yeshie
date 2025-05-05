@@ -1,10 +1,11 @@
 import { setupBG } from "../functions/extcomms";
 import type {PlasmoMessaging} from "@plasmohq/messaging"
-import { Storage } from "@plasmohq/storage"
 import 'url:../tabs/index.html'; // Ensure the tab page is included in the build
 import { initTabTracking } from "./tabHistory"; // Import tab tracking
 import { addReport } from './reportHandler';
 import OpenAI from "openai";
+import { storageGet, storageSet, storageRemove, storageGetAll, logStorageUsage as logStorageUsageUtil } from "../functions/storage";
+import { log } from "../functions/DiagnosticLogger"; // Assuming DiagnosticLogger is setup
 
 // --- Define types for LLM messaging --- 
 interface SendToLLMRequestBody {
@@ -16,157 +17,35 @@ interface SendToLLMResponseBody {
 }
 // --- End Types ---
 
-// Ensure storage uses the 'local' area consistently
-const storage = new Storage({ area: "local" });
-
-// --- Variable to hold API key in memory ---
-let backgroundApiKey: string | null = null;
-
-// Add these type definitions at the top of your file
-declare global {
-  interface WorkerGlobalScope {
-    addEventListener(type: 'fetch', listener: (event: FetchEvent) => void): void;
-  }
-}
-
-interface FetchEvent extends Event {
-  request: Request;
-  respondWith(response: Promise<Response> | Response): void;
-  preloadResponse: Promise<Response | undefined>;
-}
-
-// Add these type declarations at the top of the file
-declare namespace chrome {
-    namespace storage {
-        interface StorageArea {
-            get(keys: string | string[] | object | null): Promise<{ [key: string]: any }>;
-            set(items: object): Promise<void>;
-            remove(keys: string | string[]): Promise<void>;
-            clear(): Promise<void>;
-        }
-        const local: StorageArea;
-        const sync: StorageArea;
-    }
-
-    namespace runtime {
-        const lastError: { message: string } | undefined;
-        function getURL(path: string): string;
-        function sendMessage(message: any): Promise<any>;
-        function connect(): { postMessage: (message: any) => void };
-        const onMessage: {
-            addListener: (callback: (message: any, sender: any, sendResponse: (response?: any) => void) => void) => void;
-        };
-        const onInstalled: {
-            addListener: (callback: (details: { reason: string }) => void) => void;
-        };
-        const onStartup: {
-            addListener: (callback: () => void) => void;
-        };
-    }
-
-    namespace tabs {
-        interface Tab {
-            id?: number;
-            url?: string;
-            active: boolean;
-            windowId: number;
-        }
-        interface TabChangeInfo {
-            status?: string;
-            url?: string;
-            pinned?: boolean;
-            audible?: boolean;
-            muted?: boolean;
-            favIconUrl?: string;
-            title?: string;
-        }
-        function query(queryInfo: object): Promise<Tab[]>;
-        function update(tabId: number, updateProperties: object): Promise<Tab>;
-        function create(createProperties: object): Promise<Tab>;
-        function reload(tabId: number): Promise<void>;
-        function captureVisibleTab(
-            windowId?: number,
-            options?: {
-                format?: 'jpeg' | 'png',
-                quality?: number
-            },
-            callback?: (dataUrl: string) => void
-        ): Promise<string>;
-        function sendMessage(
-            tabId: number,
-            message: any,
-            options?: object,
-            callback?: (response: any) => void
-        ): Promise<any>;
-        const onActivated: {
-            addListener: (callback: (activeInfo: { tabId: number }) => void) => void;
-        };
-        const onUpdated: {
-            addListener: (callback: (tabId: number, changeInfo: TabChangeInfo, tab: Tab) => void) => void;
-        };
-        const onCreated: {
-            addListener: (callback: (tab: Tab) => void) => void;
-        };
-        const onRemoved: {
-            addListener: (callback: (tabId: number) => void) => void;
-        };
-    }
-
-    // Add definitions for chrome.notifications
-    namespace notifications {
-        interface NotificationOptions {
-            type: 'basic' | 'image' | 'list' | 'progress';
-            iconUrl?: string;
-            title: string;
-            message: string;
-            contextMessage?: string;
-            priority?: number;
-            eventTime?: number;
-            buttons?: { title: string; iconUrl?: string }[];
-            items?: { title: string; message: string }[];
-            progress?: number;
-            requireInteraction?: boolean;
-            silent?: boolean;
-        }
-
-        function create(
-            notificationId: string | undefined,
-            options: NotificationOptions,
-            callback?: (notificationId: string) => void
-        ): void;
-        function create(
-            options: NotificationOptions,
-            callback?: (notificationId: string) => void
-        ): void;
-
-        // Add other notification methods if needed (e.g., update, clear, etc.)
-    }
-
-}
-
 const DEBUG_TABS = false; // Control tab-related logging
 
 console.log("Yeshie background service worker started.");
 
-// Function to log storage usage
+// --- Variable to hold API key in memory ---
+let backgroundApiKey: string | null = null;
+
+// --- Log storage usage using the new utility ---
 async function logStorageUsage() {
     try {
-        const localItems = await chrome.storage.local.get(null);
-        const localCount = Object.keys(localItems).length;
-        console.log(`chrome.storage.local item count: ${localCount}`);
-        // Optionally log local keys if needed for debugging
-        // console.log("Local storage keys:", Object.keys(localItems));
-
+        await logStorageUsageUtil(); // Call the centralized function
+        // Keep sync storage check for now, though ideally it would also be in the util
+        // Note: sync storage usage needs separate handling if required.
         const syncItems = await chrome.storage.sync.get(null);
+        // chrome.storage.sync.get(null) should return an object, even if empty.
+        // The catch block handles actual errors.
         const syncCount = Object.keys(syncItems).length;
         console.log(`chrome.storage.sync item count: ${syncCount}`);
-        if (syncCount >= 500) { // Check against the 512 limit
+        if (syncCount >= 510) { // Check against the 512 limit
+            log('storage_warning', { area: 'sync', message: 'MAX_ITEMS limit nearing', count: syncCount });
             console.warn("chrome.storage.sync is near or at its MAX_ITEMS limit!");
             // Log the keys to see what's filling up sync storage
-            console.log("Sync storage keys:", Object.keys(syncItems));
+            // console.log("Sync storage keys:", Object.keys(syncItems)); // Log keys if needed
         }
     } catch (error) {
         console.error("Error checking storage usage:", error);
+        // Log the error using the diagnostic logger if available
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        log('storage_error', { operation: 'logStorageUsage', error: errorMessage });
     }
 }
 
@@ -307,12 +186,15 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   if (DEBUG_TABS) console.log("Tab removed:", tabId);
   setTimeout(async () => {
     try {
-      await storage.remove(`tabContext:${tabId}`);
+      await storageRemove(`tabContext:${tabId}`);
       if (DEBUG_TABS) console.log(`Removed context for tab ${tabId}`);
       // Log state after removal attempt
       // logCurrentTabState().catch(error => console.error("Error during onRemoved logCurrentTabState:", error)); // Temporarily commented out
     } catch(error) {
         console.error(`Error removing context for tab ${tabId}:`, error);
+        // Log error using diagnostic logger
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        log('storage_error', { operation: 'removeTabContext', tabId: tabId, error: errorMessage });
     }
   }, CONTEXT_REMOVAL_DELAY);
 });
@@ -333,19 +215,22 @@ async function callLLMService(prompt: string): Promise<SendToLLMResponseBody> {
     console.log("Using API key stored in background script memory.");
     apiKeyToUse = backgroundApiKey;
   } else {
-    // 2. Fallback to reading from storage
+    // 2. Fallback to reading from storage using the new utility
     console.log("In-memory API key not found, attempting to read from storage...");
     try {
-      // Ensure storage is defined correctly here if not globally available
-      const localStore = new Storage({ area: "local" });
-      apiKeyToUse = await localStore.get<string>('openai-api-key');
+      apiKeyToUse = await storageGet<string>('openai-api-key'); // Use storageGet
       if (apiKeyToUse) {
          console.log("Successfully read API key from storage.");
-         // Optionally store it in memory now?
+         // Optionally store it in memory now
          // backgroundApiKey = apiKeyToUse;
+      } else {
+         console.log("API key not found in storage.");
       }
     } catch (storageError) {
        console.error('Error reading API key from storage:', storageError);
+       // Log error using diagnostic logger
+       const errorMessage = storageError instanceof Error ? storageError.message : String(storageError);
+       log('storage_error', { operation: 'getApiKey', error: errorMessage });
        return { error: 'Failed to read API key from storage.' };
     }
   }
@@ -481,6 +366,78 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
       return true; // Keep the message channel open for async response
     }
+    else if (message.action === "saveDiagnosticLog") { // Adjusted message action name
+        try {
+          // Store the diagnostic data in persistent storage
+          if (message.body.diagnosticData) { // Adjusted to use message.body
+            const timestamp = new Date().toISOString().replace(/:/g, '-');
+            const key = `diagnosticLog_${timestamp}`;
+
+            // Use storageSet to save the diagnostic data
+            storageSet(key, { // Use storageSet
+              timestamp,
+              data: message.body.diagnosticData, // Adjusted to use message.body
+              userAgent: navigator.userAgent,
+              url: message.body.url || "unknown" // Adjusted to use message.body
+            }).then(() => {
+               console.log(`Diagnostic log saved with key: ${key}`);
+               sendResponse({
+                 success: true,
+                 message: "Diagnostic log saved",
+                 key
+               });
+            }).catch(error => {
+                console.error("Error saving diagnostic log:", error);
+                // Log error using diagnostic logger
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                log('storage_error', { operation: 'saveDiagnosticLog', error: errorMessage });
+                sendResponse({
+                  success: false,
+                  message: `Error saving diagnostic log: ${errorMessage}`
+                });
+            });
+
+          } else {
+            sendResponse({
+              success: false,
+              message: "No diagnostic data provided"
+            });
+          }
+        } catch (error) {
+          console.error("Error saving diagnostic log:", error);
+          // Log error using diagnostic logger
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          log('storage_error', { operation: 'saveDiagnosticLog', error: errorMessage });
+          sendResponse({
+            success: false,
+            message: `Error saving diagnostic log: ${errorMessage}`
+          });
+        }
+        return true; // Indicate async response
+      }
+      else if (message.action === "getDiagnosticLogs") { // Adjusted message action name
+        storageGetAll().then(items => { // Use storageGetAll
+           // Filter for only diagnostic logs
+           const logs = Object.entries(items)
+             .filter(([key]) => key.startsWith('diagnosticLog_'))
+             .map(([key, value]) => ({ key, ...value }));
+
+           sendResponse({
+             success: true,
+             logs
+           });
+        }).catch(error => {
+            console.error("Error retrieving diagnostic logs:", error);
+            // Log error using diagnostic logger
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            log('storage_error', { operation: 'getDiagnosticLogs', error: errorMessage });
+            sendResponse({
+              success: false,
+              message: `Error retrieving diagnostic logs: ${errorMessage}`
+            });
+        });
+        return true; // Indicate async response
+      }
 
     // Handle other messages or unknown messages...
     // Check if the message name looks like one handled by Plasmo
@@ -520,7 +477,7 @@ self.addEventListener('online', () => {
 
 // --- Initialization ---
 // setupBG(); // Temporarily commented out // Setup background communication provided by extcomms
-logStorageUsage(); // Log storage usage on startup
+logStorageUsage(); // Log storage usage on startup using the updated function
 logCurrentTabState().catch(error => console.error("Error during initial logCurrentTabState:", error)); // Log initial state when script loads
 
 // Periodic state logging (consider reducing frequency or removing if too noisy)

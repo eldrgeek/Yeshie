@@ -1,9 +1,8 @@
-import { Storage } from "@plasmohq/storage"
-
-const storage = new Storage({ area: "local" })
+import { storageGet, storageSet, storageRemove } from "../functions/storage"
+import { log } from "../functions/DiagnosticLogger"
 
 // Store for last active tabs (not including our extension tabs)
-const LAST_TAB_KEY = "yeshie_last_active_tab"
+export const LAST_TAB_KEY = "yeshie_last_active_tab"
 const EXTENSION_URL_PATTERN = chrome.runtime.getURL("")
 
 // Set a minimum "visibility time" to consider a tab worth tracking (in ms)
@@ -79,9 +78,12 @@ function isExtensionUrl(url: string): boolean {
 async function saveTabInfo(tabInfo: TabInfo): Promise<void> {
   try {
     console.log("Saving tab info:", tabInfo)
-    await storage.set(LAST_TAB_KEY, tabInfo)
+    await storageSet(LAST_TAB_KEY, tabInfo)
+    log('storage_set', { key: LAST_TAB_KEY, tabId: tabInfo.id, url: tabInfo.url })
   } catch (error) {
     console.error("Error saving tab info:", error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    log('storage_error', { operation: 'saveTabInfo', error: errorMessage })
   }
 }
 
@@ -96,13 +98,16 @@ async function handleTabRemoved(tabId: number, removeInfo: { windowId: number, i
   
   // Check if we have this tab stored
   try {
-    const lastTab = await storage.get<TabInfo>(LAST_TAB_KEY)
+    const lastTab = await storageGet<TabInfo>(LAST_TAB_KEY)
     if (lastTab && lastTab.id === tabId) {
       console.log("Removed tab was the last active tab, clearing stored tab")
-      await storage.remove(LAST_TAB_KEY)
+      await storageRemove(LAST_TAB_KEY)
+      log('storage_remove', { key: LAST_TAB_KEY, reason: 'Tab removed' })
     }
   } catch (error) {
     console.error("Error handling tab removal:", error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    log('storage_error', { operation: 'handleTabRemoved_check', error: errorMessage })
   }
 }
 
@@ -149,11 +154,13 @@ async function handleTabActivated(activeInfo: { tabId: number; windowId: number 
         timestamp: Date.now()
       }
       
-      // Save immediately to ensure it's available right away
+      // Save immediately using the refactored function
       console.log("Immediately saving active tab:", tabInfo)
-      await storage.set(LAST_TAB_KEY, tabInfo)
+      await saveTabInfo(tabInfo)
     } catch (error) {
       console.error("Error in immediate tab update:", error)
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      log('tab_history_error', { context: 'immediate_update', error: errorMessage })
     }
     
     // Still use a shorter delay as a backup to ensure the tab is truly focused
@@ -199,9 +206,11 @@ async function handleTabActivated(activeInfo: { tabId: number; windowId: number 
         }
         
         console.log("Updating last active tab with finalized info:", tabInfo)
-        await storage.set(LAST_TAB_KEY, tabInfo)
+        await saveTabInfo(tabInfo)
       } catch (error) {
         console.error("Error in delayed tab update:", error)
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        log('tab_history_error', { context: 'delayed_update', error: errorMessage })
       } finally {
         pendingTabUpdate = null
       }
@@ -209,6 +218,8 @@ async function handleTabActivated(activeInfo: { tabId: number; windowId: number 
     
   } catch (error) {
     console.error("Error tracking tab:", error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    log('tab_history_error', { context: 'handleTabActivated_main', error: errorMessage })
   }
 }
 
@@ -235,7 +246,8 @@ function handleTabUpdated(tabId: number, changeInfo: chrome.tabs.TabChangeInfo, 
 // Get the last active tab
 export async function getLastActiveTab(): Promise<TabInfo | null> {
   try {
-    const lastTab = await storage.get<TabInfo>(LAST_TAB_KEY)
+    const lastTab = await storageGet<TabInfo>(LAST_TAB_KEY)
+    log('storage_get', { key: LAST_TAB_KEY, found: !!lastTab })
     
     if (lastTab) {
       // Verify the tab still exists before returning it
@@ -245,7 +257,8 @@ export async function getLastActiveTab(): Promise<TabInfo | null> {
       } catch (error) {
         console.warn("Last tab no longer exists:", lastTab.id)
         // Clear the stored tab since it no longer exists
-        await storage.remove(LAST_TAB_KEY)
+        await storageRemove(LAST_TAB_KEY)
+        log('storage_remove', { key: LAST_TAB_KEY, reason: 'Tab no longer exists' })
         return null
       }
     }
@@ -253,6 +266,8 @@ export async function getLastActiveTab(): Promise<TabInfo | null> {
     return null
   } catch (error) {
     console.error("Error retrieving last active tab:", error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    log('storage_error', { operation: 'getLastActiveTab', error: errorMessage })
     return null
   }
 }

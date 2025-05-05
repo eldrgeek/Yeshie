@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { storageGet, storageSet } from "../functions/storage"; // Import new storage functions
+import { log } from "../functions/DiagnosticLogger"; // Assuming DiagnosticLogger is setup
 
 interface TabInfo {
   id: number;
@@ -57,14 +59,15 @@ const TabList: React.FC = () => {
 
   // Load custom names from storage on mount
   useEffect(() => {
-      chrome.storage.local.get(STORAGE_KEY, (result) => {
-          if (chrome.runtime.lastError) {
-              console.error("Error loading custom names:", chrome.runtime.lastError);
-          } else {
-              const loadedNames = (result[STORAGE_KEY] as CustomNameMap) || {};
-              setCustomNames(loadedNames);
-              console.log("Loaded custom names:", loadedNames);
-          }
+      storageGet<CustomNameMap>(STORAGE_KEY).then(loadedNames => { // Use storageGet
+          setCustomNames(loadedNames || {});
+          log('storage_get', { key: STORAGE_KEY, found: !!loadedNames, count: loadedNames ? Object.keys(loadedNames).length : 0 });
+          console.log("Loaded custom names:", loadedNames || {});
+      }).catch(error => {
+          console.error("Error loading custom names:", error);
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          log('storage_error', { operation: 'loadCustomNames', key: STORAGE_KEY, error: errorMessage });
+          setCustomNames({}); // Default to empty on error
       });
   }, []);
 
@@ -96,11 +99,14 @@ const TabList: React.FC = () => {
              console.log(`Setting custom name for ${url} to ${finalName}`);
           }
           
-          chrome.storage.local.set({ [STORAGE_KEY]: updatedNames }, () => {
-              if (chrome.runtime.lastError) {
-                  console.error("Error saving custom names:", chrome.runtime.lastError);
-                  // Optional: Could add logic here to revert inputValues if save failed
-              }
+          storageSet(STORAGE_KEY, updatedNames).then(() => { // Use storageSet
+              log('storage_set', { key: STORAGE_KEY, action: finalName ? 'set' : 'remove', url: url });
+          }).catch(error => {
+              console.error("Error saving custom names:", error);
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              log('storage_error', { operation: 'saveCustomName', key: STORAGE_KEY, error: errorMessage });
+              // Optional: Could add logic here to revert state if save failed
+              // For simplicity, we currently don't revert the local state optimistic update
           });
           return updatedNames;
       });

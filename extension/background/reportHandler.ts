@@ -1,4 +1,5 @@
-import { Storage } from "@plasmohq/storage";
+import { storageGet, storageSet } from "../functions/storage";
+import { log } from "../functions/DiagnosticLogger";
 
 interface Report {
   id: string;
@@ -13,72 +14,114 @@ interface Report {
   };
 }
 
-const storage = new Storage();
-
 // Initialize reports storage if not exists
 export async function initializeReports() {
-  const reports = await storage.get<Report[]>('reports');
-  if (!reports) {
-    await storage.set('reports', []);
+  try {
+    const reports = await storageGet<Report[]>('reports');
+    if (reports === undefined) {
+      log('storage_init', { key: 'reports', status: 'Initializing empty array' });
+      await storageSet('reports', []);
+    } else {
+      log('storage_init', { key: 'reports', status: 'Already exists', count: reports.length });
+    }
+  } catch (error) {
+    console.error("Error initializing reports storage:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log('storage_error', { operation: 'initializeReports', error: errorMessage });
   }
 }
 
 // Add a new report
 export async function addReport(report: Omit<Report, 'id' | 'timestamp' | 'status' | 'buildInfo'>) {
-  const reports = await storage.get<Report[]>('reports') || [];
-  const buildInfo = await getBuildInfo();
-  
-  const newReport: Report = {
-    ...report,
-    id: Math.random().toString(36).substring(7),
-    timestamp: Date.now(),
-    status: 'pending',
-    buildInfo
-  };
-  
-  reports.push(newReport);
-  await storage.set('reports', reports);
-  
-  // Trigger processing
-  processReports();
-  
-  return newReport;
+  try {
+    const reports = await storageGet<Report[]>('reports') || [];
+    const buildInfo = await getBuildInfoFromBackground();
+    
+    const newReport: Report = {
+      ...report,
+      id: Math.random().toString(36).substring(7),
+      timestamp: Date.now(),
+      status: 'pending',
+      buildInfo
+    };
+    
+    reports.push(newReport);
+    await storageSet('reports', reports);
+    
+    // Trigger processing
+    processReports();
+    
+    return newReport;
+  } catch (error) {
+    console.error("Error adding report:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log('storage_error', { operation: 'addReport', error: errorMessage });
+    throw error;
+  }
 }
 
 // Get all reports
 export async function getReports(): Promise<Report[]> {
-  return await storage.get<Report[]>('reports') || [];
+  try {
+    const reports = await storageGet<Report[]>('reports') || [];
+    log('storage_get', { key: 'reports', count: reports.length });
+    return reports;
+  } catch (error) {
+    console.error("Error getting reports:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log('storage_error', { operation: 'getReports', error: errorMessage });
+    return [];
+  }
 }
 
 // Process pending reports
 async function processReports() {
-  const reports = await storage.get<Report[]>('reports') || [];
-  const pendingReports = reports.filter(r => r.status === 'pending');
-  
-  for (const report of pendingReports) {
-    try {
-      // Update status to processing
-      report.status = 'processing';
-      await storage.set('reports', reports);
-      
-      // Here you would typically:
-      // 1. Send the report to your backend
-      // 2. Process with Cursor LLM
-      // 3. Update status based on result
-      
-      // For now, we'll just mark it as completed
-      report.status = 'completed';
-      await storage.set('reports', reports);
-      
-    } catch (error) {
-      console.error('Error processing report:', error);
-      // Keep status as pending for retry
+  let reports: Report[] = [];
+  try {
+    reports = await storageGet<Report[]>('reports') || [];
+    const pendingReports = reports.filter(r => r.status === 'pending');
+    log('report_processing', { totalReports: reports.length, pendingCount: pendingReports.length });
+
+    let processed = false;
+    for (const report of pendingReports) {
+      try {
+        // Update status to processing
+        report.status = 'processing';
+        processed = true;
+
+        // Here you would typically:
+        // 1. Send the report to your backend
+        // 2. Process with Cursor LLM
+        // 3. Update status based on result
+        
+        // For now, we'll just mark it as completed
+        report.status = 'completed';
+        processed = true;
+
+        log('report_processed', { reportId: report.id, newStatus: report.status });
+
+      } catch (error) {
+        console.error('Error processing report:', report.id, error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        log('report_processing_error', { reportId: report.id, error: errorMessage });
+        // Keep status as pending for retry, don't mark as processed
+      }
     }
+    // Save reports back to storage only if changes were made
+    if (processed) {
+      log('storage_set', { key: 'reports', reason: 'Updating processed reports' });
+      await storageSet('reports', reports);
+    }
+
+  } catch (error) {
+    console.error('Error fetching reports for processing:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log('storage_error', { operation: 'processReports_fetch', error: errorMessage });
   }
 }
 
 // Get build info from buildCounter
-async function getBuildInfo() {
+async function getBuildInfoFromBackground() {
   const { manifestVersion, buildId } = await import('./buildCounter').then(m => m.getBuildInfo());
   return {
     version: manifestVersion,

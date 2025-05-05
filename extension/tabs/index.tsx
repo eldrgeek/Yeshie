@@ -3,10 +3,12 @@ import ReactDOM from "react-dom/client";
 import YeshieEditor from "../components/YeshieEditor";
 import TabList from "./TabList";
 import { sendToBackground } from "@plasmohq/messaging";
-import { Storage } from "@plasmohq/storage";
 import ReportsPanel from "../components/ReportsPanel";
 import ReportDialog from "../components/ReportDialog";
 import { getBuildInfo } from '../background/buildCounter';
+import { storageGet, storageSet, storageGetAll } from "../functions/storage";
+import { log } from "../functions/DiagnosticLogger";
+import { LAST_TAB_KEY } from "../background/tabHistory"; // Import the key
 
 import "./style.css"; // Assuming you might want some basic styling
 
@@ -17,8 +19,13 @@ const LAST_LOADED_TIME_KEY = "yeshie_tab_page_last_loaded";
 const API_KEY_STORAGE_KEY = 'openai-api-key'; // Add key constant
 const RELOAD_COUNT_KEY = "yeshie_tab_reload_count"; // Key for reload counter
 
-// --- Storage ---
-const storage = new Storage({ area: "local" });
+// Define STORAGE_KEY locally as it's not exported from TabList
+const STORAGE_KEY = 'yeshieTabCustomNames';
+
+// Define CustomNameMap locally
+interface CustomNameMap {
+    [url: string]: string;
+}
 
 interface TabInfo {
   id: number;
@@ -60,7 +67,8 @@ function TabsIndex() {
   const [tabPaneFocusedTime, setTabPaneFocusedTime] = useState<number | null>(null);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [reloadCount, setReloadCount] = useState<number>(0); // State for reload count
+  const [reloadCount, setReloadCount] = useState<number>(0);
+  const [customNames, setCustomNames] = useState<CustomNameMap>({});
 
   // --- State for API Key Management ---
   const [hasApiKey, setHasApiKey] = useState(false);
@@ -73,16 +81,20 @@ function TabsIndex() {
     const loadAndUpdateTime = async () => {
       try {
         // Get previous last loaded time
-        const previousTime = await storage.get(LAST_LOADED_TIME_KEY);
+        const previousTime = await storageGet<string>(LAST_LOADED_TIME_KEY);
+        log('storage_get', { key: LAST_LOADED_TIME_KEY, found: !!previousTime });
         if (previousTime) {
           setLastLoadedTime(previousTime);
         }
 
         // Set new last loaded time
         const currentTime = new Date().toLocaleString();
-        await storage.set(LAST_LOADED_TIME_KEY, currentTime);
+        await storageSet(LAST_LOADED_TIME_KEY, currentTime);
+        log('storage_set', { key: LAST_LOADED_TIME_KEY });
       } catch (error) {
         console.error("Error managing last loaded time:", error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        log('storage_error', { operation: 'loadAndUpdateTime', error: errorMessage });
       }
     };
 
@@ -137,12 +149,15 @@ function TabsIndex() {
   useEffect(() => {
     const loadReports = async () => {
       try {
-        const storage = new Storage();
-        const reports = await storage.get<Report[]>('reports');
+        // Get reports from storage - Assuming reports are stored under a single key 'reports'
+        const reports = await storageGet<Report[]>('reports') || [];
+        log('storage_get', { key: 'reports', found: reports.length > 0, count: reports.length });
         console.log('Loaded reports:', reports);
         setReportCount(reports?.length || 0);
       } catch (error) {
         console.error('Error loading reports:', error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        log('storage_error', { operation: 'loadReports', error: errorMessage });
       }
     };
 
@@ -151,13 +166,32 @@ function TabsIndex() {
     }
   }, [tabInfoReady]);
 
-  // Add listener for report updates
+  // Add listener for storage changes
   useEffect(() => {
-    const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }) => {
+    const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => {
+      if (areaName !== 'local') return;
+
       if (changes.reports) {
-        const reports = changes.reports.newValue as Report[];
-        console.log('Reports updated:', reports);
-        setReportCount(reports?.length || 0);
+        const reports = changes.reports.newValue as Report[] | undefined;
+        const reportLength = reports?.length || 0;
+        log('storage_change', { key: 'reports', newCount: reportLength });
+        console.log('Reports updated via storage listener:', reports);
+        setReportCount(reportLength);
+      }
+      if (changes[API_KEY_STORAGE_KEY]) {
+          setHasApiKey(!!changes[API_KEY_STORAGE_KEY].newValue);
+          log('storage_change', { key: API_KEY_STORAGE_KEY, updated: true });
+      }
+      if (changes[STORAGE_KEY]) { // STORAGE_KEY for custom names
+          const loadedNames = (changes[STORAGE_KEY].newValue as CustomNameMap) || {};
+          setCustomNames(loadedNames);
+          log('storage_change', { key: STORAGE_KEY, updated: true });
+      }
+      // Check if the LAST_TAB_KEY changed
+      if (changes[LAST_TAB_KEY]) {
+          log('storage_change', { key: LAST_TAB_KEY, updated: true });
+          console.log('Detected LAST_TAB_KEY change, fetching updated tab info...');
+          fetchLastTab(); // Re-fetch the last tab info
       }
     };
 
@@ -165,7 +199,7 @@ function TabsIndex() {
     return () => {
       chrome.storage.onChanged.removeListener(handleStorageChange);
     };
-  }, []);
+  }, [setCustomNames, fetchLastTab]); // Added fetchLastTab dependency
 
   // Add listener for window focus
   useEffect(() => {
@@ -190,13 +224,17 @@ function TabsIndex() {
   useEffect(() => {
     const incrementReloadCount = async () => {
       try {
-        const currentCount = await storage.get<number>(RELOAD_COUNT_KEY) || 0;
+        const currentCount = await storageGet<number>(RELOAD_COUNT_KEY) || 0;
+        log('storage_get', { key: RELOAD_COUNT_KEY, found: currentCount > 0, value: currentCount });
         const newCount = currentCount + 1;
-        await storage.set(RELOAD_COUNT_KEY, newCount);
+        await storageSet(RELOAD_COUNT_KEY, newCount);
+        log('storage_set', { key: RELOAD_COUNT_KEY, value: newCount });
         setReloadCount(newCount);
         console.log(`Yeshie Tab Page Reload Count: ${newCount}`);
       } catch (error) {
         console.error("Error managing reload count:", error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        log('storage_error', { operation: 'incrementReloadCount', error: errorMessage });
       }
     };
 
@@ -207,10 +245,13 @@ function TabsIndex() {
   useEffect(() => {
     const checkApiKey = async () => {
       try {
-        const key = await storage.get<string>(API_KEY_STORAGE_KEY);
+        const key = await storageGet<string>(API_KEY_STORAGE_KEY);
+        log('storage_get', { key: API_KEY_STORAGE_KEY, found: !!key });
         setHasApiKey(!!key);
       } catch (error) {
         console.error("Error checking for API key:", error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        log('storage_error', { operation: 'checkApiKey', error: errorMessage });
         setHasApiKey(false);
       }
     };
@@ -316,7 +357,8 @@ function TabsIndex() {
     setApiKeyLoading(true);
     setToast(null);
     try {
-      await storage.set(API_KEY_STORAGE_KEY, apiKeyInput.trim());
+      await storageSet(API_KEY_STORAGE_KEY, apiKeyInput.trim());
+      log('storage_set', { key: API_KEY_STORAGE_KEY });
       setHasApiKey(true);
       setToast("OpenAI API Key saved successfully!");
       handleCloseApiKeyModal();
@@ -335,8 +377,9 @@ function TabsIndex() {
     setToast("Sending to LLM... 🧠"); 
 
     try {
-      // Check if API key is actually set before sending
-      const apiKey = await storage.get<string>(API_KEY_STORAGE_KEY);
+      // Use storageGet directly, remove incorrect 'storage.' prefix
+      const apiKey = await storageGet<string>(API_KEY_STORAGE_KEY);
+      log('storage_get', { key: API_KEY_STORAGE_KEY, purpose: 'llm_call', found: !!apiKey });
       if (!apiKey) {
         setToast("Error: OpenAI API Key is not set.");
         setTimeout(() => setToast(null), 3000);

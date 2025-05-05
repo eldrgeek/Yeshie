@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { toggleLearnMode } from '../functions/learn'
-import { Storage } from "@plasmohq/storage"
+import { storageGet, storageSet } from "../functions/storage"
+import { log } from "../functions/DiagnosticLogger"
 // import type { PlasmoCSConfig } from "plasmo" // Removed config
  
 // Removed Plasmo config as this is now a standard component
@@ -41,15 +42,14 @@ export default function LearnMode() { // Renamed component export for clarity
       console.log("LearnMode: Ensuring Yeshie sidebar is open...");
       
       // Get current state from storage
-      const storage = new Storage({ area: "local" })
       const isOpenKey = "isOpen" + window.location.hostname
-      const currentIsOpen = await storage.get(isOpenKey) || false
+      const currentIsOpen = await storageGet<boolean>(isOpenKey) || false
       
       console.log(`LearnMode: Current sidebar state is: ${currentIsOpen ? 'open' : 'closed'}`);
       
       if (!currentIsOpen) {
         // Directly update the storage value to open the sidebar
-        await storage.set(isOpenKey, true)
+        await storageSet(isOpenKey, true)
         console.log("LearnMode: Opened Yeshie sidebar via storage update")
         
         // Also dispatch an event to trigger any listeners
@@ -66,13 +66,15 @@ export default function LearnMode() { // Renamed component export for clarity
         document.dispatchEvent(yEvent);
         
         // Verify the storage update
-        const updatedIsOpen = await storage.get(isOpenKey);
+        const updatedIsOpen = await storageGet(isOpenKey);
         console.log(`LearnMode: Verified sidebar state after update: ${updatedIsOpen ? 'open' : 'still closed'}`);
       } else {
         console.log("LearnMode: Sidebar already open, no action needed");
       }
     } catch (error) {
-      console.error("LearnMode: Error toggling Yeshie sidebar:", error)
+      console.error("LearnMode: Error toggling Yeshie sidebar:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log('storage_error', { operation: 'toggleYeshieSidebar', error: errorMessage });
     }
   }
 

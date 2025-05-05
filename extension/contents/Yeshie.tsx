@@ -6,8 +6,6 @@ import cssText from "data-text:../css/google-sidebar.css"
 import type { PlasmoCSConfig } from "plasmo"
 
 import React, { useEffect, useState, useCallback, useRef } from "react"
-import { useStorage } from "@plasmohq/storage/hook"
-import { Storage } from "@plasmohq/storage"
 import { setupCS } from "../functions/extcomms"
 import { Stepper, getOrCreateInstanceId } from "../functions/Stepper"
 import { sendToBackground } from "@plasmohq/messaging"
@@ -16,8 +14,8 @@ import "../css/google-sidebar-base.css"
 import { createRoot } from "react-dom/client"
 import { rememberCurrentTab, attemptTabFocusWithRetries, storedTabId } from "../functions/tabFocus"
 import ReportsPanel from "../components/ReportsPanel"
-
-
+import { storageGet, storageSet, storageGetAll } from "../functions/storage"
+import { log } from "../functions/DiagnosticLogger"
 
 // Remember current tab as soon as possible
 rememberCurrentTab().then(tabId => {
@@ -51,8 +49,6 @@ const isMatchingURL = (pattern: string) => {
 
 export const getShadowHostId = () => "plasmo-google-sidebar"
 
-const storage = new Storage({ area: "local" })
-
 interface TabContext {
   url: string
   content: string
@@ -73,10 +69,8 @@ function debounce(func: Function, wait: number) {
 }
 
 const Yeshie: React.FC = () => {
-  const [isOpen, setIsOpen] = useStorage({
-    key: "isOpen" + window.location.hostname,
-    instance: new Storage({ area: "local" }),
-  }, false)
+  const [isOpen, setIsOpen] = useState<boolean>(false)
+  const isOpenKey = "isOpen" + window.location.hostname
   const [isReady, setIsReady] = useState(false)
   const [tabId, setTabId] = useState<number | null>(null)
   const [sessionID, setSessionID] = useState<string | null>(null)
@@ -88,32 +82,56 @@ const Yeshie: React.FC = () => {
   const [showReportsPanel, setShowReportsPanel] = useState(false)
   const [reportCount, setReportCount] = useState(0)
 
+  useEffect(() => {
+    storageGet<boolean>(isOpenKey).then(value => {
+      setIsOpen(value ?? false)
+      log('storage_get', { key: isOpenKey, found: value !== undefined, value: value ?? false })
+    }).catch(error => {
+      console.error(`Error getting initial state for ${isOpenKey}:`, error)
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      log('storage_error', { operation: 'getIsOpenInitial', key: isOpenKey, error: errorMessage })
+      setIsOpen(false)
+    })
+  }, [isOpenKey])
+
+  const updateIsOpen = useCallback(async (newIsOpen: boolean) => {
+    setIsOpen(newIsOpen)
+    try {
+      await storageSet(isOpenKey, newIsOpen)
+      log('storage_set', { key: isOpenKey, value: newIsOpen })
+    } catch (error) {
+      console.error(`Error setting state for ${isOpenKey}:`, error)
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      log('storage_error', { operation: 'setIsOpen', key: isOpenKey, error: errorMessage })
+    }
+  }, [isOpenKey])
+
   const updateContext = useCallback(async (newContextPart: Partial<TabContext>) => {
     if (tabId === null) {
-        console.warn("updateContext called before tabId was set.");
-        return;
+      console.warn("updateContext called before tabId was set.")
+      return
     }
+    const contextKey = `tabContext:${tabId}`
 
-    // Use functional update for setContext to avoid dependency on 'context'
     setContext(prevContext => {
-      // Ensure prevContext is not null/undefined before spreading
-      const currentContext = prevContext || { url: window.location.href, content: "", mode: "llm" };
-      const updated = { ...currentContext, ...newContextPart };
+      const currentContext = prevContext || { url: window.location.href, content: "", mode: "llm" }
+      const updated = { ...currentContext, ...newContextPart } as TabContext
 
-      // Persist to storage immediately after calculating the new state
-      // Use a separate async function or IIFE to handle the promise
       (async () => {
-          try {
-              await storage.set(`tabContext:${tabId}`, updated);
-              console.log(`Context updated and saved for tab ${tabId}:`, updated); // Added log
-          } catch (error) {
-              console.error(`Failed to save context for tab ${tabId}:`, error);
-          }
-      })();
+        try {
+          await storageSet(contextKey, updated)
+          log('storage_set', { key: contextKey, tabId: tabId })
+          console.log(`Context updated and saved for tab ${tabId}:`, updated)
+        } catch (error) {
+          console.error(`Failed to save context for tab ${tabId}:`, error)
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          log('storage_error', { operation: 'updateContext', key: contextKey, tabId: tabId, error: errorMessage })
+        }
+      })()
 
-      return updated as TabContext;
-    });
-  }, [tabId]); // Now only depends on tabId
+      return updated
+    })
+  }, [tabId])
 
   const debouncedUpdateContext = useCallback(
     debounce((newContext: Partial<TabContext>) => updateContext(newContext), 1000),
@@ -122,49 +140,51 @@ const Yeshie: React.FC = () => {
 
   const handleMessage = useCallback(async (event: MessageEvent) => {
     if (event.data && event.data.type === "command") {
-      console.log("Received command from YeshieEditor:", event.data);
+      console.log("Received command from YeshieEditor:", event.data)
       try {
-        const result = await Stepper(event.data.command);
-        console.log("Command result:", result);
+        const result = await Stepper(event.data.command)
+        console.log("Command result:", result)
         window.postMessage({ 
           type: "commandResult", 
           command: event.data.command,
           result: result,
           timestamp: new Date().toISOString()
-        }, "*");
+        }, "*")
       } catch (error) {
-        console.error("Error processing command:", error);
+        console.error("Error processing command:", error)
         window.postMessage({ 
           type: "commandResult", 
           command: event.data.command,
           result: null,
           error: error.message,
           timestamp: new Date().toISOString()
-        }, "*");
+        }, "*")
       }
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
     if (window.top !== window.self || !document.getElementById(getShadowHostId())) {
       console.log("Yeshie is in an iframe or shadow host not found, not rendering")
       return
-
     }
     
-
     async function init() {
       if (initCalled.current) return 
       initCalled.current = true 
 
       console.log("INITTING", isOpen, isReady)
       try {
-        const response = await sendToBackground({ name: "getTabId" });
-        console.log("Got tab ID response:", response);
+        const response = await sendToBackground({ name: "getTabId" })
+        console.log("Got tab ID response:", response)
         if (response && typeof response.tabId === 'number') {
-          setTabId(response.tabId);
-          
-          const storedContext = await storage.get(`tabContext:${response.tabId}`) as TabContext | undefined
+          const currentTabId = response.tabId
+          setTabId(currentTabId)
+          const contextKey = `tabContext:${currentTabId}`
+
+          const storedContext = await storageGet<TabContext>(contextKey)
+          log('storage_get', { key: contextKey, found: storedContext !== undefined })
+
           if (storedContext) {
             setContext(storedContext)
           } else {
@@ -173,18 +193,21 @@ const Yeshie: React.FC = () => {
               content: "",
               mode: "llm"
             }
-            await storage.set(`tabContext:${response.tabId}`, newContext)
+            await storageSet(contextKey, newContext)
+            log('storage_set', { key: contextKey, reason: 'Initializing new context' })
             setContext(newContext)
           }
         } else {
-          console.error("Invalid tab ID response:", response);
+          console.error("Invalid tab ID response:", response)
         }
       } catch (error) {
-        console.error("Error getting tab ID:", error);
+        console.error("Error during init (getTabId or context handling):", error)
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        log('init_error', { step: 'getTabId/context', error: errorMessage })
       }
     }
 
-    init();
+    init()
 
     const observer = new MutationObserver((mutations, obs) => {
       const targetElement = document.querySelector('body')
@@ -203,19 +226,16 @@ const Yeshie: React.FC = () => {
     const handleKeyPress = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === 'y') {
         event.preventDefault()
-        setIsOpen(prevIsOpen => !prevIsOpen)
+        updateIsOpen(!isOpen)
       }
       
-      // Add global Escape key handler to help with focus management
       if (event.key === 'Escape' && isOpen) {
-        // If Escape is pressed while extension is open, blur any focused elements
         if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
+          document.activeElement.blur()
           
-          // Focus back on the page - try to find a reasonable target
-          const pageInput = document.querySelector('input, textarea, [contenteditable="true"]') as HTMLElement;
+          const pageInput = document.querySelector('input, textarea, [contenteditable="true"]') as HTMLElement
           if (pageInput && pageInput.closest('.yeshie-editor') === null) {
-            pageInput.focus();
+            pageInput.focus()
           }
         }
       }
@@ -235,7 +255,7 @@ const Yeshie: React.FC = () => {
       window.removeEventListener("message", handleMessage)
       window.removeEventListener('popstate', handleUrlChange)
     }
-  }, [handleMessage, updateContext, isOpen, isReady])
+  }, [handleMessage, updateContext, isOpen, isReady, updateIsOpen])
 
   useEffect(() => {
     if (document.body && isReady) {
@@ -245,7 +265,7 @@ const Yeshie: React.FC = () => {
 
   useEffect(() => {
     const style = document.createElement("style")
-    const styleContent: string = cssText + "\n" + cssTextBase;
+    const styleContent: string = cssText + "\n" + cssTextBase
     style.textContent = styleContent
     document.head.appendChild(style)
     
@@ -256,21 +276,27 @@ const Yeshie: React.FC = () => {
 
   useEffect(() => {
     if (isReady && storedTabId) {
-      console.log("Extension is ready, attempting to restore tab focus to:", storedTabId);
-      // Use exponential backoff strategy for multiple attempts
-      attemptTabFocusWithRetries(storedTabId);
+      console.log("Extension is ready, attempting to restore tab focus to:", storedTabId)
+      attemptTabFocusWithRetries(storedTabId)
     }
-  }, [isReady]);
+  }, [isReady])
 
   useEffect(() => {
     if (isReady) {
-      // Load report count
-      const storage = new Storage();
-      storage.get<Report[]>('reports').then(reports => {
-        setReportCount(reports?.length || 0);
-      });
+      storageGetAll().then(items => {
+        const reports = Object.entries(items)
+           .filter(([key, value]) => key.startsWith('reports'))
+           .flatMap(([key, value]) => Array.isArray(value) ? value : [])
+        log('storage_get_all', { purpose: 'report_count', count: reports.length })
+        setReportCount(reports?.length || 0)
+      }).catch(error => {
+         console.error("Error loading report count:", error)
+         const errorMessage = error instanceof Error ? error.message : String(error)
+         log('storage_error', { operation: 'getReportCount', error: errorMessage })
+         setReportCount(0)
+      })
     }
-  }, [isReady]);
+  }, [isReady])
 
   if (!isReady) {
     console.log("Yeshie is not ready to render yet")
@@ -309,7 +335,6 @@ const Yeshie: React.FC = () => {
           overflow: 'hidden',
           width: '100%'
         }}>
-          {/* Full height YeshieEditor */}
           <div style={{ height: '100%', width: '100%' }}>
             <YeshieEditor sessionId={sessionID || ''} />
           </div>
@@ -327,10 +352,9 @@ const Yeshie: React.FC = () => {
         </div>
       </div>
       
-      {/* Toggle button */}
       <button 
         className="sidebar-toggle" 
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => updateIsOpen(!isOpen)}
         style={{
           position: 'fixed',
           right: '20px',
@@ -351,16 +375,9 @@ const Yeshie: React.FC = () => {
       >
         <img src={iconBase64} alt="Yeshie Icon" width={32} height={32} />
       </button>
-      
-      {/* Removed manual mounting of DialogPanel/LearnMode - now auto-injected */}
-      {/* {!dialogPanelMounted && (() => {
-        dialogPanelMounted = true;
-        return <DialogPanel />;
-      })()} */}
     </div>
   )
 }
-
 
 export default Yeshie
 
