@@ -3,10 +3,31 @@
 # Exit immediately if a command exits with a non-zero status.
 set -e
 
-OUTPUT_FILE="project_context.txt"
+# --- Configuration ---
+DEFAULT_CONTEXT_TYPE="extension"
+CONTEXT_TYPE="${1:-$DEFAULT_CONTEXT_TYPE}" # Default to 'extension' if no arg
+
+OUTPUT_FILE="project_context_${CONTEXT_TYPE}.txt" # Dynamic output file name
 EXTENSION_DIR="extension"
+CLIENT_DIR="client" # Assuming client directory name
+SERVER_DIR="server" # Assuming server directory name
 IGNORE_FILE=".gitignore"
 BUGS_DIR_PATTERN="^${EXTENSION_DIR}/bugs/" # Regex pattern to match files in bugs dir
+
+# Common skip pattern for binary/build/font/image/db files
+# Used in both process_directory_files and process_root_files
+UNIVERSAL_SKIP_PATTERN='\.(woff2|png|jpe?g|gif|svg|ico|bmp|tiff?|tsbuildinfo|lock|sum|localstorage|sessionstorage|sqlite|db|bin|exe|dll|o|so|jar|class|pyc|pyo|wasm|DS_Store|zip|tar|gz|rar|7z|pdf|doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp)$'
+
+# Files in the root directory to include for 'extension' and 'full' contexts
+# Add other relevant files like package.json, tsconfig.json if they exist and are relevant
+ROOT_FILES_FOR_EXTENSION=(
+    "README.md"
+    ".yeshie-context.md"
+    ".cursorrules"
+    "package.json"
+    "tsconfig.json"
+    # Add other specific root files here
+)
 
 # --- Pre-checks ---
 # Check if git is installed
@@ -21,60 +42,161 @@ if ! git rev-parse --is-inside-work-tree &> /dev/null; then
     exit 1
 fi
 
-echo "Generating project context in $OUTPUT_FILE..."
+echo "Generating project context (type: $CONTEXT_TYPE) in $OUTPUT_FILE..."
 
-# --- File Generation ---
-# Write header (overwrite existing file)
-echo "This is a project that I am working on that I would like help with. There are files that provide information about the intent of the project" > "$OUTPUT_FILE"
-echo "" >> "$OUTPUT_FILE" # Add a blank line
+# --- Header ---
+echo "Project Context: ${CONTEXT_TYPE}" > "$OUTPUT_FILE"
+echo "Generated on: $(date)" >> "$OUTPUT_FILE"
+echo "This is a project that I am working on that I would like help with. There are files that provide information about the intent of the project" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
 
-# --- Directory Tree ---
-echo "Directory Tree (tracked files in $EXTENSION_DIR, excluding bugs/):" >> "$OUTPUT_FILE"
-echo "------------------------------------------------------------------" >> "$OUTPUT_FILE"
+# --- Helper Functions ---
 
-# Use git ls-files for accuracy, then filter out bugs/, then generate tree view
-# The pipefail option ensures that if any command in the pipeline fails, the whole pipeline fails
-set -o pipefail 
-git ls-files "$EXTENSION_DIR" | grep -vE "$BUGS_DIR_PATTERN" | sed -e 's;[^/]*/;|____;g;s;____|; |;g' >> "$OUTPUT_FILE" || {
-    echo "Error generating directory tree. Did git ls-files or grep fail?"
-    # Optionally, provide a fallback or cleaner error message
-    echo "(No directory tree generated)" >> "$OUTPUT_FILE"
+# Function to generate directory tree for a given directory
+generate_tree() {
+    local target_dir="$1"
+    local dir_label="$2"
+    local exclude_pattern="$3" # Optional: regex pattern to exclude
+
+    if [ ! -d "$target_dir" ]; then
+        echo "Directory $target_dir not found. Skipping tree generation." >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+        return
+    fi
+
+    echo "Directory Tree ($dir_label):" >> "$OUTPUT_FILE"
+    echo "------------------------------------------------------------------" >> "$OUTPUT_FILE"
+    set -o pipefail
+    if [ -n "$exclude_pattern" ]; then
+        git ls-files "$target_dir" | grep -vE "$exclude_pattern" | sed -e 's;[^/]*/;|____;g;s;____|; |;g' >> "$OUTPUT_FILE" || {
+            echo "Error generating directory tree for $target_dir. (Excluding $exclude_pattern)"
+            echo "(No directory tree generated for $target_dir)" >> "$OUTPUT_FILE"
+        }
+    else
+        git ls-files "$target_dir" | sed -e 's;[^/]*/;|____;g;s;____|; |;g' >> "$OUTPUT_FILE" || {
+            echo "Error generating directory tree for $target_dir."
+            echo "(No directory tree generated for $target_dir)" >> "$OUTPUT_FILE"
+        }
+    fi
+    set +o pipefail
+    echo "" >> "$OUTPUT_FILE"
 }
-set +o pipefail # Turn off pipefail after the command
 
-echo "" >> "$OUTPUT_FILE" # Add a blank line
+# Function to process and append file contents from a given directory
+process_directory_files() {
+    local target_dir="$1"
+    local dir_label="$2"
+    local exclude_pattern="$3" # Optional: regex pattern to exclude for this directory
 
-# --- File Contents ---
-echo "File Contents (tracked files in $EXTENSION_DIR, excluding bugs/):" >> "$OUTPUT_FILE"
-echo "----------------------------------------------------------------" >> "$OUTPUT_FILE"
-
-# Iterate over null-terminated list of tracked files from git ls-files
-# Filter out files in the bugs directory
-git ls-files -z "$EXTENSION_DIR" | while IFS= read -r -d $'\0' file; do
-    # Check if the file path starts with the bugs directory pattern
-    if [[ "$file" =~ $BUGS_DIR_PATTERN ]]; then
-        continue # Skip this file if it's in the bugs directory
-    fi
-
-    # Skip binary/image/font/build files using a regex
-    # Add other extensions/patterns as needed
-    SKIP_PATTERN='\.(woff2|png|jpe?g|gif|svg|ico|bmp|tiff?|tsbuildinfo)$'
-    if [[ "$file" =~ $SKIP_PATTERN ]]; then
-        echo "--- Skipping binary/build/font/image file: $file ---" >> "$OUTPUT_FILE"
-        continue # Skip this file
-    fi
-
-    if [ -f "$file" ]; then # Check if it's actually a file (git ls-files should only list files, but good practice)
+    if [ ! -d "$target_dir" ]; then
+        echo "Directory $target_dir not found. Skipping file contents." >> "$OUTPUT_FILE"
         echo "" >> "$OUTPUT_FILE"
-        echo "=== File: $file ===" >> "$OUTPUT_FILE"
-        # Append file content, handle potential errors during cat
-        # Use LC_ALL=C to handle potential non-UTF8 chars gracefully, though it might mangle some
-        # Using 'cat' directly might be better if binary data isn't expected after filtering
-        LC_ALL=C cat "$file" >> "$OUTPUT_FILE" || echo "Error reading file: $file. Content might be partial or missing."
-        echo "" >> "$OUTPUT_FILE"
-        echo "=== End File: $file ===" >> "$OUTPUT_FILE"
+        return
     fi
-done
+
+    echo "File Contents ($dir_label):" >> "$OUTPUT_FILE"
+    echo "----------------------------------------------------------------" >> "$OUTPUT_FILE"
+
+    git ls-files -z "$target_dir" | while IFS= read -r -d $'\0' file; do
+        if [ -n "$exclude_pattern" ] && [[ "$file" =~ $exclude_pattern ]]; then
+            continue # Skip this file if it matches the exclude pattern
+        fi
+
+        # Use UNIVERSAL_SKIP_PATTERN
+        if [[ "$file" =~ $UNIVERSAL_SKIP_PATTERN ]]; then
+            echo "--- Skipping (binary/build/font/image/db etc.): $file ---" >> "$OUTPUT_FILE"
+            continue
+        fi
+
+        if [ -f "$file" ]; then
+            echo "" >> "$OUTPUT_FILE"
+            echo "=== File: $file ===" >> "$OUTPUT_FILE"
+            LC_ALL=C cat "$file" >> "$OUTPUT_FILE" || echo "Error reading file: $file. Content might be partial or missing."
+            echo "" >> "$OUTPUT_FILE"
+            echo "=== End File: $file ===" >> "$OUTPUT_FILE"
+        fi
+    done
+    echo "" >> "$OUTPUT_FILE"
+}
+
+# Function to process and append specified root files
+process_root_files() {
+    echo "File Contents (Relevant Root Directory Files):" >> "$OUTPUT_FILE"
+    echo "-----------------------------------------------" >> "$OUTPUT_FILE"
+
+    for f_pattern in "${ROOT_FILES_FOR_EXTENSION[@]}"; do
+        # Using find to handle cases where a file might not exist without erroring out
+        find . -maxdepth 1 -type f -name "$f_pattern" -print0 | while IFS= read -r -d $'\0' file; do
+            if [ -f "$file" ]; then # Ensure it's a file
+                display_file="${file#./}"
+
+                # Apply UNIVERSAL_SKIP_PATTERN to root files as well
+                if [[ "$display_file" =~ $UNIVERSAL_SKIP_PATTERN ]]; then
+                    echo "--- Skipping (binary/build/font/image/db etc.) root file: $display_file ---" >> "$OUTPUT_FILE"
+                    continue
+                fi
+
+                echo "" >> "$OUTPUT_FILE"
+                echo "=== File: $display_file ===" >> "$OUTPUT_FILE"
+                LC_ALL=C cat "$file" >> "$OUTPUT_FILE" || echo "Error reading file: $display_file. Content might be partial or missing."
+                echo "" >> "$OUTPUT_FILE"
+                echo "=== End File: $display_file ===" >> "$OUTPUT_FILE"
+            fi
+        done
+    done
+    echo "" >> "$OUTPUT_FILE"
+}
+
+# --- Main Logic based on CONTEXT_TYPE ---
+case "$CONTEXT_TYPE" in
+    extension)
+        generate_tree "$EXTENSION_DIR" "$EXTENSION_DIR, excluding bugs/" "$BUGS_DIR_PATTERN"
+        process_directory_files "$EXTENSION_DIR" "$EXTENSION_DIR, excluding bugs/" "$BUGS_DIR_PATTERN"
+        process_root_files # Include relevant root files for extension
+        ;;
+    client)
+        if [ -d "$CLIENT_DIR" ]; then
+            generate_tree "$CLIENT_DIR" "$CLIENT_DIR"
+            process_directory_files "$CLIENT_DIR" "$CLIENT_DIR"
+        else
+            echo "Client directory '$CLIENT_DIR' not found. Skipping." >> "$OUTPUT_FILE"
+        fi
+        # Optionally add specific root files for client if needed
+        ;;
+    server)
+        if [ -d "$SERVER_DIR" ]; then
+            generate_tree "$SERVER_DIR" "$SERVER_DIR"
+            process_directory_files "$SERVER_DIR" "$SERVER_DIR"
+        else
+            echo "Server directory '$SERVER_DIR' not found. Skipping." >> "$OUTPUT_FILE"
+        fi
+        # Optionally add specific root files for server if needed
+        ;;
+    full)
+        generate_tree "$EXTENSION_DIR" "$EXTENSION_DIR, excluding bugs/" "$BUGS_DIR_PATTERN"
+        process_directory_files "$EXTENSION_DIR" "$EXTENSION_DIR, excluding bugs/" "$BUGS_DIR_PATTERN"
+        
+        if [ -d "$CLIENT_DIR" ]; then
+            generate_tree "$CLIENT_DIR" "$CLIENT_DIR"
+            process_directory_files "$CLIENT_DIR" "$CLIENT_DIR"
+        else
+            echo "Client directory '$CLIENT_DIR' not found. Skipping for 'full' context." >> "$OUTPUT_FILE"
+        fi
+
+        if [ -d "$SERVER_DIR" ]; then
+            generate_tree "$SERVER_DIR" "$SERVER_DIR"
+            process_directory_files "$SERVER_DIR" "$SERVER_DIR"
+        else
+            echo "Server directory '$SERVER_DIR' not found. Skipping for 'full' context." >> "$OUTPUT_FILE"
+        fi
+        
+        process_root_files # Include relevant root files for full
+        ;;
+    *)
+        echo "Error: Invalid context type '$CONTEXT_TYPE'. Supported types: extension, client, server, full."
+        exit 1
+        ;;
+esac
 
 # --- Add to .gitignore ---
 # Check if .gitignore exists, create if not
@@ -83,13 +205,15 @@ if [ ! -f "$IGNORE_FILE" ]; then
     touch "$IGNORE_FILE"
 fi
 
-# Check if output file is already ignored
-if ! grep -qxF "$OUTPUT_FILE" "$IGNORE_FILE"; then
-    echo "Adding $OUTPUT_FILE to .gitignore..."
-    echo "$OUTPUT_FILE" >> "$IGNORE_FILE"
+# Use a pattern to ignore all potential output files
+OUTPUT_FILE_PATTERN="project_context_*.txt"
+if ! grep -qxF "$OUTPUT_FILE_PATTERN" "$IGNORE_FILE"; then
+    echo "Adding $OUTPUT_FILE_PATTERN to .gitignore..."
+    # Add pattern if not exactly present. If a more specific one was there, this is okay.
+    echo "$OUTPUT_FILE_PATTERN" >> "$IGNORE_FILE"
 fi
 
-echo "Project context successfully generated in $OUTPUT_FILE"
+echo "Project context (type: $CONTEXT_TYPE) successfully generated in $OUTPUT_FILE"
 
 # Get absolute path for the link
 ABS_PATH=$(pwd)/"$OUTPUT_FILE"
