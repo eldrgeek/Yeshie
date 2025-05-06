@@ -16,6 +16,11 @@ class PageObserver {
   private lastFocusedElement: Element | null = null;
   private isCollecting: boolean = false;
   private callback: ((event: ObserverEvent) => void) | null = null;
+  private feedbackStyleInjected: boolean = false; // Flag for CSS injection
+  private static readonly CLICK_FEEDBACK_CLASS = 'yeshie-click-feedback'; // Renamed for clarity
+  private static readonly FOCUS_FEEDBACK_CLASS = 'yeshie-focus-feedback'; // New class for focus
+  private lastClickedElement: HTMLElement | null = null; // Track last clicked element
+  private lastClickTimestamp: number = 0; // Track last click time
 
   constructor() {
     this.observer = new MutationObserver(this.handleMutations.bind(this));
@@ -54,6 +59,33 @@ class PageObserver {
 
     // Observe keyboard events
     document.addEventListener('keydown', this.handleKeyEvent.bind(this));
+  }
+
+  // --- Inject CSS for Click Feedback ---
+  private injectFeedbackStyle(): void {
+    if (this.feedbackStyleInjected) return;
+    const style = document.createElement('style');
+    style.textContent = `
+      .${PageObserver.CLICK_FEEDBACK_CLASS} {
+          outline: 2px solid #FF4500 !important; /* Bright orange-red */
+          box-shadow: 0 0 8px 3px rgba(255, 69, 0, 0.6) !important;
+          transition: outline 0.15s ease-out, box-shadow 0.15s ease-out;
+          border-radius: 3px; /* Optional: slight rounding */
+          z-index: 2147483646 !important; /* Ensure visibility */
+          pointer-events: none !important; /* Prevent interference */
+      }
+      .${PageObserver.FOCUS_FEEDBACK_CLASS} {
+          outline: 2px solid #007bff !important; /* Bright blue */
+          box-shadow: 0 0 8px 3px rgba(0, 123, 255, 0.6) !important;
+          transition: outline 0.15s ease-out, box-shadow 0.15s ease-out;
+          border-radius: 3px; /* Optional: slight rounding */
+          z-index: 2147483646 !important; /* Ensure visibility */
+          pointer-events: none !important; /* Prevent interference */
+      }
+    `;
+    document.head.appendChild(style);
+    this.feedbackStyleInjected = true;
+    console.log('Injected click feedback style');
   }
 
   private handleMutations(mutations: MutationRecord[]): void {
@@ -99,15 +131,49 @@ class PageObserver {
   }
 
   private checkFocusedElement(event: FocusEvent): void {
-    const focusedElement = event.target as Element;
+    const focusedElement = event.target as HTMLElement; // Cast to HTMLElement
     if (focusedElement !== this.lastFocusedElement) {
       this.lastFocusedElement = focusedElement;
-      this.addToBuffer({ type: 'elementFocus', details: focusedElement });
+      // Pass selector instead of element to buffer if needed later, element is fine for now
+      this.addToBuffer({ type: 'elementFocus', details: { selector: this.getSimpleSelector(focusedElement)} });
+
+      // Apply visual feedback if collecting
+      if (this.isCollecting && focusedElement && typeof focusedElement.classList !== 'undefined') {
+        this.injectFeedbackStyle(); // Ensure styles are injected
+        
+        const now = Date.now();
+        const isRecentClickOnSameElement = 
+              focusedElement === this.lastClickedElement && 
+              (now - this.lastClickTimestamp < 150); // Increased threshold slightly
+
+        const applyFocusFeedback = () => {
+          focusedElement.classList.add(PageObserver.FOCUS_FEEDBACK_CLASS);
+          setTimeout(() => {
+            if (focusedElement && focusedElement.classList) { 
+              focusedElement.classList.remove(PageObserver.FOCUS_FEEDBACK_CLASS);
+            }
+          }, 300); // Duration of focus flash
+        };
+
+        if (isRecentClickOnSameElement) {
+          // Delay focus feedback if it was likely triggered by a recent click
+          console.log('Delaying focus feedback due to recent click');
+          setTimeout(applyFocusFeedback, 100); // Apply blue after 100ms
+        } else {
+          // Apply focus feedback immediately
+          applyFocusFeedback();
+        }
+      } else if (!this.isCollecting) {
+          console.log('Focus occurred, but not collecting - no feedback applied.');
+      }
     }
   }
 
   private handleMouseEvent(event: MouseEvent): void {
-    const target = event.target as Element;
+    // Ensure feedback style is injected (only runs once)
+    this.injectFeedbackStyle(); 
+    
+    const target = event.target as HTMLElement; // Cast to HTMLElement
     const selector = this.getSimpleSelector(target);
     const label = this.getElementText(target);
 
@@ -131,6 +197,23 @@ class PageObserver {
         attributes: this.getElementAttributes(target)
       }
     });
+
+    // Apply visual feedback if collecting
+    if (this.isCollecting && target) {
+        // Store click info for focus handler coordination
+        this.lastClickedElement = target;
+        this.lastClickTimestamp = Date.now();
+
+        // Apply click feedback immediately
+        target.classList.add(PageObserver.CLICK_FEEDBACK_CLASS);
+        setTimeout(() => {
+            if (target && target.classList) { 
+              target.classList.remove(PageObserver.CLICK_FEEDBACK_CLASS);
+            }
+        }, 300); // Duration of the click feedback flash
+    } else if (!this.isCollecting) {
+        console.log('Click occurred, but not collecting - no feedback applied.');
+    }
   }
 
   private getElementAttributes(element: Element): Record<string, string> {
