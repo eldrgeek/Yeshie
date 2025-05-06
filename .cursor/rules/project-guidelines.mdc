@@ -1,3 +1,8 @@
+---
+alwaysApply: true
+description: General project guidelines, context, and conventions for the Yeshie Project.
+---
+
 # Yeshie Project Rules
 
 ## Context
@@ -33,4 +38,4 @@ Always include the contents of .yeshie-context.md in the initial context of new 
 - Be explicit about implementation details
 - Document any assumptions
 - Provide clear next steps
-- Include relevant code snippets when discussing changes 
+- Include relevant code snippets when discussing changes
