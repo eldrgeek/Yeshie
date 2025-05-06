@@ -1,3 +1,6 @@
 {
-  "workbench.colorTheme": "Quiet Light"
+  "workbench.colorTheme": "Quiet Light",
+  "files.associations": {
+    "*.mdc": "markdown"
+  }
 }
