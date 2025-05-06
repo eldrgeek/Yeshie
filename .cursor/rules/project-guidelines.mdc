@@ -1,6 +1,7 @@
 ---
-alwaysApply: true
 description: General project guidelines, context, and conventions for the Yeshie Project.
+globs: 
+alwaysApply: true
 ---
 
 # Yeshie Project Rules
@@ -22,7 +23,11 @@ Always include the contents of .yeshie-context.md in the initial context of new 
 8. Follow TypeScript best practices
 9. Use Chrome extension APIs appropriately
 10. Maintain backward compatibility with existing functionality
-
+11. Adhere to and contribute to rules defined in `.cursor/rules` (e.g., `coding_standards.md`). Regularly review these rules to ensure consistency and learn project-specific best practices.
+12, If I recoomend a change that violates any of the rules, let me know and determine
+a. If that rule needs to be replaced with a new one
+b. If this is a special case
+c. If the rule should be modified to handle this case as well
 ## File Structure
 - Keep implementation files in the extension/ directory
 - Documentation in root directory
