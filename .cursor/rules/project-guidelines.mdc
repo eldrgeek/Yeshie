@@ -8,20 +8,6 @@ alwaysApply: true
 
 ## Context
 Always include the contents of .yeshie-context.md in the initial context of new chats. This file contains the current project status, implementation details, and next steps.
-Read the list of rules in .cursor/rules and read whatever rules are called for in order to carry out the user's request
-
-There are special rules for;
-1. Retrospectives
-2. Plannning
-
-If a conversation just says "retrospective" or "retro" or the equivalent be sure to use the rules-for-retrospectives.md rule
-
-Likewise for planning
-
-If one of these modes is not asked for then assume it is a coding task and depending on the details of the task read and follow the specific rules
-
-Always use the project-guidelines.md rule
-
 
 ## Guidelines
 1. Always reference the project plan and current implementation status
