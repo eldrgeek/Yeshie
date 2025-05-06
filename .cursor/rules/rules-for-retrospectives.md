@@ -3,9 +3,9 @@
 These guidelines outline the process for conducting a development retrospective.
 
 ## Activation and Conclusion
-- **Activation**: A retrospective session begins when you (the user) issue the "retrospective" prompt in the chat.
+- **Activation**: A retrospective session begins when you (the user) issue the "retrospective" or "retro" prompt in the chat.
 - **Scope of Review**:
-    - **Conversation**: The primary review scope is the conversation history from the current "retrospective" prompt back to the previous "retrospective" prompt within the ongoing chat session. If this is the first retrospective in the session, review the entire session.
+    - **Conversation**: The primary review scope is the conversation history from the current "retrospective" or "retro" prompt back to the previous such prompt within the ongoing chat session. If this is the first retrospective in the session, review the entire session.
     - **Project Rules**: Review all rules in `.cursor/rules/`, with special attention to `project-guidelines.md` and any rules pertinent to the activities discussed.
 - **Rule Proposal Phase Conclusion**: The discussion and refinement of rule changes conclude when you signal satisfaction (e.g., "thank you," "completed," "looks good").
 - **Session Conclusion**: The broader retrospective for the work period is generally considered complete when a commit is made.
@@ -36,3 +36,12 @@ These guidelines outline the process for conducting a development retrospective.
     *   Present your proposed rule changes.
     *   Engage in a discussion to refine, accept, or discard proposals based on user feedback. This is an iterative step.
     *   Continue until the user indicates the rule proposal phase is complete. 
+
+6. **Think in detail but respond concisely**
+
+---
+
+## Additional Guidelines
+
+- The keywords **'retrospective'** and **'retro'** should always trigger the full retrospective process as outlined in this document.
+- When storing JSON schemas, ensure they are valid JSON (no comments) and use a `.json` or `.schema.json` extension.
