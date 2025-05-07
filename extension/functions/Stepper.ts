@@ -79,6 +79,10 @@ const commandTemplates = {
   recipe: {
     regex: /^recipe\s+(save|load)\s+"(.+)"$/,
     template: { command: 'recipe', action: '$1', name: '$2' }
+  },
+  wait: {
+    regex: /^wait\s+(\d+)$/,
+    template: { command: 'wait', ms: '$1' }
   }
 };
 
@@ -151,7 +155,6 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
       const elements = document.querySelectorAll(selector);
       return Array.from(elements).find(el => el.textContent?.trim() === text) || null;
     };
-
     // Helper to get selector from step (support both 'sel' and 'selector')
     const getSelector = (cmd: any) => cmd.sel || cmd.selector;
 
@@ -222,10 +225,16 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
         }
         return "Element for style not found";
 
+      case 'wait':
+        return new Promise((resolve) => {
+          setTimeout(() => resolve("Wait completed"), command.ms || 0);
+        });
+
       case 'waitfor':
         if (command.condition === 'quiet') {
           await waitForQuiet(command.timeout || 100);
           return "Page is quiet";
+          
         }
         return new Promise((resolve) => {
           if (getSelector(command)) {
@@ -245,6 +254,12 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
       case 'waitforelement':
         return new Promise((resolve) => {
           const selector = getSelector(command);
+    
+          // ✅ Immediately check for element presence
+          if (getElement(selector)) {
+            resolve("Element appeared");
+            return;
+          }
           const observer = new MutationObserver(() => {
             if (getElement(selector)) {
               observer.disconnect();

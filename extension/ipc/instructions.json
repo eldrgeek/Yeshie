@@ -1,10 +1,70 @@
 {
   "tasks": [
     {
-      "tab": { "name": "Control Page", "action": "focus" },
+      "tab": {
+        "name": "Sequential VR Button Test",
+        "action": "reuse"
+      },
       "steps": [
-        { "id": "wait-log-viewer", "cmd": "waitforelement", "sel": "#log-viewer-button", "to": 3000 },
-        { "id": "open-log-viewer", "cmd": "click", "sel": "#log-viewer-button" }
+        {
+          "id": "wait-first-button",
+          "cmd": "waitforelement",
+          "sel": "#visit-return-0",
+          "to": 5000
+        },
+        {
+          "id": "click-first",
+          "cmd": "click",
+          "sel": "#visit-return-0"
+        },
+        {
+          "id": "wait-2s-1",
+          "cmd": "wait",
+          "ms": 2000
+        },
+        {
+          "id": "wait-second-button",
+          "cmd": "waitforelement",
+          "sel": "#visit-return-1",
+          "to": 2000
+        },
+        {
+          "id": "click-second",
+          "cmd": "click",
+          "sel": "#visit-return-1"
+        },
+        {
+          "id": "wait-2s-2",
+          "cmd": "wait",
+          "ms": 2000
+        },
+        {
+          "id": "wait-third-button",
+          "cmd": "waitforelement",
+          "sel": "#visit-return-2",
+          "to": 2000
+        },
+        {
+          "id": "click-third",
+          "cmd": "click",
+          "sel": "#visit-return-2"
+        },
+        {
+          "id": "wait-2s-3",
+          "cmd": "wait",
+          "ms": 2000
+        },
+        {
+          "id": "wait-fourth-button",
+          "cmd": "waitforelement",
+          "sel": "#visit-return-3",
+          "to": 2000
+        },
+        {
+          "id": "click-fourth",
+          "cmd": "click",
+          "sel": "#visit-return-3"
+        }
       ]
     }
   ]

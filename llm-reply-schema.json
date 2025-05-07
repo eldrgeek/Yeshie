@@ -68,7 +68,7 @@
             "navto","scrollto","setviewport",
             "click","type","sendkeys","hover",
             "getattribute","getcomputedstyle",
-            "waitfor","waitforelement","waitforelementgone","waitforstable","waitfornetwork",
+            "wait","waitforelement","waitforelementgone","waitforstable","waitfornetwork",
             "changes","executejs","takescreenshot","handledialog","message",
             "record","recipe","toast"
           ]
@@ -77,6 +77,7 @@
         "sel":  { "type": "string" },
         "text": { "type": "string" },
         "to":   { "type": "integer", "minimum": 0 },
+        "ms":   { "type": "integer", "minimum": 0 },
         "watch":{ "$ref": "#/definitions/watch" },
         "msg":  { "type": "string" }
       }

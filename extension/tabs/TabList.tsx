@@ -381,7 +381,8 @@ const TabList: React.FC = () => {
           return (
             <div key={windowId} className="window-group"> {/* Add class for styling */} 
               <h3 
-                className="window-header" // Add class for styling
+                id={`window-header-${windowId}`}
+                className="window-header"
                 contentEditable={true}
                 suppressContentEditableWarning={true}
                 onClick={(e) => e.stopPropagation()} 
@@ -402,6 +403,7 @@ const TabList: React.FC = () => {
                           {/* Use index within the window group for display number */}
                           <span className="tab-number">{`${index + 1}:`}</span> 
                           <button 
+                              id={`visit-return-${index}`}
                               className="tab-button visit-return" 
                               onClick={() => handleVisitReturn(tab.id)}
                               title="Visit & Return"
@@ -410,6 +412,7 @@ const TabList: React.FC = () => {
                               VR
                           </button>
                           <button 
+                              id={`visit-stay-${index}`}
                               className="tab-button visit-stay" 
                               onClick={() => handleVisitStay(tab.id)}
                               title="Visit & Stay"
@@ -418,6 +421,7 @@ const TabList: React.FC = () => {
                               VS
                           </button>
                           <button 
+                              id={`analyze-${tab.id}`}
                               className="tab-button analyze" 
                               onClick={() => handleAnalyze(tab.id, tab.url)}
                               disabled={isRestrictedUrl(tab.url) || (!tab.title && !tab.url) || tab.id === -1}
@@ -426,6 +430,7 @@ const TabList: React.FC = () => {
                               Analyze
                           </button>
                           <span 
+                            id={`tab-name-${tab.id}`}
                             className={`tab-name ${customTabNames[tab.url] ? 'custom-name' : ''}`}
                             contentEditable={tab.id !== -1} // Don't allow editing placeholder control tab name
                             suppressContentEditableWarning={true}
