@@ -1,0 +1,11 @@
+{
+  "tasks": [
+    {
+      "tab": { "name": "Control Page", "action": "focus" },
+      "steps": [
+        { "id": "wait-log-viewer", "cmd": "waitforelement", "sel": "#log-viewer-button", "to": 3000 },
+        { "id": "open-log-viewer", "cmd": "click", "sel": "#log-viewer-button" }
+      ]
+    }
+  ]
+} 

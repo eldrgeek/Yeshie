@@ -12,6 +12,8 @@ import { handleError } from "../functions/errorHandler";
 import { LAST_TAB_KEY } from "../background/tabHistory"; // Import the key
 import "./style.css"; // Assuming you might want some basic styling
 import LogViewer from "../components/LogViewer"; // Import the LogViewer component
+import { Stepper } from '../functions/Stepper';
+import instructions from '../ipc/instructions.json';
 
 // --- Type Definitions ---
 
@@ -92,6 +94,14 @@ const RELOAD_COUNT_KEY = "yeshie_tab_reload_count"; // Key for reload counter
 // Define STORAGE_KEY locally as it's not exported from TabList
 const STORAGE_KEY = 'yeshieTabCustomNames';
 
+// SVG icons
+const DownloadIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+);
+const RecordIcon = ({ recording }: { recording: boolean }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill={recording ? 'red' : 'none'} stroke={recording ? 'red' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8" /></svg>
+);
+
 function TabsIndex() {
   const [buildInfo] = useState<BuildInfo>(getBuildInfo());
   const [lastTabInfo, setLastTabInfo] = useState<TabInfo | null>(null);
@@ -110,6 +120,7 @@ function TabsIndex() {
   const [showLogViewer, setShowLogViewer] = useState<boolean>(false); // State for LogViewer visibility
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [isProcessingRecording, setIsProcessingRecording] = useState<boolean>(false);
+  const [hasResults, setHasResults] = useState(false);
 
   // --- State for API Key Management ---
   const [hasApiKey, setHasApiKey] = useState(false);
@@ -664,6 +675,84 @@ function TabsIndex() {
     });
   };
 
+  // Listen for step execution messages from the background script
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg && msg.type === 'RUN_STEPPER_STEP' && msg.step) {
+      Stepper(msg.step).then((result) => {
+        sendResponse({ result });
+      });
+      return true; // Indicates async response
+    }
+  });
+
+  // Utility to write results.json
+  async function writeResultsJson(log: any[]) {
+    await chrome.runtime.sendMessage({ type: 'WRITE_RESULTS_JSON', log });
+  }
+
+  // Download results.json from chrome.storage.local
+  const handleDownloadResults = async () => {
+    const data = await chrome.storage.local.get('ipc_results');
+    if (data && data.ipc_results) {
+      const blob = new Blob([JSON.stringify(data.ipc_results, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'results.json';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
+    } else {
+      setToast('No results to download.');
+    }
+  };
+
+  // On mount, run the imported instructions.json if present
+  useEffect(() => {
+    async function runInstructionsIfPresent() {
+      // Wait for the button to appear before running the test
+      const waitForButton = (selector: string, timeout = 3000): Promise<void> => new Promise((resolve, reject) => {
+        const start = Date.now();
+        function check() {
+          if (document.querySelector(selector)) return resolve();
+          if (Date.now() - start > timeout) return reject();
+          setTimeout(check, 50);
+        }
+        check();
+      });
+
+      if (!instructions || !instructions.tasks) {
+        setToast('No instructions.json found or has no tasks.');
+        setHasResults(false);
+        return;
+      }
+      setToast('instructions.json found. Waiting for DOM...');
+      try {
+        await waitForButton('#log-viewer-button', 3000);
+      } catch {
+        setToast('log-viewer-button did not appear in time.');
+        setHasResults(false);
+        return;
+      }
+      setToast('Running test...');
+      let log = [];
+      for (const task of instructions.tasks) {
+        for (const step of task.steps) {
+          const stepForStepper = { ...step, command: step.cmd };
+          const result = await Stepper(stepForStepper);
+          log.push({ step, result });
+        }
+      }
+      await writeResultsJson(log);
+      setHasResults(true);
+      setToast('Test complete: results.json written.');
+    }
+    runInstructionsIfPresent();
+  }, []);
+
   return (
     <div className="tabs-container">
       {toast && (
@@ -676,7 +765,6 @@ function TabsIndex() {
               {toast}
           </div>
       )}
-
       {/* Grid Header */}
       <div
         className="tabs-header"
@@ -753,6 +841,14 @@ function TabsIndex() {
              {/* Action Buttons Section */}
              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <button
+                  className="icon-button"
+                  onClick={handleDownloadResults}
+                  title="Download Results"
+                  style={{ padding: '5px' }}
+                >
+                  <DownloadIcon />
+                </button>
+                <button
                   className="icon-button report-icon-button"
                   onClick={() => setShowReportDialog(true)}
                   title="Report Bug or Feature"
@@ -796,7 +892,8 @@ function TabsIndex() {
         {/* --- Grid Area 4: Log Viewer Button (Ensuring this is present) --- */}
         <div style={{ display: 'flex', alignItems: 'center' }}>
             <button
-              className="icon-button log-viewer-button" // Use a similar style or create a new one
+              id="log-viewer-button"
+              className="icon-button log-viewer-button"
               onClick={() => setShowLogViewer(true)}
               title="View Session Logs"
               style={{ padding: '5px' }}
@@ -811,17 +908,15 @@ function TabsIndex() {
         {/* --- Grid Area 5: Recording Control (Ensuring this is present) --- */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button
+                id="record-button"
                 onClick={handleRecordButtonClick}
-                className={`record-button ${isRecording ? 'recording' : ''}`}
+                className={`icon-button record-button ${isRecording ? 'recording' : ''}`}
                 disabled={isProcessingRecording}
                 title={isRecording ? "Stop recording user actions" : "Start recording a new test task"}
+                style={{ padding: '5px' }}
             >
-                {isProcessingRecording ? 'Processing...' : (isRecording ? 'Stop Recording' : 'Start Recording')}
+                <RecordIcon recording={isRecording} />
             </button>
-             {/* Placeholder for checkbox */}
-             {/* <label style={{ display: 'flex', alignItems: 'center', fontSize: '0.9em', cursor: 'pointer' }}>
-                 <input type="checkbox" style={{ marginRight: '5px' }} /> Run last task on reload
-             </label> */}
         </div>
 
       </div> {/* End Grid Header */}

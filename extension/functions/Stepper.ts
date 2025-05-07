@@ -117,8 +117,8 @@ const parseCommand = (input: string | Command): Command => {
 const Stepper = async (input: string | Command | (string | Command)[]) => {
   const commands = Array.isArray(input) ? input : [input];
   const parsedCommands = commands.map(parseCommand);
-
   const results = [];
+  let log = [];
 
   let lastEventTime = Date.now();
   const observerCallback: ObserverCallback = (event) => {
@@ -152,6 +152,9 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
       return Array.from(elements).find(el => el.textContent?.trim() === text) || null;
     };
 
+    // Helper to get selector from step (support both 'sel' and 'selector')
+    const getSelector = (cmd: any) => cmd.sel || cmd.selector;
+
     switch (command.command.toLowerCase()) {
       case 'navto':
         window.location.href = command.url;
@@ -159,7 +162,7 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
 
       case 'click':
         pageObserver.start()
-        const clickable = getElement(command.selector, command.text) as HTMLElement;
+        const clickable = getElement(getSelector(command), command.text) as HTMLElement;
         if (clickable) {
           clickable.click();
           waitForQuiet(100)
@@ -168,7 +171,7 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
         return "Element not found";
 
       case 'type':
-        const inputElement = getElement(command.selector) as HTMLInputElement;
+        const inputElement = getElement(getSelector(command)) as HTMLInputElement;
         if (inputElement) {
           inputElement.value = command.value;
           inputElement.dispatchEvent(new Event('input', { bubbles: true }));
@@ -177,8 +180,8 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
         return "Input element not found";
 
       case 'scrollto':
-        if (command.selector) {
-          const element = getElement(command.selector);
+        if (getSelector(command)) {
+          const element = getElement(getSelector(command));
           if (element) {
             element.scrollIntoView({ behavior: 'smooth' });
             return "Scrolled to element";
@@ -195,7 +198,7 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
         return "Invalid scroll parameters";
 
       case 'hover':
-        const hoverElement = getElement(command.selector) as HTMLElement;
+        const hoverElement = getElement(getSelector(command)) as HTMLElement;
         if (hoverElement) {
           hoverElement.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
           return "Hovered over element";
@@ -203,7 +206,7 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
         return "Hover target not found";
 
       case 'getattribute':
-        const attributeElement = getElement(command.selector);
+        const attributeElement = getElement(getSelector(command));
         if (attributeElement) {
           const value = attributeElement.getAttribute(command.attributeName);
           return value ? `Attribute value: ${value}` : "Attribute not found";
@@ -211,7 +214,7 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
         return "Element for attribute not found";
 
       case 'getcomputedstyle':
-        const styleElement = getElement(command.selector);
+        const styleElement = getElement(getSelector(command));
         if (styleElement) {
           const style = window.getComputedStyle(styleElement);
           const value = style.getPropertyValue(command.propertyName);
@@ -225,9 +228,9 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
           return "Page is quiet";
         }
         return new Promise((resolve) => {
-          if (command.selector) {
+          if (getSelector(command)) {
             const checkElement = () => {
-              if (getElement(command.selector)) {
+              if (getElement(getSelector(command))) {
                 resolve("Element found");
               } else {
                 setTimeout(checkElement, 100);
@@ -241,8 +244,9 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
 
       case 'waitforelement':
         return new Promise((resolve) => {
+          const selector = getSelector(command);
           const observer = new MutationObserver(() => {
-            if (getElement(command.selector)) {
+            if (getElement(selector)) {
               observer.disconnect();
               resolve("Element appeared");
             }
@@ -251,7 +255,7 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
           setTimeout(() => {
             observer.disconnect();
             resolve("Timeout: Element did not appear");
-          }, command.timeout || 5000);
+          }, command.timeout || command.to || 5000);
         });
 
       case 'waitfornetwork':
@@ -373,21 +377,20 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
     try {
       const result = await performCommand(command);
       results.push(result);
-
-      if (command.command.toLowerCase() !== 'waitfor' && command.command.toLowerCase() !== 'changes') {
-        await waitForQuiet(100);
-      }
-
-      if (command.command.toLowerCase() === 'changes' && command.action === 'request') {
+      log.push({ step: command, result });
+      const userResult = await showToastWithPassFail(`Step: ${command.command}`, result, 1000);
+      if (userResult === 'fail') {
         break;
       }
     } catch (error) {
       results.push(`Error executing command: ${error}`);
+      log.push({ step: command, result: `Error: ${error}` });
       break;
     }
   }
 
-  // pageObserver.unregisterCallback();
+  // Write log to results.json (implement writeResultsLog)
+  await writeResultsLog(log);
 
   return results.length === 1 ? results[0] : results;
 };
@@ -406,4 +409,17 @@ export async function getOrCreateInstanceId(tabId: number, sessionID?: string): 
       resolve(instanceId);
     });
   });
+}
+
+// Placeholder for toast with Pass/Fail
+async function showToastWithPassFail(title: string, message: string, timeoutMs: number): Promise<'pass' | 'fail'> {
+  // Implement actual toast UI elsewhere; here, auto-pass after timeout
+  return new Promise(resolve => setTimeout(() => resolve('pass'), timeoutMs));
+}
+
+// Placeholder for writing results log
+async function writeResultsLog(log: any[]): Promise<void> {
+  // Implement actual file writing using background script or native messaging
+  // For now, just log to console
+  console.log('Would write results log:', log);
 }
