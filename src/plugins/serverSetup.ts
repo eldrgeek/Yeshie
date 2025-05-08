@@ -5,6 +5,7 @@ import { Server } from "socket.io";
 import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
+import { logInfo } from "../utils/logger";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -14,12 +15,12 @@ const PORT = IS_DEVELOPMENT ? 3001 : process.env.PORT || 8080;
 
 export default function serverSetup() {
     const app = express();
-    console.log(`PORT: ${PORT}`);
+    logInfo(`PORT: ${PORT}`);
 
     const httpServer = createServer(app);
     const clientBuildPath = path.join(__dirname, "../../client/dist");
-    console.log(`Serving static files from ${clientBuildPath}`);
-    console.log("PROD",!IS_DEVELOPMENT);
+    logInfo(`Serving static files from ${clientBuildPath}`);
+    logInfo(`PROD: ${!IS_DEVELOPMENT}`);
     if (!IS_DEVELOPMENT && fs.existsSync(clientBuildPath)) {
         app.use(express.static(clientBuildPath));
     }
@@ -48,12 +49,12 @@ export default function serverSetup() {
         }
 
         httpServer.listen(PORT, () => {
-            console.log(`Server is running on port ${PORT}`);
+            logInfo(`Server is running on port ${PORT}`);
             if (IS_DEVELOPMENT) {
-                console.log(
+                logInfo(
                     `Vite dev server is expected to run on http://localhost:3000`,
                 );
-                console.log(`Make sure to start the Vite dev server separately`);
+                logInfo(`Make sure to start the Vite dev server separately`);
             }
         });
         return io;

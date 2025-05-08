@@ -7,6 +7,7 @@ import * as path from 'path';
 import * as ts from 'typescript';
 import * as parser from '@babel/parser';
 import traverse from '@babel/traverse';
+import { logInfo, logWarn, logError } from './utils/logger';
 
 interface FileAnalysis {
   hasWebSocket: boolean;
@@ -40,34 +41,34 @@ class DevEnvironment {
 
   private async killPorts(): Promise<void> {
     try {
-      console.log('Killing existing processes on development ports...');
+      logInfo('Killing existing processes on development ports...');
       await new Promise<void>((resolve, reject) => {
         const killScript = spawn('scripts/killports.sh');
         
         killScript.stdout.on('data', (data) => {
-          console.log(data.toString().trim());
+          logInfo(data.toString().trim());
         });
         
         killScript.stderr.on('data', (data) => {
-          console.error(data.toString().trim());
+          logError(data.toString().trim());
         });
         
         killScript.on('close', (code) => {
           if (code === 0) {
             resolve();
           } else {
-            console.warn('Warning: killports.sh exited with code', code);
+            logWarn('Warning: killports.sh exited with code', code);
             resolve(); // Still resolve to continue with startup
           }
         });
         
         killScript.on('error', (err) => {
-          console.warn('Warning: Failed to execute killports.sh:', err);
+          logWarn('Warning: Failed to execute killports.sh:', err);
           resolve(); // Still resolve to continue with startup
         });
       });
     } catch (error) {
-      console.warn('Warning: Port killing failed, some ports might still be in use');
+      logWarn('Warning: Port killing failed, some ports might still be in use');
     }
   }
 
@@ -132,7 +133,7 @@ class JobBuilder {
       return analysis;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        console.warn(`Warning: File not found: ${filePath}`);
+        logWarn(`Warning: File not found: ${filePath}`);
         return {
           hasWebSocket: false,
           imports: []
@@ -221,7 +222,7 @@ class JobBuilder {
       const resolved = path.resolve(path.dirname(currentFile), importPath);
       // Only warn if file doesn't exist and it's a local import
       if (!fs.existsSync(resolved)) {
-        console.warn(`Warning: Local import not found: ${resolved}`);
+        logWarn(`Warning: Local import not found: ${resolved}`);
       }
       return resolved;
     }
@@ -363,7 +364,7 @@ class JobBuilder {
           throw error;
         }
         // Skip if directory doesn't exist
-        console.warn(`Warning: Directory ${dir} not found`);
+        logWarn(`Warning: Directory ${dir} not found`);
       }
     }
 

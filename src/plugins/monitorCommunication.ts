@@ -1,5 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { SessionManager } from './sessionManager';
+import { logInfo } from '../utils/logger';
 
 export default function monitorCommunicator(sm: SessionManager) {
   let monitorSocket: Socket | null = null;
@@ -10,14 +11,14 @@ export default function monitorCommunicator(sm: SessionManager) {
         const { op, ...data } = payload;
         monitorSocket.emit(op, data);
       } else {
-        console.log("Monitor not connected");
+        logInfo("Monitor not connected");
       }
     });
 
     socket.on('session?', (componentType: string) => {
       if (componentType === "monitor") {
         monitorSocket = socket;
-        console.log("Monitor connected");
+        logInfo("Monitor connected");
       }
     });
   });

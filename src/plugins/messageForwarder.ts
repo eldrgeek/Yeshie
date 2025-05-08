@@ -1,5 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { SessionInfo, SessionManager } from './sessionManager';
+import { logError } from '../utils/logger';
 
 export default function messageForwarder(sm: SessionManager) {
   sm.io.on('connection', (socket: Socket) => {
@@ -10,7 +11,7 @@ export default function messageForwarder(sm: SessionManager) {
           const { op, ...data } = message;
           targetSession.socket.emit(op, data);
         } else {
-          console.log(`Error: Client ${message.to} not found`);
+          logError(`Client ${message.to} not found`, { targetClientId: message.to });
         }
       } else {
         sm.sessions.forEach((sessionInfo, sessionId) => {

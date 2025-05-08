@@ -1,4 +1,5 @@
 import { ConversationEntry } from "../types";
+import { logInfo } from "../utils/logger";
 
 export class TestManager {
   private currentTestStep: number = 0;
@@ -7,7 +8,7 @@ export class TestManager {
   constructor(private testConversation: ConversationEntry[]) {}
 
   public startTest(clearEditor: () => void, displayNextEntry: () => void): void {
-    console.log("Starting test mode");
+    logInfo("Starting test mode");
     this.isTestMode = true;
     this.currentTestStep = 0;
     clearEditor();
@@ -15,7 +16,7 @@ export class TestManager {
   }
 
   public startTestAll(updateContent: (newContent: string, mode: "append" | "replace") => void, isIframe: boolean, sendPostMessage: (content: string) => void): void {
-    console.log("Starting testall mode");
+    logInfo("Starting testall mode");
     this.isTestMode = false;
     const allContent = this.testConversation.map((entry, index) => 
       this.formatEntry(entry, index === 0)
@@ -34,10 +35,10 @@ export class TestManager {
   public handleTestMode(lastLine: string, addBlankLine: () => void, updateContent: (newContent: string, mode: "append" | "replace") => void, isIframe: boolean, sendPostMessage: (content: string) => void): boolean {
     if (!this.isTestMode) return false;
 
-    console.log("Test mode state:", { currentTestStep: this.currentTestStep, lastLine });
+    logInfo("Test mode state:", { currentTestStep: this.currentTestStep, lastLine });
     
     if (this.currentTestStep >= this.testConversation.length - 1) {
-      console.log("Reached end of conversation");
+      logInfo("Reached end of conversation");
       this.isTestMode = false;
       return true;
     }

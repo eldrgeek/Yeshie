@@ -1,4 +1,5 @@
 import { ConversationEntry, IEditorProvider, IMessageSender, INotificationProvider } from '../types';
+import { logInfo } from "../utils/logger";
 
 export const TEST_CONVERSATION: ConversationEntry[] = [
   {
@@ -69,7 +70,7 @@ export class TestConversationHandler {
   }
 
   private startTestMode(): void {
-    console.log("Starting test mode");
+    logInfo("Starting test mode");
     this.isTestMode = true;
     this.currentStep = 0;
     this.editor.setContent("", "replace");
@@ -84,7 +85,7 @@ export class TestConversationHandler {
   }
 
   private showFullConversation(isIframe: boolean): void {
-    console.log("Starting testall mode");
+    logInfo("Starting testall mode");
     this.isTestMode = false;
     
     const allContent = TEST_CONVERSATION
@@ -109,10 +110,10 @@ export class TestConversationHandler {
       return false;
     }
 
-    console.log("Test mode state:", { currentStep: this.currentStep });
+    logInfo("Test mode state:", { currentStep: this.currentStep });
     
     if (this.currentStep >= TEST_CONVERSATION.length - 1) {
-      console.log("Reached end of conversation");
+      logInfo("Reached end of conversation");
       this.isTestMode = false;
       return true;
     }
