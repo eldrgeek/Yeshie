@@ -1,5 +1,6 @@
 import { storageGet, storageSet, storageRemove } from "../functions/storage"
 import { log } from "../functions/DiagnosticLogger"
+import { logInfo, logWarn, logError } from "../functions/logger";
 // import debounce from 'lodash/debounce'; // Remove lodash import
 
 // Store for last active tabs (not including our extension tabs)
@@ -43,7 +44,7 @@ let lastFocusedWindowId: number | null = null
 
 // Initialize tab tracking
 export async function initTabTracking() {
-  console.log("--- initTabTracking() called ---"); // Add entry log
+  logInfo("TabHistory", "--- initTabTracking() called ---"); // Add entry log
   // Clear any existing listeners
   chrome.tabs.onActivated.removeListener(handleTabActivated)
   chrome.tabs.onUpdated.removeListener(handleTabUpdated)
@@ -62,14 +63,14 @@ export async function initTabTracking() {
   // Listen for tab moved events
   chrome.tabs.onMoved.addListener(handleTabMoved); // Add onMoved listener
   
-  console.log("Tab history tracking initialized with all listeners")
+  logInfo("TabHistory", "Tab history tracking initialized with all listeners")
   
   // Initial save of the current active tab
   try {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
     if (tabs.length > 0) {
       const currentTab = tabs[0]
-      console.log("Initial active tab:", currentTab.id, currentTab.url)
+      logInfo("TabHistory", "Initial active tab", { tabId: currentTab.id, url: currentTab.url });
       
       // Force immediate tracking of the initial tab
       if (currentTab && currentTab.id && !isExtensionUrl(currentTab.url || "", EXTENSION_URL_PATTERN)) {
@@ -82,16 +83,16 @@ export async function initTabTracking() {
       }
     }
   } catch (error) {
-    console.error("Error getting initial active tab:", error)
+    logError("TabHistory", "Error getting initial active tab", { error });
   }
   
   // Initial population of the application tabs list
-  console.log("Performing immediate initial update of stored application tabs...");
+  logInfo("TabHistory", "Performing immediate initial update of stored application tabs...");
   await updateStoredApplicationTabs(); 
 
   // Also schedule a slightly delayed update to catch slow-loading tabs after install/update
   setTimeout(() => {
-    console.log("Performing delayed initial update of stored application tabs...");
+    logInfo("TabHistory", "Performing delayed initial update of stored application tabs...");
     updateStoredApplicationTabs();
   }, 2000); // 2-second delay
 }
@@ -110,22 +111,22 @@ function isExtensionUrl(url: string, currentOrigin: string): boolean {
 // Save tab info to storage
 async function saveTabInfo(tabInfo: TabInfo): Promise<void> {
   try {
-    console.log("Saving tab info:", tabInfo)
+    logInfo("TabHistory", "Saving tab info", { tabInfo });
     await storageSet(LAST_TAB_KEY, tabInfo)
-    log('storage_set', { key: LAST_TAB_KEY, tabId: tabInfo.id, url: tabInfo.url })
+    logInfo('TabHistory', 'storage_set: LAST_TAB_KEY', { key: LAST_TAB_KEY, tabId: tabInfo.id, url: tabInfo.url })
   } catch (error) {
-    console.error("Error saving tab info:", error)
+    logError("TabHistory", "Error saving tab info", { error });
     const errorMessage = error instanceof Error ? error.message : String(error)
-    log('storage_error', { operation: 'saveTabInfo', error: errorMessage })
+    logError('TabHistory', 'storage_error: saveTabInfo', { operation: 'saveTabInfo', error: errorMessage })
   }
 }
 
 // Handle tab removed events - save the tab that was active before removal
 async function handleTabRemoved(tabId: number, removeInfo: { windowId: number, isWindowClosing: boolean }) {
-  console.log(`Tab ${tabId} removed, isWindowClosing: ${removeInfo.isWindowClosing}`)
+  logInfo("TabHistory", `Tab ${tabId} removed`, { isWindowClosing: removeInfo.isWindowClosing });
   
   // Update the application tab list
-  console.log(`[Trigger] Calling debouncedUpdateStoredApplicationTabs from handleTabRemoved for tab ${tabId}`); // Log Trigger
+  logInfo("TabHistory", "[Trigger] Calling debouncedUpdateStoredApplicationTabs from handleTabRemoved", { tabId }); // Log Trigger
   debouncedUpdateStoredApplicationTabs();
   
   // If this is the last tab in a window that's closing, we don't need to track
@@ -137,14 +138,14 @@ async function handleTabRemoved(tabId: number, removeInfo: { windowId: number, i
   try {
     const lastTab = await storageGet<TabInfo>(LAST_TAB_KEY)
     if (lastTab && lastTab.id === tabId) {
-      console.log("Removed tab was the last active tab, clearing stored tab")
+      logInfo("TabHistory", "Removed tab was the last active tab, clearing stored tab");
       await storageRemove(LAST_TAB_KEY)
-      log('storage_remove', { key: LAST_TAB_KEY, reason: 'Tab removed' })
+      logInfo('TabHistory', 'storage_remove: LAST_TAB_KEY, reason: Tab removed', { key: LAST_TAB_KEY, reason: 'Tab removed' })
     }
   } catch (error) {
-    console.error("Error handling tab removal:", error)
+    logError("TabHistory", "Error handling tab removal", { error });
     const errorMessage = error instanceof Error ? error.message : String(error)
-    log('storage_error', { operation: 'handleTabRemoved_check', error: errorMessage })
+    logError('TabHistory', 'storage_error: handleTabRemoved_check', { operation: 'handleTabRemoved_check', error: errorMessage })
   }
 }
 
@@ -155,7 +156,7 @@ async function handleTabActivated(activeInfo: { tabId: number; windowId: number 
     lastFocusedWindowId = activeInfo.windowId
     
     // Update application tabs list (debounced)
-    console.log(`[Trigger] Calling debouncedUpdateStoredApplicationTabs from handleTabActivated for tab ${activeInfo.tabId}`); // Log Trigger
+    logInfo("TabHistory", "[Trigger] Calling debouncedUpdateStoredApplicationTabs from handleTabActivated", { tabId: activeInfo.tabId }); // Log Trigger
     debouncedUpdateStoredApplicationTabs();
     
     // If two tab activations happen quickly, cancel the pending update
@@ -169,7 +170,7 @@ async function handleTabActivated(activeInfo: { tabId: number; windowId: number 
     
     // Only update if this tab was focused for more than MIN_TAB_FOCUS_TIME
     if (activationTime - lastTabFocusTime < MIN_TAB_FOCUS_TIME) {
-      console.log(`Tab ${activeInfo.tabId} focus too brief, not tracking`)
+      logInfo("TabHistory", "Tab focus too brief, not tracking", { tabId: activeInfo.tabId });
       // Save the time in case this is the beginning of a new focus
       lastTabFocusTime = activationTime
       return
@@ -187,7 +188,7 @@ async function handleTabActivated(activeInfo: { tabId: number; windowId: number 
         const isWindowFocused = focusedWindows.some(w => w.id === activeInfo.windowId)
         
         if (!isWindowFocused) {
-          console.log(`Window ${activeInfo.windowId} no longer has focus, not tracking tab ${activeInfo.tabId}`)
+          logInfo("TabHistory", `Window ${activeInfo.windowId} no longer has focus, not tracking tab`, { tabId: activeInfo.tabId });
           return
         }
         
@@ -195,20 +196,20 @@ async function handleTabActivated(activeInfo: { tabId: number; windowId: number 
         
         // Skip tabs without a valid URL
         if (!tab.url) {
-          console.log("Skipping tab with no URL:", tab.id)
+          logInfo("TabHistory", "Skipping tab with no URL", { tabId: tab.id });
           return
         }
         
         // Skip extension tabs and chrome:// URLs
         if (isExtensionUrl(tab.url, EXTENSION_URL_PATTERN)) {
-          console.log("Skipping browser/extension tab:", tab.id, tab.url)
+          logInfo("TabHistory", "Skipping browser/extension tab", { tabId: tab.id, url: tab.url });
           return
         }
         
         // Verify the tab is still active before saving it
         const currentTabs = await chrome.tabs.query({ active: true, currentWindow: true })
         if (currentTabs.length === 0 || currentTabs[0].id !== tab.id) {
-          console.log("Tab no longer active, not saving:", tab.id)
+          logInfo("TabHistory", "Tab no longer active, not saving", { tabId: tab.id });
           return
         }
         
@@ -219,21 +220,21 @@ async function handleTabActivated(activeInfo: { tabId: number; windowId: number 
           timestamp: Date.now()
         }
         
-        console.log("Updating last active tab with finalized info:", tabInfo)
+        logInfo("TabHistory", "Updating last active tab with finalized info", { tabInfo });
         await saveTabInfo(tabInfo)
       } catch (error) {
-        console.error("Error in delayed tab update:", error)
+        logError("TabHistory", "Error in delayed tab update", { error });
         const errorMessage = error instanceof Error ? error.message : String(error)
-        log('tab_history_error', { context: 'delayed_update', error: errorMessage })
+        logError('TabHistory', 'tab_history_error: delayed_update', { context: 'delayed_update', error: errorMessage })
       } finally {
         pendingTabUpdate = null
       }
     }, 500) // Reduced from 1.5s to 500ms for better responsiveness
     
   } catch (error) {
-    console.error("Error tracking tab:", error)
+    logError("TabHistory", "Error tracking tab", { error });
     const errorMessage = error instanceof Error ? error.message : String(error)
-    log('tab_history_error', { context: 'handleTabActivated_main', error: errorMessage })
+    logError('TabHistory', 'tab_history_error: handleTabActivated_main', { context: 'handleTabActivated_main', error: errorMessage })
   }
 }
 
@@ -269,7 +270,7 @@ function handleTabUpdated(tabId: number, changeInfo: chrome.tabs.TabChangeInfo, 
 export async function getLastActiveTab(): Promise<TabInfo | null> {
   try {
     const lastTab = await storageGet<TabInfo>(LAST_TAB_KEY)
-    log('storage_get', { key: LAST_TAB_KEY, found: !!lastTab })
+    logInfo('TabHistory', 'storage_get: LAST_TAB_KEY', { key: LAST_TAB_KEY, found: !!lastTab })
     
     if (lastTab) {
       // Verify the tab still exists before returning it
@@ -277,19 +278,19 @@ export async function getLastActiveTab(): Promise<TabInfo | null> {
         await chrome.tabs.get(lastTab.id)
         return lastTab
       } catch (error) {
-        console.warn("Last tab no longer exists:", lastTab.id)
+        logWarn("TabHistory", "Last tab no longer exists", { tabId: lastTab.id });
         // Clear the stored tab since it no longer exists
         await storageRemove(LAST_TAB_KEY)
-        log('storage_remove', { key: LAST_TAB_KEY, reason: 'Tab no longer exists' })
+        logInfo('TabHistory', 'storage_remove: LAST_TAB_KEY, reason: Tab no longer exists', { key: LAST_TAB_KEY, reason: 'Tab no longer exists' })
         return null
       }
     }
     
     return null
   } catch (error) {
-    console.error("Error retrieving last active tab:", error)
+    logError("TabHistory", "Error retrieving last active tab", { error });
     const errorMessage = error instanceof Error ? error.message : String(error)
-    log('storage_error', { operation: 'getLastActiveTab', error: errorMessage })
+    logError('TabHistory', 'storage_error: getLastActiveTab', { operation: 'getLastActiveTab', error: errorMessage })
     return null
   }
 }
@@ -300,20 +301,20 @@ export async function focusLastActiveTab(): Promise<boolean> {
     const lastTab = await getLastActiveTab()
     
     if (!lastTab) {
-      console.warn("No last active tab found")
+      logWarn("TabHistory", "No last active tab found");
       return false
     }
     
-    console.log("Attempting to focus last active tab:", lastTab)
+    logInfo("TabHistory", "Attempting to focus last active tab", { lastTab });
     
     try {
       // Check if the tab still exists
       const tab = await chrome.tabs.get(lastTab.id)
-      console.log("Tab to focus exists:", tab)
+      logInfo("TabHistory", "Tab to focus exists", { tab });
       
       // Focus the window containing the tab
       if (tab.windowId) {
-        console.log("Focusing window:", tab.windowId)
+        logInfo("TabHistory", "Focusing window", { windowId: tab.windowId });
         await chrome.windows.update(tab.windowId, { focused: true })
       }
       
@@ -321,18 +322,18 @@ export async function focusLastActiveTab(): Promise<boolean> {
       await new Promise(resolve => setTimeout(resolve, 300))
       
       // Focus the tab itself with more detailed logging
-      console.log("About to focus tab:", lastTab.id)
+      logInfo("TabHistory", "About to focus tab", { tabId: lastTab.id });
       const updatedTab = await chrome.tabs.update(lastTab.id, { active: true })
-      console.log("Tab focus response:", updatedTab)
+      logInfo("TabHistory", "Tab focus response", { updatedTab });
       
-      console.log("Successfully focused last active tab:", lastTab.id)
+      logInfo("TabHistory", "Successfully focused last active tab", { tabId: lastTab.id });
       return true
     } catch (tabError) {
-      console.error("Error focusing last active tab (may have been closed):", tabError)
+      logError("TabHistory", "Error focusing last active tab (may have been closed)", { error: tabError });
       return false
     }
   } catch (error) {
-    console.error("Error in focusLastActiveTab:", error)
+    logError("TabHistory", "Error in focusLastActiveTab", { error });
     return false
   }
 }
@@ -357,12 +358,12 @@ function debounce<F extends (...args: any[]) => any>(
 
 // --- Function to get, filter, and store application tabs --- 
 async function updateStoredApplicationTabs() {
-  console.log('Updating stored application tabs...');
+  logInfo("TabHistory", "Updating stored application tabs...");
   try {
     const controlTabId = await storageGet<number>(CONTROL_TAB_ID_KEY);
-    console.log(`CONFIRMED storageGet for CONTROL_TAB_ID_KEY, value read: ${controlTabId}`);
+    logInfo("TabHistory", "CONFIRMED storageGet for CONTROL_TAB_ID_KEY", { controlTabId });
     if (!controlTabId) {
-        console.warn("Control Tab ID not found in storage, cannot reliably identify control tab title.");
+        logWarn("TabHistory", "Control Tab ID not found in storage, cannot reliably identify control tab title.");
     }
 
     const allTabs = await chrome.tabs.query({});
@@ -390,7 +391,7 @@ async function updateStoredApplicationTabs() {
         finalGroupedStoredTabs[windowIdStr] = groupedTabs[windowIdStr]
             .sort((a, b) => a.index - b.index) // Sort by index
             .map(tab => { // Map to StoredApplicationTab
-                 console.log(`[Tab Update Map] ID: ${tab.id}, Win: ${windowIdStr}, Index: ${tab.index}, URL: ${tab.url}, Title: ${tab.title}`);
+                 logInfo("TabHistory", "[Tab Update Map]", { tabId: tab.id, windowId: windowIdStr, index: tab.index, url: tab.url, title: tab.title });
                  totalTabCount++;
                  return {
                     id: tab.id as number,
@@ -402,13 +403,13 @@ async function updateStoredApplicationTabs() {
     }
 
     await storageSet(APPLICATION_TABS_KEY, finalGroupedStoredTabs); // Save the grouped object
-    log('storage_set', { key: APPLICATION_TABS_KEY, count: totalTabCount, windows: Object.keys(finalGroupedStoredTabs).length });
-    console.log(`Stored ${totalTabCount} application tabs across ${Object.keys(finalGroupedStoredTabs).length} windows.`);
+    logInfo('TabHistory', 'storage_set: APPLICATION_TABS_KEY', { key: APPLICATION_TABS_KEY, count: totalTabCount, windows: Object.keys(finalGroupedStoredTabs).length });
+    logInfo("TabHistory", "Stored application tabs", { count: totalTabCount, windows: Object.keys(finalGroupedStoredTabs).length });
 
   } catch (error) {
-      console.error("Error updating stored application tabs:", error);
+      logError("TabHistory", "Error updating stored application tabs", { error });
       const errorMessage = error instanceof Error ? error.message : String(error);
-      log('storage_error', { operation: 'updateStoredApplicationTabs', error: errorMessage });
+      logError('TabHistory', 'storage_error: updateStoredApplicationTabs', { operation: 'updateStoredApplicationTabs', error: errorMessage });
   }
 }
 
@@ -417,8 +418,8 @@ const debouncedUpdateStoredApplicationTabs = debounce(updateStoredApplicationTab
 
 // --- Add handler for tab moved --- 
 function handleTabMoved(tabId: number, moveInfo: chrome.tabs.TabMoveInfo) {
-    console.log(`Tab ${tabId} moved within window ${moveInfo.windowId} from index ${moveInfo.fromIndex} to ${moveInfo.toIndex}`);
+    logInfo("TabHistory", `Tab ${tabId} moved`, { windowId: moveInfo.windowId, fromIndex: moveInfo.fromIndex, toIndex: moveInfo.toIndex });
     // Trigger an update of the stored tabs list to reflect the new index order
-    console.log(`[Trigger] Calling debouncedUpdateStoredApplicationTabs from handleTabMoved for tab ${tabId}`);
+    logInfo("TabHistory", "[Trigger] Calling debouncedUpdateStoredApplicationTabs from handleTabMoved", { tabId });
     debouncedUpdateStoredApplicationTabs();
 } 

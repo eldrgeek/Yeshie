@@ -20,6 +20,8 @@ export interface SummaryOptions {
     excludeTags?: string[]; // Tags to exclude from the result (e.g. h1, h2, h3, p, span)
 }
 
+import { logWarn } from "./logger";
+
 function getBoundingClientRectString(element: HTMLElement): string {
     const rect = element.getBoundingClientRect();
     return `(${rect.top}, ${rect.left}, ${rect.width}, ${rect.height})`;
@@ -106,7 +108,7 @@ function traverseDom(element: HTMLElement, options: SummaryOptions = {}): Elemen
 export function summarizeWebPage(options: SummaryOptions = {}): ElementInfo[] {
     const body = document.querySelector('body');
     if (!body) {
-        console.warn('No <body> element found on the page.');
+        logWarn("PageSummary", "No <body> element found on the page.");
         return [];
     }
 

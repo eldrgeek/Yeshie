@@ -1,6 +1,7 @@
 import { summarizeWebPage } from './pageSummary';
 import { pageObserver, type ObserverEvent, type ObserverCallback, type ObserverEventType } from './observer';
 import { v4 as uuidv4 } from 'uuid';
+import { logInfo, logWarn, logError } from "../functions/logger";
 
 // Map to store promise resolvers for pending interactive toasts
 const pendingInteractiveToasts = new Map<string, { resolve: (value: unknown) => void, reject: (reason?: any) => void }>();
@@ -19,7 +20,7 @@ if (typeof window !== 'undefined') { // Ensure this only runs in a browser-like 
         }
         pendingInteractiveToasts.delete(toastId);
       } else {
-        console.warn('Stepper received INTERACTIVE_TOAST_RESPONSE for unknown/stale toastId:', toastId);
+        logWarn("Stepper", "Received INTERACTIVE_TOAST_RESPONSE for unknown/stale toastId", { toastId });
       }
     }
   });
@@ -129,7 +130,7 @@ const parseCommand = (input: string | Command): Command => {
 
   const firstWord = input.split(/\s+/)[0].toLowerCase();
   const templateEntry = commandTemplates[firstWord];
-  console.log(templateEntry)
+  logInfo("Stepper", "Parsed command template entry", { templateEntry });
 
   if (!templateEntry) {
     throw new Error(`Invalid command: ${input}`);
@@ -161,7 +162,7 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
 
   let lastEventTime = Date.now();
   const observerCallback: ObserverCallback = (event) => {
-    console.log("Observer callback received event:", event);
+    logInfo("Stepper", "Observer callback received event", { event });
     lastEventTime = Date.now();
   };
 
@@ -181,7 +182,7 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
   };
 
   const performCommand = async (command: Command): Promise<string> => {
-    console.log("Executing command:", command);
+    logInfo("Stepper", "Executing command", { command });
 
     const getElement = (selector: string, text?: string): Element | null => {
       if (!text) {
@@ -324,7 +325,7 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
 
       case 'takescreenshot':
         chrome.runtime.sendMessage({ action: "screenshot" }, (response) => {
-          console.log(response);
+          logInfo("Stepper", "Screenshot action response", { response });
         });
         return "Screenshot captured";
       case 'handledialog':
@@ -392,7 +393,7 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
 
       case 'record':
         if (command.action === 'start') {
-          console.log('Starting record command');
+          logInfo("Stepper", "Starting record command");
           pageObserver.clear(); // Clear any existing events
           pageObserver.start(); // Start collecting events
           const startTime = Date.now();
@@ -400,7 +401,7 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
           // Set up a callback to collect events
           const collectedEvents: ObserverEvent[] = [];
           const recordCallback: ObserverCallback = (event) => {
-            console.log("Recording event:", event);
+            logInfo("Stepper", "Recording event", { event });
             collectedEvents.push(event);
             lastEventTime = Date.now();
           };
@@ -412,9 +413,9 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
           }, '*');
           return "Started recording user actions";
         } else {
-          console.log('Stopping record command');
+          logInfo("Stepper", "Stopping record command");
           const actions = pageObserver.request();
-          console.log('Recorded actions:', actions);
+          logInfo("Stepper", "Recorded actions", { actions });
           pageObserver.stop();
           pageObserver.unregisterCallback();
           window.postMessage({
@@ -470,7 +471,7 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
       log.push({ step: command, result });
 
       if (command.command.toLowerCase() === 'break') {
-        console.log('Break command encountered. Halting script execution.');
+        logInfo("Stepper", "Break command encountered. Halting script execution.");
         break;
       }
     } catch (error) {
@@ -480,7 +481,7 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
       
       // Check if the error is from a user cancelling an interactive toast
       if (errorMessage.includes('Toast interaction') && errorMessage.includes('Cancelled or dismissed by user')) {
-        console.log('Script execution halted by user via toast cancellation.');
+        logInfo("Stepper", "Script execution halted by user via toast cancellation.");
         break; // Stop further execution
       }
       // Optional: decide if all errors should break the loop
@@ -513,7 +514,7 @@ export async function getOrCreateInstanceId(tabId: number, sessionID?: string): 
 // Placeholder for toast with Pass/Fail
 async function showToastWithPassFail(title: string, message: string, timeoutMs: number): Promise<'pass' | 'fail'> {
   // Implement actual toast UI elsewhere; here, auto-pass after timeout
-  console.warn("showToastWithPassFail was called. This may be unintended if automatic per-step toasts were meant to be removed.");
+  logWarn("Stepper", "showToastWithPassFail was called. This may be unintended if automatic per-step toasts were meant to be removed.");
   return new Promise(resolve => setTimeout(() => resolve('pass'), timeoutMs));
 }
 
@@ -521,5 +522,5 @@ async function showToastWithPassFail(title: string, message: string, timeoutMs: 
 async function writeResultsLog(log: any[]): Promise<void> {
   // Implement actual file writing using background script or native messaging
   // For now, just log to console
-  console.log('Would write results log:', log);
+  logInfo("Stepper", "Would write results log", { log });
 }

@@ -11,7 +11,7 @@ import { logInfo, logError, logDebug } from "../functions/logger"
 // }
 
 // Debug logging for module load
-console.log("LearnMode.tsx component module loaded at", new Date().toISOString());
+logInfo("LearnMode", "LearnMode.tsx component module loaded", { timestamp: new Date().toISOString() });
 
 const styles = {
   toast: {
@@ -32,25 +32,25 @@ const styles = {
 } as const
 
 export default function LearnMode() { // Renamed component export for clarity
-  console.log("LearnMode component initializing");
+  logInfo("LearnMode", "LearnMode component initializing");
   const [isProcessing, setIsProcessing] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   
   // Function to toggle the Yeshie sidebar by simulating the keyboard shortcut
   const toggleYeshieSidebar = async () => {
     try {
-      console.log("LearnMode: Ensuring Yeshie sidebar is open...");
+      logInfo("LearnMode", "Ensuring Yeshie sidebar is open...");
       
       // Get current state from storage
       const isOpenKey = "isOpen" + window.location.hostname
       const currentIsOpen = await storageGet<boolean>(isOpenKey) || false
       
-      console.log(`LearnMode: Current sidebar state is: ${currentIsOpen ? 'open' : 'closed'}`);
+      logInfo("LearnMode", `Current sidebar state is: ${currentIsOpen ? 'open' : 'closed'}`);
       
       if (!currentIsOpen) {
         // Directly update the storage value to open the sidebar
         await storageSet(isOpenKey, true)
-        console.log("LearnMode: Opened Yeshie sidebar via storage update")
+        logInfo("LearnMode", "Opened Yeshie sidebar via storage update")
         
         // Also dispatch an event to trigger any listeners
         // This simulates pressing Ctrl+Shift+Y
@@ -62,39 +62,39 @@ export default function LearnMode() { // Renamed component export for clarity
           metaKey: navigator.platform.includes('Mac'),
           bubbles: true
         });
-        console.log("LearnMode: Dispatching simulated Ctrl+Shift+Y event");
+        logInfo("LearnMode", "Dispatching simulated Ctrl+Shift+Y event");
         document.dispatchEvent(yEvent);
         
         // Verify the storage update
         const updatedIsOpen = await storageGet(isOpenKey);
-        console.log(`LearnMode: Verified sidebar state after update: ${updatedIsOpen ? 'open' : 'still closed'}`);
+        logInfo("LearnMode", `Verified sidebar state after update: ${updatedIsOpen ? 'open' : 'still closed'}`);
       } else {
-        console.log("LearnMode: Sidebar already open, no action needed");
+        logInfo("LearnMode", "Sidebar already open, no action needed");
       }
     } catch (error) {
-      console.error("LearnMode: Error toggling Yeshie sidebar:", error);
+      logError("LearnMode", "Error toggling Yeshie sidebar", { error });
       const errorMessage = error instanceof Error ? error.message : String(error);
-      logError('Error in toggleYeshieSidebar', { operation: 'toggleYeshieSidebar', error: errorMessage });
+      logError("LearnMode", "Error in toggleYeshieSidebar", { operation: 'toggleYeshieSidebar', error: errorMessage });
     }
   }
 
   // Effect for handling keyboard shortcuts
   useEffect(() => {
-    logDebug("LearnMode: Setting up key event listener for Ctrl+Shift+L");
+    logDebug("LearnMode", "Setting up key event listener for Ctrl+Shift+L", undefined);
 
     const handleKey = (e: KeyboardEvent) => {
-      logDebug("LearnMode: Key pressed", { key: e.key, ctrl: e.ctrlKey, shift: e.shiftKey, meta: e.metaKey }); // Log any keydown
+      logDebug("LearnMode", "Key pressed", { key: e.key, ctrl: e.ctrlKey, shift: e.shiftKey, meta: e.metaKey }); // Log any keydown
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "l") {
-        logInfo("LearnMode: Ctrl+Shift+L DETECTED. Sending toggle message to background."); // More prominent log
+        logInfo("LearnMode", "Ctrl+Shift+L DETECTED. Sending toggle message to background.", undefined); // More prominent log
         e.preventDefault();
         e.stopPropagation();
 
         // Send message to background to toggle recording state
         chrome.runtime.sendMessage({ type: "TOGGLE_RECORDING_FROM_SHORTCUT" }, (response) => {
             if (chrome.runtime.lastError) {
-                logError("LearnMode: Error sending toggle shortcut message", { error: chrome.runtime.lastError.message });
+                logError("LearnMode:", "Error sending toggle shortcut message", { error: chrome.runtime.lastError.message });
             } else {
-                logInfo("LearnMode: Toggle shortcut message sent successfully.", { response }); // Log success
+                logInfo("LearnMode","Toggle shortcut message sent successfully.", { response }); // Log success
             }
         });
       } else {
@@ -106,12 +106,12 @@ export default function LearnMode() { // Renamed component export for clarity
     window.addEventListener("keydown", handleKey, true);
 
     return () => {
-      logDebug("LearnMode: Removing keydown listener");
+      logDebug("LearnMode", "Removing keydown listener", undefined);
       window.removeEventListener("keydown", handleKey, true);
     };
   }, []);
 
-  console.log("LearnMode component rendered");
+  logInfo("LearnMode", "LearnMode component rendered");
   return (
     <div className="yeshie-ui">
       {toast && (

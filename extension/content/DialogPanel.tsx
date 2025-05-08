@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { logInfo, logError } from "../functions/logger";
 
 const styles = {
   toast: {
@@ -35,13 +36,13 @@ export default function YeshieUI() {
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
             if (tabs[0]?.id) {
                 const tabId = tabs[0].id;
-                console.log(`YeshieUI: Sending toggle command to background for tab ${tabId}`);
+                logInfo("DialogPanel", `Sending toggle command to background for tab ${tabId}`);
                 chrome.runtime.sendMessage({ 
                     type: "TOGGLE_RECORDING_STATE", 
                     payload: { tabId } 
                 })
                 .then(response => {
-                    console.log("YeshieUI: Background response to TOGGLE_RECORDING_STATE:", response);
+                    logInfo("DialogPanel", "Background response to TOGGLE_RECORDING_STATE", { response });
                     if (response?.success) {
                       if (response.isNowRecording) {
                           setToast(response.message || "Learn mode started.");
@@ -55,21 +56,21 @@ export default function YeshieUI() {
                       }
                     } else {
                         setToast(response?.message || "Failed to toggle learn mode.");
-                         console.error("YeshieUI: Error toggling learn mode via background:", response?.error);
+                         logError("DialogPanel", "Error toggling learn mode via background", { error: response?.error });
                     }
                     setTimeout(() => setToast(null), 3000); 
                 })
                 .catch(err => {
-                    console.error("YeshieUI: Error sending message to background:", err);
+                    logError("DialogPanel", "Error sending message to background", { error: err });
                     setToast("Error communicating with background script");
                     setTimeout(() => setToast(null), 2000);
                 })
                  .finally(() => {
-                    console.log("YeshieUI: Learn mode toggle message sent/processed");
+                    logInfo("DialogPanel", "Learn mode toggle message sent/processed");
                     setIsProcessing(false); 
                  });
             } else {
-                console.error("YeshieUI: Could not get active tab ID.");
+                logError("DialogPanel", "Could not get active tab ID.");
                 setToast("Could not identify the current tab.");
                 setIsProcessing(false);
             }

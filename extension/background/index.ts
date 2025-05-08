@@ -25,7 +25,8 @@ import { Stepper } from '../functions/Stepper';
 
 const DEBUG_TABS = process.env.NODE_ENV === 'development'; // Use NODE_ENV for debug flag
 
-console.log("Yeshie background service worker started.");
+// console.log("Yeshie background service worker started."); // Replace console.log
+logInfo("Core", "Yeshie background service worker started.");
 
 // --- Variable to hold API key in memory ---
 let backgroundApiKey: string | null = null;
@@ -50,9 +51,9 @@ let llmProcessingTimeout: NodeJS.Timeout | null = null; // Timeout handle
 storageGet<number>(TASK_COUNTER_KEY).then(count => {
     if (count) {
         taskCounter = count;
-        logInfo(`Loaded initial task counter: ${taskCounter}`);
+        logInfo("Core", `Loaded initial task counter: ${taskCounter}`);
     } else {
-        logInfo(`Initializing task counter to 1.`);
+        logInfo("Core", `Initializing task counter to 1.`);
         // Optionally save the initial value: storageSet(TASK_COUNTER_KEY, 1);
     }
 }).catch(error => handleError(error, { operation: 'loadTaskCounter' }));
@@ -68,29 +69,29 @@ storageGet<number>(TASK_COUNTER_KEY).then(count => {
 async function openOrFocusExtensionTab() {
   let foundTabId: number | null = null;
   try {
-    logDebug(`Checking for existing tab with URL: ${TAB_URL}`);
+    logDebug("UI", `Checking for existing tab with URL: ${TAB_URL}`);
     const tabs = await chrome.tabs.query({ url: TAB_URL });
-    logDebug(`Found ${tabs.length} tabs matching URL.`);
+    logDebug("UI", `Found ${tabs.length} tabs matching URL.`);
 
     if (tabs.length > 0) {
       // Tab exists, focus the first one found and reload it
       const tab = tabs[0];
       if (tab.id) {
         foundTabId = tab.id; // Store the ID
-        logInfo(`Found existing extension tab ID: ${tab.id}. Focusing and reloading.`);
+        logInfo("UI", `Found existing extension tab ID: ${tab.id}. Focusing and reloading.`);
         await chrome.tabs.update(tab.id, { active: true });
         await chrome.tabs.reload(tab.id);
-        logInfo(`Focused and reloaded existing extension tab: ${tab.id}`);
+        logInfo("UI", `Focused and reloaded existing extension tab: ${tab.id}`);
       } else {
         handleError("Found extension tab has no ID", { tab });
       }
     } else {
       // No tab exists, create a new one
-      logInfo(`No existing extension tab found. Creating new tab with URL: ${TAB_URL}`);
+      logInfo("UI", `No existing extension tab found. Creating new tab with URL: ${TAB_URL}`);
       const newTab = await chrome.tabs.create({ url: TAB_URL });
       if (newTab && newTab.id) {
         foundTabId = newTab.id; // Store the ID
-        logInfo(`Successfully created new extension tab ID: ${newTab.id}`);
+        logInfo("UI", `Successfully created new extension tab ID: ${newTab.id}`);
       } else {
         handleError("chrome.tabs.create call did not return a valid tab object", { newTab });
       }
@@ -100,13 +101,14 @@ async function openOrFocusExtensionTab() {
     if (foundTabId) {
         try {
             await storageSet(CONTROL_TAB_ID_KEY, foundTabId);
-            logInfo(`Stored control tab ID ${foundTabId} to storage.`);
-            console.log(`CONFIRMED storageSet for CONTROL_TAB_ID_KEY with ID: ${foundTabId}`);
+            logInfo("Storage", `Stored control tab ID ${foundTabId} to storage.`);
+            // console.log(`CONFIRMED storageSet for CONTROL_TAB_ID_KEY with ID: ${foundTabId}`); // Replace console.log
+            logDebug("Storage", `CONFIRMED storageSet for CONTROL_TAB_ID_KEY with ID: ${foundTabId}`);
         } catch (storageError) {
              handleError(storageError, { operation: 'openOrFocusExtensionTab - saveControlTabId' });
         }
     } else {
-        logWarn("Could not determine control tab ID to store.");
+        logWarn("UI", "Could not determine control tab ID to store.");
     }
 
   } catch (error) {
@@ -125,7 +127,7 @@ async function getCurrentTabId(): Promise<number> {
     // console.log("All active tabs:", tabs); // Debugging: uncomment if needed
     const tabId = tabs[0]?.id ?? -1;
     // console.log("Selected tab ID:", tabId); // Debugging: uncomment if needed
-    logDebug("Get current tab ID", { tabId });
+    logDebug("TabTracking", "Get current tab ID", { tabId });
     return tabId;
   } catch (error) {
     // console.error("Error getting current tab ID:", error);
@@ -141,10 +143,10 @@ async function logCurrentTabState() {
   try {
     const tabId = await getCurrentTabId();
     // console.log("Current Active Tab ID (from background):", tabId);
-    logInfo("Current Active Tab ID (from background)", { tabId });
+    logInfo("TabTracking", "Current Active Tab ID (from background)", { tabId });
     const allTabs = await chrome.tabs.query({});
     // console.log("All open tabs:", allTabs.map(tab => ({ id: tab.id, url: tab.url, active: tab.active, windowId: tab.windowId })));
-    logDebug("All open tabs", { tabs: allTabs.map(tab => ({ id: tab.id, url: tab.url, active: tab.active, windowId: tab.windowId })) });
+    logDebug("TabTracking", "All open tabs", { tabs: allTabs.map(tab => ({ id: tab.id, url: tab.url, active: tab.active, windowId: tab.windowId })) });
   } catch (error) {
       // console.error("Error logging current tab state:", error);
       handleError(error, { operation: 'logCurrentTabState' });
@@ -160,10 +162,10 @@ function sendMessageToTab(tabId: number, message: any) {
   chrome.tabs.sendMessage(tabId, message, (response) => {
     if (chrome.runtime.lastError) {
       // console.log(`Could not send message to tab ${tabId}: ${chrome.runtime.lastError.message}`);
-      logWarn(`Could not send message to tab ${tabId}`, { error: chrome.runtime.lastError.message });
+      logWarn("Background", `Could not send message to tab ${tabId}`, { error: chrome.runtime.lastError.message });
     } else {
       // console.log(`Message sent to tab ${tabId}, response:`, response); // Debugging
-      logDebug(`Message sent to tab ${tabId}`, { response });
+      logDebug("Background", `Message sent to tab ${tabId}`, { response });
     }
   });
 }
@@ -185,10 +187,10 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   // --- END TEMPORARY DEBUG --- 
 
   try {
-    logInfo("Extension installed or updated (inside try block)", { reason: details.reason });
+    logInfo("Core", "Extension installed or updated (inside try block)", { reason: details.reason });
 
     if (details.reason === 'install') {
-      logInfo("Reason: install. Opening or focusing tab page.");
+      logInfo("Core", "Reason: install. Opening or focusing tab page.");
       openOrFocusExtensionTab();
     } 
     // --- REVERT DEBUG CONDITION --- 
@@ -196,9 +198,9 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     else if (details.reason === 'update') { 
     // --- END REVERT DEBUG CONDITION --- 
       // logInfo(`Reason: update (or forced: ${forceUpdate}). Reloading application tabs based on stored list.`);
-      logInfo("Reason: update. Reloading application tabs based on stored list."); // Revert log message
+      logInfo("Core", "Reason: update. Reloading application tabs based on stored list."); // Revert log message
       try {
-        logInfo("Attempting to read application tabs from storage...");
+        logInfo("Storage", "Attempting to read application tabs from storage...");
         const tabsToReloadGroupedRaw = await storageGet<Record<string, StoredApplicationTab[]>>(APPLICATION_TABS_KEY);
         
         // *** REMOVE EXTRA DEBUG LOGGING ***
@@ -207,12 +209,12 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 
         if (!tabsToReloadGroupedRaw || Object.keys(tabsToReloadGroupedRaw).length === 0) {
              // console.log("[onInstalled Update] Condition met: Data is null, undefined, or empty object.");
-             logInfo("No application tabs found in storage (or data is empty/null). No tabs to reload.");
+             logInfo("Storage", "No application tabs found in storage (or data is empty/null). No tabs to reload.");
         } else {
              // console.log("[onInstalled Update] Condition NOT met: Data seems valid, proceeding to flatten.");
              // Flatten the grouped tabs into a single list for reloading
              const allTabsToReload: StoredApplicationTab[] = Object.values(tabsToReloadGroupedRaw).flat();
-             logInfo(`Found ${allTabsToReload.length} total application tabs across all windows in storage to reload.`);
+             logInfo("TabTracking", `Found ${allTabsToReload.length} total application tabs across all windows in storage to reload.`);
              
              
              // *** REMOVE EXTRA DEBUG LOGGING ***
@@ -223,22 +225,22 @@ chrome.runtime.onInstalled.addListener(async (details) => {
                   try {
                     await chrome.tabs.get(tab.id);
                     await chrome.tabs.reload(tab.id);
-                    logInfo(`Reloaded application tab ID: ${tab.id}`, { title: tab.title });
+                    logInfo("TabTracking", `Reloaded application tab ID: ${tab.id}`, { title: tab.title });
                   } catch (reloadOrGetError: any) {
                     if (reloadOrGetError.message?.includes("No tab with id")) {
-                        logWarn(`Application tab ID ${tab.id} no longer exists.`);
+                        logWarn("TabTracking", `Application tab ID ${tab.id} no longer exists.`);
                     } else {
                         handleError(reloadOrGetError, { operation: 'reloadAppTabOnUpdate', tabId: tab.id });
                     }
                   }
                 } else {
-                  logWarn("Found invalid tab data in flattened list:", { tab });
+                  logWarn("TabTracking", "Found invalid tab data in flattened list:", { tab });
                 }
               }
         }
 
         // After reloading app tabs, ensure the main extension UI tab is open and focused.
-        logInfo("Ensuring extension UI tab is open/focused after update.");
+        logInfo("UI", "Ensuring extension UI tab is open/focused after update.");
         openOrFocusExtensionTab();
 
       } catch (storageError) {
@@ -264,7 +266,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
  */
 chrome.runtime.onStartup.addListener(() => {
   // console.log("Browser started, checking for extension tab...");
-  logInfo("Browser started, checking for extension tab...");
+  logInfo("Core", "Browser started, checking for extension tab...");
   openOrFocusExtensionTab();
   logCurrentTabState();
 });
@@ -273,7 +275,7 @@ chrome.runtime.onStartup.addListener(() => {
 // Log tab state changes
 chrome.tabs.onActivated.addListener((activeInfo) => {
   // if (DEBUG_TABS) console.log("Activated Tab ID:", activeInfo.tabId);
-  logDebug("Activated Tab ID", { tabId: activeInfo.tabId });
+  logDebug("TabTracking", "Activated Tab ID", { tabId: activeInfo.tabId });
   // logCurrentTabState().catch(error => console.error("Error during onActivated logCurrentTabState:", error)); // Temporarily commented out
 });
 
@@ -281,25 +283,25 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     // Log state when a tab finishes loading
     if (changeInfo.status === 'complete') {
         // if (DEBUG_TABS) console.log("Updated Tab (completed loading):", tabId);
-        logDebug("Updated Tab (completed loading)", { tabId });
+        logDebug("TabTracking", "Updated Tab (completed loading)", { tabId });
     }
 });
 
 chrome.tabs.onCreated.addListener((tab) => {
   // if (DEBUG_TABS) console.log("New tab created:", tab.id);
-  logDebug("New tab created", { tabId: tab.id });
+  logDebug("TabTracking", "New tab created", { tabId: tab.id });
   // logCurrentTabState().catch(error => console.error("Error during onCreated logCurrentTabState:", error)); // Temporarily commented out
 });
 
 // Clean up tab-specific context data shortly after a tab is closed
 chrome.tabs.onRemoved.addListener((tabId) => {
   // if (DEBUG_TABS) console.log("Tab removed:", tabId);
-  logDebug("Tab removed", { tabId });
+  logDebug("TabTracking", "Tab removed", { tabId });
   setTimeout(async () => {
     try {
       await storageRemove(`tabContext:${tabId}`);
       // if (DEBUG_TABS) console.log(`Removed context for tab ${tabId}`);
-      logDebug(`Removed context for tab ${tabId}`);
+      logDebug("Storage", `Removed context for tab ${tabId}`);
       // Log state after removal attempt
       // logCurrentTabState().catch(error => console.error("Error during onRemoved logCurrentTabState:", error)); // Temporarily commented out
     } catch(error) {
@@ -320,27 +322,33 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
 // --- Function to perform the actual LLM call ---
 async function callLLMService(prompt: string): Promise<SendToLLMResponse> {
-  console.log(`** callLLMService invoked with prompt: "${prompt.substring(0, 50)}..." **`);
+  // console.log(`** callLLMService invoked with prompt: "${prompt.substring(0, 50)}..." **`); // Replace console.log
+  logInfo("API", `callLLMService invoked with prompt: "${prompt.substring(0, 50)}..."`);
   let apiKeyToUse: string | null = null;
 
   // 1. Prioritize in-memory key
   if (backgroundApiKey) {
-    console.log("Using API key stored in background script memory.");
+    // console.log("Using API key stored in background script memory."); // Replace console.log
+    logInfo("API", "Using API key stored in background script memory.");
     apiKeyToUse = backgroundApiKey;
   } else {
     // 2. Fallback to reading from storage using the new utility
-    console.log("In-memory API key not found, attempting to read from storage...");
+    // console.log("In-memory API key not found, attempting to read from storage..."); // Replace console.log
+    logInfo("API", "In-memory API key not found, attempting to read from storage...");
     try {
       apiKeyToUse = await storageGet<string>('openai-api-key'); // Use storageGet
       if (apiKeyToUse) {
-         console.log("Successfully read API key from storage.");
+         // console.log("Successfully read API key from storage."); // Replace console.log
+         logInfo("API", "Successfully read API key from storage.");
          // Optionally store it in memory now
          // backgroundApiKey = apiKeyToUse;
       } else {
-         console.log("API key not found in storage.");
+         // console.log("API key not found in storage."); // Replace console.log
+         logInfo("API", "API key not found in storage.");
       }
     } catch (storageError) {
-       console.error('Error reading API key from storage:', storageError);
+       // console.error('Error reading API key from storage:', storageError); // Replace console.error
+       logError('Storage', 'Error reading API key from storage:', storageError);
        // Log error using diagnostic logger
        const errorMessage = storageError instanceof Error ? storageError.message : String(storageError);
        handleError(storageError, { operation: 'callLLMService - readApiKey' });
@@ -350,13 +358,15 @@ async function callLLMService(prompt: string): Promise<SendToLLMResponse> {
 
   // 3. Check if we have a key now
   if (!apiKeyToUse) {
-    console.error('OpenAI API key not set (checked memory and storage).');
+    // console.error('OpenAI API key not set (checked memory and storage).'); // Replace console.error
+    logError('API', 'OpenAI API key not set (checked memory and storage).');
     return { error: 'OpenAI API key not set. Please set it via the tab page.' } as SendToLLMResponse;
   }
 
   // 4. Proceed with API call
   try {
-    console.log('Attempting to call OpenAI API...');
+    // console.log('Attempting to call OpenAI API...'); // Replace console.log
+    logInfo('API', 'Attempting to call OpenAI API...');
     // Ensure OpenAI is imported or available here
     const openai = new OpenAI({ apiKey: apiKeyToUse, dangerouslyAllowBrowser: true });
 
@@ -366,16 +376,19 @@ async function callLLMService(prompt: string): Promise<SendToLLMResponse> {
     });
 
     const result = completion.choices[0]?.message?.content;
-    console.log('OpenAI API Response received.');
+    // console.log('OpenAI API Response received.'); // Replace console.log
+    logInfo('API', 'OpenAI API Response received.');
 
     if (result) {
       return { result: result.trim() } as SendToLLMResponse;
     } else {
-      console.error('OpenAI API response did not contain content.', completion);
+      // console.error('OpenAI API response did not contain content.', completion); // Replace console.error
+      logError('API', 'OpenAI API response did not contain content.', { completion });
       return { error: 'LLM did not return a valid response.' } as SendToLLMResponse;
     }
   } catch (error) {
-    console.error('Error calling OpenAI API:', error);
+    // console.error('Error calling OpenAI API:', error); // Replace console.error
+    logError('API', 'Error calling OpenAI API:', error);
     let errorMessage = 'An unknown error occurred while contacting the LLM service.';
     if (error instanceof Error) { errorMessage = error.message; }
     // Add specific error checks as before
@@ -394,98 +407,98 @@ async function sendMessageToContentScripts(tabIds: number[], message: any) { /* 
 async function startRecordingLogic() { // Restore async
     // 1. Check if already active
     if (isRecordingActive) {
-        logWarn("Start recording called, but already active.");
+        logWarn("Recording", "Start recording called, but already active.");
         return;
     }
     // 2. Log start
-    logInfo("Starting test recording session...");
+    logInfo("Recording", "Starting test recording session...");
 
     try { // Encompass everything after the initial check
-        logDebug("startRecordingLogic: Entered function body (inside try)");
+        logDebug("Recording", "startRecordingLogic: Entered function body (inside try)");
 
         isRecordingActive = true; // Set early
-        logDebug("startRecordingLogic: isRecordingActive set to true");
+        logDebug("Recording", "startRecordingLogic: isRecordingActive set to true");
 
         currentRecordingRawSteps = [];
-        logDebug("startRecordingLogic: currentRecordingRawSteps initialized");
+        logDebug("Recording", "startRecordingLogic: currentRecordingRawSteps initialized");
 
         activeRecordingTabs.clear();
-        logDebug("startRecordingLogic: activeRecordingTabs cleared");
+        logDebug("Recording", "startRecordingLogic: activeRecordingTabs cleared");
 
         expectedResponsesFromTabs.clear();
-        logDebug("startRecordingLogic: expectedResponsesFromTabs cleared");
+        logDebug("Recording", "startRecordingLogic: expectedResponsesFromTabs cleared");
 
         if (llmProcessingTimeout) {
-            logDebug("startRecordingLogic: Clearing previous timeout", { handle: llmProcessingTimeout });
+            logDebug("Recording", "startRecordingLogic: Clearing previous timeout", { handle: llmProcessingTimeout });
             clearTimeout(llmProcessingTimeout);
-            logDebug("startRecordingLogic: Timeout cleared");
+            logDebug("Recording", "startRecordingLogic: Timeout cleared");
         }
-        logDebug("startRecordingLogic: State fully initialized");
+        logDebug("Recording", "startRecordingLogic: State fully initialized");
 
         // Restore async operations
         const currentTabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        logDebug("startRecordingLogic: Queried active tabs", { count: currentTabs.length });
+        logDebug("Recording", "startRecordingLogic: Queried active tabs", { count: currentTabs.length });
 
         if (currentTabs.length > 0 && currentTabs[0].id) {
             const initialTabId = currentTabs[0].id;
-            logDebug(`startRecordingLogic: Initial active tab ID: ${initialTabId}`);
+            logDebug("Recording", `startRecordingLogic: Initial active tab ID: ${initialTabId}`);
             activeRecordingTabs.add(initialTabId);
             expectedResponsesFromTabs.add(initialTabId);
-            logDebug("startRecordingLogic: Added tab to sets");
+            logDebug("Recording", "startRecordingLogic: Added tab to sets");
 
-            logDebug("startRecordingLogic: Attempting to send ACTIVATE_RECORDING message...", { initialTabId });
+            logDebug("Recording", "startRecordingLogic: Attempting to send ACTIVATE_RECORDING message...", { initialTabId });
             await sendMessageToContentScripts([initialTabId], { type: "ACTIVATE_RECORDING", payload: { tabId: initialTabId } });
-            logDebug("startRecordingLogic: ACTIVATE_RECORDING message sent (or attempted)");
+            logDebug("Recording", "startRecordingLogic: ACTIVATE_RECORDING message sent (or attempted)");
 
         } else {
-            logWarn("startRecordingLogic: Could not get initial active tab for recording.");
+            logWarn("Recording", "startRecordingLogic: Could not get initial active tab for recording.");
         }
 
-        logDebug("startRecordingLogic: Attempting to add tab event listeners...");
+        logDebug("Recording", "startRecordingLogic: Attempting to add tab event listeners...");
         chrome.tabs.onActivated.addListener(handleTabActivated);
         chrome.tabs.onUpdated.addListener(handleTabUpdated);
-        logDebug("startRecordingLogic: Tab event listeners added.");
+        logDebug("Recording", "startRecordingLogic: Tab event listeners added.");
 
         // Notify the Tab Page UI that recording has started (with retry)
-        logDebug("startRecordingLogic: Attempting to send RECORDING_STARTED message to UI...");
+        logDebug("Recording", "startRecordingLogic: Attempting to send RECORDING_STARTED message to UI...");
         const sendRecordingStarted = () => {
             chrome.runtime.sendMessage({ type: "RECORDING_STARTED", payload: { message: "Recording started" } })
                .catch(e => {
                     const error = e as Error;
                     // Check for the specific error message
                     if (error.message?.includes("Receiving end does not exist")) {
-                        logWarn("Failed to send RECORDING_STARTED to UI (Receiving end does not exist), retrying in 200ms...");
+                        logWarn("Recording", "Failed to send RECORDING_STARTED to UI (Receiving end does not exist), retrying in 200ms...");
                         setTimeout(sendRecordingStarted, 200); // Retry after 200ms
                     } else {
-                         logWarn("Failed to send RECORDING_STARTED to UI (Unknown error)", { error: error.message });
+                         logWarn("Recording", "Failed to send RECORDING_STARTED to UI (Unknown error)", { error: error.message });
                          // Optionally handle other errors differently
                     }
                });
         };
         sendRecordingStarted(); // Initial attempt
-        logDebug("startRecordingLogic: Initial RECORDING_STARTED message sent (or attempted).");
+        logDebug("Recording", "startRecordingLogic: Initial RECORDING_STARTED message sent (or attempted).");
 
     } catch (error) {
         const operation = 'startRecordingLogic';
-        logError(`Error during ${operation}`, { errorMessage: (error as Error)?.message, errorObj: error });
+        logError("Recording", `Error during ${operation}`, { errorMessage: (error as Error)?.message, errorObj: error });
         handleError(error, { operation });
         if (isRecordingActive) {
-             logWarn(`${operation}: Resetting state due to error.`);
+             logWarn("Recording", `${operation}: Resetting state due to error.`);
              isRecordingActive = false;
              chrome.tabs.onActivated.removeListener(handleTabActivated);
              chrome.tabs.onUpdated.removeListener(handleTabUpdated);
         } else {
-            logWarn(`${operation}: Error occurred before recording state was fully activated.`);
+            logWarn("Recording", `${operation}: Error occurred before recording state was fully activated.`);
         }
     }
 }
 
 async function stopRecordingLogic() {
     if (!isRecordingActive) {
-        logWarn("Stop recording called, but not active.");
+        logWarn("Recording", "Stop recording called, but not active.");
         return;
     }
-    logInfo("Stopping test recording session...");
+    logInfo("Recording", "Stopping test recording session...");
     isRecordingActive = false;
 
     chrome.tabs.onActivated.removeListener(handleTabActivated);
@@ -494,26 +507,26 @@ async function stopRecordingLogic() {
     const tabsToDeactivate = Array.from(activeRecordingTabs);
     expectedResponsesFromTabs = new Set(tabsToDeactivate);
 
-    logInfo(`Expecting step data from tabs: [${tabsToDeactivate.join(', ')}]`);
+    logInfo("Recording", `Expecting step data from tabs: [${tabsToDeactivate.join(', ')}]`);
     sendMessageToContentScripts(tabsToDeactivate, { type: "DEACTIVATE_RECORDING", payload: {} });
 
     if (llmProcessingTimeout) clearTimeout(llmProcessingTimeout);
     llmProcessingTimeout = setTimeout(() => {
-        logWarn(`Recording stopped: Timeout waiting for steps from tabs [${Array.from(expectedResponsesFromTabs).join(', ')}]. Processing with received steps.`);
+        logWarn("Recording", `Recording stopped: Timeout waiting for steps from tabs [${Array.from(expectedResponsesFromTabs).join(', ')}]]. Processing with received steps.`);
         llmProcessingTimeout = null;
         processAndSaveRecording();
     }, RECORDING_TIMEOUT_MS);
 
     // Notify the Tab Page UI that recording has stopped / is processing
      chrome.runtime.sendMessage({ type: "RECORDING_STOPPED", payload: { message: "Recording stopped, processing..." } })
-       .catch(e => logWarn("Failed to send RECORDING_STOPPED to UI", { error: (e as Error).message }));
+       .catch(e => logWarn("Recording", "Failed to send RECORDING_STOPPED to UI", { error: (e as Error).message }));
 }
 
 // --- Tab Event Handlers (Active only during recording) ---
 const handleTabActivated = (activeInfo: chrome.tabs.TabActiveInfo) => {
     if (!isRecordingActive) return;
     const tabId = activeInfo.tabId;
-    logDebug(`handleTabActivated: Fired for tab ${tabId}`); // Log entry
+    logDebug("Recording", `handleTabActivated: Fired for tab ${tabId}`); // Log entry
 
     // Record the switch step
     const step: RawStepData = {
@@ -524,20 +537,20 @@ const handleTabActivated = (activeInfo: chrome.tabs.TabActiveInfo) => {
         value: tabId
     };
     currentRecordingRawSteps.push(step);
-    logDebug(`handleTabActivated: Recorded switch step for tab ${tabId}`);
+    logDebug("Recording", `handleTabActivated: Recorded switch step for tab ${tabId}`);
 
     // If this is a new tab for this recording session...
     if (!activeRecordingTabs.has(tabId)) {
-        logInfo(`handleTabActivated: Tab ${tabId} is NEW for this recording session. Adding.`); // Log if new
+        logInfo("Recording", `handleTabActivated: Tab ${tabId} is NEW for this recording session. Adding.`); // Log if new
         activeRecordingTabs.add(tabId);
-        logDebug(`handleTabActivated: activeRecordingTabs now: [${Array.from(activeRecordingTabs).join(', ')}]`);
+        logDebug("Recording", `handleTabActivated: activeRecordingTabs now: [${Array.from(activeRecordingTabs).join(', ')}]`);
         // Activate listeners in its content script
-        logDebug(`handleTabActivated: Attempting to send ACTIVATE_RECORDING to tab ${tabId}...`);
+        logDebug("Recording", `handleTabActivated: Attempting to send ACTIVATE_RECORDING to tab ${tabId}...`);
         sendMessageToContentScripts([tabId], { type: "ACTIVATE_RECORDING", payload: { tabId: tabId } })
-           .then(() => logDebug(`handleTabActivated: Sent ACTIVATE_RECORDING to tab ${tabId} (or tried).`))
-           .catch(e => logWarn(`handleTabActivated: Error sending ACTIVATE_RECORDING to tab ${tabId}`, { error: e }));
+           .then(() => logDebug("Recording", `handleTabActivated: Sent ACTIVATE_RECORDING to tab ${tabId} (or tried).`))
+           .catch(e => logWarn("Recording", `handleTabActivated: Error sending ACTIVATE_RECORDING to tab ${tabId}`, { error: e }));
     } else {
-        logDebug(`handleTabActivated: Tab ${tabId} was already in activeRecordingTabs.`); // Log if already present
+        logDebug("Recording", `handleTabActivated: Tab ${tabId} was already in activeRecordingTabs.`); // Log if already present
     }
 };
 
@@ -549,7 +562,7 @@ function checkIfReadyToProcessRecording() {
     // ... (ensure this function exists as defined previously) ...
      if (isRecordingActive) return;
      if (expectedResponsesFromTabs.size === 0) {
-         logInfo("All expected content script responses received.");
+         logInfo("Recording", "All expected content script responses received.");
          if (llmProcessingTimeout) {
              clearTimeout(llmProcessingTimeout);
              llmProcessingTimeout = null;
@@ -560,7 +573,7 @@ function checkIfReadyToProcessRecording() {
 
 // Add the notification function
 function notifyUIRecordingProcessed(success: boolean, taskName: string | null, error?: string) {
-    logDebug("Notifying UI about recording processing result", { success, taskName, error });
+    logDebug("Recording", "Notifying UI about recording processing result", { success, taskName, error });
     chrome.runtime.sendMessage({
         type: "RECORDING_PROCESSED",
         payload: {
@@ -568,13 +581,13 @@ function notifyUIRecordingProcessed(success: boolean, taskName: string | null, e
             taskName: taskName,
             error: error
         }
-    }).catch(e => logWarn("Failed to send RECORDING_PROCESSED status to UI", { error: (e as Error).message }));
+    }).catch(e => logWarn("Recording", "Failed to send RECORDING_PROCESSED status to UI", { error: (e as Error).message }));
 }
 
 async function processAndSaveRecording() {
-    logInfo("Processing recorded steps...");
+    logInfo("Recording", "Processing recorded steps...");
     if (currentRecordingRawSteps.length === 0) {
-        logWarn("No steps were recorded. Aborting save.");
+        logWarn("Recording", "No steps were recorded. Aborting save.");
         notifyUIRecordingProcessed(false, null, "No steps recorded."); // Notify UI
         return;
     }
@@ -605,14 +618,14 @@ ${formattedSteps}
 
 Generate only the valid JSON output conforming to the schema.`;
 
-        logInfo(`Sending ${stepsForProcessing.length} steps to LLM for ${taskName}...`);
+        logInfo("API", `Sending ${stepsForProcessing.length} steps to LLM for ${taskName}...`);
         const response = await callLLMService(prompt);
 
         // 3. Handle LLM Response
         if (response.result) {
             // Clean the LLM response string
             let cleanedResult = response.result.trim();
-            logDebug("Raw LLM Result:", { cleanedResult });
+            logDebug("API", "Raw LLM Result:", { cleanedResult });
             if (cleanedResult.startsWith("```json")) {
                 cleanedResult = cleanedResult.substring(7); // Remove ```json
             }
@@ -623,11 +636,11 @@ Generate only the valid JSON output conforming to the schema.`;
                 cleanedResult = cleanedResult.substring(0, cleanedResult.length - 3);
             }
             cleanedResult = cleanedResult.trim(); // Trim again after removing fences
-            logDebug("Cleaned LLM Result:", { cleanedResult });
+            logDebug("API", "Cleaned LLM Result:", { cleanedResult });
 
             // Basic validation: Can it be parsed?
             const parsedResult = JSON.parse(cleanedResult); // Use cleaned result
-            logInfo(`LLM generated script for ${taskName}. Saving...`);
+            logInfo("Recording", `LLM generated script for ${taskName}. Saving...`);
 
             const storageKey = `${LEARNED_TASK_PREFIX}${taskName.replace(/\s+/g, '_')}`;
             await storageSet(storageKey, {
@@ -635,12 +648,12 @@ Generate only the valid JSON output conforming to the schema.`;
                 createdAt: new Date().toISOString(),
                 script: parsedResult
             });
-            logInfo(`Successfully saved ${taskName} to storage with key ${storageKey}`);
+            logInfo("Storage", `Successfully saved ${taskName} to storage with key ${storageKey}`);
 
             // Increment and save task counter only on successful save
             taskCounter = originalTaskCounter + 1;
             await storageSet(TASK_COUNTER_KEY, taskCounter);
-            logInfo(`Incremented task counter to ${taskCounter}`);
+            logInfo("Core", `Incremented task counter to ${taskCounter}`);
 
             notifyUIRecordingProcessed(true, taskName); // Notify success
 
@@ -649,7 +662,7 @@ Generate only the valid JSON output conforming to the schema.`;
         }
     } catch (error) {
         handleError(error, { operation: 'processAndSaveRecording', taskName: taskName });
-        logError(`Failed to process or save recording for ${taskName}.`);
+        logError("Recording", `Failed to process or save recording for ${taskName}.`);
         notifyUIRecordingProcessed(false, taskName, (error as Error).message); // Notify failure
     }
 }
@@ -657,7 +670,7 @@ Generate only the valid JSON output conforming to the schema.`;
 
 // --- Message Listener --- (Ensure this replaces the old listener entirely)
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    logDebug("Background: Message received", { message, sender: { id: sender.id, url: sender.url, origin: sender.origin, tabId: sender.tab?.id } });
+    logDebug("Background", "Background: Message received", { message, sender: { id: sender.id, url: sender.url, origin: sender.origin, tabId: sender.tab?.id } });
     let isAsync = false; // Flag to indicate if sendResponse will be called asynchronously
 
     try {
@@ -682,23 +695,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // --- Step Collection Message ---
         else if (message.type === 'FORWARD_RECORDED_STEPS') {
             if (!sender.tab || !sender.tab.id) {
-                logWarn("Received FORWARD_RECORDED_STEPS without sender tab ID.", { sender });
+                logWarn("Recording", "Received FORWARD_RECORDED_STEPS without sender tab ID.", { sender });
                 sendResponse({ success: false, error: "Missing sender tab ID" });
             } else {
                 const tabId = sender.tab.id;
                 const steps = message.payload?.steps as RawStepData[];
                 if (!Array.isArray(steps)) {
-                    logWarn(`Received invalid steps data from tab ${tabId}`, { payload: message.payload });
+                    logWarn("Recording", `Received invalid steps data from tab ${tabId}`, { payload: message.payload });
                     sendResponse({ success: false, error: "Invalid steps data" });
                 } else {
-                    logInfo(`Received ${steps.length} steps from content script in tab ${tabId}`);
+                    logInfo("Recording", `Received ${steps.length} steps from content script in tab ${tabId}`);
                     currentRecordingRawSteps.push(...steps);
                     if (expectedResponsesFromTabs.has(tabId)) {
                         expectedResponsesFromTabs.delete(tabId);
-                        logDebug(`Tab ${tabId} has responded. Remaining expected: [${Array.from(expectedResponsesFromTabs).join(', ')}]`);
+                        logDebug("Recording", `Tab ${tabId} has responded. Remaining expected: [${Array.from(expectedResponsesFromTabs).join(', ')}]`);
                         checkIfReadyToProcessRecording();
                     } else {
-                        logWarn(`Received steps from unexpected tab ${tabId} or tab already responded.`);
+                        logWarn("Recording", `Received steps from unexpected tab ${tabId} or tab already responded.`);
                     }
                     sendResponse({ success: true });
                 }
@@ -709,24 +722,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         else if (message.name === 'setApiKeyInMemory') {
             if (message.body && typeof message.body.apiKey === 'string') {
                 backgroundApiKey = message.body.apiKey;
-                logInfo("** Background script received and stored API key in memory. **");
+                logInfo("API", "** Background script received and stored API key in memory. **");
                 sendResponse({ success: true });
             } else {
-                logError("Invalid payload received for setApiKeyInMemory");
+                logError("API", "Invalid payload received for setApiKeyInMemory");
                 sendResponse({ success: false, error: "Invalid API key payload" });
             }
         }
         else if (message.name === 'sendToLLM') {
             const payload = message.body as SendToLLMPayload;
             if (!payload || typeof payload.prompt !== 'string') {
-                logError("Invalid payload received for sendToLLM");
+                logError("API", "Invalid payload received for sendToLLM");
                 sendResponse({ error: "Invalid prompt payload" } as SendToLLMResponse);
                 return false; // Send response sync
             }
             isAsync = true; // Mark as async
             callLLMService(payload.prompt)
                 .then(response => {
-                    logInfo("Sending response for sendToLLM");
+                    logInfo("API", "Sending response for sendToLLM");
                     sendResponse(response);
                 })
                 .catch(error => {
@@ -736,12 +749,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         else if (message.name === "getTabId") {
              if (sender.tab?.id) {
-                 logDebug("Responding to getTabId request", { tabId: sender.tab.id });
+                 logDebug("TabTracking", "Responding to getTabId request", { tabId: sender.tab.id });
                  sendResponse({ tabId: sender.tab.id });
              } else {
                  isAsync = true; // Mark as async
                  getCurrentTabId().then(tabId => {
-                     logDebug("Responding to getTabId request (fallback)", { tabId });
+                     logDebug("TabTracking", "Responding to getTabId request (fallback)", { tabId });
                      sendResponse({ tabId });
                  }).catch(error => {
                      handleError(error, { messageName: 'getTabId - fallback' });
@@ -760,7 +773,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         else {
             const isPotentiallyPlasmoHandled = ['getLastTab', 'focusLastTab', 'focusTab'].includes(message?.name);
             if (!isPotentiallyPlasmoHandled && message.type !== 'ACTIVATE_RECORDING' && message.type !== 'DEACTIVATE_RECORDING') {
-                logWarn("Unhandled message type received in background listener:", { message });
+                logWarn("Background", "Unhandled message type received in background listener:", { message });
             }
             // If it's not one of ours and not Plasmo's, we don't send a response
         }
@@ -771,14 +784,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 // File System Access API is not available in service workers, so fallback to chrome.storage.local
                 chrome.storage.local.set({ 'ipc_results': message.log }, () => {
                     if (chrome.runtime.lastError) {
-                        console.warn('Could not write results.json:', chrome.runtime.lastError);
+                        // console.warn('Could not write results.json:', chrome.runtime.lastError); // Replace console.warn
+                        logWarn("Storage", 'Could not write results.json to storage', { error: chrome.runtime.lastError.message });
                         sendResponse({ success: false });
                     } else {
                         sendResponse({ success: true });
                     }
                 });
             } catch (e) {
-                console.warn('Could not write results.json:', e);
+                // console.warn('Could not write results.json:', e); // Replace console.warn
+                logWarn("Storage", 'Could not write results.json to storage (catch)', { error: e });
                 sendResponse({ success: false });
             }
             return true;
@@ -794,7 +809,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 handleError(e, { stage: 'sendErrorResponseCatch' });
             }
         } else if (isAsync) {
-           logError("Error occurred during async message processing", { error });
+           logError("Background", "Error occurred during async message processing", { error });
         }
     }
 
@@ -805,12 +820,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // Add offline/online listeners (if needed, already present in original code)
 self.addEventListener('offline', () => {
-  console.log('The browser is offline.');
+  // console.log('The browser is offline.'); // Replace console.log
+  logWarn("Core", "Browser is offline.");
   // Handle offline situation
 });
 
 self.addEventListener('online', () => {
-  console.log('The browser is back online.');
+  // console.log('The browser is back online.'); // Replace console.log
+  logInfo("Core", "Browser is back online.");
   // Handle reconnection logic
 });
 
@@ -820,7 +837,7 @@ self.addEventListener('online', () => {
 
 // --- Initialization ---
 // setupBG(); // Temporarily commented out // Setup background communication provided by extcomms
-logStorageUsage(); // Call the re-added/verified wrapper function
+logStorageUsageUtil(); // Changed from logStorageUsage() to call the imported utility directly
 logCurrentTabState().catch(error => handleError(error, { stage: 'initialLogCurrentTabState' }));
 
 // Periodic state logging (consider reducing frequency or removing if too noisy)
@@ -828,20 +845,23 @@ logCurrentTabState().catch(error => handleError(error, { stage: 'initialLogCurre
 
 // Initialize tab tracking when the background script starts
 initTabTracking()
-  .then(() => console.log("Tab tracking initialized"))
+  .then(() => logInfo("TabTracking", "Tab tracking initialized")) // Use logInfo
   .catch(error => handleError(error, { operation: 'initTabTracking' }));
 
-console.log("Background script fully initialized and message listener updated.");
+// console.log("Background script fully initialized and message listener updated."); // Replace console.log
+logInfo("Core", "Background script fully initialized and message listener updated.");
 
 // --- Test LLM call on Install/Update/Reload ---
 chrome.runtime.onInstalled.addListener(async (details) => {
   // ----> Run test ONLY on install <----
   if (details.reason !== 'install') { 
-    console.log(`LLM Test skipped (reason: ${details.reason})`);
+    // console.log(`LLM Test skipped (reason: ${details.reason})`); // Replace console.log
+    logInfo("API", `LLM Test skipped (reason: ${details.reason})`);
     return;
   }
   
-  console.log(`Extension installed/updated (${details.reason}). Running LLM test.`);
+  // console.log(`Extension installed/updated (${details.reason}). Running LLM test.`); // Replace console.log
+  logInfo("API", `Extension installed/updated (${details.reason}). Running LLM test.`);
 
   // Give a slight delay to ensure storage might be ready, though callLLMService handles checks
   await new Promise(resolve => setTimeout(resolve, 1000));
@@ -855,11 +875,13 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   if (response.result) {
     notificationTitle = "LLM Test Successful ✅";
     notificationMessage = `Prompt: "${testPrompt}"\nResult: ${response.result}`;
-    console.log("LLM Test Result:", response.result);
+    // console.log("LLM Test Result:", response.result); // Replace console.log
+    logInfo("API", "LLM Test Result:", { result: response.result });
   } else {
     notificationTitle = "LLM Test Failed ❌";
     notificationMessage = `Prompt: "${testPrompt}"\nError: ${response.error}`;
-    console.error("LLM Test Error:", response.error);
+    // console.error("LLM Test Error:", response.error); // Replace console.error
+    logError("API", "LLM Test Error:", { error: response.error });
   }
 
   // Truncate message if too long for notification
@@ -877,13 +899,15 @@ chrome.runtime.onInstalled.addListener(async (details) => {
      if (chrome.runtime.lastError) {
          handleError(chrome.runtime.lastError, { operation: 'showLLMTestNotification' });
      } else {
-         console.log("Test notification shown:", notificationId);
+         // console.log("Test notification shown:", notificationId); // Replace console.log
+         logInfo("API", "LLM Test notification shown:", { notificationId });
      }
   });
 });
 
 
-console.log("Background script fully initialized.");
+// console.log("Background script fully initialized."); // Replace console.log
+logInfo("Core", "Background script fully initialized.");
 
 // --- Deprecated function placeholder ---
 // async function handleSendToLLM(body: SendToLLMRequestBody, sendResponse: (response: SendToLLMResponseBody) => void) {
@@ -909,9 +933,9 @@ async function logStorageUsage() {
         if (syncItems && typeof syncItems === 'object') {
           syncCount = Object.keys(syncItems).length;
         }
-        logInfo(`chrome.storage.sync item count: ${syncCount}`);
+        logInfo("Storage", `chrome.storage.sync item count: ${syncCount}`);
         if (syncCount >= 510) {
-            logWarn("chrome.storage.sync is near or at its MAX_ITEMS limit!", { area: 'sync', count: syncCount });
+            logWarn("Storage", "chrome.storage.sync is near or at its MAX_ITEMS limit!", { area: 'sync', count: syncCount });
         }
     } catch (error) {
         handleError(error, { operation: 'logStorageUsage' });
@@ -947,11 +971,11 @@ async function runInstructionFileSequence() {
       }
     }
   } catch (e) {
-    console.error('Error running instruction file sequence:', e);
+    logError("Stepper", 'Error running instruction file sequence (background)', e);
   }
 }
 
 // Run on extension startup
-// runInstructionFileSequence(); // Commenting this out
+// runInstructionFileSequence(); // Keep this commented out
 
 // ... rest of initialization ... 

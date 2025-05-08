@@ -1,4 +1,5 @@
 import type { PlasmoMessaging } from "@plasmohq/messaging"
+import { logInfo, logError } from "../../functions/logger";
 
 declare namespace chrome {
   namespace tabs {
@@ -10,12 +11,12 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
   try {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     const tabId = tabs[0]?.id ?? -1;
-    console.log("Selected tab ID:", tabId);
+    logInfo("GetTabIdHandler", "Selected tab ID", { tabId });
     res.send({
       tabId
     });
   } catch (error) {
-    console.error("Error getting current tab ID:", error);
+    logError("GetTabIdHandler", "Error getting current tab ID", { error });
     res.send({
       tabId: -1
     });

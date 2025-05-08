@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { SpeechInput } from './SpeechEditor';
 import { Storage } from "@plasmohq/storage";
 import { getBuildInfo } from '../background/buildCounter';
+import { logInfo, logError } from "../functions/logger";
 
 interface ReportDialogProps {
   isOpen: boolean;
@@ -24,7 +25,7 @@ const ReportDialog = ({ isOpen, onClose, onSubmit }: ReportDialogProps) => {
           const reports = await storage.get('reports') || [];
           setReportCount(reports.length);
         } catch (err) {
-          console.error('Failed to load report count:', err);
+          logError("ReportDialog", "Failed to load report count", { error: err });
         }
       };
       loadReportCount();
@@ -66,7 +67,7 @@ const ReportDialog = ({ isOpen, onClose, onSubmit }: ReportDialogProps) => {
 
       onClose();
     } catch (err) {
-      console.error('Failed to submit report:', err);
+      logError("ReportDialog", "Failed to submit report", { error: err });
       setError('Failed to submit report. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -74,7 +75,7 @@ const ReportDialog = ({ isOpen, onClose, onSubmit }: ReportDialogProps) => {
   };
 
   const handleTextChange = (text: string) => {
-    console.log('Report text changed:', text);
+    logInfo("ReportDialog", "Report text changed", { text });
     setCurrentText(text);
   };
 

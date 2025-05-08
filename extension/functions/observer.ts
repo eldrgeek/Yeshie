@@ -1,4 +1,5 @@
 // observer.ts
+import { logInfo } from "./logger";
 
 type ObserverCallback = (event: ObserverEvent) => void;
 
@@ -209,26 +210,26 @@ class PageObserver {
   }
 
   private addToBuffer(event: ObserverEvent): void {
-    console.log('Observer event received:', event);
+    logInfo("PageObserver", "Observer event received", { event });
     if (this.isCollecting) {
-      console.log('Adding event to buffer:', event);
+      logInfo("PageObserver", "Adding event to buffer", { event });
       this.buffer.push(event);
       if (this.callback) {
         this.callback(event);
       }
     } else {
-      console.log('Event not collected - isCollecting is false');
+      logInfo("PageObserver", "Event not collected - isCollecting is false");
     }
   }
 
   public start(): void {
-    console.log('Observer starting collection');
+    logInfo("PageObserver", "Observer starting collection");
     this.buffer = [];
     this.isCollecting = true;
   }
 
   public stop(): void {
-    console.log('Observer stopping collection');
+    logInfo("PageObserver", "Observer stopping collection");
     this.isCollecting = false;
   }
 

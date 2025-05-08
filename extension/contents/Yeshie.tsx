@@ -15,12 +15,12 @@ import { createRoot } from "react-dom/client"
 import { rememberCurrentTab, attemptTabFocusWithRetries, storedTabId } from "../functions/tabFocus"
 import ReportsPanel from "../components/ReportsPanel"
 import { storageGet, storageSet, storageGetAll } from "../functions/storage"
-import { log } from "../functions/DiagnosticLogger"
+import { logInfo, logWarn, logError } from "../functions/logger"
 
 // Remember current tab as soon as possible
 rememberCurrentTab().then(tabId => {
   if (tabId) {
-    console.log(`Tab ID ${tabId} will be restored after extension loads`);
+    logInfo("YeshieContent", `Tab ID ${tabId} will be restored after extension loads`);
   }
 });
 
@@ -85,11 +85,11 @@ const Yeshie: React.FC = () => {
   useEffect(() => {
     storageGet<boolean>(isOpenKey).then(value => {
       setIsOpen(value ?? false)
-      log('storage_get', { key: isOpenKey, found: value !== undefined, value: value ?? false })
+      logInfo('YeshieContent', 'storage_get: isOpenKey', { key: isOpenKey, found: value !== undefined, value: value ?? false })
     }).catch(error => {
-      console.error(`Error getting initial state for ${isOpenKey}:`, error)
+      logError("YeshieContent", `Error getting initial state for ${isOpenKey}`, { error });
       const errorMessage = error instanceof Error ? error.message : String(error)
-      log('storage_error', { operation: 'getIsOpenInitial', key: isOpenKey, error: errorMessage })
+      logError('YeshieContent', 'storage_error: getIsOpenInitial', { operation: 'getIsOpenInitial', key: isOpenKey, error: errorMessage })
       setIsOpen(false)
     })
   }, [isOpenKey])
@@ -98,17 +98,17 @@ const Yeshie: React.FC = () => {
     setIsOpen(newIsOpen)
     try {
       await storageSet(isOpenKey, newIsOpen)
-      log('storage_set', { key: isOpenKey, value: newIsOpen })
+      logInfo('YeshieContent', 'storage_set: isOpenKey', { key: isOpenKey, value: newIsOpen })
     } catch (error) {
-      console.error(`Error setting state for ${isOpenKey}:`, error)
+      logError("YeshieContent", `Error setting state for ${isOpenKey}`, { error });
       const errorMessage = error instanceof Error ? error.message : String(error)
-      log('storage_error', { operation: 'setIsOpen', key: isOpenKey, error: errorMessage })
+      logError('YeshieContent', 'storage_error: setIsOpen', { operation: 'setIsOpen', key: isOpenKey, error: errorMessage })
     }
   }, [isOpenKey])
 
   const updateContext = useCallback(async (newContextPart: Partial<TabContext>) => {
     if (tabId === null) {
-      console.warn("updateContext called before tabId was set.")
+      logWarn("YeshieContent", "updateContext called before tabId was set.")
       return
     }
     const contextKey = `tabContext:${tabId}`
@@ -120,12 +120,12 @@ const Yeshie: React.FC = () => {
       (async () => {
         try {
           await storageSet(contextKey, updated)
-          log('storage_set', { key: contextKey, tabId: tabId })
-          console.log(`Context updated and saved for tab ${tabId}:`, updated)
+          logInfo('YeshieContent', 'storage_set: contextKey', { key: contextKey, tabId: tabId })
+          logInfo("YeshieContent", `Context updated and saved for tab ${tabId}`, { context: updated })
         } catch (error) {
-          console.error(`Failed to save context for tab ${tabId}:`, error)
+          logError("YeshieContent", `Failed to save context for tab ${tabId}`, { error })
           const errorMessage = error instanceof Error ? error.message : String(error)
-          log('storage_error', { operation: 'updateContext', key: contextKey, tabId: tabId, error: errorMessage })
+          logError('YeshieContent', 'storage_error: updateContext', { operation: 'updateContext', key: contextKey, tabId: tabId, error: errorMessage })
         }
       })()
 
@@ -140,10 +140,10 @@ const Yeshie: React.FC = () => {
 
   const handleMessage = useCallback(async (event: MessageEvent) => {
     if (event.data && event.data.type === "command") {
-      console.log("Received command from YeshieEditor:", event.data)
+      logInfo("YeshieContent", "Received command from YeshieEditor", { commandData: event.data });
       try {
         const result = await Stepper(event.data.command)
-        console.log("Command result:", result)
+        logInfo("YeshieContent", "Command result", { result });
         window.postMessage({ 
           type: "commandResult", 
           command: event.data.command,
@@ -151,7 +151,7 @@ const Yeshie: React.FC = () => {
           timestamp: new Date().toISOString()
         }, "*")
       } catch (error) {
-        console.error("Error processing command:", error)
+        logError("YeshieContent", "Error processing command", { error });
         window.postMessage({ 
           type: "commandResult", 
           command: event.data.command,
@@ -165,7 +165,7 @@ const Yeshie: React.FC = () => {
 
   useEffect(() => {
     if (window.top !== window.self || !document.getElementById(getShadowHostId())) {
-      console.log("Yeshie is in an iframe or shadow host not found, not rendering")
+      logInfo("YeshieContent", "Yeshie is in an iframe or shadow host not found, not rendering")
       return
     }
     
@@ -173,17 +173,17 @@ const Yeshie: React.FC = () => {
       if (initCalled.current) return 
       initCalled.current = true 
 
-      console.log("INITTING", isOpen, isReady)
+      logInfo("YeshieContent", "Initializing Yeshie content script", { isOpen, isReady });
       try {
         const response = await sendToBackground({ name: "getTabId" })
-        console.log("Got tab ID response:", response)
+        logInfo("YeshieContent", "Got tab ID response", { response });
         if (response && typeof response.tabId === 'number') {
           const currentTabId = response.tabId
           setTabId(currentTabId)
           const contextKey = `tabContext:${currentTabId}`
 
           const storedContext = await storageGet<TabContext>(contextKey)
-          log('storage_get', { key: contextKey, found: storedContext !== undefined })
+          logInfo('YeshieContent', 'storage_get: contextKey', { key: contextKey, found: storedContext !== undefined })
 
           if (storedContext) {
             setContext(storedContext)
@@ -194,16 +194,16 @@ const Yeshie: React.FC = () => {
               mode: "llm"
             }
             await storageSet(contextKey, newContext)
-            log('storage_set', { key: contextKey, reason: 'Initializing new context' })
+            logInfo('YeshieContent', 'storage_set: contextKey, Initializing', { key: contextKey, reason: 'Initializing new context' })
             setContext(newContext)
           }
         } else {
-          console.error("Invalid tab ID response:", response)
+          logError("YeshieContent", "Invalid tab ID response", { response });
         }
       } catch (error) {
-        console.error("Error during init (getTabId or context handling):", error)
+        logError("YeshieContent", "Error during init (getTabId or context handling)", { error });
         const errorMessage = error instanceof Error ? error.message : String(error)
-        log('init_error', { step: 'getTabId/context', error: errorMessage })
+        logError('YeshieContent', 'init_error: getTabId/context', { step: 'getTabId/context', error: errorMessage })
       }
     }
 
@@ -214,7 +214,7 @@ const Yeshie: React.FC = () => {
       if (targetElement) {
         setIsReady(true)
         obs.disconnect()
-        console.log("Target element found, Yeshie is ready to render")
+        logInfo("YeshieContent", "Target element found, Yeshie is ready to render")
       }
     })
 
@@ -283,16 +283,16 @@ const Yeshie: React.FC = () => {
 
   useEffect(() => {
     if (isReady) {
-      storageGetAll().then(items => {
-        const reports = Object.entries(items)
-           .filter(([key, value]) => key.startsWith('reports'))
-           .flatMap(([key, value]) => Array.isArray(value) ? value : [])
-        log('storage_get_all', { purpose: 'report_count', count: reports.length })
+      storageGetAll().then(allData => {
+        const reports = Object.entries(allData)
+            .filter(([key, value]) => key.startsWith('reports'))
+            .flatMap(([key, value]) => Array.isArray(value) ? value : [])
+        logInfo('YeshieContent', 'storage_get_all: report_count', { purpose: 'report_count', count: reports.length })
         setReportCount(reports?.length || 0)
       }).catch(error => {
-         console.error("Error loading report count:", error)
+         logError("YeshieContent", "Error loading report count", { error })
          const errorMessage = error instanceof Error ? error.message : String(error)
-         log('storage_error', { operation: 'getReportCount', error: errorMessage })
+         logError('YeshieContent', 'storage_error: getReportCount', { operation: 'getReportCount', error: errorMessage })
          setReportCount(0)
       })
     }

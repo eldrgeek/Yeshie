@@ -4,6 +4,7 @@
  */
 
 import { sendToBackground } from "@plasmohq/messaging"
+import { logInfo, logWarn, logError } from "./logger";
 
 /**
  * Store the current tab ID for future reference
@@ -18,11 +19,11 @@ export const rememberCurrentTab = async (): Promise<number | null> => {
     const response = await sendToBackground({ name: "getTabId" })
     if (response && typeof response.tabId === 'number' && response.tabId > 0) {
       storedTabId = response.tabId
-      console.log("Remembered tab ID:", storedTabId)
+      logInfo("TabFocus", "Remembered tab ID", { tabId: storedTabId });
       return storedTabId
     }
   } catch (error) {
-    console.error("Failed to remember tab:", error)
+    logError("TabFocus", "Failed to remember tab", { error });
   }
   return null
 }
@@ -32,7 +33,7 @@ export const rememberCurrentTab = async (): Promise<number | null> => {
  * This tries multiple approaches to maximize chances of success
  */
 export const focusTab = async (tabId: number): Promise<boolean> => {
-  console.log("Attempting to focus tab:", tabId)
+  logInfo("TabFocus", "Attempting to focus tab", { tabId });
   
   try {
     // Method 1: Using background script
@@ -41,17 +42,17 @@ export const focusTab = async (tabId: number): Promise<boolean> => {
       body: { tabId } 
     })
     
-    console.log("Background focus response:", response)
+    logInfo("TabFocus", "Background focus response", { response });
     
     // Method 2: Try window.focus if possible
     if (window.opener) {
-      console.log("Trying window.opener.focus()")
+      logInfo("TabFocus", "Trying window.opener.focus()");
       window.opener.focus()
     }
     
     return response?.success || false
   } catch (error) {
-    console.error("Error focusing tab:", error)
+    logError("TabFocus", "Error focusing tab", { error });
     return false
   }
 }
@@ -61,7 +62,7 @@ export const focusTab = async (tabId: number): Promise<boolean> => {
  */
 export const focusStoredTab = async (): Promise<boolean> => {
   if (!storedTabId) {
-    console.warn("No stored tab ID to focus")
+    logWarn("TabFocus", "No stored tab ID to focus");
     return false
   }
   
@@ -76,7 +77,7 @@ export const attemptTabFocusWithRetries = (tabId: number, maxAttempts = 4): void
   for (let i = 0; i < maxAttempts; i++) {
     const delay = 200 * Math.pow(2, i) // 200ms, 400ms, 800ms, 1600ms
     setTimeout(() => {
-      console.log(`Focus attempt ${i+1}/${maxAttempts} after ${delay}ms`)
+      logInfo("TabFocus", "Focus attempt", { attempt: i + 1, maxAttempts, delayMs: delay });
       focusTab(tabId)
     }, delay)
   }

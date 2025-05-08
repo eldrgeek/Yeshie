@@ -1,14 +1,15 @@
 // extcomm.ts
 
 import { io, Socket } from "socket.io-client";
-console.log("extcomms loaded");
+import { logInfo } from "./logger";
+logInfo("ExtComms", "extcomms loaded");
 // Store socket reference and list of injected tabs in BG
 let socket: Socket | null = null;
 const injectedTabs: { [tabId: number]: { title: string, url: string, sessionId?: string, serverUrl?: string, isServerPage: boolean } } = {};
 
 // ---- Setup for Background Page ----
 export function setupBG() {
-    console.log("setupBG");
+    logInfo("ExtComms", "setupBG called");
     
     const listener = createListener();
 
@@ -48,10 +49,10 @@ function createListener() {
             };
 
             if (data.isServerPage && !socket) {
-                console.log("establishing socket connection");
+                logInfo("ExtComms", "Establishing socket connection");
                 const socketUrl = data.serverUrl?.replace('5173', '3000');
                 socket = io(socketUrl || '');
-                console.log(`Socket connected to ${socketUrl} for session: ${data.sessionId}`);
+                logInfo("ExtComms", `Socket connected for session: ${data.sessionId}`, { url: socketUrl });
 
                 socket.on("extension", (msg) => {
                     handleSocketMessage(msg, tabId);
@@ -98,7 +99,7 @@ function handleSocketMessage(msg: { to: string, op: string, selector?: string, v
 
 // ---- Setup for Content Script ----
 export function setupCS() {
-    console.log("setupCS");
+    logInfo("ExtComms", "setupCS called");
     const listener = createListener();
 
     // Extract session ID from URL
@@ -112,10 +113,10 @@ export function setupCS() {
     let sessionIdFromDiv = '';
 
     if (isServerPage) {
-        console.log("isServerPage");
+        logInfo("ExtComms", "Content script identified as server page");
         sessionIdFromDiv = serverDiv.getAttribute('data-session') || serverDiv.getAttribute('session') || '';
     } else {
-        console.log("not ServerPage");
+        logInfo("ExtComms", "Content script identified as not a server page");
     }
 
     const pageInfo = {

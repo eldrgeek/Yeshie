@@ -1,4 +1,5 @@
 import type { PlasmoMessaging } from "@plasmohq/messaging"
+import { logInfo, logError } from "../../functions/logger";
 
 declare namespace chrome {
   namespace tabs {
@@ -37,29 +38,29 @@ const handler: PlasmoMessaging.MessageHandler<FocusTabRequest> = async (req, res
       throw new Error("Invalid tab ID")
     }
     
-    console.log("Focus request received for tab:", tabId)
+    logInfo("FocusTabHandler", "Focus request received", { tabId });
     
     try {
       // First, verify the tab exists
       const tab = await chrome.tabs.get(tabId)
-      console.log("Tab to focus:", tab)
+      logInfo("FocusTabHandler", "Tab to focus", { tab });
       
       // First focus the window containing the tab
       if (tab.windowId) {
         await chrome.windows.update(tab.windowId, { focused: true })
-        console.log("Window focused:", tab.windowId)
+        logInfo("FocusTabHandler", "Window focused", { windowId: tab.windowId });
       }
       
       // Then focus the tab itself
       await chrome.tabs.update(tabId, { active: true })
-      console.log("Tab activated:", tabId)
+      logInfo("FocusTabHandler", "Tab activated", { tabId });
       
       res.send({
         success: true,
         message: "Tab successfully focused"
       })
     } catch (tabError) {
-      console.error("Error accessing tab:", tabError)
+      logError("FocusTabHandler", "Error accessing tab", { error: tabError });
       // Tab might not exist anymore, handle gracefully
       res.send({
         success: false,
@@ -68,7 +69,7 @@ const handler: PlasmoMessaging.MessageHandler<FocusTabRequest> = async (req, res
       })
     }
   } catch (error) {
-    console.error("Error focusing tab:", error)
+    logError("FocusTabHandler", "Error focusing tab", { error });
     res.send({
       success: false,
       error: error.message

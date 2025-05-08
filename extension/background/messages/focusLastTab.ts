@@ -1,6 +1,7 @@
 import type { PlasmoMessaging } from "@plasmohq/messaging"
 import { focusLastActiveTab, getLastActiveTab } from "../tabHistory"
 import type { FocusTabResponse } from "../../tabs/index.tsx"
+import { logInfo, logWarn, logError } from "../../functions/logger";
 
 /**
  * Message handler to focus the last active tab.
@@ -12,7 +13,7 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
     const lastTab = await getLastActiveTab()
     
     if (!lastTab) {
-      console.warn("No last active tab found in focusLastTab handler")
+      logWarn("FocusLastTabHandler", "No last active tab found in focusLastTab handler")
       res.send({
         success: false,
         error: "No valid tab to focus"
@@ -20,7 +21,7 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
       return
     }
     
-    console.log(`Attempting tab focus in focusLastTab handler:`, lastTab.id)
+    logInfo("FocusLastTabHandler", "Attempting tab focus in focusLastTab handler", { tabId: lastTab.id });
     
     // Make multiple focus attempts with the most reliable approach
     const makeAttempt = async (attemptNumber = 1) => {
@@ -29,7 +30,7 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
         const tab = await chrome.tabs.get(lastTab.id)
         
         if (tab.windowId) {
-          console.log(`Attempt ${attemptNumber}: Focusing window ${tab.windowId}`)
+          logInfo("FocusLastTabHandler", `Attempt ${attemptNumber}: Focusing window`, { windowId: tab.windowId });
           await chrome.windows.update(tab.windowId, { focused: true })
         }
         
@@ -37,7 +38,7 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
         await new Promise(resolve => setTimeout(resolve, 100))
         
         // Then focus the tab itself
-        console.log(`Attempt ${attemptNumber}: Focusing tab ${lastTab.id}`)
+        logInfo("FocusLastTabHandler", `Attempt ${attemptNumber}: Focusing tab`, { tabId: lastTab.id });
         await chrome.tabs.update(lastTab.id, { active: true })
         
         // Verify the tab is now active
@@ -45,14 +46,14 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
         const isNowActive = activeTabs.some(t => t.id === lastTab.id)
         
         if (isNowActive) {
-          console.log(`Attempt ${attemptNumber}: Tab successfully focused:`, lastTab.id)
+          logInfo("FocusLastTabHandler", `Attempt ${attemptNumber}: Tab successfully focused`, { tabId: lastTab.id });
           return true
         } else {
-          console.warn(`Attempt ${attemptNumber}: Tab did not become active despite API call`, lastTab.id)
+          logWarn("FocusLastTabHandler", `Attempt ${attemptNumber}: Tab did not become active despite API call`, { tabId: lastTab.id });
           return false
         }
       } catch (error) {
-        console.error(`Attempt ${attemptNumber}: Error focusing tab:`, error)
+        logError("FocusLastTabHandler", `Attempt ${attemptNumber}: Error focusing tab`, { error });
         return false
       }
     }
@@ -73,27 +74,27 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
     }
     
     if (success) {
-      console.log("Successfully focused tab after attempts")
+      logInfo("FocusLastTabHandler", "Successfully focused tab after attempts");
       res.send({
       } as FocusTabResponse)
       return
     }
     
     // If direct attempts failed, try the alternative method
-    console.log("Direct focus attempts failed, trying focusLastActiveTab as fallback")
+    logInfo("FocusLastTabHandler", "Direct focus attempts failed, trying focusLastActiveTab as fallback");
     const fallbackSuccess = await focusLastActiveTab()
     
     if (fallbackSuccess) {
-      console.log("Successfully focused last active tab via focusLastActiveTab")
+      logInfo("FocusLastTabHandler", "Successfully focused last active tab via focusLastActiveTab");
       res.send({
       } as FocusTabResponse)
     } else {
-      console.warn("Failed to focus last active tab with any method")
+      logWarn("FocusLastTabHandler", "Failed to focus last active tab with any method");
       res.send({
       } as FocusTabResponse)
     }
   } catch (error) {
-    console.error("Error in focusLastTab handler:", error)
+    logError("FocusLastTabHandler", "Error in focusLastTab handler", { error });
     res.send({
       success: false,
       error: error.message || "Unknown error focusing tab"

@@ -332,6 +332,7 @@ const appendWord = (word: string, state: ParseState): void => {
     state.revisedSegment += processedWord;
 };
 
+import { logInfo } from "./functions/logger";
 
 // --- Example Usage ---
 
@@ -339,8 +340,8 @@ let currentText = "Initial text.";
 let capsLockOn = false;
 let cursorPosition = currentText.length; // At the end
 
-console.log(`Initial Text:\n"${currentText}"`);
-console.log(`Caps Lock: ${capsLockOn}, Cursor: ${cursorPosition}\n`);
+logInfo("ParseAndInsertWordsExample", `Initial Text: "${currentText}"`);
+logInfo("ParseAndInsertWordsExample", `Caps Lock: ${capsLockOn}, Cursor: ${cursorPosition}`);
 
 const inputs = [
   { speech: "add a quote hello world end quote", cursor: -1 },
@@ -358,9 +359,9 @@ inputs.forEach((inputInfo, index) => {
   const { speech } = inputInfo;
   const insertAt = inputInfo.cursor === -1 ? currentText.length : inputInfo.cursor;
 
-  console.log(`--- Input ${index + 1} ---`);
-  console.log(`Speech: "${speech}"`);
-  console.log(`Inserting at: ${insertAt}`);
+  logInfo("ParseAndInsertWordsExample", `--- Input ${index + 1} ---`);
+  logInfo("ParseAndInsertWordsExample", `Speech: "${speech}"`);
+  logInfo("ParseAndInsertWordsExample", `Inserting at: ${insertAt}`);
 
   const [newText, newCapsLockState] = parseAndInsertWords(
     speech,
@@ -372,13 +373,13 @@ inputs.forEach((inputInfo, index) => {
   currentText = newText;
   capsLockOn = newCapsLockState;
 
-  console.log(`\nNew Text:\n"${currentText}"`);
-  console.log(`New Caps Lock: ${capsLockOn}\n`);
+  logInfo("ParseAndInsertWordsExample", `New Text: "${currentText}"`);
+  logInfo("ParseAndInsertWordsExample", `New Caps Lock: ${capsLockOn}`);
 });
 
-console.log("--- Final Result ---");
-console.log(`Text:\n"${currentText}"`);
-console.log(`Caps Lock: ${capsLockOn}`);
+logInfo("ParseAndInsertWordsExample", "--- Final Result ---");
+logInfo("ParseAndInsertWordsExample", `Text: "${currentText}"`);
+logInfo("ParseAndInsertWordsExample", `Caps Lock: ${capsLockOn}`);
 
 
 /* Expected Rough Output Simulation:

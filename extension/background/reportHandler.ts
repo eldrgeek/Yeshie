@@ -1,5 +1,5 @@
 import { storageGet, storageSet } from "../functions/storage";
-import { log } from "../functions/DiagnosticLogger";
+import { logInfo, logError } from "../functions/logger";
 
 interface Report {
   id: string;
@@ -19,15 +19,15 @@ export async function initializeReports() {
   try {
     const reports = await storageGet<Report[]>('reports');
     if (reports === undefined) {
-      log('storage_init', { key: 'reports', status: 'Initializing empty array' });
+      logInfo('ReportHandler', 'storage_init: reports, Initializing empty array', { key: 'reports', status: 'Initializing empty array' });
       await storageSet('reports', []);
     } else {
-      log('storage_init', { key: 'reports', status: 'Already exists', count: reports.length });
+      logInfo('ReportHandler', 'storage_init: reports, Already exists', { key: 'reports', status: 'Already exists', count: reports.length });
     }
   } catch (error) {
-    console.error("Error initializing reports storage:", error);
+    logError('ReportHandler', "Error initializing reports storage", { error });
     const errorMessage = error instanceof Error ? error.message : String(error);
-    log('storage_error', { operation: 'initializeReports', error: errorMessage });
+    logError('ReportHandler', 'storage_error: initializeReports', { operation: 'initializeReports', error: errorMessage });
   }
 }
 
@@ -53,9 +53,9 @@ export async function addReport(report: Omit<Report, 'id' | 'timestamp' | 'statu
     
     return newReport;
   } catch (error) {
-    console.error("Error adding report:", error);
+    logError('ReportHandler', "Error adding report", { error });
     const errorMessage = error instanceof Error ? error.message : String(error);
-    log('storage_error', { operation: 'addReport', error: errorMessage });
+    logError('ReportHandler', 'storage_error: addReport', { operation: 'addReport', error: errorMessage });
     throw error;
   }
 }
@@ -64,12 +64,12 @@ export async function addReport(report: Omit<Report, 'id' | 'timestamp' | 'statu
 export async function getReports(): Promise<Report[]> {
   try {
     const reports = await storageGet<Report[]>('reports') || [];
-    log('storage_get', { key: 'reports', count: reports.length });
+    logInfo('ReportHandler', 'storage_get: reports', { key: 'reports', count: reports.length });
     return reports;
   } catch (error) {
-    console.error("Error getting reports:", error);
+    logError('ReportHandler', "Error getting reports", { error });
     const errorMessage = error instanceof Error ? error.message : String(error);
-    log('storage_error', { operation: 'getReports', error: errorMessage });
+    logError('ReportHandler', 'storage_error: getReports', { operation: 'getReports', error: errorMessage });
     return [];
   }
 }
@@ -80,7 +80,7 @@ async function processReports() {
   try {
     reports = await storageGet<Report[]>('reports') || [];
     const pendingReports = reports.filter(r => r.status === 'pending');
-    log('report_processing', { totalReports: reports.length, pendingCount: pendingReports.length });
+    logInfo('ReportHandler', 'report_processing', { totalReports: reports.length, pendingCount: pendingReports.length });
 
     let processed = false;
     for (const report of pendingReports) {
@@ -98,25 +98,25 @@ async function processReports() {
         report.status = 'completed';
         processed = true;
 
-        log('report_processed', { reportId: report.id, newStatus: report.status });
+        logInfo('ReportHandler', 'report_processed', { reportId: report.id, newStatus: report.status });
 
       } catch (error) {
-        console.error('Error processing report:', report.id, error);
+        logError('ReportHandler', 'Error processing report', { reportId: report.id, error });
         const errorMessage = error instanceof Error ? error.message : String(error);
-        log('report_processing_error', { reportId: report.id, error: errorMessage });
+        logError('ReportHandler', 'report_processing_error', { reportId: report.id, error: errorMessage });
         // Keep status as pending for retry, don't mark as processed
       }
     }
     // Save reports back to storage only if changes were made
     if (processed) {
-      log('storage_set', { key: 'reports', reason: 'Updating processed reports' });
+      logInfo('ReportHandler', 'storage_set: reports, Updating processed reports', { key: 'reports', reason: 'Updating processed reports' });
       await storageSet('reports', reports);
     }
 
   } catch (error) {
-    console.error('Error fetching reports for processing:', error);
+    logError('ReportHandler', 'Error fetching reports for processing', { error });
     const errorMessage = error instanceof Error ? error.message : String(error);
-    log('storage_error', { operation: 'processReports_fetch', error: errorMessage });
+    logError('ReportHandler', 'storage_error: processReports_fetch', { operation: 'processReports_fetch', error: errorMessage });
   }
 }
 

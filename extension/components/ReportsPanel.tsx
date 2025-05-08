@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Storage } from "@plasmohq/storage";
+import { logInfo, logError } from "../functions/logger";
 
 interface Report {
   id: string;
@@ -33,10 +34,10 @@ const ReportsPanel: React.FC<ReportsPanelProps> = ({ isOpen, onClose }) => {
     try {
       const storage = new Storage();
       const storedReports = await storage.get<Report[]>('reports') || [];
-      console.log('Loaded reports:', storedReports);
+      logInfo("ReportsPanel", "Loaded reports", { storedReports });
       setReports(storedReports);
     } catch (error) {
-      console.error('Error loading reports:', error);
+      logError("ReportsPanel", "Error loading reports", { error });
       setToast('Error loading reports');
       setTimeout(() => setToast(null), 2000);
     }
@@ -61,7 +62,7 @@ const ReportsPanel: React.FC<ReportsPanelProps> = ({ isOpen, onClose }) => {
       setToast('Reports copied to clipboard');
       setTimeout(() => setToast(null), 2000);
     } catch (error) {
-      console.error('Error copying to clipboard:', error);
+      logError("ReportsPanel", "Error copying to clipboard", { error });
       setToast('Error copying to clipboard');
       setTimeout(() => setToast(null), 2000);
     }

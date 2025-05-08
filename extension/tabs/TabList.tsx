@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { sendToBackground } from '@plasmohq/messaging';
 import { storageGet, storageSet } from "../functions/storage"; // Import new storage functions
-import { log } from "../functions/DiagnosticLogger"; // Assuming DiagnosticLogger is setup
+import { logInfo, logError } from "../functions/logger";
 import { APPLICATION_TABS_KEY, type StoredApplicationTab } from '../background/tabHistory';
 
 interface TabInfo {
@@ -67,7 +67,7 @@ const TabList: React.FC = () => {
       if (tab?.id) {
         setExtensionTabId(tab.id);
       } else {
-        console.error("Could not get current tab ID. Switch-back may not work.");
+        logError("TabList", "Could not get current tab ID. Switch-back may not work.");
       }
     });
     // Cleanup timer on unmount
@@ -84,11 +84,11 @@ const TabList: React.FC = () => {
       storageGet<CustomNameMap>(TAB_NAMES_STORAGE_KEY).then(loadedNames => { 
           setCustomTabNames(loadedNames || {});
           setTabInputValues(loadedNames || {}); 
-          log('storage_get', { key: TAB_NAMES_STORAGE_KEY, found: !!loadedNames, count: loadedNames ? Object.keys(loadedNames).length : 0 });
-          console.log("Loaded custom tab names:", loadedNames || {});
+          logInfo('TabList', 'storage_get: TAB_NAMES_STORAGE_KEY', { key: TAB_NAMES_STORAGE_KEY, found: !!loadedNames, count: loadedNames ? Object.keys(loadedNames).length : 0 });
+          logInfo("TabList", "Loaded custom tab names", { loadedNames });
       }).catch(error => {
-          console.error("Error loading custom tab names:", error);
-          log('storage_error', { operation: 'loadCustomTabNames', key: TAB_NAMES_STORAGE_KEY, error: String(error) });
+          logError("TabList", "Error loading custom tab names", { error });
+          logError('TabList', 'storage_error: loadCustomTabNames', { operation: 'loadCustomTabNames', key: TAB_NAMES_STORAGE_KEY, error: String(error) });
           setCustomTabNames({}); // Default to empty on error
       });
 
@@ -96,11 +96,11 @@ const TabList: React.FC = () => {
       storageGet<WindowNameMap>(WINDOW_NAMES_STORAGE_KEY).then(loadedNames => { 
           setCustomWindowNames(loadedNames || {});
           setWindowInputValues(loadedNames || {}); 
-          log('storage_get', { key: WINDOW_NAMES_STORAGE_KEY, found: !!loadedNames, count: loadedNames ? Object.keys(loadedNames).length : 0 });
-          console.log("Loaded custom window names:", loadedNames || {});
+          logInfo('TabList', 'storage_get: WINDOW_NAMES_STORAGE_KEY', { key: WINDOW_NAMES_STORAGE_KEY, found: !!loadedNames, count: loadedNames ? Object.keys(loadedNames).length : 0 });
+          logInfo("TabList", "Loaded custom window names", { loadedNames });
       }).catch(error => {
-          console.error("Error loading custom window names:", error);
-          log('storage_error', { operation: 'loadCustomWindowNames', key: WINDOW_NAMES_STORAGE_KEY, error: String(error) });
+          logError("TabList", "Error loading custom window names", { error });
+          logError('TabList', 'storage_error: loadCustomWindowNames', { operation: 'loadCustomWindowNames', key: WINDOW_NAMES_STORAGE_KEY, error: String(error) });
           setCustomWindowNames({}); // Default to empty on error
       });
 
@@ -115,9 +115,9 @@ const TabList: React.FC = () => {
         
         // The list per window should already be sorted by index from the background script
         setGroupedTabs(storedGroupedTabs); 
-        console.log('TabList: Loaded grouped tabs from storage:', storedGroupedTabs);
+        logInfo('TabList', 'Loaded grouped tabs from storage', { storedGroupedTabs });
       } catch (error) {
-        console.error('TabList: Error loading grouped tabs from storage:', error);
+        logError('TabList', 'Error loading grouped tabs from storage', { error });
         setGroupedTabs({}); // Set to empty object on error
       } finally {
         setIsLoading(false);
@@ -135,7 +135,7 @@ const TabList: React.FC = () => {
         const storedGroupedTabs = changes[APPLICATION_TABS_KEY].newValue as Record<string, StoredApplicationTab[]> | undefined || {};
         // Data should already be grouped and sorted by background script
         setGroupedTabs(storedGroupedTabs);
-        console.log('TabList: Updated grouped tabs via storage listener:', storedGroupedTabs);
+        logInfo('TabList', 'Updated grouped tabs via storage listener', { storedGroupedTabs });
       }
 
       // Handle Tab Name Changes
@@ -143,8 +143,8 @@ const TabList: React.FC = () => {
           const loadedNames = (changes[TAB_NAMES_STORAGE_KEY].newValue as CustomNameMap) || {};
           setCustomTabNames(loadedNames);
           setTabInputValues(loadedNames); 
-          log('storage_change', { key: TAB_NAMES_STORAGE_KEY, updated: true });
-          console.log('TabList: Custom tab names updated via listener', loadedNames);
+          logInfo('TabList', 'storage_change: TAB_NAMES_STORAGE_KEY', { key: TAB_NAMES_STORAGE_KEY, updated: true });
+          logInfo('TabList', 'Custom tab names updated via listener', { loadedNames });
       }
 
       // Handle Window Name Changes
@@ -152,8 +152,8 @@ const TabList: React.FC = () => {
           const loadedNames = (changes[WINDOW_NAMES_STORAGE_KEY].newValue as WindowNameMap) || {};
           setCustomWindowNames(loadedNames);
           setWindowInputValues(loadedNames); 
-          log('storage_change', { key: WINDOW_NAMES_STORAGE_KEY, updated: true });
-          console.log('TabList: Custom window names updated via listener', loadedNames);
+          logInfo('TabList', 'storage_change: WINDOW_NAMES_STORAGE_KEY', { key: WINDOW_NAMES_STORAGE_KEY, updated: true });
+          logInfo('TabList', 'Custom window names updated via listener', { loadedNames });
       }
     };
 
@@ -185,8 +185,8 @@ const TabList: React.FC = () => {
   const debouncedStorageSet = useCallback(
       debounce((key: string, value: any) => {
           storageSet(key, value)
-              .then(() => console.log(`Debounced storage set successful for key: ${key}`))
-              .catch(err => console.error(`Debounced storage set failed for key: ${key}`, err));
+              .then(() => logInfo("TabList", `Debounced storage set successful for key: ${key}`))
+              .catch(err => logError("TabList", `Debounced storage set failed for key: ${key}`, { error: err }));
       }, 500), // Debounce time of 500ms
       [] // Dependencies array is empty
   );
@@ -251,20 +251,20 @@ const TabList: React.FC = () => {
       if (switchedTab?.windowId) {
         await chrome.windows.update(switchedTab.windowId, { focused: true });
       }
-      console.log(`Switched to tab ${tabId}`);
+      logInfo('TabList', `Switched to tab ${tabId}`);
       return switchedTab;
     } catch (error) {
-      console.error(`Error switching to tab ${tabId}:`, error);
+      logError('TabList', `Error switching to tab ${tabId}:`, { error });
       return null;
     }
   };
 
   const navigateBack = () => {
       if (!extensionTabId) {
-          console.error("Extension tab ID unknown, cannot switch back.");
+          logError('TabList', "Extension tab ID unknown, cannot switch back.");
           return;
       }
-      console.log(`Switching back to extension tab ${extensionTabId}.`);
+      logInfo('TabList', `Switching back to extension tab ${extensionTabId}.`);
       chrome.tabs.update(extensionTabId, { active: true }, (extTab) => {
           if (!chrome.runtime.lastError && extTab?.windowId) {
               chrome.windows.update(extTab.windowId, { focused: true });
@@ -286,15 +286,15 @@ const TabList: React.FC = () => {
 
   const handleAnalyze = async (tabId: number, tabUrl: string | undefined) => {
     if (!tabUrl || isRestrictedUrl(tabUrl)) {
-        console.warn("Analyze called on restricted or invalid URL.");
+        logInfo('TabList', "Analyze called on restricted or invalid URL.");
         return;
     }
     if (!extensionTabId) {
-        console.error("Extension ID needed to return after analyze.");
+        logError('TabList', "Extension ID needed to return after analyze.");
         return;
     }
 
-    console.log(`Analyzing tab ${tabId}...`);
+    logInfo('TabList', `Analyzing tab ${tabId}...`);
     const switched = await navigateToTab(tabId);
     if (!switched) return; // Don't proceed if switch failed
 
@@ -310,14 +310,14 @@ const TabList: React.FC = () => {
       if (results && results.length > 0 && results[0].result) {
           const htmlContent = results[0].result as string;
           await navigator.clipboard.writeText(htmlContent);
-          console.log(`HTML content of tab ${tabId} copied to clipboard.`);
+          logInfo('TabList', `HTML content of tab ${tabId} copied to clipboard.`);
           // Optional: Show a success message/toast here
       } else {
-          console.error("Failed to get HTML content from content script.", results);
+          logError('TabList', "Failed to get HTML content from content script.");
           // Optional: Show an error message/toast here
       }
     } catch (err) {
-      console.error(`Error injecting script or getting HTML for tab ${tabId}:`, err);
+      logError('TabList', `Error injecting script or getting HTML for tab ${tabId}:`, { error: err });
       // Optional: Show an error message/toast here
     } finally {
         // Navigate back regardless of success/failure of analysis

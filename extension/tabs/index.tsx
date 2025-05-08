@@ -153,7 +153,7 @@ function TabsIndex() {
 
   // --- Effect to clear session logs on mount ---
   useEffect(() => {
-    logInfo("TabsIndex mounted, clearing previous session logs from storage.");
+    logInfo("Core", "TabsIndex mounted, clearing previous session logs from storage.");
     clearSessionLogs();
 
     // Load the runScriptOnReload preference
@@ -162,11 +162,12 @@ function TabsIndex() {
         const savedPreference = await storageGet<boolean>(RUN_SCRIPT_ON_RELOAD_KEY);
         if (savedPreference !== undefined) {
           setRunScriptOnReload(savedPreference);
-          logInfo('Loaded runScriptOnReload preference', { value: savedPreference });
+          logInfo('UI', 'Loaded runScriptOnReload preference', { value: String(savedPreference) });
         } else {
           // If not set, default to false and save it
           await storageSet(RUN_SCRIPT_ON_RELOAD_KEY, false);
-          logInfo('Initialized runScriptOnReload preference to false');
+          setRunScriptOnReload(false);
+          logInfo('UI', 'Initialized runScriptOnReload preference to false');
         }
       } catch (error) {
         handleError(error, { operation: 'loadRunScriptOnReloadPreference' });
@@ -182,7 +183,7 @@ function TabsIndex() {
       try {
         // Get previous last loaded time
         const previousTime = await storageGet<string>(LAST_LOADED_TIME_KEY);
-        logInfo('Storage get', { key: LAST_LOADED_TIME_KEY, found: !!previousTime });
+        logInfo('Storage', 'Storage get', { key: LAST_LOADED_TIME_KEY, found: !!previousTime });
         if (previousTime) {
           setLastLoadedTime(previousTime);
         }
@@ -190,7 +191,7 @@ function TabsIndex() {
         // Set new last loaded time
         const currentTime = new Date().toLocaleString();
         await storageSet(LAST_LOADED_TIME_KEY, currentTime);
-        logInfo('Storage set', { key: LAST_LOADED_TIME_KEY });
+        logInfo('Storage', 'Storage set', { key: LAST_LOADED_TIME_KEY });
       } catch (error) {
         const errorDetails = handleError(error, { operation: 'loadAndUpdateTime' });
         setLastErrorDetails(errorDetails);
@@ -204,18 +205,18 @@ function TabsIndex() {
   // --- Memoized function to fetch the last active tab ---
   const fetchLastTab = useCallback(async (): Promise<TabInfo | null> => {
     try {
-      logDebug("TabsIndex: Fetching last tab info...");
+      logDebug("TabTracking", "TabsIndex: Fetching last tab info...");
       const response: GetLastTabResponse = await sendToBackground({ name: "getLastTab" });
-      logDebug("TabsIndex: Received response from background for getLastTab", { response });
+      logDebug("TabTracking", "TabsIndex: Received response from background for getLastTab", { response });
       
       if (response && response.success && response.lastTab) {
-        logDebug("TabsIndex: Got valid last tab info", { tab: response.lastTab });
+        logDebug("TabTracking", "TabsIndex: Got valid last tab info", { tab: response.lastTab });
         setLastTabInfo(response.lastTab);
         setErrorMessage("");
         setTabInfoReady(true);
         return response.lastTab;
       } else {
-        logWarn("TabsIndex: No valid last tab info returned", { error: response?.error });
+        logWarn("TabTracking", "TabsIndex: No valid last tab info returned", { error: response?.error });
         setLastTabInfo(null);
         setErrorMessage(response?.error || "No previous tab information available");
         setTabInfoReady(true);
@@ -234,7 +235,7 @@ function TabsIndex() {
 
   // Effect: Immediately fetch tab info when component mounts
   useEffect(() => {
-    logInfo("Tab page loaded, fetching last tab info");
+    logInfo("UI", "Tab page loaded, fetching last tab info");
     fetchLastTab();
     
     return () => {
@@ -247,7 +248,7 @@ function TabsIndex() {
       try {
         // Get reports from storage - Assuming reports are stored under a single key 'reports'
         const reports = await storageGet<Report[]>('reports') || [];
-        logInfo('Loaded reports from storage', { count: reports.length });
+        logInfo('Storage', 'Loaded reports from storage', { count: reports.length });
         setReportCount(reports?.length || 0);
       } catch (error) {
         const errorDetails = handleError(error, { operation: 'loadReports' });
@@ -269,21 +270,21 @@ function TabsIndex() {
       if (changes.reports) {
         const reports = changes.reports.newValue as Report[] | undefined;
         const reportLength = reports?.length || 0;
-        logInfo('Reports updated via storage listener', { newCount: reportLength });
+        logInfo('Storage', 'Reports updated via storage listener', { newCount: reportLength });
         setReportCount(reportLength);
       }
       if (changes[API_KEY_STORAGE_KEY]) {
           setHasApiKey(!!changes[API_KEY_STORAGE_KEY].newValue);
-          logInfo('API Key updated via storage listener');
+          logInfo('Storage', 'API Key updated via storage listener');
       }
       if (changes[STORAGE_KEY]) { // STORAGE_KEY for custom names
           const loadedNames = (changes[STORAGE_KEY].newValue as CustomNameMap) || {};
           setCustomNames(loadedNames);
-          logInfo('Custom names updated via storage listener');
+          logInfo('Storage', 'Custom names updated via storage listener');
       }
       // Check if the LAST_TAB_KEY changed
       if (changes[LAST_TAB_KEY]) {
-          logInfo('Detected LAST_TAB_KEY change, fetching updated tab info...');
+          logInfo('TabTracking', 'Detected LAST_TAB_KEY change, fetching updated tab info...');
           fetchLastTab(); // Call the memoized function
       }
     };
@@ -298,7 +299,7 @@ function TabsIndex() {
   useEffect(() => {
     const handleFocus = () => {
       const now = Date.now();
-      logDebug("Tab Pane focused", { timestamp: now });
+      logDebug("UI", "Tab Pane focused", { timestamp: now });
       setTabPaneFocusedTime(now);
       // Optionally store this focus time
       // storage.set('tabPaneLastFocusTime', now);
@@ -320,7 +321,7 @@ function TabsIndex() {
       const RESET_THRESHOLD = 10000; // Define a threshold for resetting
       try {
         const storedValue = await storageGet<number | string>(RELOAD_COUNT_KEY);
-        logInfo('Storage get', { key: RELOAD_COUNT_KEY, found: storedValue !== undefined, value: storedValue });
+        logInfo('Storage', 'Storage get', { key: RELOAD_COUNT_KEY, found: storedValue !== undefined, value: storedValue });
 
         if (typeof storedValue === 'number' && !isNaN(storedValue)) {
           numericCount = storedValue;
@@ -329,25 +330,25 @@ function TabsIndex() {
           if (!isNaN(parsed)) {
             numericCount = parsed;
           } else {
-             logWarn('Stored reload count was non-numeric string, resetting', { value: storedValue });
+             logWarn('Storage', 'Stored reload count was non-numeric string, resetting', { value: storedValue });
              numericCount = 0;
           }
         } else {
-             logInfo('No valid stored reload count found, starting from 0');
+             logInfo('Storage', 'No valid stored reload count found, starting from 0');
              numericCount = 0;
         }
 
         // Reset if the count is unreasonably high
         if (numericCount > RESET_THRESHOLD) {
-            logWarn(`Reload count ${numericCount} exceeded threshold ${RESET_THRESHOLD}, resetting.`, { value: numericCount });
+            logWarn('Storage', `Reload count ${numericCount} exceeded threshold ${RESET_THRESHOLD}, resetting.`, { value: numericCount });
             numericCount = 0;
         }
 
         const newCount = numericCount + 1; // Perform numerical addition
         await storageSet(RELOAD_COUNT_KEY, newCount);
-        logInfo('Storage set', { key: RELOAD_COUNT_KEY, value: newCount });
+        logInfo('Storage', 'Storage set', { key: RELOAD_COUNT_KEY, value: newCount });
         setReloadCount(newCount);
-        logInfo(`Yeshie Tab Page Reload Count: ${newCount}`);
+        logInfo("UI", `Yeshie Tab Page Reload Count: ${newCount}`);
       } catch (error) {
         const errorDetails = handleError(error, { operation: 'incrementReloadCount' });
         setLastErrorDetails(errorDetails);
@@ -364,7 +365,7 @@ function TabsIndex() {
     const checkApiKey = async () => {
       try {
         const key = await storageGet<string>(API_KEY_STORAGE_KEY);
-        logInfo('Storage get', { key: API_KEY_STORAGE_KEY, found: !!key });
+        logInfo('Storage', 'Storage get', { key: API_KEY_STORAGE_KEY, found: !!key });
         setHasApiKey(!!key);
       } catch (error) {
         const errorDetails = handleError(error, { operation: 'checkApiKey' });
@@ -378,19 +379,19 @@ function TabsIndex() {
 
   // --- Add Listener for Background Recording Status Updates ---
   useEffect(() => {
-      logDebug("TabsIndex: Setting up message listener EFFECT START"); // Added log
+      logDebug("Background", "TabsIndex: Setting up message listener EFFECT START");
 
       const handleMessage = (message: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
-          logDebug("TabsIndex: handleMessage RECEIVED:", { message, senderId: sender?.id }); // Log ALL messages, check sender?.id
+          logDebug("Background", "TabsIndex: handleMessage RECEIVED:", { message, senderId: sender?.id });
 
-          if (!isMounted.current) { // Check the ref value
-              logWarn("TabsIndex: handleMessage received but component not mounted.");
+          if (!isMounted.current) {
+              logWarn("UI", "TabsIndex: handleMessage received but component not mounted.");
               return false;
           }
 
           // Keep existing handlers
           if (message.type === "RECORDING_STARTED") {
-              logInfo("TabsIndex: Received RECORDING_STARTED update from background.");
+              logInfo("Recording", "TabsIndex: Received RECORDING_STARTED update from background.");
               setIsRecording(true);
               setIsProcessingRecording(false);
               setLegacyToastMessage(message.payload?.message || "Recording started.");
@@ -399,15 +400,15 @@ function TabsIndex() {
               return false; // Indicate sync response handled
           }
           else if (message.type === "RECORDING_STOPPED") {
-              logInfo("TabsIndex: Received RECORDING_STOPPED update from background.");
+              logInfo("Recording", "TabsIndex: Received RECORDING_STOPPED update from background.");
               setIsRecording(false);
-              setIsProcessingRecording(true);
+              setIsProcessingRecording(false);
               setLegacyToastMessage(message.payload?.message || "Recording stopped, processing...");
               sendResponse({success: true});
               return false; // Indicate sync response handled
           }
           else if (message.type === "RECORDING_PROCESSED") {
-               logInfo("TabsIndex: Received RECORDING_PROCESSED update from background.");
+               logInfo("Recording", "TabsIndex: Received RECORDING_PROCESSED update from background.");
                setIsProcessingRecording(false);
                if (message.payload?.success) {
                    setLegacyToastMessage(`Task "${message.payload.taskName}" saved successfully!`);
@@ -426,16 +427,16 @@ function TabsIndex() {
           }
 
           // Log if message wasn't handled by this listener, but don't return true unless needed for async
-          logDebug("TabsIndex: Message not handled by recording status listener", { type: message?.type });
+          logDebug("Background", "TabsIndex: Message not handled by recording status listener", { type: message?.type });
           // Explicitly return false if this listener doesn't handle the message or need to keep channel open
           return false;
       };
 
       chrome.runtime.onMessage.addListener(handleMessage);
-      logDebug("TabsIndex: Added listener for recording status updates.");
+      logDebug("Background", "TabsIndex: Added listener for recording status updates.");
 
       return () => {
-          logDebug("TabsIndex: Removing listener for recording status updates (CLEANUP)");
+          logDebug("Background", "TabsIndex: Removing listener for recording status updates (CLEANUP)");
           chrome.runtime.onMessage.removeListener(handleMessage);
       };
   }, []); // Ensure correct closing bracket and dependency array
@@ -443,7 +444,7 @@ function TabsIndex() {
   // Return to the last active tab
   const returnToLastTab = async () => {
     if (!lastTabInfo) {
-      logWarn("Can't return to tab: No tab info available");
+      logWarn("TabTracking", "Can't return to tab: No tab info available");
       return;
     }
 
@@ -451,24 +452,24 @@ function TabsIndex() {
     setErrorMessage("");
     
     try {
-      logDebug(`Attempting to focus tab ID: ${lastTabInfo.id}`);
+      logDebug("TabTracking", `Attempting to focus tab ID: ${lastTabInfo.id}`);
       
       const response: FocusTabResponse = await sendToBackground({
         name: "focusLastTab",
         body: { force: true } // Always force focus for manual clicks
       });
       
-      logDebug("Focus response", { response });
+      logDebug("TabTracking", "Focus response", { response });
       
       if (!response || !response.success) {
         setErrorMessage(response?.error || "Failed to return to previous tab");
-        logWarn("Failed to return to previous tab via background", { error: response?.error });
+        logWarn("TabTracking", "Failed to return to previous tab via background", { error: response?.error });
         
         // Direct approach as fallback
         try {
-          logDebug("Trying direct tab focus as fallback", { tabId: lastTabInfo.id });
+          logDebug("TabTracking", "Trying direct tab focus as fallback", { tabId: lastTabInfo.id });
           await chrome.tabs.update(lastTabInfo.id, { active: true });
-          logDebug("Direct tab focus successful");
+          logDebug("TabTracking", "Direct tab focus successful");
         } catch (directError) {
           const errorDetails = handleError(directError, { operation: 'returnToLastTab - directFocusFallback' });
           setLastErrorDetails(errorDetails);
@@ -502,7 +503,7 @@ function TabsIndex() {
 
   // Add handleReportSubmit logic (can be simplified)
   const handleReportSubmit = async (reportData: NewReportPayload) => {
-    logInfo("TabsIndex: Handling report submission", { reportData });
+    logInfo("UI", "TabsIndex: Handling report submission", { reportData });
     try {
       // Directly send message to background
       await chrome.runtime.sendMessage({
@@ -541,7 +542,7 @@ function TabsIndex() {
 
   const handleSaveApiKey = async () => {
     if (!apiKeyInput.trim()) {
-      setLegacyToastMessage("API Key cannot be empty.");
+      toast.warning("API Key cannot be empty.");
       setTimeout(() => setLegacyToastMessage(null), 3000);
       return;
     }
@@ -549,14 +550,14 @@ function TabsIndex() {
     setLegacyToastMessage(null);
     try {
       await storageSet(API_KEY_STORAGE_KEY, apiKeyInput.trim());
-      logInfo('Storage set', { key: API_KEY_STORAGE_KEY });
+      logInfo('Storage', 'Storage set', { key: API_KEY_STORAGE_KEY });
       setHasApiKey(true);
-      setLegacyToastMessage("OpenAI API Key saved successfully!");
+      toast.success("OpenAI API Key saved successfully!");
       handleCloseApiKeyModal();
     } catch (error) {
       const errorDetails = handleError(error, { operation: 'handleSaveApiKey' });
       setLastErrorDetails(errorDetails);
-      setLegacyToastMessage("Failed to save API Key. Click to copy details.");
+      toast.error("Failed to save API Key. Click to copy details.");
     } finally {
       setApiKeyLoading(false);
       setTimeout(() => {
@@ -568,13 +569,14 @@ function TabsIndex() {
 
   // --- Handler for YeshieEditor submit (Sends to LLM) ---
   const handleEditorSubmit = async (text: string) => {
-    logInfo("TabsIndex: YeshieEditor submitting text to LLM", { textLength: text.length });
+    logInfo("API", "TabsIndex: YeshieEditor submitting text to LLM", { textLength: text.length });
+    toast.info("Sending to LLM... 🧠");
     setLegacyToastMessage("Sending to LLM... 🧠"); 
 
     try {
       // Use storageGet directly, remove incorrect 'storage.' prefix
       const apiKey = await storageGet<string>(API_KEY_STORAGE_KEY);
-      logInfo('Storage get', { key: API_KEY_STORAGE_KEY, purpose: 'llm_call', found: !!apiKey });
+      logInfo('API', 'Storage get', { key: API_KEY_STORAGE_KEY, purpose: 'llm_call', found: !!apiKey });
       if (!apiKey) {
         const errorDetails = handleError("Cannot send to LLM: OpenAI API Key is not set", { operation: 'handleEditorSubmit' });
         setLastErrorDetails(errorDetails);
@@ -593,7 +595,7 @@ function TabsIndex() {
         body: payload
       });
 
-      logInfo("TabsIndex: Raw response from sendToLLM background handler", { response });
+      logInfo("API", "TabsIndex: Raw response from sendToLLM background handler", { response });
 
       if (response && response.result) {
         setLegacyToastMessage(`LLM Response: ${response.result.substring(0, 100)}${response.result.length > 100 ? '...' : ''}`);
@@ -624,8 +626,8 @@ function TabsIndex() {
 
   // --- Simple synchronous handler for testing ---
   const simpleTestSubmit = (text: string) => {
-    logInfo("--- Simple Test Submit Called ---", { textLength: text.length });
-    setLegacyToastMessage(`Simple Test Submit: ${text.substring(0, 50)}...`);
+    logInfo("UI", "--- Simple Test Submit Called ---", { textLength: text.length });
+    toast.info(`Simple Test Submit: ${text.substring(0, 50)}...`);
     setTimeout(() => setLegacyToastMessage(null), 3000);
   };
 
@@ -658,20 +660,20 @@ function TabsIndex() {
           setLegacyToastMessage("Failed to copy details. Click to copy again?"); // Allow retry?
         });
     } else {
-      logWarn("Attempted to copy error details when none were available.");
+      logWarn("UI", "Attempted to copy error details when none were available.");
     }
   };
 
   // --- Function to handle Recording Button Click ---
   const handleRecordButtonClick = () => {
     if (isProcessingRecording) {
-        setLegacyToastMessage("Please wait, previous recording is processing...");
+        toast.warning("Please wait, previous recording is processing...");
         setTimeout(() => setLegacyToastMessage(null), 2000);
         return;
     }
 
     const messageType = isRecording ? "STOP_RECORDING_FROM_UI" : "START_RECORDING_FROM_UI";
-    logInfo(`Sending ${messageType} to background script.`);
+    logInfo("Recording", `Sending ${messageType} to background script.`);
     // Optimistically update UI? Maybe wait for background confirmation.
     // setIsRecording(!isRecording); // Example optimistic update
 
@@ -682,7 +684,7 @@ function TabsIndex() {
             setLegacyToastMessage(`Error ${isRecording ? 'stopping' : 'starting'} recording. Click to copy details.`);
             // Revert optimistic update if needed: setIsRecording(isRecording);
         } else if (response && response.success) {
-            logInfo(`Background acknowledged ${messageType}: ${response.message}`);
+            logInfo("Recording", `Background acknowledged ${messageType}: ${response.message}`);
             // Update state based on actual background action (handled by listener now)
             // setIsRecording(!isRecording); // Let listener handle state changes
         } else {
@@ -704,7 +706,9 @@ function TabsIndex() {
   // Listen for step execution messages from the background script
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg && msg.type === 'RUN_STEPPER_STEP' && msg.step) {
+      logDebug("Stepper", "TabsIndex: Received RUN_STEPPER_STEP from background", { step: msg.step });
       Stepper(msg.step).then((result) => {
+        logDebug("Stepper", "TabsIndex: Stepper finished step, sending response to background", { result });
         sendResponse({ result });
       });
       return true; // Indicates async response
@@ -727,12 +731,13 @@ function TabsIndex() {
       a.download = 'results.json';
       document.body.appendChild(a);
       a.click();
+      logInfo("UI", "Initiated download of results.json"); // Log download action
       setTimeout(() => {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
       }, 100);
     } else {
-      setLegacyToastMessage('No results to download.');
+      toast.info('No results to download.');
     }
   };
 
@@ -751,9 +756,11 @@ function TabsIndex() {
       });
 
       if (!runScriptOnReload) { // Check the toggle state
-        logInfo('runInstructionsIfPresent: Auto-run disabled by user toggle.');
+        logInfo('UI', 'runInstructionsIfPresent: Auto-run disabled by user toggle.');
         // Optionally, show a persistent message that auto-run is off if the legacyToast is removed
         // setLegacyToastMessage("Automatic script execution on load is disabled.");
+        toast.warn('No instructions.json found or has no tasks.', { autoClose: 5000 });
+        setHasResults(false);
         return;
       }
 
@@ -764,7 +771,7 @@ function TabsIndex() {
         return;
       }
       // setLegacyToastMessage('instructions.json found. Waiting for DOM...');
-      toast.info('instructions.json found. Waiting for DOM...', { autoClose: 2000 });
+      toast.info('instructions.json found. Waiting for DOM...', { autoClose: 2000 }); // This is the one user mentioned
       try {
         await waitForButton('#log-viewer-button', 3000);
       } catch {
@@ -777,19 +784,24 @@ function TabsIndex() {
       toast.info('Running test...', { autoClose: 2000 }); // This is the one user mentioned
       let log = [];
       try { 
+        logInfo("Stepper", "Starting execution of instruction file steps..."); // Log start of execution
         for (const task of instructions.tasks) {
+          logDebug("Stepper", `Executing task: ${(task as any).taskName || (task as any).tab?.name || 'Unnamed Task'}`);
           for (const step of task.steps) {
             const stepForStepper = { ...step, command: step.cmd };
-            const result = await Stepper(stepForStepper);
+            logDebug("Stepper", `Executing step:`, { command: stepForStepper.command, details: stepForStepper });
+            const result = await Stepper(stepForStepper); // Stepper itself has internal try-catch for each command
+            logDebug("Stepper", `Step result:`, { result });
             log.push({ step, result });
           }
         }
+        logInfo("Stepper", "Finished executing instruction file steps."); // Log end of execution
         await writeResultsJson(log);
         setHasResults(true);
         // setLegacyToastMessage('Test complete: results.json written.');
         toast.success('Test complete: results.json written.', { autoClose: 3000 });
       } catch (e) {
-        logError("Error during instruction execution or writing results:", e);
+        logError("Stepper", "Error during instruction execution or writing results:", e);
         // setLegacyToastMessage(`ERROR during test: ${e.message}. Check console.`);
         toast.error(`ERROR during test: ${(e as Error).message}. Check console.`, { autoClose: 10000 });
       }
@@ -797,12 +809,12 @@ function TabsIndex() {
     runInstructionsIfPresent();
   }, [runScriptOnReload]); // Added runScriptOnReload as a dependency
 
-  // New useEffect for handling interactive toast requests from Stepper.ts
+  // useEffect for handling messages from Stepper.ts (interactive toasts, etc.)
   useEffect(() => {
     const handleStepperMessages = (event: MessageEvent) => {
       if (event.data && event.data.type === 'SHOW_INTERACTIVE_TOAST_REQUEST') {
         const { toastId, message, options } = event.data;
-        logInfo('Received SHOW_INTERACTIVE_TOAST_REQUEST', { toastId, message, options });
+        logInfo('UI', 'Received SHOW_INTERACTIVE_TOAST_REQUEST', { toastId, message, options });
         setActiveInteractiveToast(toastId);
 
         const notifyStepper = (action: 'continue' | 'cancel') => {
@@ -813,7 +825,8 @@ function TabsIndex() {
              (event.source as Window).postMessage({ type: 'INTERACTIVE_TOAST_RESPONSE', toastId, action }, event.origin || '*');
           } else {
             // Fallback or error if event.source is not available, though it should be for messages from same-origin iframes or main window content scripts.
-            console.warn("event.source not available for INTERACTIVE_TOAST_RESPONSE. This might indicate an issue if Stepper is in a cross-origin iframe.");
+            // console.warn("event.source not available for INTERACTIVE_TOAST_RESPONSE. This might indicate an issue if Stepper is in a cross-origin iframe.");
+            logWarn("UI", "event.source not available for INTERACTIVE_TOAST_RESPONSE. Check cross-origin issues.");
             window.postMessage({ type: 'INTERACTIVE_TOAST_RESPONSE', toastId, action }, '*'); // Fallback to general postMessage
           }
           setActiveInteractiveToast(null); // Clear active toast
@@ -843,7 +856,7 @@ function TabsIndex() {
             // If closed by means other than buttons (e.g., programmatically, though unlikely here without a close button)
             // We should ensure we don't leave Stepper hanging. Default to cancel if closed without explicit action.
             if (activeInteractiveToast === toastId) { // Check if this toast was still considered active
-              logWarn('Interactive toast closed without explicit action, defaulting to cancel.', { toastId });
+              logWarn('UI', 'Interactive toast closed without explicit action, defaulting to cancel.', { toastId });
               notifyStepper('cancel');
             }
           },
@@ -855,12 +868,12 @@ function TabsIndex() {
         toast(toastContent, defaultToastOptions);
 
       } else if (event.data && event.data.type === 'yeshie-message') {
-        logInfo("Displaying general message (postMessage):", event.data.text);
+        logInfo("UI", "Displaying general message (postMessage):", event.data.text);
         toast(event.data.text); // New way using react-toastify for simple messages
       } else if (event.data && event.data.type === 'yeshie-toast') {
         // This was our previous simple toast, let's use react-toastify for these too for consistency
         // but make them non-interactive by default.
-        logInfo("Displaying simple toast (postMessage) via react-toastify:", event.data.message);
+        logInfo("UI", "Displaying simple toast (postMessage) via react-toastify:", event.data.message);
         toast(event.data.message, { // Simple non-interactive toast
             autoClose: 3000,
             position: "bottom-right", // Corrected: string literal
@@ -882,7 +895,7 @@ function TabsIndex() {
     setRunScriptOnReload(newValue);
     try {
       await storageSet(RUN_SCRIPT_ON_RELOAD_KEY, newValue);
-      logInfo('Storage set for runScriptOnReload preference', { key: RUN_SCRIPT_ON_RELOAD_KEY, value: newValue });
+      logInfo('Storage', 'Storage set for runScriptOnReload preference', { key: RUN_SCRIPT_ON_RELOAD_KEY, value: newValue });
       if (newValue) {
         toast.info("Instructions will run automatically on next page load.");
       } else {
@@ -896,7 +909,7 @@ function TabsIndex() {
   };
 
   const handleArchiveTest = async () => {
-    logInfo("Attempting to archive current test...");
+    logInfo("UI", "Attempting to archive current test...");
     if (!instructions || !instructions.tasks || instructions.tasks.length === 0) {
       toast.error("No test loaded or tasks found in instructions.json to archive.");
       return;
@@ -930,7 +943,7 @@ function TabsIndex() {
     const storageKey = `archived_test_${normalizedTaskName}`;
     try {
       await storageSet(storageKey, instructions); // Store the whole instructions object
-      logInfo(`Test '${taskName}' archived successfully to storage with key: ${storageKey}` );
+      logInfo('Storage', `Test '${taskName}' archived successfully to storage with key: ${storageKey}` );
       toast.success(`Test "${taskName}" archived successfully!`);
     } catch (error) {
       const errorDetails = handleError(error, { operation: 'handleArchiveTest', taskName, storageKey });

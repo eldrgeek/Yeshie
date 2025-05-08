@@ -1,4 +1,5 @@
-import { log } from './DiagnosticLogger';
+import { logError, logInfo, logWarn } from "../functions/logger";
+import { handleError } from "../functions/errorHandler";
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 100;
@@ -17,21 +18,18 @@ async function performStorageOperation<T>(
     } catch (error) {
       attempts++;
       const isLastError = attempts === MAX_RETRIES;
-      log('storage_error', {
-          operation: operationName,
-          attempt: attempts,
-          maxAttempts: MAX_RETRIES,
-          error: error.message,
-          willRetry: !isLastError
-      });
       if (isLastError) {
-        console.error(`Storage operation '${operationName}' failed after ${attempts} attempts:`, error);
+        logError("Storage", `Storage operation '${operationName}' permanently failed after ${attempts} attempts.`, { error, operationName, attempts });
+        handleError(error, { operation: operationName, attempts, willRetry: false});
+      } else {
+        logWarn("Storage", `Storage operation '${operationName}' failed, attempt ${attempts}. Retrying...`, { error, operationName, attempts, willRetry: true });
+      }
+      if (isLastError) {
         throw new Error(`Storage operation '${operationName}' failed: ${error.message}`);
       }
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * Math.pow(2, attempts - 1))); // Exponential backoff
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * Math.pow(2, attempts - 1)));
     }
   }
-  // Should not be reachable due to throw in the loop, but required by TS
   throw new Error(`Storage operation '${operationName}' failed unexpectedly after exhausting retries.`);
 }
 
@@ -41,14 +39,14 @@ async function performStorageOperation<T>(
  * @returns The value associated with the key, or undefined if not found.
  */
 export async function storageGet<T>(key: string): Promise<T | undefined> {
-  return performStorageOperation(async () => {
+  return performStorageOperation<T | undefined>(async () => {
     const result = await chrome.storage.local.get(key);
-    // Check for runtime.lastError, although less common with promises
     if (chrome.runtime.lastError) {
-        console.error(`Error getting key "${key}":`, chrome.runtime.lastError.message);
-        throw new Error(chrome.runtime.lastError.message);
+        const err = new Error(chrome.runtime.lastError.message);
+        logError("Storage", `Error getting key "${key}"`, { error: err, key });
+        handleError(err, { operation: 'storageGet', key });
+        throw err;
     }
-    log('storage_get', { key, found: key in result });
     return result[key] as T | undefined;
   }, `get('${key}')`);
 }
@@ -59,13 +57,14 @@ export async function storageGet<T>(key: string): Promise<T | undefined> {
  * @returns An object with the key-value pairs found.
  */
 export async function storageGetMultiple<T>(keys: string[]): Promise<{ [key: string]: T }> {
-     return performStorageOperation(async () => {
+     return performStorageOperation<{ [key: string]: T }>(async () => {
         const result = await chrome.storage.local.get(keys);
         if (chrome.runtime.lastError) {
-            console.error(`Error getting multiple keys:`, chrome.runtime.lastError.message);
-            throw new Error(chrome.runtime.lastError.message);
+            const err = new Error(chrome.runtime.lastError.message);
+            logError("Storage", `Error getting multiple keys`, { error: err, keys });
+            handleError(err, { operation: 'storageGetMultiple', keys });
+            throw err;
         }
-        log('storage_get_multiple', { keys, count: Object.keys(result).length });
         return result as { [key: string]: T };
      }, `getMultiple([${keys.join(', ')}])`);
 }
@@ -77,12 +76,13 @@ export async function storageGetMultiple<T>(keys: string[]): Promise<{ [key: str
  */
 export async function storageGetAll(): Promise<{ [key: string]: any }> {
     return performStorageOperation<{ [key: string]: any }>(async () => {
-        const result = await chrome.storage.local.get(null);
+        const result = await chrome.storage.local.get(null) as unknown as { [key: string]: any };
         if (chrome.runtime.lastError) {
-            console.error(`Error getting all items:`, chrome.runtime.lastError.message);
-            throw new Error(chrome.runtime.lastError.message);
+            const err = new Error(chrome.runtime.lastError.message);
+            logError("Storage", `Error getting all items`, { error: err });
+            handleError(err, { operation: 'storageGetAll' });
+            throw err;
         }
-        log('storage_get_all', { count: Object.keys(result).length });
         return result;
      }, 'getAll');
 }
@@ -94,13 +94,14 @@ export async function storageGetAll(): Promise<{ [key: string]: any }> {
  * @param value The value to store.
  */
 export async function storageSet<T>(key: string, value: T): Promise<void> {
-  await performStorageOperation(async () => {
+  await performStorageOperation<void>(async () => {
     await chrome.storage.local.set({ [key]: value });
     if (chrome.runtime.lastError) {
-        console.error(`Error setting key "${key}":`, chrome.runtime.lastError.message);
-        throw new Error(chrome.runtime.lastError.message);
+        const err = new Error(chrome.runtime.lastError.message);
+        logError("Storage", `Error setting key "${key}"`, { error: err, key, value });
+        handleError(err, { operation: 'storageSet', key, value });
+        throw err;
     }
-    log('storage_set', { key });
   }, `set('${key}')`);
 }
 
@@ -112,10 +113,11 @@ export async function storageSetMultiple(items: { [key: string]: any }): Promise
     await performStorageOperation<void>(async () => {
         await chrome.storage.local.set(items);
         if (chrome.runtime.lastError) {
-            console.error(`Error setting multiple items:`, chrome.runtime.lastError.message);
-            throw new Error(chrome.runtime.lastError.message);
+            const err = new Error(chrome.runtime.lastError.message);
+            logError("Storage", `Error setting multiple items`, { error: err, keys: Object.keys(items) });
+            handleError(err, { operation: 'storageSetMultiple', keys: Object.keys(items) });
+            throw err;
         }
-        log('storage_set_multiple', { keys: Object.keys(items) });
     }, `setMultiple([${Object.keys(items).join(', ')}])`);
 }
 
@@ -125,13 +127,14 @@ export async function storageSetMultiple(items: { [key: string]: any }): Promise
  * @param key The key of the item to remove.
  */
 export async function storageRemove(key: string): Promise<void> {
-  await performStorageOperation(async () => {
+  await performStorageOperation<void>(async () => {
     await chrome.storage.local.remove(key);
     if (chrome.runtime.lastError) {
-        console.error(`Error removing key "${key}":`, chrome.runtime.lastError.message);
-        throw new Error(chrome.runtime.lastError.message);
+        const err = new Error(chrome.runtime.lastError.message);
+        logError("Storage", `Error removing key "${key}"`, { error: err, key });
+        handleError(err, { operation: 'storageRemove', key });
+        throw err;
     }
-    log('storage_remove', { key });
   }, `remove('${key}')`);
 }
 
@@ -143,10 +146,11 @@ export async function storageRemoveMultiple(keys: string[]): Promise<void> {
     await performStorageOperation<void>(async () => {
         await chrome.storage.local.remove(keys);
         if (chrome.runtime.lastError) {
-            console.error(`Error removing multiple keys:`, chrome.runtime.lastError.message);
-            throw new Error(chrome.runtime.lastError.message);
+            const err = new Error(chrome.runtime.lastError.message);
+            logError("Storage", `Error removing multiple keys`, { error: err, keys });
+            handleError(err, { operation: 'storageRemoveMultiple', keys });
+            throw err;
         }
-        log('storage_remove_multiple', { keys });
     }, `removeMultiple([${keys.join(', ')}])`);
 }
 
@@ -159,10 +163,11 @@ export async function storageClear(): Promise<void> {
   await performStorageOperation<void>(async () => {
     await chrome.storage.local.clear();
     if (chrome.runtime.lastError) {
-        console.error(`Error clearing storage:`, chrome.runtime.lastError.message);
-        throw new Error(chrome.runtime.lastError.message);
+        const err = new Error(chrome.runtime.lastError.message);
+        logError("Storage", `Error clearing storage`, { error: err });
+        handleError(err, { operation: 'storageClear' });
+        throw err;
     }
-    log('storage_clear', {});
   }, 'clear');
 }
 
@@ -171,25 +176,19 @@ export async function storageClear(): Promise<void> {
  */
 export async function logStorageUsage(): Promise<void> {
   try {
-    const localItems = await storageGetAll(); // Use our wrapper
+    const localItems = await storageGetAll();
     const localCount = Object.keys(localItems).length;
-    log('storage_usage', { area: 'local', count: localCount });
-    console.log(`Storage Check: chrome.storage.local item count: ${localCount}`);
+    logInfo("Storage", `chrome.storage.local item count: ${localCount}`);
 
     // Note: We are centralizing on chrome.storage.local.
     // If sync storage is needed later, add similar wrappers for it.
-    // const syncItems = await chrome.storage.sync.get(null); // Direct call - replace if needed
+    // const syncItems = await chrome.storage.sync.get(null);
     // const syncCount = Object.keys(syncItems).length;
-    // log('storage_usage', { area: 'sync', count: syncCount });
-    // console.log(`Storage Check: chrome.storage.sync item count: ${syncCount}`);
-    // if (syncCount >= 510) { // Check against the 512 limit
-    //     log('storage_warning', { area: 'sync', message: 'MAX_ITEMS limit nearing', count: syncCount });
-    //     console.warn("chrome.storage.sync is near or at its MAX_ITEMS limit!");
+    // logInfo("Storage", `chrome.storage.sync item count: ${syncCount}`);
+    // if (syncCount >= 510) { 
+    //     logWarn("Storage", "chrome.storage.sync is near or at its MAX_ITEMS limit!", { area: 'sync', count: syncCount });
     // }
   } catch (error) {
-    // Check if error is an instance of Error before accessing message
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error("Error checking storage usage:", error);
-    log('storage_error', { operation: 'logStorageUsage', error: errorMessage });
+    handleError(error, { operation: 'logStorageUsage' });
   }
 } 
