@@ -1,8 +1,7 @@
-
-import React, { useState, useEffect } from 'react'
-import { toggleLearnMode } from '../functions/learn'
+import React, { useState, useEffect, useRef } from 'react'
+import { toggleRecording } from '../functions/learn'
 import { storageGet, storageSet } from "../functions/storage"
-import { log } from "../functions/DiagnosticLogger"
+import { logInfo, logError, logDebug } from "../functions/logger"
 // import type { PlasmoCSConfig } from "plasmo" // Removed config
  
 // Removed Plasmo config as this is now a standard component
@@ -75,67 +74,42 @@ export default function LearnMode() { // Renamed component export for clarity
     } catch (error) {
       console.error("LearnMode: Error toggling Yeshie sidebar:", error);
       const errorMessage = error instanceof Error ? error.message : String(error);
-      log('storage_error', { operation: 'toggleYeshieSidebar', error: errorMessage });
+      logError('Error in toggleYeshieSidebar', { operation: 'toggleYeshieSidebar', error: errorMessage });
     }
   }
 
+  // Effect for handling keyboard shortcuts
   useEffect(() => {
-    console.log("LearnMode: Setting up key event listener");
-    
+    logDebug("LearnMode: Setting up key event listener for Ctrl+Shift+L");
+
     const handleKey = (e: KeyboardEvent) => {
-      // Check for Ctrl+Shift+L (or Cmd+Shift+L on Mac)
+      logDebug("LearnMode: Key pressed", { key: e.key, ctrl: e.ctrlKey, shift: e.shiftKey, meta: e.metaKey }); // Log any keydown
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "l") {
-        console.log("LearnMode: Ctrl+Shift+L detected");
-        e.preventDefault()
-        
-        // Don't process if already processing
-        if (isProcessing) {
-          console.log("LearnMode: Already processing, ignoring keypress");
-          return;
-        }
-        
-        console.log("LearnMode: Starting learn mode sequence");
-        setIsProcessing(true)
-        
-        // Removed the explicit sidebar toggle - Learn mode doesn't need to open the sidebar
-        toggleLearnMode() // Directly toggle learn mode
-          .then((response) => {
-            console.log("LearnMode: Learn mode toggle result:", response);
-            if (response.success) {
-              if (response.action === 'stop' && response.result) {
-                const { result } = response;
-                const actionCount = result._meta?.actionCount || 0;
-                const message = `Learned "${result.procedureName}" with ${actionCount} actions. Result copied to clipboard.`;
-                setToast(message);
-              } else {
-                setToast(response.message);
-              }
+        logInfo("LearnMode: Ctrl+Shift+L DETECTED. Sending toggle message to background."); // More prominent log
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Send message to background to toggle recording state
+        chrome.runtime.sendMessage({ type: "TOGGLE_RECORDING_FROM_SHORTCUT" }, (response) => {
+            if (chrome.runtime.lastError) {
+                logError("LearnMode: Error sending toggle shortcut message", { error: chrome.runtime.lastError.message });
             } else {
-              setToast("Learn session ended.");
+                logInfo("LearnMode: Toggle shortcut message sent successfully.", { response }); // Log success
             }
-            // Auto dismiss the toast after 2 seconds
-            setTimeout(() => setToast(null), 2000);
-          })
-          .catch(err => {
-            console.error("LearnMode: Error in learn mode process:", err);
-            setToast("Error in learn mode process");
-            setTimeout(() => setToast(null), 2000);
-          })
-          .finally(() => {
-            console.log("LearnMode: Learn mode sequence completed");
-            setIsProcessing(false);
-          });
+        });
+      } else {
+          // Log if the key combination didn't match
+          // logDebug("LearnMode: Keypress did not match shortcut"); // Can be noisy
       }
-    }
-    
-    console.log("LearnMode: Adding keydown listener for Ctrl+Shift+L");
-    window.addEventListener("keydown", handleKey)
-    
+    };
+
+    window.addEventListener("keydown", handleKey, true);
+
     return () => {
-      console.log("LearnMode: Removing keydown listener");
-      window.removeEventListener("keydown", handleKey)
-    }
-  }, [isProcessing])
+      logDebug("LearnMode: Removing keydown listener");
+      window.removeEventListener("keydown", handleKey, true);
+    };
+  }, []);
 
   console.log("LearnMode component rendered");
   return (

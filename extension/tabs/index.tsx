@@ -14,6 +14,9 @@ import "./style.css"; // Assuming you might want some basic styling
 import LogViewer from "../components/LogViewer"; // Import the LogViewer component
 import { Stepper } from '../functions/Stepper';
 import instructions from '../ipc/instructions.json';
+import { ToastContainer, toast, Slide } from 'react-toastify'; // Added react-toastify imports
+import 'react-toastify/dist/ReactToastify.css'; // Added react-toastify CSS
+import TestViewerDialog from "../components/TestViewerDialog"; // Import the new dialog
 
 // --- Type Definitions ---
 
@@ -90,6 +93,7 @@ const DEBUG_TABS = process.env.NODE_ENV === 'development'; // Use NODE_ENV for d
 const LAST_LOADED_TIME_KEY = "yeshie_tab_page_last_loaded";
 const API_KEY_STORAGE_KEY = 'openai-api-key'; // Add key constant
 const RELOAD_COUNT_KEY = "yeshie_tab_reload_count"; // Key for reload counter
+const RUN_SCRIPT_ON_RELOAD_KEY = "yeshie_run_script_on_reload"; // Key for this new preference
 
 // Define STORAGE_KEY locally as it's not exported from TabList
 const STORAGE_KEY = 'yeshieTabCustomNames';
@@ -113,7 +117,7 @@ function TabsIndex() {
   const [reportCount, setReportCount] = useState(0);
   const [tabPaneFocusedTime, setTabPaneFocusedTime] = useState<number | null>(null);
   const [showReportDialog, setShowReportDialog] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [legacyToastMessage, setLegacyToastMessage] = useState<string | null>(null);
   const [reloadCount, setReloadCount] = useState<number>(0);
   const [customNames, setCustomNames] = useState<CustomNameMap>({});
   const [lastErrorDetails, setLastErrorDetails] = useState<string | null>(null);
@@ -121,6 +125,9 @@ function TabsIndex() {
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [isProcessingRecording, setIsProcessingRecording] = useState<boolean>(false);
   const [hasResults, setHasResults] = useState(false);
+  const [runScriptOnReload, setRunScriptOnReload] = useState<boolean>(false); // New state
+  const [showTestViewerDialog, setShowTestViewerDialog] = useState<boolean>(false); // New state for dialog
+  const [activeInteractiveToast, setActiveInteractiveToast] = useState<string | null>(null); // To track active interactive toast ID
 
   // --- State for API Key Management ---
   const [hasApiKey, setHasApiKey] = useState(false);
@@ -148,6 +155,25 @@ function TabsIndex() {
   useEffect(() => {
     logInfo("TabsIndex mounted, clearing previous session logs from storage.");
     clearSessionLogs();
+
+    // Load the runScriptOnReload preference
+    const loadRunPreference = async () => {
+      try {
+        const savedPreference = await storageGet<boolean>(RUN_SCRIPT_ON_RELOAD_KEY);
+        if (savedPreference !== undefined) {
+          setRunScriptOnReload(savedPreference);
+          logInfo('Loaded runScriptOnReload preference', { value: savedPreference });
+        } else {
+          // If not set, default to false and save it
+          await storageSet(RUN_SCRIPT_ON_RELOAD_KEY, false);
+          logInfo('Initialized runScriptOnReload preference to false');
+        }
+      } catch (error) {
+        handleError(error, { operation: 'loadRunScriptOnReloadPreference' });
+        // Keep default false if error
+      }
+    };
+    loadRunPreference();
   }, []);
 
   // Save current page load time and retrieve last loaded time
@@ -168,7 +194,7 @@ function TabsIndex() {
       } catch (error) {
         const errorDetails = handleError(error, { operation: 'loadAndUpdateTime' });
         setLastErrorDetails(errorDetails);
-        setToast("Error managing load time. Click to copy details.");
+        setLegacyToastMessage("Error managing load time. Click to copy details.");
       }
     };
 
@@ -200,7 +226,7 @@ function TabsIndex() {
       setLastErrorDetails(errorDetails);
       setLastTabInfo(null);
       setErrorMessage("Failed to retrieve last tab information");
-      setToast("Error fetching tab info. Click to copy details.");
+      setLegacyToastMessage("Error fetching tab info. Click to copy details.");
       setTabInfoReady(true);
       return null;
     }
@@ -226,7 +252,7 @@ function TabsIndex() {
       } catch (error) {
         const errorDetails = handleError(error, { operation: 'loadReports' });
         setLastErrorDetails(errorDetails);
-        setToast("Error loading reports. Click to copy details.");
+        setLegacyToastMessage("Error loading reports. Click to copy details.");
       }
     };
 
@@ -325,7 +351,7 @@ function TabsIndex() {
       } catch (error) {
         const errorDetails = handleError(error, { operation: 'incrementReloadCount' });
         setLastErrorDetails(errorDetails);
-        setToast("Error managing reload count. Click to copy details.");
+        setLegacyToastMessage("Error managing reload count. Click to copy details.");
         setReloadCount(0); // Reset on error
       }
     };
@@ -343,7 +369,7 @@ function TabsIndex() {
       } catch (error) {
         const errorDetails = handleError(error, { operation: 'checkApiKey' });
         setLastErrorDetails(errorDetails);
-        setToast("Error checking API key. Click to copy details.");
+        setLegacyToastMessage("Error checking API key. Click to copy details.");
         setHasApiKey(false);
       }
     };
@@ -367,8 +393,8 @@ function TabsIndex() {
               logInfo("TabsIndex: Received RECORDING_STARTED update from background.");
               setIsRecording(true);
               setIsProcessingRecording(false);
-              setToast(message.payload?.message || "Recording started.");
-              setTimeout(() => setToast(null), 2000);
+              setLegacyToastMessage(message.payload?.message || "Recording started.");
+              setTimeout(() => setLegacyToastMessage(null), 2000);
               sendResponse({success: true});
               return false; // Indicate sync response handled
           }
@@ -376,7 +402,7 @@ function TabsIndex() {
               logInfo("TabsIndex: Received RECORDING_STOPPED update from background.");
               setIsRecording(false);
               setIsProcessingRecording(true);
-              setToast(message.payload?.message || "Recording stopped, processing...");
+              setLegacyToastMessage(message.payload?.message || "Recording stopped, processing...");
               sendResponse({success: true});
               return false; // Indicate sync response handled
           }
@@ -384,15 +410,15 @@ function TabsIndex() {
                logInfo("TabsIndex: Received RECORDING_PROCESSED update from background.");
                setIsProcessingRecording(false);
                if (message.payload?.success) {
-                   setToast(`Task "${message.payload.taskName}" saved successfully!`);
+                   setLegacyToastMessage(`Task "${message.payload.taskName}" saved successfully!`);
                    // TODO: Refresh task list here
                } else {
                     const errorDetails = handleError(message.payload?.error || "Unknown processing error", { operation: 'recordingProcessedError' });
                     setLastErrorDetails(errorDetails);
-                    setToast(`Error saving task: ${message.payload?.error || 'Unknown error'}. Click to copy details.`);
+                    setLegacyToastMessage(`Error saving task: ${message.payload?.error || 'Unknown error'}. Click to copy details.`);
                }
                setTimeout(() => {
-                 setToast(null);
+                 setLegacyToastMessage(null);
                  if (!message.payload?.success) setLastErrorDetails(null);
                }, 5000);
                sendResponse({success: true});
@@ -447,14 +473,14 @@ function TabsIndex() {
           const errorDetails = handleError(directError, { operation: 'returnToLastTab - directFocusFallback' });
           setLastErrorDetails(errorDetails);
           setErrorMessage(`${response?.error || "Failed to return to tab"} (Direct focus failed too)`);
-          setToast("Direct tab focus failed. Click to copy details.");
+          setLegacyToastMessage("Direct tab focus failed. Click to copy details.");
         }
       }
     } catch (error) {
       const errorDetails = handleError(error, { operation: 'returnToLastTab' });
       setLastErrorDetails(errorDetails);
       setErrorMessage("Error returning to previous tab");
-      setToast("Error returning to last tab. Click to copy details.");
+      setLegacyToastMessage("Error returning to last tab. Click to copy details.");
     } finally {
       setLoading(false);
     }
@@ -487,15 +513,15 @@ function TabsIndex() {
         }
       });
       // Provide feedback (optional toast)
-      setToast('Report submitted successfully from Tabs page!');
-      setTimeout(() => setToast(null), 2000);
+      setLegacyToastMessage('Report submitted successfully from Tabs page!');
+      setTimeout(() => setLegacyToastMessage(null), 2000);
       setShowReportDialog(false); // Close dialog on submit
     } catch (error) {
       const errorDetails = handleError(error, { operation: 'handleReportSubmit' });
       setLastErrorDetails(errorDetails);
-      setToast('Error submitting report. Click to copy details.');
+      setLegacyToastMessage('Error submitting report. Click to copy details.');
       setTimeout(() => {
-         setToast(null);
+         setLegacyToastMessage(null);
          setLastErrorDetails(null); // Clear details when toast fades
       }, 3000);
       // Consider leaving dialog open on error?
@@ -515,26 +541,26 @@ function TabsIndex() {
 
   const handleSaveApiKey = async () => {
     if (!apiKeyInput.trim()) {
-      setToast("API Key cannot be empty.");
-      setTimeout(() => setToast(null), 3000);
+      setLegacyToastMessage("API Key cannot be empty.");
+      setTimeout(() => setLegacyToastMessage(null), 3000);
       return;
     }
     setApiKeyLoading(true);
-    setToast(null);
+    setLegacyToastMessage(null);
     try {
       await storageSet(API_KEY_STORAGE_KEY, apiKeyInput.trim());
       logInfo('Storage set', { key: API_KEY_STORAGE_KEY });
       setHasApiKey(true);
-      setToast("OpenAI API Key saved successfully!");
+      setLegacyToastMessage("OpenAI API Key saved successfully!");
       handleCloseApiKeyModal();
     } catch (error) {
       const errorDetails = handleError(error, { operation: 'handleSaveApiKey' });
       setLastErrorDetails(errorDetails);
-      setToast("Failed to save API Key. Click to copy details.");
+      setLegacyToastMessage("Failed to save API Key. Click to copy details.");
     } finally {
       setApiKeyLoading(false);
       setTimeout(() => {
-         setToast(null);
+         setLegacyToastMessage(null);
          setLastErrorDetails(null); // Clear details when toast fades
       }, 3000);
     }
@@ -543,7 +569,7 @@ function TabsIndex() {
   // --- Handler for YeshieEditor submit (Sends to LLM) ---
   const handleEditorSubmit = async (text: string) => {
     logInfo("TabsIndex: YeshieEditor submitting text to LLM", { textLength: text.length });
-    setToast("Sending to LLM... 🧠"); 
+    setLegacyToastMessage("Sending to LLM... 🧠"); 
 
     try {
       // Use storageGet directly, remove incorrect 'storage.' prefix
@@ -552,9 +578,9 @@ function TabsIndex() {
       if (!apiKey) {
         const errorDetails = handleError("Cannot send to LLM: OpenAI API Key is not set", { operation: 'handleEditorSubmit' });
         setLastErrorDetails(errorDetails);
-        setToast("Error: OpenAI API Key not set. Click to copy details.");
+        setLegacyToastMessage("Error: OpenAI API Key not set. Click to copy details.");
         setTimeout(() => {
-           setToast(null);
+           setLegacyToastMessage(null);
            setLastErrorDetails(null);
         }, 3000);
         return;
@@ -570,28 +596,28 @@ function TabsIndex() {
       logInfo("TabsIndex: Raw response from sendToLLM background handler", { response });
 
       if (response && response.result) {
-        setToast(`LLM Response: ${response.result.substring(0, 100)}${response.result.length > 100 ? '...' : ''}`);
+        setLegacyToastMessage(`LLM Response: ${response.result.substring(0, 100)}${response.result.length > 100 ? '...' : ''}`);
       } else if (response && response.error) {
-        setToast(`Error: ${response.error}`);
+        setLegacyToastMessage(`Error: ${response.error}`);
         const errorDetails = handleError(response.error, { operation: 'handleEditorSubmit - LLM Error Response', backgroundResponse: response });
         setLastErrorDetails(errorDetails);
-        setToast(`Error: ${response.error}. Click to copy details.`);
+        setLegacyToastMessage(`Error: ${response.error}. Click to copy details.`);
       } else {
         const errorDetails = handleError("LLM call failed: Received an unexpected response from the background script", { operation: 'handleEditorSubmit - Unexpected Response', response });
         setLastErrorDetails(errorDetails);
-        setToast("Error: Unexpected LLM response. Click to copy details.");
+        setLegacyToastMessage("Error: Unexpected LLM response. Click to copy details.");
       }
 
     } catch (error) {
       const errorDetails = handleError(error, { operation: 'handleEditorSubmit - sendToBackground catch' });
       setLastErrorDetails(errorDetails);
       const displayMessage = error instanceof Error ? error.message : "Failed to communicate with background script.";
-      setToast(`Error: ${displayMessage}. Click to copy details.`);
+      setLegacyToastMessage(`Error: ${displayMessage}. Click to copy details.`);
     }
 
     // Clear toast and error details after a delay
     setTimeout(() => {
-      setToast(null);
+      setLegacyToastMessage(null);
       setLastErrorDetails(null);
     }, 10000); 
   };
@@ -599,18 +625,18 @@ function TabsIndex() {
   // --- Simple synchronous handler for testing ---
   const simpleTestSubmit = (text: string) => {
     logInfo("--- Simple Test Submit Called ---", { textLength: text.length });
-    setToast(`Simple Test Submit: ${text.substring(0, 50)}...`);
-    setTimeout(() => setToast(null), 3000);
+    setLegacyToastMessage(`Simple Test Submit: ${text.substring(0, 50)}...`);
+    setTimeout(() => setLegacyToastMessage(null), 3000);
   };
 
   // --- Memoized function to show toast ---
   const showToast = useCallback((message: string, duration: number = 3000) => {
-      setToast(message);
+      setLegacyToastMessage(message);
       // Automatically clear non-error toasts
       // Error toasts are cleared via specific logic in handleError integration
       if (!lastErrorDetails) { 
           setTimeout(() => {
-              setToast(null);
+              setLegacyToastMessage(null);
           }, duration);
       }
   }, [lastErrorDetails]); // Dependency: Recreate only if lastErrorDetails changes (relevant for clearing logic)
@@ -620,16 +646,16 @@ function TabsIndex() {
     if (lastErrorDetails) {
       navigator.clipboard.writeText(lastErrorDetails)
         .then(() => {
-          setToast("Error details copied to clipboard!");
+          setLegacyToastMessage("Error details copied to clipboard!");
           setTimeout(() => {
-             setToast(null);
+             setLegacyToastMessage(null);
              setLastErrorDetails(null); // Ensure it clears
           }, 2000); // Short confirmation
         })
         .catch(err => {
           const errorDetails = handleError(err, { operation: 'copyErrorDetailsToClipboard' });
           setLastErrorDetails(errorDetails);
-          setToast("Failed to copy details. Click to copy again?"); // Allow retry?
+          setLegacyToastMessage("Failed to copy details. Click to copy again?"); // Allow retry?
         });
     } else {
       logWarn("Attempted to copy error details when none were available.");
@@ -639,8 +665,8 @@ function TabsIndex() {
   // --- Function to handle Recording Button Click ---
   const handleRecordButtonClick = () => {
     if (isProcessingRecording) {
-        setToast("Please wait, previous recording is processing...");
-        setTimeout(() => setToast(null), 2000);
+        setLegacyToastMessage("Please wait, previous recording is processing...");
+        setTimeout(() => setLegacyToastMessage(null), 2000);
         return;
     }
 
@@ -653,7 +679,7 @@ function TabsIndex() {
         if (chrome.runtime.lastError) {
             const errorDetails = handleError(chrome.runtime.lastError, { operation: 'handleRecordButtonClick', messageType });
             setLastErrorDetails(errorDetails);
-            setToast(`Error ${isRecording ? 'stopping' : 'starting'} recording. Click to copy details.`);
+            setLegacyToastMessage(`Error ${isRecording ? 'stopping' : 'starting'} recording. Click to copy details.`);
             // Revert optimistic update if needed: setIsRecording(isRecording);
         } else if (response && response.success) {
             logInfo(`Background acknowledged ${messageType}: ${response.message}`);
@@ -662,13 +688,13 @@ function TabsIndex() {
         } else {
              const errorDetails = handleError(response?.error || "Unknown error from background", { operation: 'handleRecordButtonClick', messageType, response });
              setLastErrorDetails(errorDetails);
-             setToast(`Failed to ${isRecording ? 'stop' : 'start'} recording: ${response?.error || 'Unknown error'}. Click to copy details.`);
+             setLegacyToastMessage(`Failed to ${isRecording ? 'stop' : 'start'} recording: ${response?.error || 'Unknown error'}. Click to copy details.`);
              // Revert optimistic update if needed: setIsRecording(isRecording);
         }
          // Clear error toast after delay
          if (lastErrorDetails || (response && !response.success)) {
               setTimeout(() => {
-                  setToast(null);
+                  setLegacyToastMessage(null);
                   setLastErrorDetails(null);
               }, 5000);
          }
@@ -706,7 +732,7 @@ function TabsIndex() {
         URL.revokeObjectURL(url);
       }, 100);
     } else {
-      setToast('No results to download.');
+      setLegacyToastMessage('No results to download.');
     }
   };
 
@@ -724,45 +750,206 @@ function TabsIndex() {
         check();
       });
 
+      if (!runScriptOnReload) { // Check the toggle state
+        logInfo('runInstructionsIfPresent: Auto-run disabled by user toggle.');
+        // Optionally, show a persistent message that auto-run is off if the legacyToast is removed
+        // setLegacyToastMessage("Automatic script execution on load is disabled.");
+        return;
+      }
+
       if (!instructions || !instructions.tasks) {
-        setToast('No instructions.json found or has no tasks.');
+        // setLegacyToastMessage('No instructions.json found or has no tasks.');
+        toast.warn('No instructions.json found or has no tasks.', { autoClose: 5000 });
         setHasResults(false);
         return;
       }
-      setToast('instructions.json found. Waiting for DOM...');
+      // setLegacyToastMessage('instructions.json found. Waiting for DOM...');
+      toast.info('instructions.json found. Waiting for DOM...', { autoClose: 2000 });
       try {
         await waitForButton('#log-viewer-button', 3000);
       } catch {
-        setToast('log-viewer-button did not appear in time.');
+        // setLegacyToastMessage('log-viewer-button did not appear in time.');
+        toast.error('log-viewer-button did not appear in time.', { autoClose: 5000 });
         setHasResults(false);
         return;
       }
-      setToast('Running test...');
+      // setLegacyToastMessage('Running test...');
+      toast.info('Running test...', { autoClose: 2000 }); // This is the one user mentioned
       let log = [];
-      for (const task of instructions.tasks) {
-        for (const step of task.steps) {
-          const stepForStepper = { ...step, command: step.cmd };
-          const result = await Stepper(stepForStepper);
-          log.push({ step, result });
+      try { 
+        for (const task of instructions.tasks) {
+          for (const step of task.steps) {
+            const stepForStepper = { ...step, command: step.cmd };
+            const result = await Stepper(stepForStepper);
+            log.push({ step, result });
+          }
         }
+        await writeResultsJson(log);
+        setHasResults(true);
+        // setLegacyToastMessage('Test complete: results.json written.');
+        toast.success('Test complete: results.json written.', { autoClose: 3000 });
+      } catch (e) {
+        logError("Error during instruction execution or writing results:", e);
+        // setLegacyToastMessage(`ERROR during test: ${e.message}. Check console.`);
+        toast.error(`ERROR during test: ${(e as Error).message}. Check console.`, { autoClose: 10000 });
       }
-      await writeResultsJson(log);
-      setHasResults(true);
-      setToast('Test complete: results.json written.');
     }
     runInstructionsIfPresent();
-  }, []);
+  }, [runScriptOnReload]); // Added runScriptOnReload as a dependency
+
+  // New useEffect for handling interactive toast requests from Stepper.ts
+  useEffect(() => {
+    const handleStepperMessages = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'SHOW_INTERACTIVE_TOAST_REQUEST') {
+        const { toastId, message, options } = event.data;
+        logInfo('Received SHOW_INTERACTIVE_TOAST_REQUEST', { toastId, message, options });
+        setActiveInteractiveToast(toastId);
+
+        const notifyStepper = (action: 'continue' | 'cancel') => {
+          // Target the content script that sent the message.
+          // Assuming Stepper.ts is in the main window of the tab where it runs.
+          // If Stepper is in an iframe, event.source needs to be used carefully.
+          if (event.source) { // Check if event.source is available (it should be for window.postMessage)
+             (event.source as Window).postMessage({ type: 'INTERACTIVE_TOAST_RESPONSE', toastId, action }, event.origin || '*');
+          } else {
+            // Fallback or error if event.source is not available, though it should be for messages from same-origin iframes or main window content scripts.
+            console.warn("event.source not available for INTERACTIVE_TOAST_RESPONSE. This might indicate an issue if Stepper is in a cross-origin iframe.");
+            window.postMessage({ type: 'INTERACTIVE_TOAST_RESPONSE', toastId, action }, '*'); // Fallback to general postMessage
+          }
+          setActiveInteractiveToast(null); // Clear active toast
+        };
+
+        const toastContent = (
+          <div>
+            <div>{message || "Proceed?"}</div>
+            <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button onClick={() => { toast.dismiss(toastId); notifyStepper('cancel'); }} className="toast-button-cancel">Cancel Test</button>
+              <button onClick={() => { toast.dismiss(toastId); notifyStepper('continue'); }} className="toast-button-continue">Continue</button>
+            </div>
+          </div>
+        );
+
+        const defaultToastOptions = {
+          toastId: toastId, // Important for managing the toast programmatically
+          autoClose: false,
+          closeOnClick: false,
+          draggable: false,
+          closeButton: false, // We have custom buttons
+          content: toastContent,
+          // Default position, can be overridden by options
+          position: "top-center", // Corrected: string literal
+          transition: Slide,
+          onClose: () => {
+            // If closed by means other than buttons (e.g., programmatically, though unlikely here without a close button)
+            // We should ensure we don't leave Stepper hanging. Default to cancel if closed without explicit action.
+            if (activeInteractiveToast === toastId) { // Check if this toast was still considered active
+              logWarn('Interactive toast closed without explicit action, defaulting to cancel.', { toastId });
+              notifyStepper('cancel');
+            }
+          },
+          ...(options || {}), // Spread user-provided options, allowing them to override defaults
+        };
+
+        // Use toast.custom or just toast with custom content for full control if needed
+        // For now, standard toast with custom content component:
+        toast(toastContent, defaultToastOptions);
+
+      } else if (event.data && event.data.type === 'yeshie-message') {
+        logInfo("Displaying general message (postMessage):", event.data.text);
+        toast(event.data.text); // New way using react-toastify for simple messages
+      } else if (event.data && event.data.type === 'yeshie-toast') {
+        // This was our previous simple toast, let's use react-toastify for these too for consistency
+        // but make them non-interactive by default.
+        logInfo("Displaying simple toast (postMessage) via react-toastify:", event.data.message);
+        toast(event.data.message, { // Simple non-interactive toast
+            autoClose: 3000,
+            position: "bottom-right", // Corrected: string literal
+            transition: Slide,
+            ...(event.data.options || {}) // Allow simple toasts to also have options
+        });
+      }
+    };
+
+    window.addEventListener('message', handleStepperMessages);
+    return () => {
+      window.removeEventListener('message', handleStepperMessages);
+    };
+  // Listen to activeInteractiveToast to handle onClose correctly
+  }, [activeInteractiveToast, logInfo, setLegacyToastMessage]); 
+
+  const handleRunScriptOnReloadChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.checked;
+    setRunScriptOnReload(newValue);
+    try {
+      await storageSet(RUN_SCRIPT_ON_RELOAD_KEY, newValue);
+      logInfo('Storage set for runScriptOnReload preference', { key: RUN_SCRIPT_ON_RELOAD_KEY, value: newValue });
+      if (newValue) {
+        toast.info("Instructions will run automatically on next page load.");
+      } else {
+        toast.info("Automatic instruction execution on page load disabled.");
+      }
+    } catch (error) {
+      handleError(error, { operation: 'setRunScriptOnReloadPreference' });
+      toast.error("Error saving preference. Click to copy details.");
+      // Revert UI if save failed? For now, optimistic.
+    }
+  };
+
+  const handleArchiveTest = async () => {
+    logInfo("Attempting to archive current test...");
+    if (!instructions || !instructions.tasks || instructions.tasks.length === 0) {
+      toast.error("No test loaded or tasks found in instructions.json to archive.");
+      return;
+    }
+
+    const firstTask = instructions.tasks[0] as any; // Use 'as any' to bypass strict type checking for this dynamic part
+    let taskName = "";
+
+    if (firstTask && typeof firstTask.taskName === 'string') {
+      taskName = firstTask.taskName; // New structure
+    } else if (firstTask && firstTask.tab && typeof firstTask.tab.name === 'string') {
+      taskName = firstTask.tab.name; // Current old structure (Sequential VR Button Test)
+    } else {
+      toast.error("Cannot archive: Test name not found in expected locations (tasks[0].taskName or tasks[0].tab.name).");
+      return;
+    }
+    
+    // Original error was due to direct access: const taskName = instructions.tasks[0].taskName;
+    // The check below might seem redundant given the above, but it's a final guard.
+    if (!taskName) { 
+      toast.error("Cannot archive: The first task in instructions.json is missing a valid name string.");
+      return;
+    }
+
+    const normalizedTaskName = taskName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+    if (!normalizedTaskName) {
+      toast.error("Cannot archive: Task name is invalid after normalization.");
+      return;
+    }
+
+    const storageKey = `archived_test_${normalizedTaskName}`;
+    try {
+      await storageSet(storageKey, instructions); // Store the whole instructions object
+      logInfo(`Test '${taskName}' archived successfully to storage with key: ${storageKey}` );
+      toast.success(`Test "${taskName}" archived successfully!`);
+    } catch (error) {
+      const errorDetails = handleError(error, { operation: 'handleArchiveTest', taskName, storageKey });
+      setLastErrorDetails(errorDetails);
+      toast.error(`Failed to archive test "${taskName}". Click to copy details.`);
+    }
+  };
 
   return (
     <div className="tabs-container">
-      {toast && (
+      <ToastContainer newestOnTop /> {/* Added ToastContainer */}
+      {legacyToastMessage && (
           <div 
               className={`toast-notification ${lastErrorDetails ? 'error-toast' : ''}`}
               onClick={lastErrorDetails ? copyErrorDetailsToClipboard : undefined}
               style={lastErrorDetails ? { cursor: 'pointer' } : {}}
               title={lastErrorDetails ? "Click to copy detailed error information" : ""}
           >
-              {toast}
+              {legacyToastMessage}
           </div>
       )}
       {/* Grid Header */}
@@ -919,7 +1106,91 @@ function TabsIndex() {
             </button>
         </div>
 
+        {/* --- Grid Area 6: Run Script on Reload Toggle --- */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginLeft: '10px' }}>
+          <input
+            type="checkbox"
+            id="runScriptOnReloadCheckbox"
+            checked={runScriptOnReload}
+            onChange={handleRunScriptOnReloadChange}
+            style={{ transform: 'scale(1.2)' }} // Make checkbox slightly larger
+          />
+          <label 
+            htmlFor="runScriptOnReloadCheckbox" 
+            style={{ fontSize: '0.9em', cursor: 'pointer' }}
+            title="If checked, instructions.json will run automatically when this page loads/reloads"
+          >
+            Auto-run Script
+          </label>
+        </div>
+
       </div> {/* End Grid Header */}
+
+      {/* --- Test Actions Panel --- */}
+      <div 
+        className="test-actions-panel"
+        style={{
+          padding: '10px 20px',
+          borderBottom: '1px solid #eee',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '20px',
+          background: '#f9f9f9'
+        }}
+      >
+        <div style={{ fontWeight: 'bold', fontSize: '1.1em' }}>Test Actions:</div>
+        
+        {/* Auto-run Script Toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <input
+            type="checkbox"
+            id="runScriptOnReloadCheckbox"
+            checked={runScriptOnReload}
+            onChange={handleRunScriptOnReloadChange}
+            style={{ transform: 'scale(1.2)' }}
+          />
+          <label 
+            htmlFor="runScriptOnReloadCheckbox" 
+            style={{ fontSize: '0.9em', cursor: 'pointer' }}
+            title="If checked, instructions.json will run automatically when this page loads/reloads"
+          >
+            Auto-run Script
+          </label>
+        </div>
+
+        {/* Download Results Button - Moved Here */}
+        <button
+          className="icon-button"
+          onClick={handleDownloadResults}
+          title="Download Last Test Results (from results.json)"
+          style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
+        >
+          <DownloadIcon /> Results
+        </button>
+
+        {/* New Archive Test Button */}
+        <button
+          className="icon-button"
+          onClick={handleArchiveTest} // This function will be created next
+          title="Archive the current instructions.json to local storage"
+          style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> 
+          Archive Test
+        </button>
+
+        {/* New View Archived Tests Button */}
+        <button
+          className="icon-button"
+          onClick={() => setShowTestViewerDialog(true)}
+          title="View and manage archived tests"
+          style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          View Tests
+        </button>
+
+      </div>
 
       <ReportsPanel
         isOpen={showReportsPanel}
@@ -973,7 +1244,12 @@ function TabsIndex() {
       <LogViewer 
         isOpen={showLogViewer}
         onClose={() => setShowLogViewer(false)}
-        showToast={showToast} // Pass the toast function
+        showToast={toast.info} // Pass the react-toastify toast.info function
+      />
+
+      <TestViewerDialog 
+        isOpen={showTestViewerDialog}
+        onClose={() => setShowTestViewerDialog(false)}
       />
 
     </div>

@@ -952,6 +952,6 @@ async function runInstructionFileSequence() {
 }
 
 // Run on extension startup
-runInstructionFileSequence();
+// runInstructionFileSequence(); // Commenting this out
 
 // ... rest of initialization ... 

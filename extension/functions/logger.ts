@@ -3,6 +3,75 @@
  */
 import { storageGet, storageSet, storageRemove } from './storage'; // Import storage functions
 
+// --- Configuration --- //
+
+/** Defines the structure for log feature configuration */
+export interface LogConfig {
+  [feature: string]: boolean;
+}
+
+const LOG_CONFIG_STORAGE_KEY = 'yeshie_log_configuration';
+const MAX_LOG_ENTRIES = 200; // Limit the number of logs stored
+const LOG_STORAGE_KEY = 'yeshieSessionLogs';
+
+// Define default features and their states
+// Add more features as needed (e.g., 'Stepper', 'TabsUI', 'Background', 'API', 'Storage')
+const defaultLogConfig: LogConfig = {
+  Core: true, // Basic initialization, critical errors
+  UI: true, // General UI interactions, toasts
+  Stepper: false, // Detailed stepper execution (can be verbose)
+  Background: true, // Background script lifecycle, major events
+  Storage: false, // Storage get/set operations
+  Recording: false, // User action recording feature
+  TestViewer: true, // Test viewer dialog interactions
+  // Add others...
+};
+
+// Variable to hold the active configuration
+let currentLogConfig: LogConfig = { ...defaultLogConfig };
+let configLoaded = false;
+
+/** Loads log configuration from storage or initializes with defaults */
+async function loadLogConfig(): Promise<void> {
+  try {
+    const savedConfig = await storageGet<LogConfig>(LOG_CONFIG_STORAGE_KEY);
+    if (savedConfig) {
+      // Merge saved config with defaults to ensure all features are present
+      currentLogConfig = { ...defaultLogConfig, ...savedConfig };
+      console.log('[Logger] Loaded configuration from storage.', currentLogConfig);
+    } else {
+      currentLogConfig = { ...defaultLogConfig };
+      console.log('[Logger] No configuration found, initializing with defaults.', currentLogConfig);
+      // Save the defaults if none existed
+      await storageSet(LOG_CONFIG_STORAGE_KEY, currentLogConfig);
+    }
+  } catch (error) {
+    console.error('[Logger] Failed to load log configuration, using defaults.', error);
+    currentLogConfig = { ...defaultLogConfig };
+  } finally {
+    configLoaded = true;
+  }
+}
+
+/** Returns the current log configuration (primarily for UI) */
+export function getLogConfig(): LogConfig {
+  return { ...currentLogConfig };
+}
+
+/** Updates the log configuration and saves it */
+export async function updateLogConfig(newConfig: Partial<LogConfig>): Promise<void> {
+  currentLogConfig = { ...currentLogConfig, ...newConfig };
+  try {
+    await storageSet(LOG_CONFIG_STORAGE_KEY, currentLogConfig);
+    console.log('[Logger] Log configuration updated and saved.', currentLogConfig);
+  } catch (error) {
+    console.error('[Logger] Failed to save updated log configuration.', error);
+    // Optionally revert currentLogConfig here, but might be complex
+  }
+}
+
+// --- End Configuration --- //
+
 /**
  * Defines the possible levels for log messages.
  */
@@ -21,13 +90,10 @@ export interface LogContext {
 export interface LogEntry {
   timestamp: string;
   level: LogLevel;
+  feature: string; // Added feature field
   message: string;
   context?: LogContext;
 }
-
-// --- Constants for Log Storage ---
-const LOG_STORAGE_KEY = 'yeshieSessionLogs';
-const MAX_LOG_ENTRIES = 200; // Limit the number of logs stored
 
 // --- Function to add a log entry to storage ---
 async function logToStorage(logEntry: LogEntry): Promise<void> {
@@ -60,73 +126,73 @@ export async function clearSessionLogs(): Promise<void> {
 }
 
 /**
- * Logs a message with a specified level and optional context.
+ * Central log processing function.
  *
  * @param level - The severity level of the log message.
+ * @param feature - The feature/category this log belongs to.
  * @param message - The main message string to log.
  * @param context - Optional additional data related to the log entry.
  */
-export function log(level: LogLevel, message: string, context?: LogContext): void {
+function log(level: LogLevel, feature: string, message: string, context?: LogContext): void {
+  // Early exit if config not loaded yet (should be very brief)
+  // Alternatively, queue logs until config is loaded? For simplicity, just skip.
+  if (!configLoaded) {
+      console.warn('[Logger] Config not loaded, skipping log:', { level, feature, message });
+      return;
+  }
+
+  // Check if this feature's logging is enabled
+  // Always log errors regardless of feature toggle (can be refined later)
+  if (level !== 'error' && !currentLogConfig[feature]) {
+    // Optional: console.debug(`[Logger] Log skipped for disabled feature '${feature}':`, { level, message });
+    return; // Don't log if feature is disabled (and it's not an error)
+  }
+
   const timestamp = new Date().toISOString();
   const logEntry: LogEntry = {
     timestamp,
     level,
+    feature, // Added feature
     message,
     ...(context && { context }), // Only include context if it exists
   };
 
-  // 1. Log to console
-  // Use appropriate console method based on level
-  switch (level) {
-    case 'debug':
-      // Debug logs might be too verbose for production, could add a flag later
-      console.debug(`[${timestamp}] [${level.toUpperCase()}] ${message}`, context || '');
-      break;
-    case 'info':
-      console.info(`[${timestamp}] [${level.toUpperCase()}] ${message}`, context || '');
-      break;
-    case 'warn':
-      console.warn(`[${timestamp}] [${level.toUpperCase()}] ${message}`, context || '');
-      break;
-    case 'error':
-      console.error(`[${timestamp}] [${level.toUpperCase()}] ${message}`, context || '');
-      break;
-  }
-
-  // 2. Log to storage (asynchronously, don't wait for it)
+  // Log to storage for the Log Viewer (asynchronously)
   logToStorage(logEntry); 
-
-  // Potential future enhancement: Send logs to a background service or store them
 }
 
-// --- Specific Helper Log Functions ---
+// --- Specific Helper Log Functions (Updated Signatures) ---
 
 /** Logs an informational message. */
-export function logInfo(message: string, context?: LogContext): void {
-  log('info', message, context);
+export function logInfo(feature: string, message: string, context?: LogContext): void {
+  log('info', feature, message, context);
 }
 
 /** Logs a warning message. */
-export function logWarn(message: string, context?: LogContext): void {
-  log('warn', message, context);
+export function logWarn(feature: string, message: string, context?: LogContext): void {
+  log('warn', feature, message, context);
 }
 
 /** Logs an error message. */
-export function logError(message: string, context?: LogContext | Error): void {
+export function logError(feature: string, message: string, context?: LogContext | Error): void {
   // If context is an Error object, extract relevant info
   if (context instanceof Error) {
-    log('error', message, {
+    log('error', feature, message, {
       errorMessage: context.message,
       stack: context.stack,
       name: context.name,
      });
   } else {
-    log('error', message, context);
+    log('error', feature, message, context);
   }
 }
 
 /** Logs a debug message. */
-export function logDebug(message: string, context?: LogContext): void {
-    // Consider adding a build flag check here to disable debug logs in production
-    log('debug', message, context);
-} 
+export function logDebug(feature: string, message: string, context?: LogContext): void {
+    log('debug', feature, message, context);
+}
+
+// --- Initialize --- //
+// Load the configuration when the module is imported/initialized.
+// Note: This is async, so there's a brief moment logs might be skipped by the `configLoaded` check.
+loadLogConfig(); 

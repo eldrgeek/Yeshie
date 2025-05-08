@@ -2,6 +2,29 @@ import { summarizeWebPage } from './pageSummary';
 import { pageObserver, type ObserverEvent, type ObserverCallback, type ObserverEventType } from './observer';
 import { v4 as uuidv4 } from 'uuid';
 
+// Map to store promise resolvers for pending interactive toasts
+const pendingInteractiveToasts = new Map<string, { resolve: (value: unknown) => void, reject: (reason?: any) => void }>();
+
+// Listener for responses from interactive toasts displayed in TabsIndex.tsx
+if (typeof window !== 'undefined') { // Ensure this only runs in a browser-like environment
+  window.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'INTERACTIVE_TOAST_RESPONSE') {
+      const { toastId, action } = event.data;
+      if (pendingInteractiveToasts.has(toastId)) {
+        const { resolve, reject } = pendingInteractiveToasts.get(toastId)!;
+        if (action === 'continue') {
+          resolve(`Toast interaction '${toastId}': Continued by user.`);
+        } else { // 'cancel' or any other unexpected action defaults to rejection
+          reject(new Error(`Toast interaction '${toastId}': Cancelled or dismissed by user.`));
+        }
+        pendingInteractiveToasts.delete(toastId);
+      } else {
+        console.warn('Stepper received INTERACTIVE_TOAST_RESPONSE for unknown/stale toastId:', toastId);
+      }
+    }
+  });
+}
+
 interface Command {
   command: string;
   [key: string]: any;
@@ -72,6 +95,14 @@ const commandTemplates = {
     regex: /^message\s+"(.+)"$/,
     template: { command: 'message', text: '$1' }
   },
+  showtoast: {
+    regex: /^showtoast\s+"(.+)"$/,
+    template: { command: 'showtoast', message: '$1' }
+  },
+  asserttextcontains: {
+    regex: /^asserttextcontains\s+(.+?)\s+"(.+)"$/,
+    template: { command: 'asserttextcontains', selector: '$1', expectedText: '$2' }
+  },
   record: {
     regex: /^record\s+(start|stop)$/,
     template: { command: 'record', action: '$1' }
@@ -83,6 +114,10 @@ const commandTemplates = {
   wait: {
     regex: /^wait\s+(\d+)$/,
     template: { command: 'wait', ms: '$1' }
+  },
+  break: {
+    regex: /^break$/,
+    template: { command: 'break' }
   }
 };
 
@@ -327,6 +362,34 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
         }, '*');
         return `Displayed message: ${command.text}`;
 
+      case 'showtoast':
+        const toastId = `interactive-toast-${uuidv4()}`;
+        const message = command.message || "Action required."; // Default message
+        const options = command.options || {}; // Pass through options from the command
+        
+        window.postMessage({
+          type: 'SHOW_INTERACTIVE_TOAST_REQUEST',
+          toastId,
+          message,
+          options
+        }, '*');
+
+        return new Promise((resolve, reject) => {
+          pendingInteractiveToasts.set(toastId, { resolve, reject });
+          // No explicit timeout here; relies on user interaction or toast dismissal policy set by TabsIndex
+        });
+
+      case 'asserttextcontains':
+        const elementToAssert = getElement(getSelector(command));
+        if (elementToAssert) {
+          const actualText = elementToAssert.textContent || "";
+          if (actualText.includes(command.expectedText)) {
+            return `Assertion passed: Element '${getSelector(command)}' contains text '${command.expectedText}'.`;
+          }
+          return `Assertion failed: Element '${getSelector(command)}' with text '${actualText}' did not contain '${command.expectedText}'.`;
+        }
+        return `Assertion failed: Element not found with selector '${getSelector(command)}'.`;
+
       case 'record':
         if (command.action === 'start') {
           console.log('Starting record command');
@@ -383,6 +446,18 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
           });
         }
 
+      case 'break':
+        // Send a message to TabsIndex to show a non-interactive toast
+        window.postMessage({
+          type: 'yeshie-toast', // Use the existing simple toast type
+          message: "Execution halted by break command.",
+          options: { // Optional: specify type and duration for this specific toast
+            type: 'warning', // e.g., 'info', 'warning', 'error'
+            autoClose: 5000 // Keep it on screen for a bit
+          }
+        }, '*');
+        return "Execution halted by break command";
+
       default:
         return `Action ${command.command} is not recognized.`;
     }
@@ -393,14 +468,23 @@ const Stepper = async (input: string | Command | (string | Command)[]) => {
       const result = await performCommand(command);
       results.push(result);
       log.push({ step: command, result });
-      const userResult = await showToastWithPassFail(`Step: ${command.command}`, result, 1000);
-      if (userResult === 'fail') {
+
+      if (command.command.toLowerCase() === 'break') {
+        console.log('Break command encountered. Halting script execution.');
         break;
       }
     } catch (error) {
-      results.push(`Error executing command: ${error}`);
-      log.push({ step: command, result: `Error: ${error}` });
-      break;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      results.push(`Error executing command: ${errorMessage}`);
+      log.push({ step: command, result: `Error: ${errorMessage}` });
+      
+      // Check if the error is from a user cancelling an interactive toast
+      if (errorMessage.includes('Toast interaction') && errorMessage.includes('Cancelled or dismissed by user')) {
+        console.log('Script execution halted by user via toast cancellation.');
+        break; // Stop further execution
+      }
+      // Optional: decide if all errors should break the loop
+      // break; // Uncomment if any error should stop the entire script
     }
   }
 
@@ -429,6 +513,7 @@ export async function getOrCreateInstanceId(tabId: number, sessionID?: string): 
 // Placeholder for toast with Pass/Fail
 async function showToastWithPassFail(title: string, message: string, timeoutMs: number): Promise<'pass' | 'fail'> {
   // Implement actual toast UI elsewhere; here, auto-pass after timeout
+  console.warn("showToastWithPassFail was called. This may be unintended if automatic per-step toasts were meant to be removed.");
   return new Promise(resolve => setTimeout(() => resolve('pass'), timeoutMs));
 }
 
