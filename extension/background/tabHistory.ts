@@ -1,5 +1,4 @@
 import { storageGet, storageSet, storageRemove } from "../functions/storage"
-import { log } from "../functions/DiagnosticLogger"
 import { logInfo, logWarn, logError } from "../functions/logger";
 // import debounce from 'lodash/debounce'; // Remove lodash import
 
@@ -90,6 +89,7 @@ export async function initTabTracking() {
   logInfo("TabHistory", "Performing immediate initial update of stored application tabs...");
   await updateStoredApplicationTabs(); 
 
+  
   // Also schedule a slightly delayed update to catch slow-loading tabs after install/update
   setTimeout(() => {
     logInfo("TabHistory", "Performing delayed initial update of stored application tabs...");

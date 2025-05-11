@@ -1,8 +1,38 @@
-import { logError, logInfo, logWarn } from "../functions/logger";
-import { handleError } from "../functions/errorHandler";
-
+// Define constants at the top of the file
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 100;
+
+// Import logger functions, but provide fallbacks to avoid circular dependency issues
+let logError: Function;
+let logInfo: Function;
+let logWarn: Function;
+
+// Try to import the logger, but fall back to console functions if there's an issue
+try {
+  const loggerModule = require('./logger');
+  logError = loggerModule.logError;
+  logInfo = loggerModule.logInfo;
+  logWarn = loggerModule.logWarn;
+} catch (e) {
+  console.warn('Storage module: Unable to import logger, using console fallbacks');
+  logError = (feature: string, message: string, context?: any) => 
+    console.error(`[${feature}] ${message}`, context);
+  logInfo = (feature: string, message: string, context?: any) => 
+    console.info(`[${feature}] ${message}`, context);
+  logWarn = (feature: string, message: string, context?: any) => 
+    console.warn(`[${feature}] ${message}`, context);
+}
+
+// Import error handler or provide a fallback
+let handleError: Function;
+try {
+  const errorHandlerModule = require('./errorHandler');
+  handleError = errorHandlerModule.handleError;
+} catch (e) {
+  console.warn('Storage module: Unable to import errorHandler, using fallback');
+  handleError = (error: Error, context?: any) => 
+    console.error('Unhandled error:', error, context);
+}
 
 /**
  * Performs a storage operation with retry logic for transient errors.

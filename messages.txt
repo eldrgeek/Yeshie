@@ -1,16 +1,16 @@
-extcomms.ts:17: listener.emit(type, data, sender, sendResponse);
-extcomms.ts:39: listener.on("pageInfo", (data, sender) => {
-extcomms.ts:56: socket.on("extension", (msg) => {
-extcomms.ts:63: listener.on("navto", (data) => {
-extcomms.ts:67: listener.on("focusTab", (data) => {
-extcomms.ts:71: listener.on("socketMessage", (data) => {
-extcomms.ts:73: socket.emit(data.event, data.payload);
-extcomms.ts:135: listener.emit(type, data, sender, sendResponse);
-extcomms.ts:140: listener.on('click', (data) => {
-extcomms.ts:144: listener.on('select', (data) => {
-extcomms.ts:149: listener.on('enable', (data) => {
-extcomms.ts:153: listener.on('setvalue', (data) => {
-extcomms.ts:158: listener.on('screenshot', (data) => {
+extcomms.ts:18: listener.emit(type, data, sender, sendResponse);
+extcomms.ts:40: listener.on("pageInfo", (data, sender) => {
+extcomms.ts:57: socket.on("extension", (msg) => {
+extcomms.ts:64: listener.on("navto", (data) => {
+extcomms.ts:68: listener.on("focusTab", (data) => {
+extcomms.ts:72: listener.on("socketMessage", (data) => {
+extcomms.ts:74: socket.emit(data.event, data.payload);
+extcomms.ts:136: listener.emit(type, data, sender, sendResponse);
+extcomms.ts:141: listener.on('click', (data) => {
+extcomms.ts:145: listener.on('select', (data) => {
+extcomms.ts:150: listener.on('enable', (data) => {
+extcomms.ts:154: listener.on('setvalue', (data) => {
+extcomms.ts:159: listener.on('screenshot', (data) => {
 collab.ts:16: socket.emit("getDocument");
 collab.ts:17: socket.once("getDocumentResponse", (version: number, doc: string) => {
 collab.ts:26: socket.emit("pullUpdates", version);
@@ -72,14 +72,14 @@ collaborativeEditing.ts:15: socket.on('pullUpdates', (sessionId: string, version
 collaborativeEditing.ts:20: socket.emit('pullUpdates', updates);
 collaborativeEditing.ts:24: socket.on('pushUpdates', (sessionId: string, version: number, updates: Update[], conversationId: string) => {
 collaborativeEditing.ts:33: otherSession.socket.emit('receiveUpdates', conversationId, updates);
-messageForwarder.ts:5: sm.io.on('connection', (socket: Socket) => {
-messageForwarder.ts:6: socket.on('forward', (message: any) => {
-messageForwarder.ts:11: targetSession.socket.emit(op, data);
-messageForwarder.ts:18: sessionInfo.socket.emit(message.type, message.payload);
-monitorCommunication.ts:7: sm.io.on('connection', (socket: Socket) => {
-monitorCommunication.ts:8: socket.on('monitor', (payload: any) => {
-monitorCommunication.ts:11: monitorSocket.emit(op, data);
-monitorCommunication.ts:17: socket.on('session?', (componentType: string) => {
+messageForwarder.ts:6: sm.io.on('connection', (socket: Socket) => {
+messageForwarder.ts:7: socket.on('forward', (message: any) => {
+messageForwarder.ts:12: targetSession.socket.emit(op, data);
+messageForwarder.ts:19: sessionInfo.socket.emit(message.type, message.payload);
+monitorCommunication.ts:8: sm.io.on('connection', (socket: Socket) => {
+monitorCommunication.ts:9: socket.on('monitor', (payload: any) => {
+monitorCommunication.ts:12: monitorSocket.emit(op, data);
+monitorCommunication.ts:18: socket.on('session?', (componentType: string) => {
 sessionManager.ts:21: io.on('connection', (socket: Socket) => {
 sessionManager.ts:23: socket.on('session?', (componentType: string) => {
 sessionManager.ts:25: socket.emit('session:', sessionId);

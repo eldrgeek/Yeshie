@@ -270,15 +270,32 @@ export const startMonitoring = () => {
     }
   });
   
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ['class', 'tabindex', 'disabled', 'data-focused']
-  });
-  
-  // Store the observer for cleanup if needed
-  window._yeshieMutationObserver = observer;
+  // Ensure document.body exists before observing
+  if (document && document.body) {
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'tabindex', 'disabled', 'data-focused']
+    });
+    
+    // Store the observer for cleanup if needed
+    window._yeshieMutationObserver = observer;
+  } else {
+    console.warn('[Yeshie Diagnostic] Cannot observe DOM mutations: document.body is not available yet');
+    // Try again when the DOM is ready
+    document.addEventListener('DOMContentLoaded', () => {
+      if (document.body) {
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['class', 'tabindex', 'disabled', 'data-focused']
+        });
+        window._yeshieMutationObserver = observer;
+      }
+    });
+  }
   
   log('monitoring_started', { timestamp: new Date().toISOString() });
   

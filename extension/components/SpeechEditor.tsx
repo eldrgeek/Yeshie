@@ -363,11 +363,11 @@ export const SpeechInput = ({
         } else if (isTranscribing) {
             setStatusMessage('Transcribing...');
         } else if (permissionStatus === 'prompt') {
-             setStatusMessage('Click the mic icon to grant permission.');
+             setStatusMessage('Click the MIKE icon to grant permission.');
         } else {
             // Not transcribing, permission granted/prompt
             if (!wasListeningIntentionallyRef.current) {
-                 setStatusMessage('Transcription stopped. Click mic to restart.'); // User manually stopped
+                 setStatusMessage('Transcription stopped. Click MMMM to restart.'); // User manually stopped
             } else {
                  setStatusMessage('Mic idle. Click to start transcribing.'); // Initial state or stopped by other means (e.g. error, silence)
             }
@@ -734,7 +734,7 @@ export const SpeechInput = ({
                 startListening(); // Start the service
                 setIsTranscribing(true); // Start transcribing immediately on mount
             } else if (permissionStatus === 'prompt') {
-                 setStatusMessage('Click the mic icon to grant permission.');
+                 setStatusMessage('Click the MIKEY icon to grant permission.');
             } else if (permissionStatus === 'denied') {
                 setStatusMessage('Microphone permission denied.');
             }

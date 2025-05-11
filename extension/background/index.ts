@@ -31,6 +31,7 @@ logInfo("Core", "Yeshie background service worker started.");
 // --- Variable to hold API key in memory ---
 let backgroundApiKey: string | null = null;
 
+
 // --- Constants ---
 const TAB_URL = chrome.runtime.getURL("tabs/index.html"); // Re-added
 const CONTEXT_REMOVAL_DELAY = 10000; // Re-added (10 seconds)
@@ -75,15 +76,36 @@ async function openOrFocusExtensionTab() {
 
     if (tabs.length > 0) {
       // Tab exists, focus the first one found and reload it
-      const tab = tabs[0];
-      if (tab.id) {
-        foundTabId = tab.id; // Store the ID
-        logInfo("UI", `Found existing extension tab ID: ${tab.id}. Focusing and reloading.`);
-        await chrome.tabs.update(tab.id, { active: true });
-        await chrome.tabs.reload(tab.id);
-        logInfo("UI", `Focused and reloaded existing extension tab: ${tab.id}`);
+      const tabToFocus = tabs[0];
+      if (tabToFocus.id) {
+        foundTabId = tabToFocus.id; // Store the ID
+        logInfo("UI", `Found existing extension tab ID: ${foundTabId}. Activating and reloading.`);
+        await chrome.tabs.update(foundTabId, { active: true }); // Ensure it's active before reload
+        await chrome.tabs.reload(foundTabId); // Reload the tab
+
+        // Wait for the reload to complete before trying to re-focus
+        await new Promise<void>(resolve => {
+          const listener = (tabId: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => {
+            if (tabId === foundTabId && changeInfo.status === 'complete') {
+              chrome.tabs.onUpdated.removeListener(listener);
+              resolve();
+            }
+          };
+          chrome.tabs.onUpdated.addListener(listener);
+          // Add a timeout for this listener to prevent it from hanging indefinitely if 'complete' never fires
+          setTimeout(() => {
+            chrome.tabs.onUpdated.removeListener(listener);
+            logWarn("UI", `Timeout waiting for tab ${foundTabId} to complete reload for re-focus.`);
+            resolve(); // Resolve anyway to not block execution
+          }, 5000); // 5-second timeout
+        });
+
+        // Re-assert focus after reload completion
+        logInfo("UI", `Reload for tab ${foundTabId} complete (or timed out). Re-asserting focus.`);
+        await chrome.tabs.update(foundTabId, { active: true });
+        logInfo("UI", `Ensured focus on reloaded extension tab: ${foundTabId}`);
       } else {
-        handleError("Found extension tab has no ID", { tab });
+        handleError("Found extension tab has no ID", { tab: tabToFocus });
       }
     } else {
       // No tab exists, create a new one
@@ -91,9 +113,11 @@ async function openOrFocusExtensionTab() {
       const newTab = await chrome.tabs.create({ url: TAB_URL });
       if (newTab && newTab.id) {
         foundTabId = newTab.id; // Store the ID
-        logInfo("UI", `Successfully created new extension tab ID: ${newTab.id}`);
+        // Explicitly activate the new tab, though create usually does this.
+        await chrome.tabs.update(foundTabId, { active: true });
+        logInfo("UI", `Successfully created and focused new extension tab ID: ${foundTabId}`);
       } else {
-        handleError("chrome.tabs.create call did not return a valid tab object", { newTab });
+        handleError("chrome.tabs.create call did not return a valid tab object or new tab has no ID", { newTab });
       }
     }
 
@@ -189,6 +213,18 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   try {
     logInfo("Core", "Extension installed or updated (inside try block)", { reason: details.reason });
 
+    // Store the currently active tab before any reload operations
+    let originalActiveTab: chrome.tabs.Tab | null = null;
+    try {
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (activeTab) {
+        originalActiveTab = activeTab;
+        logInfo("TabTracking", "Stored original active tab before update.", { tabId: activeTab.id, windowId: activeTab.windowId });
+      }
+    } catch (e) {
+      handleError(e, { operation: 'storeOriginalActiveTabOnUpdate' });
+    }
+
     if (details.reason === 'install') {
       logInfo("Core", "Reason: install. Opening or focusing tab page.");
       openOrFocusExtensionTab();
@@ -198,39 +234,29 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     else if (details.reason === 'update') { 
     // --- END REVERT DEBUG CONDITION --- 
       // logInfo(`Reason: update (or forced: ${forceUpdate}). Reloading application tabs based on stored list.`);
-      logInfo("Core", "Reason: update. Reloading application tabs based on stored list."); // Revert log message
+      logInfo("Core", "Reason: update. Processing application tabs based on stored list."); // Revert log message
       try {
         logInfo("Storage", "Attempting to read application tabs from storage...");
         const tabsToReloadGroupedRaw = await storageGet<Record<string, StoredApplicationTab[]>>(APPLICATION_TABS_KEY);
         
-        // *** REMOVE EXTRA DEBUG LOGGING ***
-        // console.log("[onInstalled Update] Raw data read from storage for APPLICATION_TABS_KEY:", tabsToReloadGroupedRaw);
-        // logInfo("[onInstalled Update] Raw data read from storage.", { rawData: tabsToReloadGroupedRaw }); 
-
         if (!tabsToReloadGroupedRaw || Object.keys(tabsToReloadGroupedRaw).length === 0) {
-             // console.log("[onInstalled Update] Condition met: Data is null, undefined, or empty object.");
-             logInfo("Storage", "No application tabs found in storage (or data is empty/null). No tabs to reload.");
+             logInfo("Storage", "No application tabs found in storage (or data is empty/null). No tabs to process.");
         } else {
-             // console.log("[onInstalled Update] Condition NOT met: Data seems valid, proceeding to flatten.");
-             // Flatten the grouped tabs into a single list for reloading
              const allTabsToReload: StoredApplicationTab[] = Object.values(tabsToReloadGroupedRaw).flat();
-             logInfo("TabTracking", `Found ${allTabsToReload.length} total application tabs across all windows in storage to reload.`);
+             logInfo("TabTracking", `Found ${allTabsToReload.length} total application tabs across all windows in storage to process.`);
              
-             
-             // *** REMOVE EXTRA DEBUG LOGGING ***
-             // console.log(`[onInstalled Update] Entering loop to reload ${allTabsToReload.length} tabs...`);
-
              for (const tab of allTabsToReload) {
                 if (tab && tab.id) { 
                   try {
-                    await chrome.tabs.get(tab.id);
-                    await chrome.tabs.reload(tab.id);
-                    logInfo("TabTracking", `Reloaded application tab ID: ${tab.id}`, { title: tab.title });
-                  } catch (reloadOrGetError: any) {
-                    if (reloadOrGetError.message?.includes("No tab with id")) {
+                    // Check if tab still exists. We are no longer explicitly reloading it here.
+                    // Chrome's default behavior will be to reinject updated content scripts.
+                    await chrome.tabs.get(tab.id); 
+                    logInfo("TabTracking", `Checked application tab ID: ${tab.id}. Content scripts should be updated by Chrome.`, { title: tab.title });
+                  } catch (getError: any) { // Changed variable name from reloadOrGetError
+                    if (getError.message?.includes("No tab with id")) {
                         logWarn("TabTracking", `Application tab ID ${tab.id} no longer exists.`);
                     } else {
-                        handleError(reloadOrGetError, { operation: 'reloadAppTabOnUpdate', tabId: tab.id });
+                        handleError(getError, { operation: 'checkAppTabOnUpdate', tabId: tab.id });
                     }
                   }
                 } else {
@@ -239,9 +265,9 @@ chrome.runtime.onInstalled.addListener(async (details) => {
               }
         }
 
-        // After reloading app tabs, ensure the main extension UI tab is open and focused.
+        // After processing app tabs, ensure the main extension UI tab is open and focused (and reloaded by this function).
         logInfo("UI", "Ensuring extension UI tab is open/focused after update.");
-        openOrFocusExtensionTab();
+        await openOrFocusExtensionTab(); // Make sure this is awaited if it's async
 
       } catch (storageError) {
         // console.error("Error reading application tab list from storage:", storageError);
@@ -249,6 +275,32 @@ chrome.runtime.onInstalled.addListener(async (details) => {
         // const errorMessage = storageError instanceof Error ? storageError.message : String(storageError);
         // log('storage_error', { operation: 'readAppTabsOnUpdate', error: errorMessage });
       }
+    }
+
+    // After all operations, attempt to restore focus to the original active tab
+    // ONLY if it was not the control tab itself (which openOrFocusExtensionTab should have handled).
+    const controlTabIdFromStorage = await storageGet<number>(CONTROL_TAB_ID_KEY);
+
+    if (originalActiveTab && originalActiveTab.id && originalActiveTab.windowId && 
+        controlTabIdFromStorage && originalActiveTab.id !== controlTabIdFromStorage) {
+      try {
+        logInfo("TabTracking", "Original active tab was not the control tab. Attempting to restore focus.", { tabId: originalActiveTab.id, windowId: originalActiveTab.windowId });
+        const currentTabState = await chrome.tabs.get(originalActiveTab.id);
+        if (currentTabState && currentTabState.windowId === originalActiveTab.windowId) {
+          await chrome.windows.update(originalActiveTab.windowId, { focused: true });
+          await chrome.tabs.update(originalActiveTab.id, { active: true });
+          logInfo("TabTracking", "Restored focus to original active tab (which was not the control tab).", { tabId: originalActiveTab.id });
+        } else {
+          logWarn("TabTracking", "Original active tab (not control tab) no longer exists or changed window. Cannot restore focus.", { originalTabId: originalActiveTab.id });
+        }
+      } catch (e) {
+        handleError(e, { operation: 'restoreNonControlActiveTabOnUpdate', originalTabId: originalActiveTab.id });
+      }
+    } else if (originalActiveTab && originalActiveTab.id && controlTabIdFromStorage && originalActiveTab.id === controlTabIdFromStorage) {
+      logInfo("TabTracking", "Original active tab was the control tab. It should have been focused by openOrFocusExtensionTab.", { tabId: originalActiveTab.id });
+      // If the control tab is NOT focused here, the issue is likely within or immediately after openOrFocusExtensionTab's reload.
+    } else {
+      logInfo("TabTracking", "No specific original active tab to restore, or control tab ID not found. Control tab should be active.");
     }
 
     // Perform other setup tasks if needed

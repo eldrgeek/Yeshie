@@ -5,7 +5,8 @@
   "description": "Yeshie Chrome Extension",
   "author": "Mike Wolf",
   "scripts": {
-    "dev": "plasmo dev --verbose",
+    "dev:extension": "plasmo dev --verbose",
+    "dev": "pnpm run dev:extension",
     "build": "plasmo build",
     "package": "plasmo package"
   },
@@ -27,6 +28,7 @@
     "@types/node": "20.11.5",
     "@types/react": "18.2.48",
     "@types/react-dom": "18.2.18",
+    "concurrently": "^8.2.2",
     "prettier": "3.2.4",
     "typescript": "5.3.3"
   },

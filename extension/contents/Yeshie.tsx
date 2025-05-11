@@ -372,6 +372,7 @@ const Yeshie: React.FC = () => {
           boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
           transition: 'transform 0.2s ease'
         }}
+
       >
         <img src={iconBase64} alt="Yeshie Icon" width={32} height={32} />
       </button>

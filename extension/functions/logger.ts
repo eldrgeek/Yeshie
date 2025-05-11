@@ -1,7 +1,38 @@
 /**
  * @fileoverview Provides a structured logging utility for the extension.
  */
+
+// Define constants first, before any imports or code that might import this module
+// These need to be defined before any code that imports this module
+const LOG_CONFIG_STORAGE_KEY = 'yeshie_log_configuration';
+const MAX_LOG_ENTRIES = 200; // Limit the number of logs stored
+const LOG_STORAGE_KEY = 'yeshieSessionLogs';
+
+// Now import dependencies
 import { storageGet, storageSet, storageRemove } from './storage'; // Import storage functions
+
+/**
+ * Defines the possible levels for log messages.
+ */
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+/**
+ * Represents the structure of additional context data that can be logged.
+ */
+export interface LogContext {
+  [key: string]: any;
+}
+
+/**
+ * Represents the structure of a single log entry.
+ */
+export interface LogEntry {
+  timestamp: string;
+  level: LogLevel;
+  feature: string; // Added feature field
+  message: string;
+  context?: LogContext;
+}
 
 // --- Configuration --- //
 
@@ -9,10 +40,6 @@ import { storageGet, storageSet, storageRemove } from './storage'; // Import sto
 export interface LogConfig {
   [feature: string]: boolean;
 }
-
-const LOG_CONFIG_STORAGE_KEY = 'yeshie_log_configuration';
-const MAX_LOG_ENTRIES = 200; // Limit the number of logs stored
-const LOG_STORAGE_KEY = 'yeshieSessionLogs';
 
 // Define default features and their states
 // Add more features as needed (e.g., 'Stepper', 'TabsUI', 'Background', 'API', 'Storage')
@@ -71,29 +98,6 @@ export async function updateLogConfig(newConfig: Partial<LogConfig>): Promise<vo
 }
 
 // --- End Configuration --- //
-
-/**
- * Defines the possible levels for log messages.
- */
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
-
-/**
- * Represents the structure of additional context data that can be logged.
- */
-export interface LogContext {
-  [key: string]: any;
-}
-
-/**
- * Represents the structure of a single log entry.
- */
-export interface LogEntry {
-  timestamp: string;
-  level: LogLevel;
-  feature: string; // Added feature field
-  message: string;
-  context?: LogContext;
-}
 
 // --- Function to add a log entry to storage ---
 async function logToStorage(logEntry: LogEntry): Promise<void> {
@@ -158,7 +162,7 @@ function log(level: LogLevel, feature: string, message: string, context?: LogCon
   };
 
   // Log to storage for the Log Viewer (asynchronously)
-  logToStorage(logEntry); 
+  logToStorage(logEntry);
 }
 
 // --- Specific Helper Log Functions (Updated Signatures) ---
