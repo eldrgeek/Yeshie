@@ -1,7 +1,7 @@
 node_modules
 client/node_modules/
 extention/node_modules/
-extension/server/venv/
+yeshie/server/venv/
 .env
 .venv/
 /logs
