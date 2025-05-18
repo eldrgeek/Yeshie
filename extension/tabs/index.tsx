@@ -151,6 +151,22 @@ function TabsIndex() {
     document.title = PAGE_TITLE; 
   }, []); // Run only once on mount
 
+  // --- Effect to add unload notification --- 
+  useEffect(() => {
+    const notifyUnload = () => {
+      logInfo("Core", "TabsIndex unloading, notifying background script");
+      // Using sendMessage instead of sendToBackground because this is urgent
+      chrome.runtime.sendMessage({ type: "CONTROL_PAGE_UNLOADING" });
+      // No need to wait for response as the page is unloading
+    };
+
+    window.addEventListener('beforeunload', notifyUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', notifyUnload);
+    };
+  }, []); // Run only once on mount
+
   // --- Effect to clear session logs on mount ---
   useEffect(() => {
     logInfo("Core", "TabsIndex mounted, clearing previous session logs from storage.");
@@ -387,6 +403,15 @@ function TabsIndex() {
           if (!isMounted.current) {
               logWarn("UI", "TabsIndex: handleMessage received but component not mounted.");
               return false;
+          }
+
+          // Handle reload message from background
+          // Note: We now use direct tab.reload() in the background script as the primary method,
+          // but keeping this handler as a fallback for any legacy or custom implementations
+          if (message.type === "RELOAD_CONTROL_PAGE") {
+              logInfo("TabsIndex", "Received RELOAD_CONTROL_PAGE message, reloading page.");
+              window.location.reload();
+              return true;
           }
 
           // Keep existing handlers
