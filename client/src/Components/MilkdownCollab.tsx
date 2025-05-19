@@ -11,6 +11,7 @@ import { nord } from '@milkdown/theme-nord';
 import { WebsocketProvider } from 'y-websocket';
 import { Doc } from 'yjs';
 import '../styles/collabstyle.css';
+import { logInfo, logError } from '@yeshie/shared/utils/logger';
 const name = [
   'Emma',
   'Isabella',
@@ -168,14 +169,14 @@ const MilkdownCollab: React.FC = () => {
 
   useEffect(() => {
     if (editorRef.current && areaRef.current && !initializationGuard.current) {
-      console.log('Initializing editor');
+      logInfo('Initializing editor');
       initializationGuard.current = true;
       createEditor('#editor', '#area')
         .then(() => {
-          console.log('Editor initialized');
+          logInfo('Editor initialized');
         })
         .catch((error) => {
-          console.error('Editor initialization failed:', error);
+          logError('Editor initialization failed:', error);
           initializationGuard.current = false; // Reset guard on failure
         });
     }

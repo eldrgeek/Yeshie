@@ -1,6 +1,7 @@
 import { parseDeploymentCommand, logDeployment, generateFirebaseWorkflow, WorkflowConfig } from './deployment';
 import { parseSchemaFromText, saveSchema, generateTypeScriptInterface, generateFirestoreRules } from './schema';
 import { uploadFile } from './firebase';
+import { logError } from '@yeshie/shared/utils/logger';
 
 /**
  * Process a text command and return appropriate actions
@@ -297,7 +298,7 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=${app.messagingSenderId}
 VITE_FIREBASE_APP_ID=${app.appId}`;
     }
   } catch (error) {
-    console.error('Error parsing Firebase config:', error);
+    logError('Error parsing Firebase config:', error);
   }
   
   return null;
@@ -320,7 +321,7 @@ export function parseNetlifyToken(tokenText: string): string | null {
       return `VITE_NETLIFY_TOKEN=${tokenMatch[0]}`;
     }
     
-    console.error('Error parsing Netlify token:', error);
+    logError('Error parsing Netlify token:', error);
   }
   
   return null;
@@ -337,7 +338,7 @@ export function parseVercelToken(tokenText: string): string | null {
       return `VITE_VERCEL_TOKEN=${tokenMatch[0]}`;
     }
   } catch (error) {
-    console.error('Error parsing Vercel token:', error);
+    logError('Error parsing Vercel token:', error);
   }
   
   return null;
@@ -350,7 +351,7 @@ export function saveConfigToEnv(config: string): CommandResult {
   try {
     // Update the .env file directly
     updateEnvFile(config).catch(error => {
-      console.error('Error updating .env file:', error);
+      logError('Error updating .env file:', error);
     });
     
     // Log this action to Firestore

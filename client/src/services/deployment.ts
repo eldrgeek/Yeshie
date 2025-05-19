@@ -1,5 +1,6 @@
 import { db } from './firebase';
 import { collection, addDoc, Timestamp } from 'firebase/firestore';
+import { logError } from '@yeshie/shared/utils/logger';
 
 // Define deployment configurations interface
 export interface DeploymentConfig {
@@ -195,7 +196,7 @@ export async function logDeployment(provider: string, command: string, status: s
       timestamp: Timestamp.now()
     });
   } catch (error) {
-    console.error('Error logging deployment:', error);
+    logError('Error logging deployment:', error);
   }
 }
 

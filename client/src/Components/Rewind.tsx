@@ -9,6 +9,7 @@ import {
   HStack,
   Text,
 } from "@chakra-ui/react";
+import { logInfo, logError } from "@yeshie/shared/utils/logger";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -49,10 +50,10 @@ const Rewind = forwardRef<{ handleGoClick: () => void; handleKeyDown: (event: Ke
   const handleGoClick = () => {
     if (socket) { // Check if socket is not null
       socket.emit("monitor", { op: "rewind", sessionId, timestamp: timestamp });
-      console.log("ABOUT TO OPEN")
+      logInfo("ABOUT TO OPEN");
       openRewindMoment(timestamp);
     } else {
-      console.error("Socket is not connected");
+      logError("Socket is not connected");
     }
   };
 
@@ -60,7 +61,7 @@ const Rewind = forwardRef<{ handleGoClick: () => void; handleKeyDown: (event: Ke
     if (socket) {
       socket.emit("monitor", { op: "calibrate" });
     } else {
-      console.error("Socket is not connected");
+      logError("Socket is not connected");
     }
   };
 

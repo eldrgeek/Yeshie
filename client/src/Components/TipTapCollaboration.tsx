@@ -14,6 +14,7 @@ import { useState, useEffect } from 'react';
 import { WebrtcProvider } from 'y-webrtc'
 import * as Y from 'yjs'
 import { Box, Flex, Input, ChakraProvider } from '@chakra-ui/react';
+import { logInfo } from '@yeshie/shared/utils/logger';
 
 // const firebaseConfig = {
 //   apiKey: "AIzaSyD0Ymhc0MNoCH6Au3Ej6n9nMQJmSRTa74g",
@@ -34,7 +35,7 @@ const ydoc = new Y.Doc()
 const provider = new WebrtcProvider('yeshie', ydoc)
 
 function Editor({ roomName, userName }: { roomName: string; userName: string }) { // eslint-disable-line
-  console.log('roomName', roomName);
+  logInfo('roomName', roomName);
   const editor = useEditor({
     extensions: [
       Document,

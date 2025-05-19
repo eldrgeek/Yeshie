@@ -10,8 +10,10 @@ const MIN_TAB_FOCUS_TIME = 800;
 
 // URL for the main Control page
 const CONTROL_PAGE_URL = chrome.runtime.getURL('tabs/index.html');
+
 // Pattern used when querying for the control page (handles hashes or query params)
 const CONTROL_PAGE_PATTERN = `${CONTROL_PAGE_URL}*`;
+
 
 // Add constant for storing control page tabs info
 const CONTROL_TABS_KEY = "yeshie_control_page_tabs";
@@ -153,6 +155,7 @@ async function openOrFocusExtensionTab(options: { focus?: boolean } = {}): Promi
 
     // Debugger breakpoint to inspect tab query results
     debugger;
+
 
     if (existing && existing.id) {
       const tabId = existing.id;

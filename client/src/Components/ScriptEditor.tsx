@@ -10,6 +10,7 @@ import { EditorState, Compartment } from "@codemirror/state";
 import { redo, undo } from "@codemirror/commands";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { createEditorExtensions } from '../editor/config';
+import { logInfo } from '@yeshie/shared/utils/logger';
 
 interface ScriptEditorProps {
   socket: Socket;
@@ -61,7 +62,7 @@ const ScriptEditor = forwardRef<unknown, ScriptEditorProps>(({ socket, sessionID
         extensions: [
           createEditorExtensions({
             onSave: () => {
-              console.log("Save shortcut triggered");
+              logInfo("Save shortcut triggered");
               handleSave();
               return true;
             },

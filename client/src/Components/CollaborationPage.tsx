@@ -10,6 +10,7 @@ import { ChakraNotificationAdapter } from "../adapters/NotificationAdapter";
 import { SessionStorageAdapter } from "../adapters/StorageAdapter";
 import { SocketMessageSender } from "../adapters/MessageSender";
 import { createBackgroundField } from "../editor/config";
+import { logInfo, logWarn, logError } from "@yeshie/shared/utils/logger";
 import { TEST_CONVERSATION } from './TestConversation';
 import { 
   processCommand, 
@@ -95,7 +96,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
 
   const sendPostMessage = useCallback((content: string) => {
     if (mode === "llm") {
-      console.error("Attempted to send postMessage in LLM mode");
+      logError("Attempted to send postMessage in LLM mode");
       return;
     }
 
@@ -142,22 +143,22 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
   // Add socket connection monitoring
   useEffect(() => {
     if (!socket) {
-      console.log('No socket provided to CollaborationPage');
+      logInfo('No socket provided to CollaborationPage');
       return;
     }
 
     const handleConnect = () => {
-      console.log('Socket connected in CollaborationPage');
+      logInfo('Socket connected in CollaborationPage');
       setIsSocketConnected(true);
     };
 
     const handleDisconnect = () => {
-      console.log('Socket disconnected in CollaborationPage');
+      logInfo('Socket disconnected in CollaborationPage');
       setIsSocketConnected(false);
     };
 
     const handleConnectError = (error: Error) => {
-      console.error('Socket connection error in CollaborationPage:', error);
+      logError('Socket connection error in CollaborationPage:', error);
       setIsSocketConnected(false);
     };
 
@@ -166,7 +167,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     socket.on('connect_error', handleConnectError);
     
     // Set initial connection state
-    console.log('Initial socket state:', {
+    logInfo('Initial socket state:', {
       connected: socket.connected,
       id: socket.id
     });
@@ -182,7 +183,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
   const viewRef = useRef<EditorView | null>(null);
 
   const updateContent = useCallback((newContent: string, mode: "append" | "replace" = "replace") => {
-    console.log("[updateContent] called with mode:", mode);
+    logInfo(`[updateContent] called with mode: ${mode}`);
     if (!viewRef.current) return;
     const view = viewRef.current;
 
@@ -259,16 +260,16 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     const content = view.state.doc.toString();
     const lines = content.split('\n');
     const lastLine = lines[lines.length - 1].trim();
-    console.log("[handleEnterKey] called with lastLine:", lastLine, { isTestMode, currentTestStep });
+    logInfo(`[handleEnterKey] called with lastLine: ${lastLine}`, { isTestMode, currentTestStep });
     
     // Handle test/testall commands
     if (lastLine === "test") {
-      console.log("Starting test mode");
+      logInfo("Starting test mode");
       startTest();
       return true;
     } else if (lastLine === "testall") {
       setIsTestMode(false);
-      console.log("Calling startTestAll");
+      logInfo("Calling startTestAll");
       testManagerRef.current.startTestAll(updateContent, isIframe, sendPostMessage);
       return true;
     }
@@ -298,7 +299,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     const lines = content.split('\n');
     const lastLine = lines[lines.length - 1].trim();
     
-    console.log("[sendContent] called:", {
+    logInfo("[sendContent] called:", {
       mode,
       content,
       lastLine,
@@ -324,13 +325,13 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
 
   // Add key handlers with useCallback
   const handleSave = useCallback(() => {
-    console.log("[handleSave] called");
+    logInfo("[handleSave] called");
     sendContent();
     return true;
   }, [sendContent]);
 
   const handleEnter = useCallback(() => {
-    console.log("[handleEnter] called");
+    logInfo("[handleEnter] called");
     sendContent();
     return true;
   }, [sendContent]);
@@ -344,7 +345,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
         }));
       }
     } catch (e) {
-      console.error("Error in select all:", e);
+      logError("Error in select all:", e);
     }
     return true;
   }, []);
@@ -414,7 +415,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
         parent: editorRef.current
       });
     } catch (error) {
-      console.error('Error initializing editor:', error);
+      logError('Error initializing editor:', error);
     }
   }, [handleSave, handleEnter, handleSelectAll]);
 
@@ -433,7 +434,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
 
   // Function to send user input to ChatGPT via command mode
   function handleProSubmit(userText: string) {
-    console.log("Submitting to ChatGPT:", userText);
+    logInfo("Submitting to ChatGPT:", userText);
 
     // Process special commands first
     const commandResult = processCommand(userText);
@@ -451,7 +452,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
 
   // New function to handle command results
   function handleCommandResult(result: CommandResult) {
-    console.log("Command result:", result);
+    logInfo("Command result:", result);
     
     if (!result.success) {
       // Show error notification
@@ -643,7 +644,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
         }
       });
     } catch (error) {
-      console.error('Error executing workflow:', error);
+      logError('Error executing workflow:', error);
       if (socket) {
         socket.emit("notification", { 
           type: "error", 
@@ -665,7 +666,7 @@ const CollaborationPage: React.FC<CollaborationPageProps> = ({
     if (mode === "pro") {
       handleProSubmit(content);
     } else {
-      console.log("Other mode:", mode);
+      logInfo(`Other mode: ${mode}`);
     }
   }, [mode]);
 
