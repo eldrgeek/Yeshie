@@ -424,4 +424,4 @@ async function main() {
   await devEnv.run(args[0] || Profile.DEFAULT);
 }
 
-main().catch(console.error);
+main().catch((err) => logError('Dev environment failed', err));

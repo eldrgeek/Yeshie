@@ -7,6 +7,7 @@ import { collab, collabServiceCtx } from '@milkdown/plugin-collab';
 import { WebrtcProvider } from 'y-webrtc'
 // import { editorCtx } from '@milkdown/core';
 import * as Y from 'yjs'
+import { logInfo } from '@yeshie/shared/utils/logger';
 
 // import { Editor } from '@tiptap/react';
 
@@ -47,7 +48,7 @@ const MilkdownCrepe: React.FC = () => {
       const ydoc = new Y.Doc()
       const provider = new WebrtcProvider('yeshiex', ydoc)
       editor.action((ctx:any) => {
-        console.log("ACTION",ctx);
+        logInfo("ACTION", ctx);
         const collabService = ctx.get(collabServiceCtx);
     
         collabService

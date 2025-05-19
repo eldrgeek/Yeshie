@@ -3,6 +3,7 @@ import { EditorView, Decoration, DecorationSet, keymap, lineNumbers, highlightAc
 import { defaultKeymap, indentWithTab, history } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { bracketMatching } from "@codemirror/language";
+import { logInfo } from "@yeshie/shared/utils/logger";
 
 const yeshieBackground = Decoration.mark({
   class: "cm-yeshie-response",
@@ -85,7 +86,7 @@ export function createEditorExtensions(handlers: {
         key: "Mod-s",
         preventDefault: true,
         run: () => {
-          console.log("[keymap] Mod-s triggered");
+          logInfo("[keymap] Mod-s triggered");
           return handlers.onSave();
         },
       },
@@ -93,7 +94,7 @@ export function createEditorExtensions(handlers: {
         key: "Meta-Enter",
         preventDefault: true,
         run: () => {
-          console.log("[keymap] Meta-Enter triggered");
+          logInfo("[keymap] Meta-Enter triggered");
           return handlers.onEnter();
         },
       },
@@ -101,7 +102,7 @@ export function createEditorExtensions(handlers: {
         key: "Ctrl-Enter",
         preventDefault: true,
         run: () => {
-          console.log("[keymap] Ctrl-Enter triggered");
+          logInfo("[keymap] Ctrl-Enter triggered");
           return handlers.onEnter();
         },
       },
@@ -109,7 +110,7 @@ export function createEditorExtensions(handlers: {
         key: "Mod-Shift-s",
         preventDefault: true,
         run: () => {
-          console.log("[keymap] Mod-Shift-s triggered");
+          logInfo("[keymap] Mod-Shift-s triggered");
           return true;
         },
       },
@@ -121,7 +122,7 @@ export function createEditorExtensions(handlers: {
       {
         key: "Enter",
         run: (view) => {
-          console.log("[keymap] Enter triggered");
+          logInfo("[keymap] Enter triggered");
           return handlers.onRegularEnter(view);
         }
       }

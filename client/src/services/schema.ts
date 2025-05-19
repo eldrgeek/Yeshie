@@ -1,4 +1,5 @@
 import { uploadSchema, getSchema } from './firebase';
+import { logError } from '@yeshie/shared/utils/logger';
 
 /**
  * Interface for a field in a data schema
@@ -249,7 +250,7 @@ export function parseSchemaFromText(text: string): DataSchema | null {
       fields: fields
     };
   } catch (error) {
-    console.error('Error parsing schema from text:', error);
+    logError('Error parsing schema from text:', error);
     return null;
   }
-} 
+}
