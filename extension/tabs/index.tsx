@@ -97,6 +97,7 @@ const RUN_SCRIPT_ON_RELOAD_KEY = "yeshie_run_script_on_reload"; // Key for this 
 
 // Define STORAGE_KEY locally as it's not exported from TabList
 const STORAGE_KEY = 'yeshieTabCustomNames';
+const ARCHIVED_TEST_PREFIX = 'archived_test_';
 
 // SVG icons
 const DownloadIcon = () => (
@@ -127,6 +128,7 @@ function TabsIndex() {
   const [hasResults, setHasResults] = useState(false);
   const [runScriptOnReload, setRunScriptOnReload] = useState<boolean>(false); // New state
   const [showTestViewerDialog, setShowTestViewerDialog] = useState<boolean>(false); // New state for dialog
+  const [recordedTasks, setRecordedTasks] = useState<string[]>([]);
   const [activeInteractiveToast, setActiveInteractiveToast] = useState<string | null>(null); // To track active interactive toast ID
 
   // --- State for API Key Management ---
@@ -258,6 +260,27 @@ function TabsIndex() {
     };
   }, [fetchLastTab]);
 
+  // --- Reload recorded tasks from storage ---
+  const reloadTasksFromStorage = useCallback(async () => {
+    try {
+      const allItems = await storageGetAll();
+      const taskNames = Object.keys(allItems)
+        .filter((key) => key.startsWith(ARCHIVED_TEST_PREFIX))
+        .map((key) => key.substring(ARCHIVED_TEST_PREFIX.length).replace(/_/g, ' '));
+      setRecordedTasks(taskNames);
+      logInfo('UI', 'Reloaded tasks from storage', { count: taskNames.length });
+    } catch (error) {
+      const errorDetails = handleError(error, { operation: 'reloadTasksFromStorage' });
+      setLastErrorDetails(errorDetails);
+      setLegacyToastMessage('Error loading tasks. Click to copy details.');
+    }
+  }, []);
+
+  // Load tasks on mount
+  useEffect(() => {
+    reloadTasksFromStorage();
+  }, [reloadTasksFromStorage]);
+
   // Load reports when component mounts and when tabInfoReady changes
   useEffect(() => {
     const loadReports = async () => {
@@ -303,13 +326,19 @@ function TabsIndex() {
           logInfo('TabTracking', 'Detected LAST_TAB_KEY change, fetching updated tab info...');
           fetchLastTab(); // Call the memoized function
       }
+
+      const taskKeyChanged = Object.keys(changes).some((key) => key.startsWith(ARCHIVED_TEST_PREFIX));
+      if (taskKeyChanged) {
+          logInfo('Storage', 'Detected archived test change via storage listener');
+          reloadTasksFromStorage();
+      }
     };
 
     chrome.storage.onChanged.addListener(handleStorageChange);
     return () => {
       chrome.storage.onChanged.removeListener(handleStorageChange);
     };
-  }, [setCustomNames, fetchLastTab]);
+  }, [setCustomNames, fetchLastTab, reloadTasksFromStorage]);
 
   // Add listener for window focus
   useEffect(() => {
@@ -437,7 +466,7 @@ function TabsIndex() {
                setIsProcessingRecording(false);
                if (message.payload?.success) {
                    setLegacyToastMessage(`Task "${message.payload.taskName}" saved successfully!`);
-                   // TODO: Refresh task list here
+                   reloadTasksFromStorage();
                } else {
                     const errorDetails = handleError(message.payload?.error || "Unknown processing error", { operation: 'recordingProcessedError' });
                     setLastErrorDetails(errorDetails);
@@ -1218,17 +1247,23 @@ function TabsIndex() {
         </button>
 
         {/* New View Archived Tests Button */}
-        <button
-          className="icon-button"
-          onClick={() => setShowTestViewerDialog(true)}
-          title="View and manage archived tests"
-          style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-          View Tests
-        </button>
+          <button
+            className="icon-button"
+            onClick={() => setShowTestViewerDialog(true)}
+            title="View and manage archived tests"
+            style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            View Tests
+          </button>
 
-      </div>
+          {recordedTasks.length > 0 && (
+            <div style={{ marginLeft: 'auto', fontSize: '0.9em' }}>
+              Saved Tests: {recordedTasks.join(', ')}
+            </div>
+          )}
+
+        </div>
 
       <ReportsPanel
         isOpen={showReportsPanel}
