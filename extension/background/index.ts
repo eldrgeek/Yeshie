@@ -11,6 +11,10 @@ const MIN_TAB_FOCUS_TIME = 800;
 // URL for the main Control page
 const CONTROL_PAGE_URL = chrome.runtime.getURL('tabs/index.html');
 
+// Pattern used when querying for the control page (handles hashes or query params)
+const CONTROL_PAGE_PATTERN = `${CONTROL_PAGE_URL}*`;
+
+
 // Add constant for storing control page tabs info
 const CONTROL_TABS_KEY = "yeshie_control_page_tabs";
 
@@ -146,8 +150,12 @@ async function openOrFocusExtensionTab(options: { focus?: boolean } = {}): Promi
   const { focus = true } = options;
 
   try {
-    const tabs = await chrome.tabs.query({ url: CONTROL_PAGE_URL });
+    const tabs = await chrome.tabs.query({ url: CONTROL_PAGE_PATTERN });
     const existing = tabs[0];
+
+    // Debugger breakpoint to inspect tab query results
+    debugger;
+
 
     if (existing && existing.id) {
       const tabId = existing.id;
@@ -170,8 +178,7 @@ async function openOrFocusExtensionTab(options: { focus?: boolean } = {}): Promi
 // Function to store information about open control page tabs
 async function saveControlTabsInfo() {
   logInfo("Extension", "Saving information about open Control page tabs");
-  const controlPageUrl = chrome.runtime.getURL('tabs/index.html');
-  const tabs = await chrome.tabs.query({ url: controlPageUrl });
+  const tabs = await chrome.tabs.query({ url: CONTROL_PAGE_PATTERN });
   
   if (tabs.length > 0) {
     // Save information about open tabs (windowId and any other relevant info)
@@ -193,7 +200,7 @@ async function restoreControlTabs() {
     if (tabsInfo && tabsInfo.length > 0) {
       logInfo("Extension", `Restoring ${tabsInfo.length} Control page tab(s)`, { tabsInfo });
       
-      const controlPageUrl = chrome.runtime.getURL('tabs/index.html');
+      const controlPageUrl = CONTROL_PAGE_URL;
       
       // Get all current windows
       const windows = await chrome.windows.getAll();
