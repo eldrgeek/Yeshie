@@ -29,3 +29,4 @@ These features can speed up code understanding and review tasks.
 
 Cursor ships as a complete editor, so you do **not** need to install a separate VS Code extension. If you previously used the Cursor extension inside VS Code, you can uninstall it and run the standalone IDE instead.
 
+
