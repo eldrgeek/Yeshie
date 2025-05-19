@@ -14,7 +14,8 @@ Yeshie AI is a collaborative system that integrates a Chrome extension, a React-
 8. [Deployment on Replit](#deployment-on-replit)
 9. [Packaging Components](#packaging-components)
 10. [Utilities](#utilities)
-11. [Contributing](#contributing)
+11. [Cursor IDE Integration](#cursor-ide-integration)
+12. [Contributing](#contributing)
 
 ## System Requirements
 
@@ -337,6 +338,10 @@ dev llm        # LLM profile
 # Run a specific file
 dev monitor    # Run monitor.py with auto-reload
 ```
+
+## Cursor IDE Integration
+
+See [docs/cursor_integration.md](docs/cursor_integration.md) for instructions on using the Cursor IDE with this project, including features like inline chat and PR reviews.
 
 ## Contributing
 
