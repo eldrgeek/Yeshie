@@ -770,15 +770,20 @@ function TabsIndex() {
   useEffect(() => {
     async function runInstructionsIfPresent() {
       // Wait for the button to appear before running the test
-      const waitForButton = (selector: string, timeout = 3000): Promise<void> => new Promise((resolve, reject) => {
-        const start = Date.now();
-        function check() {
-          if (document.querySelector(selector)) return resolve();
-          if (Date.now() - start > timeout) return reject();
-          setTimeout(check, 50);
-        }
-        check();
-      });
+      const waitForButton = (
+        selector: string,
+        timeout = 3000,
+        interval = 200
+      ): Promise<void> =>
+        new Promise((resolve, reject) => {
+          const start = Date.now();
+          const check = () => {
+            if (document.querySelector(selector)) return resolve();
+            if (Date.now() - start > timeout) return reject();
+            setTimeout(check, interval);
+          };
+          check();
+        });
 
       if (!runScriptOnReload) { // Check the toggle state
         logInfo('UI', 'runInstructionsIfPresent: Auto-run disabled by user toggle.');
@@ -1295,10 +1300,6 @@ function TabsIndex() {
 }
 
 const root = ReactDOM.createRoot(document.getElementById("root")!);
-root.render(
-  <React.StrictMode>
-   ""
-  </React.StrictMode>
-); 
+root.render(<TabsIndex />);
 
 export default TabsIndex;

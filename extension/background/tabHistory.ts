@@ -17,11 +17,11 @@ export interface TabInfo {
 let lastTabFocusTime = 0;
 const debouncedUpdateTabs = debounce(updateStoredTabs, 1000);
 
-// Utility: Check extension/internal URLs
+// Utility: Check URLs that should be ignored
+// Allow chrome:// and chrome-extension:// pages to be tracked
+// Only ignore internal about: pages or the extension root URL
 const isExtensionUrl = (url: string) =>
   url.startsWith(EXTENSION_URL_PATTERN) ||
-  url.startsWith("chrome://") ||
-  url.startsWith("chrome-extension://") ||
   url.startsWith("about:");
 
 // Initialize listeners
