@@ -154,8 +154,6 @@ async function openOrFocusExtensionTab(options: { focus?: boolean } = {}): Promi
     const existing = tabs[0];
 
     // Debugger breakpoint to inspect tab query results
-    debugger;
-
 
     if (existing && existing.id) {
       const tabId = existing.id;
