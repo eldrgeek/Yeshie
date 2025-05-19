@@ -1,3 +1,4 @@
+import { logInfo } from "../utils/logger";
 export class TestManager {
     constructor(testConversation) {
         this.testConversation = testConversation;
@@ -5,14 +6,14 @@ export class TestManager {
         this.isTestMode = false;
     }
     startTest(clearEditor, displayNextEntry) {
-        console.log("Starting test mode");
+        logInfo("Starting test mode");
         this.isTestMode = true;
         this.currentTestStep = 0;
         clearEditor();
         displayNextEntry();
     }
     startTestAll(updateContent, isIframe, sendPostMessage) {
-        console.log("Starting testall mode");
+        logInfo("Starting testall mode");
         this.isTestMode = false;
         const allContent = this.testConversation.map((entry, index) => this.formatEntry(entry, index === 0)).join("");
         updateContent(allContent, "replace");
@@ -27,9 +28,9 @@ export class TestManager {
     handleTestMode(lastLine, addBlankLine, updateContent, isIframe, sendPostMessage) {
         if (!this.isTestMode)
             return false;
-        console.log("Test mode state:", { currentTestStep: this.currentTestStep, lastLine });
+        logInfo("Test mode state:", { currentTestStep: this.currentTestStep, lastLine });
         if (this.currentTestStep >= this.testConversation.length - 1) {
-            console.log("Reached end of conversation");
+            logInfo("Reached end of conversation");
             this.isTestMode = false;
             return true;
         }

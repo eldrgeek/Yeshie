@@ -53,8 +53,20 @@ class BasicHandler(Handler):
 
     def load_store(self) -> VectorStoreIndex:
         """Load a basic vector store."""
-        storage_context = StorageContext.from_defaults(persist_dir=self.index_path)
-        return load_index_from_storage(storage_context)
+        try:
+            storage_context = StorageContext.from_defaults(persist_dir=self.index_path)
+            return load_index_from_storage(storage_context)
+        except json.JSONDecodeError as e:
+            logging.warning(f"JSON decode error loading vector store at {self.index_path}: {e}")
+            logging.info(f"Recreating corrupted vector store at {self.index_path}")
+            # Check if docstore.json exists and is empty
+            docstore_path = self.index_path / "docstore.json"
+            if docstore_path.exists() and docstore_path.stat().st_size == 0:
+                # Remove empty file
+                os.remove(docstore_path)
+                logging.info(f"Removed empty docstore.json file")
+            # Create a new store
+            return self.create_store(Settings.embed_model)
 
     def add_to_store(self, index: VectorStoreIndex, documents: list) -> None:
         """Add documents to the basic vector store."""
@@ -79,11 +91,23 @@ class ChromaHandler(Handler):
 
     def load_store(self) -> VectorStoreIndex:
         """Load a Chroma vector store."""
-        chroma_client = chromadb.PersistentClient(path=self.index_path)
-        chroma_collection = chroma_client.get_or_create_collection("default")
-        vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
-        storage_context = StorageContext.from_defaults(vector_store=vector_store, persist_dir=self.index_path)
-        return VectorStoreIndex.from_vector_store(vector_store, storage_context=storage_context)
+        try:
+            chroma_client = chromadb.PersistentClient(path=self.index_path)
+            chroma_collection = chroma_client.get_or_create_collection("default")
+            vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
+            storage_context = StorageContext.from_defaults(vector_store=vector_store, persist_dir=self.index_path)
+            return VectorStoreIndex.from_vector_store(vector_store, storage_context=storage_context)
+        except json.JSONDecodeError as e:
+            logging.warning(f"JSON decode error loading Chroma vector store at {self.index_path}: {e}")
+            logging.info(f"Recreating corrupted Chroma vector store at {self.index_path}")
+            # Check if docstore.json exists and is empty
+            docstore_path = self.index_path / "docstore.json"
+            if docstore_path.exists() and docstore_path.stat().st_size == 0:
+                # Remove empty file
+                os.remove(docstore_path)
+                logging.info(f"Removed empty docstore.json file")
+            # Create a new store
+            return self.create_store(Settings.embed_model)
 
     def add_to_store(self, index: VectorStoreIndex, documents: list) -> None:
         """Add documents to the Chroma vector store."""
@@ -191,8 +215,24 @@ class VectorStoreManager:
         if name in self.vs_index:
             store_info = self.vs_index[name]
             handler = self.get_handler(store_info["type"], store_info["path"])
-            index = handler.load_store()
-            handler.add_to_store(index, documents)
+            try:
+                index = handler.load_store()
+                handler.add_to_store(index, documents)
+                # Update timestamp on successful addition
+                self.update_store_timestamp(name)
+            except Exception as e:
+                logging.error(f"Error adding to vector store '{name}': {e}")
+                # Attempt to recreate the store if it's corrupted
+                try:
+                    logging.warning(f"Attempting to recreate vector store '{name}'")
+                    index = handler.create_store(Settings.embed_model)
+                    handler.add_to_store(index, documents)
+                    # Update timestamp on successful recreation
+                    self.update_store_timestamp(name)
+                    logging.info(f"Successfully recreated vector store '{name}'")
+                except Exception as recovery_err:
+                    logging.error(f"Failed to recover vector store '{name}': {recovery_err}")
+                    raise recovery_err
         else:
             raise ValueError(f"Vector store '{name}' not found.")
 
