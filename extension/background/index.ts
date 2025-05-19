@@ -8,6 +8,9 @@ export const APPLICATION_TABS_KEY = "yeshie_application_tabs";
 const EXTENSION_URL_PATTERN = chrome.runtime.getURL("");
 const MIN_TAB_FOCUS_TIME = 800;
 
+// URL for the main Control page
+const CONTROL_PAGE_URL = chrome.runtime.getURL('tabs/index.html');
+
 // Add constant for storing control page tabs info
 const CONTROL_TABS_KEY = "yeshie_control_page_tabs";
 
@@ -134,6 +137,36 @@ export async function focusLastActiveTab(): Promise<boolean> {
   }
 }
 
+/**
+ * Ensure the Control page tab exists and optionally focus/reload it.
+ * @param options Set `focus` to false to avoid stealing focus during startup.
+ * @returns The tab ID of the Control page, or null if creation failed.
+ */
+async function openOrFocusExtensionTab(options: { focus?: boolean } = {}): Promise<number | null> {
+  const { focus = true } = options;
+
+  try {
+    const tabs = await chrome.tabs.query({ url: CONTROL_PAGE_URL });
+    const existing = tabs[0];
+
+    if (existing && existing.id) {
+      const tabId = existing.id;
+      if (focus) {
+        await chrome.windows.update(existing.windowId, { focused: true });
+        await chrome.tabs.update(tabId, { active: true });
+        await chrome.tabs.reload(tabId);
+      }
+      return tabId;
+    }
+
+    const newTab = await chrome.tabs.create({ url: CONTROL_PAGE_URL, active: focus });
+    return newTab.id ?? null;
+  } catch (error) {
+    logError("Extension", "Failed to open or focus Control tab", { error });
+    return null;
+  }
+}
+
 // Function to store information about open control page tabs
 async function saveControlTabsInfo() {
   logInfo("Extension", "Saving information about open Control page tabs");
@@ -217,17 +250,33 @@ chrome.runtime.onSuspend.addListener(() => {
 // Listen for extension startup and reload Control page tabs
 chrome.runtime.onStartup.addListener(async () => {
   logInfo("Extension", "Extension startup detected");
-  // No need to check for existing control pages on startup
-  // as we're only restoring previously open tabs
+  const [original] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const controlId = await openOrFocusExtensionTab({ focus: false });
+  if (original?.id && original.id !== controlId) {
+    try {
+      await chrome.tabs.update(original.id, { active: true });
+    } catch (e) {
+      logWarn("Extension", "Unable to restore original tab", { error: e });
+    }
+  }
   restoreControlTabs();
 });
 
 // Add listener for extension installation or update to reload Control page tabs
 chrome.runtime.onInstalled.addListener(async (details) => {
   logInfo("Extension", "Extension installed or updated", { reason: details.reason });
-  
+
   // Only restore tabs for reload/update, not for fresh install
   if (details.reason === 'update' || details.reason === 'chrome_update') {
+    const [original] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const controlId = await openOrFocusExtensionTab({ focus: false });
+    if (original?.id && original.id !== controlId) {
+      try {
+        await chrome.tabs.update(original.id, { active: true });
+      } catch (e) {
+        logWarn("Extension", "Unable to restore original tab", { error: e });
+      }
+    }
     restoreControlTabs();
   }
 });
