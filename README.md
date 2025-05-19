@@ -93,6 +93,8 @@ This command will start the following components:
 
 ## Development
 
+For guidance on using the Cursor IDE with this repository, see [docs/cursor_integration.md](docs/cursor_integration.md).
+
 The project's Python components are organized as follows:
 
 ### Core Components
