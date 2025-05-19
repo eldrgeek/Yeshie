@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, query, where, Firestore } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { logError } from '@yeshie/shared/utils/logger';
 
 // Your web app's Firebase configuration 
 // Replace with your own Firebase config or load from environment variables
@@ -29,7 +30,7 @@ export async function uploadSchema(schemaName: string, schema: any): Promise<str
     });
     return schemaDoc.id;
   } catch (error) {
-    console.error('Error uploading schema:', error);
+    logError('Error uploading schema:', error);
     throw error;
   }
 }
@@ -45,7 +46,7 @@ export async function getSchema(schemaName: string): Promise<any> {
       throw new Error(`Schema ${schemaName} not found`);
     }
   } catch (error) {
-    console.error('Error retrieving schema:', error);
+    logError('Error retrieving schema:', error);
     throw error;
   }
 }
@@ -58,7 +59,7 @@ export async function uploadFile(file: File, path: string): Promise<string> {
     const downloadURL = await getDownloadURL(snapshot.ref);
     return downloadURL;
   } catch (error) {
-    console.error('Error uploading file:', error);
+    logError('Error uploading file:', error);
     throw error;
   }
 }

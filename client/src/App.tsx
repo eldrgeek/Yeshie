@@ -9,6 +9,7 @@ import RewindWrapper from "./Components/RewindWrapper";
 import TipTapCollaboration from "./Components/TipTapCollaboration";
 import MilkdownCollab from "./Components/MilkdownCollab";
 import theme from "./styles/theme";
+import { logInfo, logError } from "@yeshie/shared/utils/logger";
 
 function App() {
   const [message, setMessage] = useState("");
@@ -41,7 +42,7 @@ function App() {
     newSocket.on("connect", () => {
       setConnected(true);
       if (!session) {
-        console.log("no session");
+        logInfo("no session");
         newSocket.emit("session?", "client");
       } else {
         newSocket.emit("session:", session);
@@ -58,7 +59,7 @@ function App() {
     });
 
     newSocket.on("connect_error", (error) => {
-      console.error("Connection error:", error);
+      logError("Connection error:", error);
       setConnected(false);
     });
 
@@ -74,7 +75,7 @@ function App() {
     const validKeys = ['1', '2', '3', '4', '5', '6', 's', 'g'];
     
     if ((event.metaKey || event.ctrlKey) && validKeys.includes(event.key)) {
-      console.log("[App] handling shortcut:", event.key);
+      logInfo(`[App] handling shortcut: ${event.key}`);
       
       switch (event.key) {
         case "4":
