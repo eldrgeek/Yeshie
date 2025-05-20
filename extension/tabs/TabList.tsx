@@ -3,7 +3,9 @@ import { sendToBackground } from '@plasmohq/messaging';
 import { storageGet, storageSet } from "../functions/storage"; // Import new storage functions
 import { logInfo, logError } from "../functions/logger";
 import { APPLICATION_TABS_KEY } from '../background/tabHistory';
-import { FiExternalLink, FiArrowRight, FiTrash2, FiSave, FiXCircle } from 'react-icons/fi';
+
+import { FiExternalLink, FiRefreshCw, FiTrash2, FiSave, FiXCircle } from 'react-icons/fi';
+
 
 interface StoredApplicationTab {
   id: number;
@@ -334,22 +336,48 @@ const TabList: React.FC = () => {
     }
   };
 
-  const handleCloseTab = async (tabId: number) => {
+  const handleCloseTab = async (windowId: string, tabId: number) => {
     try {
       await chrome.tabs.remove(tabId);
+      setGroupedTabs(prev => {
+        const updated = { ...prev };
+        updated[windowId] = (prev[windowId] || []).filter(t => t.id !== tabId);
+        return updated;
+      });
+
+      const stored = (await storageGet<Record<string, StoredApplicationTab[]>>(APPLICATION_TABS_KEY)) || {};
+      if (stored[windowId]) {
+        stored[windowId] = stored[windowId].filter(t => t.id !== tabId);
+        await storageSet(APPLICATION_TABS_KEY, stored);
+      }
       logInfo('TabList', `Closed tab ${tabId}`);
     } catch (error) {
       logError('TabList', `Failed to close tab ${tabId}`, { error });
     }
   };
 
-  const handleSaveAndCloseTab = async (tab: StoredApplicationTab) => {
+
+  const handleSaveAndCloseTab = async (windowId: string, tab: StoredApplicationTab) => {
     try {
       const saved = (await storageGet<StoredApplicationTab[]>(SAVED_PAGES_KEY)) || [];
       saved.push(tab);
       await storageSet(SAVED_PAGES_KEY, saved);
-      logInfo('TabList', `Saved tab ${tab.id}`);
       await chrome.tabs.remove(tab.id);
+
+      setGroupedTabs(prev => {
+        const updated = { ...prev };
+        updated[windowId] = (prev[windowId] || []).filter(t => t.id !== tab.id);
+        return updated;
+      });
+
+      const stored = (await storageGet<Record<string, StoredApplicationTab[]>>(APPLICATION_TABS_KEY)) || {};
+      if (stored[windowId]) {
+        stored[windowId] = stored[windowId].filter(t => t.id !== tab.id);
+        await storageSet(APPLICATION_TABS_KEY, stored);
+      }
+
+      logInfo('TabList', `Saved and closed tab ${tab.id}`);
+
     } catch (error) {
       logError('TabList', `Failed to save and close tab ${tab.id}`, { error });
     }
@@ -469,7 +497,8 @@ const TabList: React.FC = () => {
                               title="Visit & Return"
                               disabled={tab.id === -1}
                           >
-                              <FiExternalLink />
+                              <FiRefreshCw />
+
                           </button>
                           <button
                               id={`visit-stay-${index}`}
@@ -478,12 +507,14 @@ const TabList: React.FC = () => {
                               title="Visit & Stay"
                               disabled={tab.id === -1}
                           >
-                              <FiArrowRight />
+                              <FiExternalLink />
+
                           </button>
                           <button
                               id={`close-${tab.id}`}
                               className="tab-button"
-                              onClick={() => handleCloseTab(tab.id)}
+                              onClick={() => handleCloseTab(windowId, tab.id)}
+
                               title="Close Tab"
                               disabled={tab.id === -1}
                           >
@@ -492,7 +523,8 @@ const TabList: React.FC = () => {
                           <button
                               id={`save-close-${tab.id}`}
                               className="tab-button"
-                              onClick={() => handleSaveAndCloseTab(tab)}
+                              onClick={() => handleSaveAndCloseTab(windowId, tab)}
+
                               title="Save and Close Tab"
                               disabled={tab.id === -1}
                           >
