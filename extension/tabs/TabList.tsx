@@ -3,7 +3,9 @@ import { sendToBackground } from '@plasmohq/messaging';
 import { storageGet, storageSet } from "../functions/storage"; // Import new storage functions
 import { logInfo, logError } from "../functions/logger";
 import { APPLICATION_TABS_KEY } from '../background/tabHistory';
+
 import { FiExternalLink, FiRefreshCw, FiTrash2, FiSave, FiXCircle } from 'react-icons/fi';
+
 
 interface StoredApplicationTab {
   id: number;
@@ -348,19 +350,18 @@ const TabList: React.FC = () => {
         stored[windowId] = stored[windowId].filter(t => t.id !== tabId);
         await storageSet(APPLICATION_TABS_KEY, stored);
       }
-
       logInfo('TabList', `Closed tab ${tabId}`);
     } catch (error) {
       logError('TabList', `Failed to close tab ${tabId}`, { error });
     }
   };
 
+
   const handleSaveAndCloseTab = async (windowId: string, tab: StoredApplicationTab) => {
     try {
       const saved = (await storageGet<StoredApplicationTab[]>(SAVED_PAGES_KEY)) || [];
       saved.push(tab);
       await storageSet(SAVED_PAGES_KEY, saved);
-
       await chrome.tabs.remove(tab.id);
 
       setGroupedTabs(prev => {
@@ -376,6 +377,7 @@ const TabList: React.FC = () => {
       }
 
       logInfo('TabList', `Saved and closed tab ${tab.id}`);
+
     } catch (error) {
       logError('TabList', `Failed to save and close tab ${tab.id}`, { error });
     }
@@ -496,6 +498,7 @@ const TabList: React.FC = () => {
                               disabled={tab.id === -1}
                           >
                               <FiRefreshCw />
+
                           </button>
                           <button
                               id={`visit-stay-${index}`}
@@ -505,11 +508,13 @@ const TabList: React.FC = () => {
                               disabled={tab.id === -1}
                           >
                               <FiExternalLink />
+
                           </button>
                           <button
                               id={`close-${tab.id}`}
                               className="tab-button"
                               onClick={() => handleCloseTab(windowId, tab.id)}
+
                               title="Close Tab"
                               disabled={tab.id === -1}
                           >
@@ -519,6 +524,7 @@ const TabList: React.FC = () => {
                               id={`save-close-${tab.id}`}
                               className="tab-button"
                               onClick={() => handleSaveAndCloseTab(windowId, tab)}
+
                               title="Save and Close Tab"
                               disabled={tab.id === -1}
                           >

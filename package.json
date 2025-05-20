@@ -4,6 +4,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node dist/server.js",
+    "start:mcp": "node dist/mcpServer.js",
     "build": "tsc",
     "dev:server": "nodemon --watch src -e ts,tsx --exec ts-node src/server.ts",
     "dev:client": "cd client && pnpm run dev",
@@ -20,6 +21,7 @@
     "devx": "concurrently \"pnpm run dev:winmonitor\" \"pnpm run dev:extension\"",
     "dev1": "concurrently $(pnpm run --silent | grep '^dev:' | awk '{print $1}')",
     "dev:scrape": "nodemon --watch src/scrape.py --exec python src/scrape.py",
+    "dev:mcp": "ts-node src/mcpServer.ts",
     "test:client": "cd client && pnpm run test",
     "test:python": "python src/run_tests.py",
     "test": "pnpm run test:client && pnpm run test:python",
