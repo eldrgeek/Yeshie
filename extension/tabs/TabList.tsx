@@ -2,7 +2,15 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { sendToBackground } from '@plasmohq/messaging';
 import { storageGet, storageSet } from "../functions/storage"; // Import new storage functions
 import { logInfo, logError } from "../functions/logger";
-import { APPLICATION_TABS_KEY, type StoredApplicationTab } from '../background/tabHistory';
+import { APPLICATION_TABS_KEY } from '../background/tabHistory';
+import { FiExternalLink, FiRefreshCw, FiTrash2, FiSave, FiXCircle } from 'react-icons/fi';
+
+interface StoredApplicationTab {
+  id: number;
+  url?: string;
+  title?: string;
+  index?: number;
+}
 
 interface TabInfo {
   id: number;
@@ -25,6 +33,7 @@ interface WindowNameMap {
 
 const TAB_NAMES_STORAGE_KEY = 'yeshieTabCustomNames'; // Key for chrome.storage
 const WINDOW_NAMES_STORAGE_KEY = 'yeshieWindowCustomNames'; // New key for window names
+const SAVED_PAGES_KEY = 'yeshieSavedPages';
 
 // Helper to check for restricted URLs
 const isRestrictedUrl = (url: string | undefined): boolean => {
@@ -325,6 +334,75 @@ const TabList: React.FC = () => {
     }
   };
 
+  const handleCloseTab = async (windowId: string, tabId: number) => {
+    try {
+      await chrome.tabs.remove(tabId);
+      setGroupedTabs(prev => {
+        const updated = { ...prev };
+        updated[windowId] = (prev[windowId] || []).filter(t => t.id !== tabId);
+        return updated;
+      });
+
+      const stored = (await storageGet<Record<string, StoredApplicationTab[]>>(APPLICATION_TABS_KEY)) || {};
+      if (stored[windowId]) {
+        stored[windowId] = stored[windowId].filter(t => t.id !== tabId);
+        await storageSet(APPLICATION_TABS_KEY, stored);
+      }
+
+      logInfo('TabList', `Closed tab ${tabId}`);
+    } catch (error) {
+      logError('TabList', `Failed to close tab ${tabId}`, { error });
+    }
+  };
+
+  const handleSaveAndCloseTab = async (windowId: string, tab: StoredApplicationTab) => {
+    try {
+      const saved = (await storageGet<StoredApplicationTab[]>(SAVED_PAGES_KEY)) || [];
+      saved.push(tab);
+      await storageSet(SAVED_PAGES_KEY, saved);
+
+      await chrome.tabs.remove(tab.id);
+
+      setGroupedTabs(prev => {
+        const updated = { ...prev };
+        updated[windowId] = (prev[windowId] || []).filter(t => t.id !== tab.id);
+        return updated;
+      });
+
+      const stored = (await storageGet<Record<string, StoredApplicationTab[]>>(APPLICATION_TABS_KEY)) || {};
+      if (stored[windowId]) {
+        stored[windowId] = stored[windowId].filter(t => t.id !== tab.id);
+        await storageSet(APPLICATION_TABS_KEY, stored);
+      }
+
+      logInfo('TabList', `Saved and closed tab ${tab.id}`);
+    } catch (error) {
+      logError('TabList', `Failed to save and close tab ${tab.id}`, { error });
+    }
+  };
+
+  const handleCloseWindow = async (windowId: string) => {
+    try {
+      await chrome.windows.remove(Number(windowId));
+      logInfo('TabList', `Closed window ${windowId}`);
+    } catch (error) {
+      logError('TabList', `Failed to close window ${windowId}`, { error });
+    }
+  };
+
+  const handleSaveWindow = async (windowId: string) => {
+    try {
+      const tabs = groupedTabs[windowId] || [];
+      const saved = (await storageGet<StoredApplicationTab[]>(SAVED_PAGES_KEY)) || [];
+      saved.push(...tabs);
+      await storageSet(SAVED_PAGES_KEY, saved);
+      logInfo('TabList', `Saved window ${windowId}`);
+      await chrome.windows.remove(Number(windowId));
+    } catch (error) {
+      logError('TabList', `Failed to save window ${windowId}`, { error });
+    }
+  };
+
   // --- Event Handlers for Editable Names ---
   
   // TAB Name Handlers
@@ -380,17 +458,25 @@ const TabList: React.FC = () => {
           
           return (
             <div key={windowId} className="window-group"> {/* Add class for styling */} 
-              <h3 
+              <h3
                 id={`window-header-${windowId}`}
                 className="window-header"
                 contentEditable={true}
                 suppressContentEditableWarning={true}
-                onClick={(e) => e.stopPropagation()} 
+                onClick={(e) => e.stopPropagation()}
                 onKeyDown={(e) => handleWindowNameKeyDown(e, windowId)}
                 onBlur={(e) => handleWindowNameBlur(e, windowId)}
                 key={`${windowId}-header`}
               >
                   {windowDisplayName}
+                  <span className="window-actions">
+                    <button className="tab-button" title="Save window" onClick={() => handleSaveWindow(windowId)}>
+                      <FiSave />
+                    </button>
+                    <button className="tab-button" title="Close window" onClick={() => handleCloseWindow(windowId)}>
+                      <FiXCircle />
+                    </button>
+                  </span>
               </h3>
               {tabsInWindow && tabsInWindow.length > 0 ? (
                   <ul className="tablist-ul"> 
@@ -402,23 +488,41 @@ const TabList: React.FC = () => {
                         <li key={tab.id} title={`ID: ${tab.id}\nIndex: ${tab.index}\nURL: ${tab.url}`} className="tab-item">
                           {/* Use index within the window group for display number */}
                           <span className="tab-number">{`${index + 1}:`}</span> 
-                          <button 
+                          <button
                               id={`visit-return-${index}`}
-                              className="tab-button visit-return" 
+                              className="tab-button visit-return"
                               onClick={() => handleVisitReturn(tab.id)}
                               title="Visit & Return"
-                              disabled={tab.id === -1} // Disable actions for placeholder control tab if needed
+                              disabled={tab.id === -1}
                           >
-                              VR
+                              <FiRefreshCw />
                           </button>
-                          <button 
+                          <button
                               id={`visit-stay-${index}`}
-                              className="tab-button visit-stay" 
+                              className="tab-button visit-stay"
                               onClick={() => handleVisitStay(tab.id)}
                               title="Visit & Stay"
-                              disabled={tab.id === -1} 
+                              disabled={tab.id === -1}
                           >
-                              VS
+                              <FiExternalLink />
+                          </button>
+                          <button
+                              id={`close-${tab.id}`}
+                              className="tab-button"
+                              onClick={() => handleCloseTab(windowId, tab.id)}
+                              title="Close Tab"
+                              disabled={tab.id === -1}
+                          >
+                              <FiTrash2 />
+                          </button>
+                          <button
+                              id={`save-close-${tab.id}`}
+                              className="tab-button"
+                              onClick={() => handleSaveAndCloseTab(windowId, tab)}
+                              title="Save and Close Tab"
+                              disabled={tab.id === -1}
+                          >
+                              <FiSave />
                           </button>
                           <button 
                               id={`analyze-${tab.id}`}
