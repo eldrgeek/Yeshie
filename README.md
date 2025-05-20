@@ -33,14 +33,14 @@ Yeshie AI is a collaborative system that integrates a Chrome extension, a React-
    cd Yeshie
    ```
 
-2. Add the `scripts` directory to your PATH:
+2. Add the `scripts` directory to your `PATH` (optional):
    ```bash
    export PATH=$PATH:$(pwd)/scripts
    ```
 
-3. Run the installation script:
+3. Run the setup script to install all Node and Python dependencies:
    ```bash
-   install
+   ./scripts/setup.sh
    ```
 
 4. Update the `OPENAI_API_KEY` in the `.env` file with your actual API key.
