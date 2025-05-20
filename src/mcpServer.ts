@@ -15,6 +15,10 @@ export function startMCPServer(port = 8123) {
     socket.on('mcp:message', (msg) => {
       io.emit('mcp:message', msg);
     });
+
+    socket.on('profile:tabs', (data) => {
+      io.emit('profile:tabs', data);
+    });
   });
 
   httpServer.listen(port, () => {
