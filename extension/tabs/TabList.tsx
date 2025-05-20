@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { sendToBackground } from '@plasmohq/messaging';
 import { storageGet, storageSet } from "../functions/storage"; // Import new storage functions
-import { logInfo, logError } from "../functions/logger";
+import { logInfo, logError, logWarn } from "../functions/logger";
 import { APPLICATION_TABS_KEY } from '../background/tabHistory';
 
 import { FiExternalLink, FiRefreshCw, FiTrash2, FiSave, FiXCircle } from 'react-icons/fi';
@@ -74,11 +74,21 @@ const TabList: React.FC = () => {
 
   // Get the extension's tab ID when the component mounts
   useEffect(() => {
-    chrome.tabs.getCurrent(tab => {
+    chrome.tabs.getCurrent(async tab => {
       if (tab?.id) {
         setExtensionTabId(tab.id);
       } else {
-        logError("TabList", "Could not get current tab ID. Switch-back may not work.");
+        logWarn("TabList", "chrome.tabs.getCurrent failed, falling back to background message");
+        try {
+          const response = await sendToBackground<{ tabId: number }>({ name: "getTabId" });
+          if (response?.tabId && response.tabId > 0) {
+            setExtensionTabId(response.tabId);
+            return;
+          }
+          logError("TabList", "Background getTabId returned invalid id", { response });
+        } catch (err) {
+          logError("TabList", "Error fetching tab ID from background", { error: err });
+        }
       }
     });
     // Cleanup timer on unmount
