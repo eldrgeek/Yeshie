@@ -1,6 +1,12 @@
 // observer.ts
 import { logInfo } from "./logger";
 
+// Determine if DOM APIs are available (e.g. content script context)
+const hasDom =
+  typeof window !== "undefined" &&
+  typeof document !== "undefined" &&
+  typeof MutationObserver !== "undefined";
+
 type ObserverCallback = (event: ObserverEvent) => void;
 
 type ObserverEventType = 'dom' | 'location' | 'focus' | 'elementFocus' | 'keydown' | 'keyup' | 'click' | 'mousemove';
@@ -259,7 +265,25 @@ class PageObserver {
 }
 
 // Create and export a singleton instance
-export const pageObserver = new PageObserver();
+let pageObserver: PageObserver;
+
+if (hasDom) {
+  pageObserver = new PageObserver();
+} else {
+  // Provide a no-op implementation when DOM APIs are unavailable (e.g. service worker)
+  pageObserver = {
+    start: () => {},
+    stop: () => {},
+    pause: () => {},
+    resume: () => {},
+    request: () => [],
+    registerCallback: () => {},
+    unregisterCallback: () => {},
+    clear: () => {}
+  } as unknown as PageObserver;
+}
+
+export { pageObserver };
 
 // Export the types for use in other files
 export type { ObserverCallback, ObserverEvent, ObserverEventType };
