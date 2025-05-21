@@ -15,3 +15,8 @@ Additional task stubs have been created under the `tasks/` directory for upcomin
 - Task D – Background command handler and UI refresh.
 - Task E – Expanded end-to-end tests.
 - Task F – Bug fixes and refactoring cleanup.
+- Task G – Dialog Speech Input integration.
+- Task H – Singleton Speech Input service in the background script.
+- Task I – Always-listening SpeechInput with transcription toggle.
+- Task J – Comprehensive unit tests for SpeechInput.
+- Task K – Written test specification for SpeechInput.
