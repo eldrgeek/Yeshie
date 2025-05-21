@@ -8,6 +8,7 @@
     "clipboardRead",
     "scripting",
     "tabs",
+    "windows",
     "activeTab",
     "storage",
     "notifications",
