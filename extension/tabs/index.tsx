@@ -1020,7 +1020,8 @@ function TabsIndex() {
               className={`toast-notification ${lastErrorDetails ? 'error-toast' : ''}`}
               onClick={lastErrorDetails ? copyErrorDetailsToClipboard : undefined}
               style={lastErrorDetails ? { cursor: 'pointer' } : {}}
-              title={lastErrorDetails ? "Click to copy detailed error information" : ""}
+              data-tooltip={lastErrorDetails ? "Click to copy detailed error information" : undefined}
+              aria-label={lastErrorDetails ? "Click to copy detailed error information" : undefined}
           >
               {legacyToastMessage}
           </div>
@@ -1045,7 +1046,7 @@ function TabsIndex() {
                  Reload #{reloadCount}
              </span>
              {tabPaneFocusedTime && (
-                 <span style={{ fontSize: '0.8em', color: '#888', marginTop: '2px' }} title={new Date(tabPaneFocusedTime).toISOString()}>
+                 <span style={{ fontSize: '0.8em', color: '#888', marginTop: '2px' }} data-tooltip={new Date(tabPaneFocusedTime).toISOString()}>
                      Focused: {formatTimestamp(tabPaneFocusedTime)}
                  </span>
              )}
@@ -1060,7 +1061,8 @@ function TabsIndex() {
                  <span
                    onClick={returnToLastTab}
                    className="last-tab-link"
-                   title={`${lastTabInfo.title}\n${lastTabInfo.url}`}
+                   data-tooltip={`${lastTabInfo.title}\n${lastTabInfo.url}`}
+                   aria-label={`${lastTabInfo.title}\n${lastTabInfo.url}`}
                    style={{
                       cursor: 'pointer',
                       display: 'inline-block',
@@ -1076,7 +1078,8 @@ function TabsIndex() {
                  {/* Updated Timestamp Below Link */}
                  <span
                     className="timestamp"
-                    title={new Date(lastTabInfo.timestamp).toISOString()}
+                    data-tooltip={new Date(lastTabInfo.timestamp).toISOString()}
+                    aria-label={new Date(lastTabInfo.timestamp).toISOString()}
                     style={{ fontSize: '0.8em', color: '#888', marginTop: '2px' }}
                   >
                    Updated: {formatTimestamp(lastTabInfo.timestamp)}
@@ -1092,7 +1095,7 @@ function TabsIndex() {
             {/* API Key Section */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                  <span>OpenAI API Key: {hasApiKey ? 'Set ✅' : 'Not Set ❌'}</span>
-                 <button onClick={handleOpenApiKeyModal} className="settings-button" title={hasApiKey ? "Replace API Key" : "Set API Key"}>
+                 <button onClick={handleOpenApiKeyModal} className="settings-button" data-tooltip={hasApiKey ? "Replace API Key" : "Set API Key"} aria-label={hasApiKey ? "Replace API Key" : "Set API Key"}>
                      🔑
                  </button>
              </div>
@@ -1103,7 +1106,8 @@ function TabsIndex() {
                 <button
                   className="icon-button"
                   onClick={handleDownloadResults}
-                  title="Download Results"
+                  data-tooltip="Download Results"
+                  aria-label="Download Results"
                   style={{ padding: '5px' }}
                 >
                   <DownloadIcon />
@@ -1111,7 +1115,8 @@ function TabsIndex() {
                 <button
                   className="icon-button report-icon-button"
                   onClick={() => setShowReportDialog(true)}
-                  title="Report Bug or Feature"
+                  data-tooltip="Report Bug or Feature"
+                  aria-label="Report Bug or Feature"
                   style={{ padding: '5px' }}
                 >
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1155,7 +1160,8 @@ function TabsIndex() {
               id="log-viewer-button"
               className="icon-button log-viewer-button"
               onClick={() => setShowLogViewer(true)}
-              title="View Session Logs"
+              data-tooltip="View Session Logs"
+              aria-label="View Session Logs"
               style={{ padding: '5px' }}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -1172,7 +1178,8 @@ function TabsIndex() {
                 onClick={handleRecordButtonClick}
                 className={`icon-button record-button ${isRecording ? 'recording' : ''}`}
                 disabled={isProcessingRecording}
-                title={isRecording ? "Stop recording user actions" : "Start recording a new test task"}
+                data-tooltip={isRecording ? "Stop recording user actions" : "Start recording a new test task"}
+                aria-label={isRecording ? "Stop recording user actions" : "Start recording a new test task"}
                 style={{ padding: '5px' }}
             >
                 <RecordIcon recording={isRecording} />
@@ -1191,7 +1198,8 @@ function TabsIndex() {
           <label 
             htmlFor="runScriptOnReloadCheckbox" 
             style={{ fontSize: '0.9em', cursor: 'pointer' }}
-            title="If checked, instructions.json will run automatically when this page loads/reloads"
+            data-tooltip="If checked, instructions.json will run automatically when this page loads/reloads"
+            aria-label="If checked, instructions.json will run automatically when this page loads/reloads"
           >
             Auto-run Script
           </label>
@@ -1222,10 +1230,11 @@ function TabsIndex() {
             onChange={handleRunScriptOnReloadChange}
             style={{ transform: 'scale(1.2)' }}
           />
-          <label 
-            htmlFor="runScriptOnReloadCheckbox" 
+          <label
+            htmlFor="runScriptOnReloadCheckbox"
             style={{ fontSize: '0.9em', cursor: 'pointer' }}
-            title="If checked, instructions.json will run automatically when this page loads/reloads"
+            data-tooltip="If checked, instructions.json will run automatically when this page loads/reloads"
+            aria-label="If checked, instructions.json will run automatically when this page loads/reloads"
           >
             Auto-run Script
           </label>
@@ -1235,7 +1244,8 @@ function TabsIndex() {
         <button
           className="icon-button"
           onClick={handleDownloadResults}
-          title="Download Last Test Results (from results.json)"
+          data-tooltip="Download Last Test Results (from results.json)"
+          aria-label="Download Last Test Results (from results.json)"
           style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
         >
           <DownloadIcon /> Results
@@ -1245,7 +1255,8 @@ function TabsIndex() {
         <button
           className="icon-button"
           onClick={handleArchiveTest} // This function will be created next
-          title="Archive the current instructions.json to local storage"
+          data-tooltip="Archive the current instructions.json to local storage"
+          aria-label="Archive the current instructions.json to local storage"
           style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> 
@@ -1256,7 +1267,8 @@ function TabsIndex() {
           <button
             className="icon-button"
             onClick={() => setShowTestViewerDialog(true)}
-            title="View and manage archived tests"
+            data-tooltip="View and manage archived tests"
+            aria-label="View and manage archived tests"
             style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>

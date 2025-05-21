@@ -482,10 +482,10 @@ const TabList: React.FC = () => {
               >
                   {windowDisplayName}
                   <span className="window-actions">
-                    <button className="tab-button" title="Save window" onClick={() => handleSaveWindow(windowId)}>
+                    <button className="tab-button" data-tooltip="Save window" aria-label="Save window" onClick={() => handleSaveWindow(windowId)}>
                       <FiSave />
                     </button>
-                    <button className="tab-button" title="Close window" onClick={() => handleCloseWindow(windowId)}>
+                    <button className="tab-button" data-tooltip="Close window" aria-label="Close window" onClick={() => handleCloseWindow(windowId)}>
                       <FiXCircle />
                     </button>
                   </span>
@@ -497,14 +497,15 @@ const TabList: React.FC = () => {
                             ? tabInputValues[tab.url] 
                             : (customTabNames[tab.url] || tab.title || tab.url || 'Unknown Tab');
                       return (
-                        <li key={tab.id} title={`ID: ${tab.id}\nIndex: ${tab.index}\nURL: ${tab.url}`} className="tab-item">
+                        <li key={tab.id} data-tooltip={`ID: ${tab.id}\nIndex: ${tab.index}\nURL: ${tab.url}`} className="tab-item">
                           {/* Use index within the window group for display number */}
                           <span className="tab-number">{`${index + 1}:`}</span> 
                           <button
                               id={`visit-return-${index}`}
                               className="tab-button visit-return"
                               onClick={() => handleVisitReturn(tab.id)}
-                              title="Visit & Return"
+                              data-tooltip="Visit & Return"
+                              aria-label="Visit & Return"
                               disabled={tab.id === -1}
                           >
                               <FiRefreshCw />
@@ -514,7 +515,8 @@ const TabList: React.FC = () => {
                               id={`visit-stay-${index}`}
                               className="tab-button visit-stay"
                               onClick={() => handleVisitStay(tab.id)}
-                              title="Visit & Stay"
+                              data-tooltip="Visit & Stay"
+                              aria-label="Visit & Stay"
                               disabled={tab.id === -1}
                           >
                               <FiExternalLink />
@@ -524,8 +526,8 @@ const TabList: React.FC = () => {
                               id={`close-${tab.id}`}
                               className="tab-button"
                               onClick={() => handleCloseTab(windowId, tab.id)}
-
-                              title="Close Tab"
+                              data-tooltip="Close Tab"
+                              aria-label="Close Tab"
                               disabled={tab.id === -1}
                           >
                               <FiTrash2 />
@@ -534,8 +536,8 @@ const TabList: React.FC = () => {
                               id={`save-close-${tab.id}`}
                               className="tab-button"
                               onClick={() => handleSaveAndCloseTab(windowId, tab)}
-
-                              title="Save and Close Tab"
+                              data-tooltip="Save and Close Tab"
+                              aria-label="Save and Close Tab"
                               disabled={tab.id === -1}
                           >
                               <FiSave />
@@ -545,7 +547,8 @@ const TabList: React.FC = () => {
                               className="tab-button analyze" 
                               onClick={() => handleAnalyze(tab.id, tab.url)}
                               disabled={isRestrictedUrl(tab.url) || (!tab.title && !tab.url) || tab.id === -1}
-                              title={isRestrictedUrl(tab.url) ? "Cannot analyze restricted page" : "Analyze Page (Copy HTML)"}
+                              data-tooltip={isRestrictedUrl(tab.url) ? "Cannot analyze restricted page" : "Analyze Page (Copy HTML)"}
+                              aria-label={isRestrictedUrl(tab.url) ? "Cannot analyze restricted page" : "Analyze Page (Copy HTML)"}
                           >
                               Analyze
                           </button>

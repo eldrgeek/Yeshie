@@ -148,19 +148,21 @@ function LogViewer({ isOpen, onClose, showToast }: LogViewerProps) {
           )}
         </div>
         <div className="log-viewer-actions">
-          <button 
+          <button
               onClick={handleCopyLogs}
               className="button-copy"
               disabled={loading || logs.length === 0}
-              title="Copy currently displayed logs to clipboard"
+              data-tooltip="Copy currently displayed logs to clipboard"
+              aria-label="Copy currently displayed logs to clipboard"
           >
             Copy Logs
           </button>
-          <button 
-              onClick={handleClearLogs} 
-              className="button-secondary" 
+          <button
+              onClick={handleClearLogs}
+              className="button-secondary"
               disabled={loading || logs.length === 0}
-              title="Clear logs from storage for this session"
+              data-tooltip="Clear logs from storage for this session"
+              aria-label="Clear logs from storage for this session"
           >
             Clear Logs
           </button>
