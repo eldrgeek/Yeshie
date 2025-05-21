@@ -14,6 +14,13 @@ let socket: Socket | null = null;
 let profileName = "unknown";
 const profiles: Record<string, Record<string, TabInfo[]>> = {};
 
+function broadcastProfiles() {
+  chrome.runtime.sendMessage({
+    type: "PROFILE_TABS_UPDATE",
+    profiles: { ...profiles }
+  });
+}
+
 export async function initProfileConnector() {
   profileName = await getProfileName();
   try {
@@ -24,6 +31,7 @@ export async function initProfileConnector() {
     });
     socket.on("profile:tabs", (data: ProfileTabs) => {
       profiles[data.profile] = data.windows;
+      broadcastProfiles();
     });
   } catch (error) {
     logError("ProfileConnector", "Failed to connect to MCP", { error });
@@ -50,8 +58,14 @@ export async function sendTabsUpdate() {
   if (!socket || !socket.connected) return;
   const windows = await storageGet<Record<string, TabInfo[]>>(APPLICATION_TABS_KEY) || {};
   socket.emit("profile:tabs", { profile: profileName, windows } as ProfileTabs);
+  profiles[profileName] = windows;
+  broadcastProfiles();
 }
 
 export function getProfiles(): Record<string, Record<string, TabInfo[]>> {
   return { ...profiles };
+}
+
+export function getCurrentProfileName(): string {
+  return profileName;
 }
