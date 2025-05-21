@@ -72,6 +72,26 @@ const TabList: React.FC = () => {
   const [customWindowNames, setCustomWindowNames] = useState<WindowNameMap>({});
   const [windowInputValues, setWindowInputValues] = useState<{[windowId: string]: string}>({});
 
+  // --- Cross Profile State ---
+  const [profileName, setProfileName] = useState<string>("unknown");
+  const [otherProfiles, setOtherProfiles] = useState<Record<string, Record<string, StoredApplicationTab[]>>>({});
+  const [collapsedProfiles, setCollapsedProfiles] = useState<Record<string, boolean>>({});
+  const [collapsedWindows, setCollapsedWindows] = useState<Record<string, boolean>>({});
+
+  // Apply profile data to local state
+  const applyProfileData = useCallback(
+    (
+      profilesMap: Record<string, Record<string, StoredApplicationTab[]>>,
+      current: string
+    ) => {
+      setGroupedTabs(profilesMap[current] || {});
+      const others = { ...profilesMap };
+      delete others[current];
+      setOtherProfiles(others);
+    },
+    []
+  );
+
   // Get the extension's tab ID when the component mounts
   useEffect(() => {
     chrome.tabs.getCurrent(async tab => {
@@ -98,6 +118,37 @@ const TabList: React.FC = () => {
       }
     }
   }, []);
+
+  // Fetch profile info and listen for cross-profile updates
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const nameRes = await sendToBackground<{}, { profile: string }>({ name: "getProfileName" })
+        if (nameRes?.profile) setProfileName(nameRes.profile)
+      } catch (err) {
+        logError("TabList", "Failed to get profile name", { error: err })
+      }
+
+      try {
+        const profRes = await sendToBackground<{}, { profiles: Record<string, Record<string, StoredApplicationTab[]>> }>({ name: "getProfiles" })
+        if (profRes?.profiles) applyProfileData(profRes.profiles, nameRes?.profile || profileName)
+      } catch (err) {
+        logError("TabList", "Failed to get profiles", { error: err })
+      }
+    }
+
+    const handleMsg = (msg: any) => {
+      if (msg.type === "PROFILE_TABS_UPDATE" && msg.profiles) {
+        applyProfileData(msg.profiles as Record<string, Record<string, StoredApplicationTab[]>>, profileName)
+      }
+    }
+
+    fetchData()
+    chrome.runtime.onMessage.addListener(handleMsg)
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleMsg)
+    }
+  }, [profileName, applyProfileData])
 
   // Load custom names from storage on mount
   useEffect(() => {
@@ -415,6 +466,16 @@ const TabList: React.FC = () => {
     }
   };
 
+  // --- Collapse Helpers ---
+  const toggleProfile = (prof: string) => {
+    setCollapsedProfiles(prev => ({ ...prev, [prof]: !prev[prof] }));
+  };
+
+  const toggleWindow = (prof: string, windowId: string) => {
+    const key = `${prof}-${windowId}`;
+    setCollapsedWindows(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
   // --- Event Handlers for Editable Names ---
   
   // TAB Name Handlers
@@ -464,8 +525,10 @@ const TabList: React.FC = () => {
       ) : (
         windowIds.map(windowId => {
           const tabsInWindow = groupedTabs[windowId];
-          const windowDisplayName = windowInputValues[windowId] !== undefined 
-                ? windowInputValues[windowId] 
+          const windowKey = `${profileName}-${windowId}`;
+          const collapsed = collapsedWindows[windowKey];
+          const windowDisplayName = windowInputValues[windowId] !== undefined
+                ? windowInputValues[windowId]
                 : (customWindowNames[windowId] || `Window ${windowId}`);
           
           return (
@@ -475,12 +538,12 @@ const TabList: React.FC = () => {
                 className="window-header"
                 contentEditable={true}
                 suppressContentEditableWarning={true}
-                onClick={(e) => e.stopPropagation()}
+                onClick={() => toggleWindow(profileName, windowId)}
                 onKeyDown={(e) => handleWindowNameKeyDown(e, windowId)}
                 onBlur={(e) => handleWindowNameBlur(e, windowId)}
                 key={`${windowId}-header`}
               >
-                  {windowDisplayName}
+                  {windowDisplayName} <span className="collapse-indicator">{collapsed ? '+' : '-'}</span>
                   <span className="window-actions">
                     <button className="tab-button" title="Save window" onClick={() => handleSaveWindow(windowId)}>
                       <FiSave />
@@ -490,8 +553,8 @@ const TabList: React.FC = () => {
                     </button>
                   </span>
               </h3>
-              {tabsInWindow && tabsInWindow.length > 0 ? (
-                  <ul className="tablist-ul"> 
+              {!collapsed && tabsInWindow && tabsInWindow.length > 0 ? (
+                  <ul className="tablist-ul">
                     {tabsInWindow.map((tab, index) => {
                        const tabDisplayName = tabInputValues[tab.url] !== undefined 
                             ? tabInputValues[tab.url] 
@@ -565,15 +628,47 @@ const TabList: React.FC = () => {
                       )
                     })}
                   </ul>
-              ) : (
-                  <p>No tabs found in this window.</p> // Should ideally not happen if window has ID
-              )}
+              ) : !collapsed ? (
+                  <p>No tabs found in this window.</p>
+              ) : null}
             </div>
           )
         })
-      )}
-    </div>
-  );
+        )}
+        {Object.entries(otherProfiles).map(([prof, windows]) => {
+          const collapsedP = collapsedProfiles[prof];
+          return (
+            <div key={prof} className="profile-group">
+              <h2 className="profile-header" onClick={() => toggleProfile(prof)}>
+                {prof} <span className="collapse-indicator">{collapsedP ? '+' : '-'}</span>
+              </h2>
+              {!collapsedP && Object.keys(windows).map(wid => {
+                const wTabs = windows[wid];
+                const wKey = `${prof}-${wid}`;
+                const winCollapsed = collapsedWindows[wKey];
+                return (
+                  <div key={wKey} className="window-group">
+                    <h3 className="window-header" onClick={() => toggleWindow(prof, wid)}>
+                      Window {wid} <span className="collapse-indicator">{winCollapsed ? '+' : '-'}</span>
+                    </h3>
+                    {!winCollapsed && (
+                      <ul className="tablist-ul">
+                        {wTabs.map((t, i) => (
+                          <li key={t.id} className="tab-item">
+                            <span className="tab-number">{`${i + 1}:`}</span>
+                            <span className="tab-name">{t.title || t.url || 'Unknown Tab'}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    );
 };
 
 export default TabList; 
