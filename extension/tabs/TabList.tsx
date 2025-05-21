@@ -72,6 +72,12 @@ const TabList: React.FC = () => {
   const [customWindowNames, setCustomWindowNames] = useState<WindowNameMap>({});
   const [windowInputValues, setWindowInputValues] = useState<{[windowId: string]: string}>({});
 
+  // Profile information
+  const [profileName, setProfileName] = useState<string>('unknown');
+  const [otherProfiles, setOtherProfiles] = useState<Record<string, Record<string, StoredApplicationTab[]>>>({});
+  const [collapsedProfiles, setCollapsedProfiles] = useState<Record<string, boolean>>({});
+  const [collapsedWindows, setCollapsedWindows] = useState<Record<string, boolean>>({});
+
   // Get the extension's tab ID when the component mounts
   useEffect(() => {
     chrome.tabs.getCurrent(async tab => {
@@ -102,7 +108,7 @@ const TabList: React.FC = () => {
   // Load custom names from storage on mount
   useEffect(() => {
       // Load Tab Names
-      storageGet<CustomNameMap>(TAB_NAMES_STORAGE_KEY).then(loadedNames => { 
+      storageGet<CustomNameMap>(TAB_NAMES_STORAGE_KEY).then(loadedNames => {
           setCustomTabNames(loadedNames || {});
           setTabInputValues(loadedNames || {}); 
           logInfo('TabList', 'storage_get: TAB_NAMES_STORAGE_KEY', { key: TAB_NAMES_STORAGE_KEY, found: !!loadedNames, count: loadedNames ? Object.keys(loadedNames).length : 0 });
@@ -122,10 +128,45 @@ const TabList: React.FC = () => {
       }).catch(error => {
           logError("TabList", "Error loading custom window names", { error });
           logError('TabList', 'storage_error: loadCustomWindowNames', { operation: 'loadCustomWindowNames', key: WINDOW_NAMES_STORAGE_KEY, error: String(error) });
-          setCustomWindowNames({}); // Default to empty on error
+      setCustomWindowNames({}); // Default to empty on error
       });
 
   }, []);
+
+  // Load profile info and listen for cross profile updates
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      try {
+        const profResp = await sendToBackground<{ profile: string }>({ name: "getProfileName" });
+        if (profResp?.profile) {
+          setProfileName(profResp.profile);
+        }
+        const profilesResp = await sendToBackground<{ profiles: Record<string, Record<string, StoredApplicationTab[]>> }>({ name: "getProfiles" });
+        if (profilesResp?.profiles) {
+          const others = { ...profilesResp.profiles };
+          delete others[profResp?.profile || profileName];
+          setOtherProfiles(others);
+        }
+      } catch (err) {
+        logError("TabList", "Failed fetching profiles", { error: err });
+      }
+    };
+
+    fetchProfiles();
+
+    const handleMessage = (msg: any) => {
+      if (msg && msg.type === "PROFILE_TABS_UPDATE" && msg.profiles) {
+        const others = { ...msg.profiles };
+        delete others[profileName];
+        setOtherProfiles(others);
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleMessage);
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleMessage);
+    };
+  }, [profileName]);
 
   useEffect(() => {
     const loadGroupedTabs = async () => {
@@ -413,6 +454,16 @@ const TabList: React.FC = () => {
     } catch (error) {
       logError('TabList', `Failed to save window ${windowId}`, { error });
     }
+  };
+
+  // --- Collapsible groups helpers ---
+  const toggleProfile = (prof: string) => {
+    setCollapsedProfiles(prev => ({ ...prev, [prof]: !prev[prof] }));
+  };
+
+  const toggleWindow = (prof: string, windowId: string) => {
+    const key = `${prof}-${windowId}`;
+    setCollapsedWindows(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   // --- Event Handlers for Editable Names ---
