@@ -128,21 +128,35 @@ class YeshieExtension:
         self.messages = []
         
     async def execute_command(self, command: str) -> str:
-        """Execute a command through the Yeshie extension."""
-        # Wait for Stepper to be available
+        """Execute a command through the Yeshie extension.
+
+        On failure the command result is printed and a screenshot is taken
+        for easier debugging.
+        """
         await self.page.wait_for_function('window.Stepper !== undefined')
-        
-        # Inject the command into the page's JavaScript context
-        result = await self.page.evaluate(f'''
-            async () => {{
-                try {{
-                    const result = await window.Stepper('{command}');
-                    return result;
-                }} catch (error) {{
-                    return `Error: ${{error.message}}`;
+
+        try:
+            result = await self.page.evaluate(
+                f'''
+                async () => {{
+                    try {{
+                        const r = await window.Stepper('{command}');
+                        return r;
+                    }} catch (err) {{
+                        return `Error: ${{err.message}}`;
+                    }}
                 }}
-            }}
-        ''')
+                '''
+            )
+        except Exception as exc:
+            print(f"Exception while executing '{command}': {exc}")
+            await self.page.screenshot(path=f"command_error_{command.replace(' ', '_')}.png")
+            raise
+
+        if isinstance(result, str) and result.startswith("Error"):
+            print(f"Command '{command}' returned error: {result}")
+            await self.page.screenshot(path=f"command_error_{command.replace(' ', '_')}.png")
+
         return result
         
     async def get_messages(self) -> List[Dict[str, Any]]:
@@ -169,4 +183,14 @@ async def yeshie_extension(page) -> YeshieExtension:
         await p.goto('https://github.com')
         # Wait for the extension to be ready
         await p.wait_for_selector('#plasmo-google-sidebar')
-        return extension 
+        return extension
+
+
+@pytest.fixture(scope="session")
+def github_credentials() -> Dict[str, str]:
+    """Provide GitHub credentials from environment variables."""
+    username = os.environ.get("GITHUB_USERNAME")
+    password = os.environ.get("GITHUB_PASSWORD")
+    if not username or not password:
+        pytest.skip("GitHub credentials not provided via GITHUB_USERNAME/GITHUB_PASSWORD")
+    return {"username": username, "password": password}

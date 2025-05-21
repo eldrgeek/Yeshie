@@ -7,6 +7,7 @@ Create comprehensive unit tests covering SpeechInput behavior, including buffer 
 - [ ] Tests verify text is appended correctly when the cursor is at the end.
 - [ ] Tests verify insertion at an arbitrary cursor position preserves existing text.
 - [ ] Tests cover command interpretation with timing-sensitive phrases, e.g. "literally period" should output just "period" while "literally" *pause* "period" yields "literally".
+- [ ] Tests cover command interpretation such as "literally period" vs pauses around "literally".
 - [ ] Transcription toggle state is respected during tests.
 - [ ] All tests run via `pnpm test` and pass in CI.
 
