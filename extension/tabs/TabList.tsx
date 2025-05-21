@@ -464,8 +464,10 @@ const TabList: React.FC = () => {
       ) : (
         windowIds.map(windowId => {
           const tabsInWindow = groupedTabs[windowId];
-          const windowDisplayName = windowInputValues[windowId] !== undefined 
-                ? windowInputValues[windowId] 
+          const windowKey = `${profileName}-${windowId}`;
+          const collapsed = collapsedWindows[windowKey];
+          const windowDisplayName = windowInputValues[windowId] !== undefined
+                ? windowInputValues[windowId]
                 : (customWindowNames[windowId] || `Window ${windowId}`);
           
           return (
@@ -475,12 +477,12 @@ const TabList: React.FC = () => {
                 className="window-header"
                 contentEditable={true}
                 suppressContentEditableWarning={true}
-                onClick={(e) => e.stopPropagation()}
+                onClick={() => toggleWindow(profileName, windowId)}
                 onKeyDown={(e) => handleWindowNameKeyDown(e, windowId)}
                 onBlur={(e) => handleWindowNameBlur(e, windowId)}
                 key={`${windowId}-header`}
               >
-                  {windowDisplayName}
+                  {windowDisplayName} <span className="collapse-indicator">{collapsed ? '+' : '-'}</span>
                   <span className="window-actions">
                     <button className="tab-button" title="Save window" onClick={() => handleSaveWindow(windowId)}>
                       <FiSave />
@@ -490,8 +492,8 @@ const TabList: React.FC = () => {
                     </button>
                   </span>
               </h3>
-              {tabsInWindow && tabsInWindow.length > 0 ? (
-                  <ul className="tablist-ul"> 
+              {!collapsed && tabsInWindow && tabsInWindow.length > 0 ? (
+                  <ul className="tablist-ul">
                     {tabsInWindow.map((tab, index) => {
                        const tabDisplayName = tabInputValues[tab.url] !== undefined 
                             ? tabInputValues[tab.url] 
@@ -565,15 +567,47 @@ const TabList: React.FC = () => {
                       )
                     })}
                   </ul>
-              ) : (
-                  <p>No tabs found in this window.</p> // Should ideally not happen if window has ID
-              )}
+              ) : !collapsed ? (
+                  <p>No tabs found in this window.</p>
+              ) : null}
             </div>
           )
         })
-      )}
-    </div>
-  );
+        )}
+        {Object.entries(otherProfiles).map(([prof, windows]) => {
+          const collapsedP = collapsedProfiles[prof];
+          return (
+            <div key={prof} className="profile-group">
+              <h2 className="profile-header" onClick={() => toggleProfile(prof)}>
+                {prof} <span className="collapse-indicator">{collapsedP ? '+' : '-'}</span>
+              </h2>
+              {!collapsedP && Object.keys(windows).map(wid => {
+                const wTabs = windows[wid];
+                const wKey = `${prof}-${wid}`;
+                const winCollapsed = collapsedWindows[wKey];
+                return (
+                  <div key={wKey} className="window-group">
+                    <h3 className="window-header" onClick={() => toggleWindow(prof, wid)}>
+                      Window {wid} <span className="collapse-indicator">{winCollapsed ? '+' : '-'}</span>
+                    </h3>
+                    {!winCollapsed && (
+                      <ul className="tablist-ul">
+                        {wTabs.map((t, i) => (
+                          <li key={t.id} className="tab-item">
+                            <span className="tab-number">{`${i + 1}:`}</span>
+                            <span className="tab-name">{t.title || t.url || 'Unknown Tab'}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    );
 };
 
 export default TabList; 
