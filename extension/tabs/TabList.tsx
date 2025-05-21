@@ -72,11 +72,27 @@ const TabList: React.FC = () => {
   const [customWindowNames, setCustomWindowNames] = useState<WindowNameMap>({});
   const [windowInputValues, setWindowInputValues] = useState<{[windowId: string]: string}>({});
 
-  // Profile information
-  const [profileName, setProfileName] = useState<string>('unknown');
+  // --- Cross Profile State ---
+  const [profileName, setProfileName] = useState<string>("unknown");
+
   const [otherProfiles, setOtherProfiles] = useState<Record<string, Record<string, StoredApplicationTab[]>>>({});
   const [collapsedProfiles, setCollapsedProfiles] = useState<Record<string, boolean>>({});
   const [collapsedWindows, setCollapsedWindows] = useState<Record<string, boolean>>({});
+
+  // Apply profile data to local state
+  const applyProfileData = useCallback(
+    (
+      profilesMap: Record<string, Record<string, StoredApplicationTab[]>>,
+      current: string
+    ) => {
+      setGroupedTabs(profilesMap[current] || {});
+      const others = { ...profilesMap };
+      delete others[current];
+      setOtherProfiles(others);
+    },
+    []
+  );
+
 
   // Get the extension's tab ID when the component mounts
   useEffect(() => {
@@ -104,6 +120,37 @@ const TabList: React.FC = () => {
       }
     }
   }, []);
+
+  // Fetch profile info and listen for cross-profile updates
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const nameRes = await sendToBackground<{}, { profile: string }>({ name: "getProfileName" })
+        if (nameRes?.profile) setProfileName(nameRes.profile)
+      } catch (err) {
+        logError("TabList", "Failed to get profile name", { error: err })
+      }
+
+      try {
+        const profRes = await sendToBackground<{}, { profiles: Record<string, Record<string, StoredApplicationTab[]>> }>({ name: "getProfiles" })
+        if (profRes?.profiles) applyProfileData(profRes.profiles, nameRes?.profile || profileName)
+      } catch (err) {
+        logError("TabList", "Failed to get profiles", { error: err })
+      }
+    }
+
+    const handleMsg = (msg: any) => {
+      if (msg.type === "PROFILE_TABS_UPDATE" && msg.profiles) {
+        applyProfileData(msg.profiles as Record<string, Record<string, StoredApplicationTab[]>>, profileName)
+      }
+    }
+
+    fetchData()
+    chrome.runtime.onMessage.addListener(handleMsg)
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleMsg)
+    }
+  }, [profileName, applyProfileData])
 
   // Load custom names from storage on mount
   useEffect(() => {
@@ -456,7 +503,8 @@ const TabList: React.FC = () => {
     }
   };
 
-  // --- Collapsible groups helpers ---
+  // --- Collapse Helpers ---
+
   const toggleProfile = (prof: string) => {
     setCollapsedProfiles(prev => ({ ...prev, [prof]: !prev[prof] }));
   };
