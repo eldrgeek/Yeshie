@@ -38,12 +38,16 @@ Yeshie AI is a collaborative system that integrates a Chrome extension, a React-
    export PATH=$PATH:$(pwd)/scripts
    ```
 
-3. Run the installation script:
+3. (Optional) For Codex sandboxes, run the provided setup script and pass your
+   OpenAI key:
+   ```bash
+   ./scripts/setup_codex_env.sh YOUR_OPENAI_API_KEY
+   ```
+
+4. Run the installation script:
    ```bash
    install
    ```
-
-4. Update the `OPENAI_API_KEY` in the `.env` file with your actual API key.
 
 5. Set up the Chrome extension:
    - Open Google Chrome and navigate to `chrome://extensions/`
@@ -52,7 +56,7 @@ Yeshie AI is a collaborative system that integrates a Chrome extension, a React-
 
 ## Configuration
 
-The installation script creates a `.env` file in the root directory with the following variables:
+The installation script creates a `.env` file in the root directory with the following variables. If you used `setup_codex_env.sh`, the API key will already be populated; otherwise edit the file and set your key manually:
 ```
 OPENAI_API_KEY=your_openai_api_key
 PORT=3001
@@ -160,7 +164,7 @@ Each major component has standalone tests that can be run independently for deve
    - VectorStore tests (`test_vectorstore.py`)
 
 Make sure to:
-- Set up your `.env` file with a valid `OPENAI_API_KEY`
+- Ensure your `.env` file contains a valid `OPENAI_API_KEY` (use `setup_codex_env.sh` or edit manually)
 - Run tests in order (CodeStore → VectorStore → LLMServer)
 - Check the generated `vector_stores` directory for stored indices
 - Review the logs in the `logs` directory for detailed output
