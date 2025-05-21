@@ -6,7 +6,7 @@ Write a detailed test specification covering manual and automated scenarios for 
 ## Acceptance Criteria
 - [ ] Document all command phrases and expected text output.
 - [ ] Include scenarios for text append vs insertion at the cursor.
-- [ ] Describe timing-sensitive cases such as pauses after "literally".
+- [ ] Describe timing-sensitive cases such as pauses after "literally". Include specific examples like "literally period" vs "literally" *pause* "period".
 - [ ] Outline setup steps and any mocks needed for automated tests.
 - [ ] Spec lives under `docs` or `LLMNotes/testing`.
 
