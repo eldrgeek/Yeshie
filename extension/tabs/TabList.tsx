@@ -74,6 +74,7 @@ const TabList: React.FC = () => {
 
   // --- Cross Profile State ---
   const [profileName, setProfileName] = useState<string>("unknown");
+
   const [otherProfiles, setOtherProfiles] = useState<Record<string, Record<string, StoredApplicationTab[]>>>({});
   const [collapsedProfiles, setCollapsedProfiles] = useState<Record<string, boolean>>({});
   const [collapsedWindows, setCollapsedWindows] = useState<Record<string, boolean>>({});
@@ -91,6 +92,7 @@ const TabList: React.FC = () => {
     },
     []
   );
+
 
   // Get the extension's tab ID when the component mounts
   useEffect(() => {
@@ -153,7 +155,7 @@ const TabList: React.FC = () => {
   // Load custom names from storage on mount
   useEffect(() => {
       // Load Tab Names
-      storageGet<CustomNameMap>(TAB_NAMES_STORAGE_KEY).then(loadedNames => { 
+      storageGet<CustomNameMap>(TAB_NAMES_STORAGE_KEY).then(loadedNames => {
           setCustomTabNames(loadedNames || {});
           setTabInputValues(loadedNames || {}); 
           logInfo('TabList', 'storage_get: TAB_NAMES_STORAGE_KEY', { key: TAB_NAMES_STORAGE_KEY, found: !!loadedNames, count: loadedNames ? Object.keys(loadedNames).length : 0 });
@@ -173,10 +175,45 @@ const TabList: React.FC = () => {
       }).catch(error => {
           logError("TabList", "Error loading custom window names", { error });
           logError('TabList', 'storage_error: loadCustomWindowNames', { operation: 'loadCustomWindowNames', key: WINDOW_NAMES_STORAGE_KEY, error: String(error) });
-          setCustomWindowNames({}); // Default to empty on error
+      setCustomWindowNames({}); // Default to empty on error
       });
 
   }, []);
+
+  // Load profile info and listen for cross profile updates
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      try {
+        const profResp = await sendToBackground<{ profile: string }>({ name: "getProfileName" });
+        if (profResp?.profile) {
+          setProfileName(profResp.profile);
+        }
+        const profilesResp = await sendToBackground<{ profiles: Record<string, Record<string, StoredApplicationTab[]>> }>({ name: "getProfiles" });
+        if (profilesResp?.profiles) {
+          const others = { ...profilesResp.profiles };
+          delete others[profResp?.profile || profileName];
+          setOtherProfiles(others);
+        }
+      } catch (err) {
+        logError("TabList", "Failed fetching profiles", { error: err });
+      }
+    };
+
+    fetchProfiles();
+
+    const handleMessage = (msg: any) => {
+      if (msg && msg.type === "PROFILE_TABS_UPDATE" && msg.profiles) {
+        const others = { ...msg.profiles };
+        delete others[profileName];
+        setOtherProfiles(others);
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleMessage);
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleMessage);
+    };
+  }, [profileName]);
 
   useEffect(() => {
     const loadGroupedTabs = async () => {
@@ -467,6 +504,7 @@ const TabList: React.FC = () => {
   };
 
   // --- Collapse Helpers ---
+
   const toggleProfile = (prof: string) => {
     setCollapsedProfiles(prev => ({ ...prev, [prof]: !prev[prof] }));
   };
@@ -545,10 +583,10 @@ const TabList: React.FC = () => {
               >
                   {windowDisplayName} <span className="collapse-indicator">{collapsed ? '+' : '-'}</span>
                   <span className="window-actions">
-                    <button className="tab-button" title="Save window" onClick={() => handleSaveWindow(windowId)}>
+                    <button className="tab-button" data-tooltip="Save window" aria-label="Save window" onClick={() => handleSaveWindow(windowId)}>
                       <FiSave />
                     </button>
-                    <button className="tab-button" title="Close window" onClick={() => handleCloseWindow(windowId)}>
+                    <button className="tab-button" data-tooltip="Close window" aria-label="Close window" onClick={() => handleCloseWindow(windowId)}>
                       <FiXCircle />
                     </button>
                   </span>
@@ -560,14 +598,15 @@ const TabList: React.FC = () => {
                             ? tabInputValues[tab.url] 
                             : (customTabNames[tab.url] || tab.title || tab.url || 'Unknown Tab');
                       return (
-                        <li key={tab.id} title={`ID: ${tab.id}\nIndex: ${tab.index}\nURL: ${tab.url}`} className="tab-item">
+                        <li key={tab.id} data-tooltip={`ID: ${tab.id}\nIndex: ${tab.index}\nURL: ${tab.url}`} className="tab-item">
                           {/* Use index within the window group for display number */}
                           <span className="tab-number">{`${index + 1}:`}</span> 
                           <button
                               id={`visit-return-${index}`}
                               className="tab-button visit-return"
                               onClick={() => handleVisitReturn(tab.id)}
-                              title="Visit & Return"
+                              data-tooltip="Visit & Return"
+                              aria-label="Visit & Return"
                               disabled={tab.id === -1}
                           >
                               <FiRefreshCw />
@@ -577,7 +616,8 @@ const TabList: React.FC = () => {
                               id={`visit-stay-${index}`}
                               className="tab-button visit-stay"
                               onClick={() => handleVisitStay(tab.id)}
-                              title="Visit & Stay"
+                              data-tooltip="Visit & Stay"
+                              aria-label="Visit & Stay"
                               disabled={tab.id === -1}
                           >
                               <FiExternalLink />
@@ -587,8 +627,8 @@ const TabList: React.FC = () => {
                               id={`close-${tab.id}`}
                               className="tab-button"
                               onClick={() => handleCloseTab(windowId, tab.id)}
-
-                              title="Close Tab"
+                              data-tooltip="Close Tab"
+                              aria-label="Close Tab"
                               disabled={tab.id === -1}
                           >
                               <FiTrash2 />
@@ -597,8 +637,8 @@ const TabList: React.FC = () => {
                               id={`save-close-${tab.id}`}
                               className="tab-button"
                               onClick={() => handleSaveAndCloseTab(windowId, tab)}
-
-                              title="Save and Close Tab"
+                              data-tooltip="Save and Close Tab"
+                              aria-label="Save and Close Tab"
                               disabled={tab.id === -1}
                           >
                               <FiSave />
@@ -608,7 +648,8 @@ const TabList: React.FC = () => {
                               className="tab-button analyze" 
                               onClick={() => handleAnalyze(tab.id, tab.url)}
                               disabled={isRestrictedUrl(tab.url) || (!tab.title && !tab.url) || tab.id === -1}
-                              title={isRestrictedUrl(tab.url) ? "Cannot analyze restricted page" : "Analyze Page (Copy HTML)"}
+                              data-tooltip={isRestrictedUrl(tab.url) ? "Cannot analyze restricted page" : "Analyze Page (Copy HTML)"}
+                              aria-label={isRestrictedUrl(tab.url) ? "Cannot analyze restricted page" : "Analyze Page (Copy HTML)"}
                           >
                               Analyze
                           </button>

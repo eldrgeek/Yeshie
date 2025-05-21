@@ -918,7 +918,8 @@ export const SpeechInput = ({
                 type="button"
                 onClick={handleToggleListen}
                 className={getMicButtonClass()}
-                title={isTranscribing ? 'Stop Transcribing (Mic On)' : 'Start Transcribing (Mic Off)'}
+                data-tooltip={isTranscribing ? 'Stop Transcribing (Mic On)' : 'Start Transcribing (Mic Off)'}
+                aria-label={isTranscribing ? 'Stop Transcribing (Mic On)' : 'Start Transcribing (Mic Off)'}
                 disabled={!isSupported || permissionStatus === 'denied'}
                 style={{
                     position: 'absolute',
@@ -966,7 +967,8 @@ export const SpeechInput = ({
                 <button
                     type="button"
                     onClick={handleCopyDebugInfo}
-                    title="Copy Debug Logs & Text"
+                    data-tooltip="Copy Debug Logs & Text"
+                    aria-label="Copy Debug Logs & Text"
                      style={{
                         padding: '5px 10px',
                         fontSize: '0.8rem',
