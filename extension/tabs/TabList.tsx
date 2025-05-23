@@ -597,8 +597,11 @@ const TabList: React.FC = () => {
                        const tabDisplayName = tabInputValues[tab.url] !== undefined 
                             ? tabInputValues[tab.url] 
                             : (customTabNames[tab.url] || tab.title || tab.url || 'Unknown Tab');
+                      const shortUrl = tab.url && tab.url.length > 100
+                        ? `${tab.url.slice(0, 100)}...`
+                        : tab.url
                       return (
-                        <li key={tab.id} data-tooltip={`ID: ${tab.id}\nIndex: ${tab.index}\nURL: ${tab.url}`} className="tab-item">
+                        <li key={tab.id} data-tooltip={`ID: ${tab.id}\nIndex: ${tab.index}\nURL: ${shortUrl}`} className="tab-item">
                           {/* Use index within the window group for display number */}
                           <span className="tab-number">{`${index + 1}:`}</span> 
                           <button
