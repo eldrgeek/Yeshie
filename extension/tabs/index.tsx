@@ -14,9 +14,22 @@ import "./style.css"; // Assuming you might want some basic styling
 import LogViewer from "../components/LogViewer"; // Import the LogViewer component
 import { Stepper } from '../functions/Stepper';
 import instructions from '../ipc/instructions.json';
+import schema from '../../llm-reply-schema.json';
+import Ajv from 'ajv';
 import { ToastContainer, toast, Slide } from 'react-toastify'; // Added react-toastify imports
 import 'react-toastify/dist/ReactToastify.css'; // Added react-toastify CSS
 import TestViewerDialog from "../components/TestViewerDialog"; // Import the new dialog
+
+const ajv = new Ajv({ allErrors: true });
+const validate = ajv.compile(schema as any);
+
+function validateInstructionsData(data: any): string[] | null {
+  const valid = validate(data);
+  if (!valid) {
+    return (validate.errors || []).map(e => `${e.instancePath} ${e.message}`);
+  }
+  return null;
+}
 
 
 // --- Type Definitions ---
@@ -771,8 +784,10 @@ function TabsIndex() {
   });
 
   // Utility to write results.json
-  async function writeResultsJson(log: any[]) {
-    await chrome.runtime.sendMessage({ type: 'WRITE_RESULTS_JSON', log });
+  async function writeResultsJson(log: any[], validationErrors?: string[]) {
+    const results = { log, validationErrors };
+    await storageSet('ipc_results', results);
+    await chrome.runtime.sendMessage({ type: 'WRITE_RESULTS_JSON', log: results });
   }
 
   // Download results.json from chrome.storage.local
@@ -827,6 +842,14 @@ function TabsIndex() {
       if (!instructions || !instructions.tasks) {
         // setLegacyToastMessage('No instructions.json found or has no tasks.');
         toast.warn('No instructions.json found or has no tasks.', { autoClose: 5000 });
+        setHasResults(false);
+        return;
+      }
+
+      const validationErrors = validateInstructionsData(instructions);
+      if (validationErrors) {
+        toast.error('Instruction validation failed.', { autoClose: 8000 });
+        await writeResultsJson([], validationErrors);
         setHasResults(false);
         return;
       }
