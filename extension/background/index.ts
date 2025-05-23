@@ -1,7 +1,6 @@
 import { storageGet, storageSet, storageRemove } from "../functions/storage";
 import { logInfo, logWarn, logError } from "../functions/logger";
 import { initWebSocketHandlers } from "./websocket-handlers";
-import { initProfileConnector, sendTabsUpdate } from "./profileConnector";
 
 // Constants
 export const LAST_TAB_KEY = "yeshie_last_active_tab";
@@ -102,8 +101,6 @@ async function updateStoredTabs() {
   }, {});
 
   await storageSet(APPLICATION_TABS_KEY, groupedTabs);
-  // Notify other profiles of updated tabs
-  sendTabsUpdate();
 }
 
 // Debounce helper (simplified)
@@ -157,6 +154,7 @@ async function openOrFocusExtensionTab(options: { focus?: boolean } = {}): Promi
     const existing = tabs[0];
 
     // Debugger breakpoint to inspect tab query results
+
 
     if (existing && existing.id) {
       const tabId = existing.id;
@@ -309,9 +307,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // Initialize tab tracking
 initTabTracking();
-
-// Connect to MCP server for cross-profile tab sharing
-initProfileConnector();
 
 // Initialize WebSocket handlers
 initWebSocketHandlers();
