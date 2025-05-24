@@ -1,6 +1,6 @@
 ---
 title: Yeshie Testing Plan
-last_updated: 2024-03-19
+last_updated: 2025-05-21
 author: Claude 3.5 Sonnet
 category: testing
 priority: 1
@@ -144,6 +144,10 @@ Goal: navigate to a github page (login if not logged in) add user to github acco
 3. Test repository access
 4. Chrome browser installed
 5. Python test environment configured
+
+## Limitations
+- Playwright and pytest must be installed before running the new Stepper command tests.
+- This environment does not allow network access after setup, so dependencies must be preinstalled or provided via a setup script.
 
 ## Document History
 - 2024-03-19: Initial creation of test plan 
