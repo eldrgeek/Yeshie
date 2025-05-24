@@ -41,7 +41,6 @@ class Action(BaseModel):
     target: str
     value: Optional[str] = None
 
-
 class ActionRequest(BaseModel):
     tab_id: int
     actions: List[Action]
@@ -105,3 +104,4 @@ async def receive_logs(entry: LogEntry):
 async def get_logs():
     """Retrieve all collected logs (debug use only)."""
     return {"logs": _logs}
+
