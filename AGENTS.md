@@ -5,6 +5,7 @@ This file provides instructions for Codex and other automated agents when workin
 ## Reference Material
 - Review all files under `.cursor/rules/` before changing code. The main project conventions are in `project-guidelines.mdc` and related rule documents.
 - Additional documentation lives in `docs/` and `extension/docs/`. Consult these as needed.
+- A summary of open tasks and outstanding issues is maintained in `docs/codebase_review.md`.
 - Open tasks are tracked in the `tasks/` directory.
 
 ## Development Practices
