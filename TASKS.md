@@ -20,3 +20,4 @@ Additional task stubs have been created under the `tasks/` directory for upcomin
 - Task I – Always-listening SpeechInput with transcription toggle.
 - Task J – Comprehensive unit tests for SpeechInput.
 - Task K – Written test specification for SpeechInput.
+Codex task files for items G–K are available in the `codex_tasks/` directory.
