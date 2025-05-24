@@ -35,3 +35,18 @@ Yeshie exposes a Model Context Protocol (MCP) server on port `8123`. After start
 Add `http://localhost:8123` as a server URL so Cursor can issue actions and receive logs from Yeshie while you develop.
 
 
+
+## Automated MCP Workflow
+
+The MCP server located at `yeshie/server/mcp_server.py` provides a lightweight API for coordinating tests and browser actions.
+
+1. Start the server with `python yeshie/server/mcp_server.py`.
+2. The Chrome extension connects to `http://localhost:8123` and reports profile tabs.
+3. Pull requests trigger the GitHub Actions workflow which runs the MCP server tests.
+4. After merging, you can extend the server to pull updates and rebuild the extension automatically.
+
+The server exposes the following endpoints:
+
+- `GET /health` – simple health check.
+- `POST /logs` – accepts diagnostic log entries.
+- `POST /actions` – queues actions to be processed by the extension.

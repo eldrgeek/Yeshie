@@ -70,11 +70,9 @@ class Action(BaseModel):
     target: str
     value: Optional[str] = None
 
-
 class ActionRequest(BaseModel):
     tab_id: int
     actions: List[Action]
-
 
 class ActionResponse(BaseModel):
     success: bool
@@ -179,3 +177,4 @@ async def sio_log_entry(_sid, data):
 
 if __name__ == "__main__":
     uvicorn.run(socket_app, host="0.0.0.0", port=8123)
+
