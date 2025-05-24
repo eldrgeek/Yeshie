@@ -245,6 +245,40 @@ async function restoreControlTabs() {
   }
 }
 
+// Process recorded steps into an archived task
+async function processRecordedSteps(steps: Array<any>): Promise<string> {
+  const taskName = `Recording ${new Date().toISOString()}`
+  const storageKey = `archived_test_${taskName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '')}`
+
+  const instructions = {
+    tasks: [
+      {
+        taskName,
+        steps: steps.map((step: any, idx: number) => {
+          const cmd: any = { id: `step-${idx + 1}`, cmd: step.type }
+          if (step.selector) cmd.sel = step.selector
+          if (step.value !== undefined) cmd.value = step.value
+          if (step.url) cmd.url = step.url
+          return cmd
+        })
+      }
+    ]
+  }
+
+  await storageSet(storageKey, instructions)
+  return taskName
+}
+
+// Notify the Control page tab of a status update
+async function notifyControlPage(type: string, payload: any) {
+  const tabs = await chrome.tabs.query({ url: CONTROL_PAGE_PATTERN })
+  for (const tab of tabs) {
+    if (tab.id) {
+      chrome.tabs.sendMessage(tab.id, { type, payload }).catch(() => {})
+    }
+  }
+}
+
 // Listen for extension unload to save Control page tab info
 chrome.runtime.onSuspend.addListener(() => {
   logInfo("Extension", "Extension being suspended, saving Control page tabs info");
@@ -302,6 +336,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     
     // Return true to indicate we'll send an async response
     return true;
+  }
+
+  if (message.type === 'FORWARD_RECORDED_STEPS') {
+    const { steps } = message.payload || {}
+
+    processRecordedSteps(Array.isArray(steps) ? steps : [])
+      .then(taskName => {
+        notifyControlPage('RECORDING_PROCESSED', { success: true, taskName })
+        sendResponse({ success: true })
+      })
+      .catch(error => {
+        const errMsg = error instanceof Error ? error.message : String(error)
+        notifyControlPage('RECORDING_PROCESSED', { success: false, error: errMsg })
+        sendResponse({ success: false, error: errMsg })
+      })
+
+    return true
   }
 });
 
