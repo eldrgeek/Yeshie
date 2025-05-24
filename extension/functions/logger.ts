@@ -10,6 +10,7 @@ const LOG_STORAGE_KEY = 'yeshieSessionLogs';
 
 // Now import dependencies
 import { storageGet, storageSet, storageRemove } from './storage'; // Import storage functions
+import { sendLogEntry } from './mcpClient';
 
 /**
  * Defines the possible levels for log messages.
@@ -163,6 +164,8 @@ function log(level: LogLevel, feature: string, message: string, context?: LogCon
 
   // Log to storage for the Log Viewer (asynchronously)
   logToStorage(logEntry);
+  // Forward log entry to MCP server if available
+  sendLogEntry(logEntry);
 }
 
 // --- Specific Helper Log Functions (Updated Signatures) ---

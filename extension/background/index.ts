@@ -1,6 +1,7 @@
 import { storageGet, storageSet, storageRemove } from "../functions/storage";
 import { logInfo, logWarn, logError } from "../functions/logger";
 import { initWebSocketHandlers } from "./websocket-handlers";
+import { initMCPClient } from "../functions/mcpClient";
 
 // Constants
 export const LAST_TAB_KEY = "yeshie_last_active_tab";
@@ -310,6 +311,9 @@ initTabTracking();
 
 // Initialize WebSocket handlers
 initWebSocketHandlers();
+
+// Connect to the MCP server for logs and actions
+initMCPClient();
 
 // Log initialization
 logInfo("Extension", "Background script initialized");
