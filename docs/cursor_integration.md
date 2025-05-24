@@ -29,4 +29,9 @@ These features can speed up code understanding and review tasks.
 
 Cursor ships as a complete editor, so you do **not** need to install a separate VS Code extension. If you previously used the Cursor extension inside VS Code, you can uninstall it and run the standalone IDE instead.
 
+## Register the MCP Server
+
+Yeshie exposes a Model Context Protocol (MCP) server on port `8123`. After starting the server (`python yeshie/server/mcp_server.py` or `pnpm run mcp-server` inside the `extension` folder), open **Cursor** and navigate to **Settings → MCP Servers**.
+Add `http://localhost:8123` as a server URL so Cursor can issue actions and receive logs from Yeshie while you develop.
+
 

@@ -5,7 +5,8 @@
   "description": "Yeshie Chrome Extension",
   "author": "Mike Wolf",
   "scripts": {
-    "dev:extension": "plasmo dev --verbose",
+    "dev:extension": "concurrently \"plasmo dev --verbose\" \"pnpm run mcp-server\"",
+    "mcp-server": "python ../yeshie/server/mcp_server.py",
     "dev": "pnpm run dev:extension",
     "build": "plasmo build",
     "package": "plasmo package"
