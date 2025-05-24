@@ -1,5 +1,4 @@
 import type { PlasmoMessaging } from "@plasmohq/messaging"
-import { Stepper } from "../../functions/Stepper"
 import { logInfo, logError } from "../../functions/logger"
 
 export interface CommandRequest {
@@ -28,7 +27,21 @@ export async function executeCommand (
   }
 
   try {
-    const result = await Stepper(command as any)
+    const CONTROL_PAGE_URL = chrome.runtime.getURL("tabs/index.html")
+    const CONTROL_PAGE_PATTERN = `${CONTROL_PAGE_URL}*`
+
+    const [tab] = await chrome.tabs.query({ url: CONTROL_PAGE_PATTERN })
+
+    if (!tab?.id) {
+      throw new Error("Control page not found")
+    }
+
+    const result = await chrome.tabs.sendMessage(tab.id, {
+      type: "RUN_STEPPER_STEP",
+      step: command,
+      sessionId
+    })
+
     logInfo("BGCommand", "Command executed", { command, sessionId, result })
     return { success: true, result }
   } catch (error) {
