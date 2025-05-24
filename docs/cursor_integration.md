@@ -30,3 +30,18 @@ These features can speed up code understanding and review tasks.
 Cursor ships as a complete editor, so you do **not** need to install a separate VS Code extension. If you previously used the Cursor extension inside VS Code, you can uninstall it and run the standalone IDE instead.
 
 
+
+## Automated MCP Workflow
+
+The MCP server located at `yeshie/server/mcp_server.py` provides a lightweight API for coordinating tests and browser actions.
+
+1. Start the server with `python yeshie/server/mcp_server.py`.
+2. The Chrome extension connects to `http://localhost:8123` and reports profile tabs.
+3. Pull requests trigger the GitHub Actions workflow which runs the MCP server tests.
+4. After merging, you can extend the server to pull updates and rebuild the extension automatically.
+
+The server exposes the following endpoints:
+
+- `GET /health` – simple health check.
+- `POST /logs` – accepts diagnostic log entries.
+- `POST /actions` – queues actions to be processed by the extension.
