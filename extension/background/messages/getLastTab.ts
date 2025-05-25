@@ -24,7 +24,7 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
         const updatedTab: TabInfo = {
           id: currentTab.id ?? lastTab.id,
           title: currentTab.title || lastTab.title,
-          url: currentTab.url || lastTab.url,
+          url: currentTab.url || currentTab.pendingUrl || lastTab.url,
           timestamp: Date.now()
         }
         

@@ -9,7 +9,7 @@ const MIN_TAB_FOCUS_TIME = 800;
 
 export interface TabInfo {
   id: number;
-  url: string;
+  url?: string;
   title: string;
   timestamp: number;
 }
@@ -18,11 +18,9 @@ let lastTabFocusTime = 0;
 const debouncedUpdateTabs = debounce(updateStoredTabs, 1000);
 
 // Utility: Check URLs that should be ignored
-// Allow chrome:// and chrome-extension:// pages to be tracked
-// Only ignore internal about: pages or the extension root URL
-const isExtensionUrl = (url: string) =>
-  url.startsWith(EXTENSION_URL_PATTERN) ||
-  url.startsWith("about:");
+// Only ignore internal about: pages so extension pages are also tracked
+const isIgnoredUrl = (url?: string) =>
+  Boolean(url && url.startsWith("about:"));
 
 // Initialize listeners
 export function initTabTracking() {
@@ -40,10 +38,11 @@ export function initTabTracking() {
 
 // Tab tracking logic
 async function trackTab(tab: chrome.tabs.Tab) {
-  if (!tab.id || !tab.url || isExtensionUrl(tab.url)) return;
+  const url = tab.url ?? tab.pendingUrl;
+  if (!tab.id || isIgnoredUrl(url)) return;
   await storageSet(LAST_TAB_KEY, {
     id: tab.id,
-    url: tab.url,
+    url,
     title: tab.title || "Untitled",
     timestamp: Date.now()
   });
@@ -78,11 +77,12 @@ function handleTabRemoved(tabId: number, { isWindowClosing }: chrome.tabs.TabRem
 async function updateStoredTabs() {
   const tabs = await chrome.tabs.query({});
   const groupedTabs = tabs.reduce<Record<string, TabInfo[]>>((groups, tab) => {
-    if (!tab.id || !tab.url || isExtensionUrl(tab.url)) return groups;
+    const url = tab.url ?? tab.pendingUrl;
+    if (!tab.id || isIgnoredUrl(url)) return groups;
     const windowKey = String(tab.windowId);
     (groups[windowKey] ||= []).push({
       id: tab.id,
-      url: tab.url,
+      url,
       title: tab.title || "Untitled",
       timestamp: Date.now()
     });
