@@ -19,5 +19,5 @@ Additional task stubs have been created under the `tasks/` directory for upcomin
 - Task H – Singleton Speech Input service in the background script.
 - Task I – Always-listening SpeechInput with transcription toggle.
 - Task J – Comprehensive unit tests for SpeechInput.
-- Task K – Written test specification for SpeechInput.
+- Task K – Written test specification for SpeechInput. See [speech_input_test_spec.md](LLMNotes/testing/speech_input_test_spec.md).
 Codex task files for items G–K are available in the `codex_tasks/` directory.
