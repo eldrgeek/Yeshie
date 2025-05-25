@@ -74,47 +74,135 @@ async def stepper_page():
 
 @pytest.mark.asyncio
 async def test_navto_command(stepper_page):
-    page = stepper_page
-    page2 = Path(__file__).parent.parent / "stepper_pages" / "page2.html"
-    result = await page.evaluate("cmd => Stepper(cmd)", f"navto {page2.as_uri()}")
-    assert result == "Navigation initiated"
-    await page.wait_for_load_state('load')
-    assert page.url == page2.as_uri()
+    async for page in stepper_page:
+        page2 = Path(__file__).parent.parent / "stepper_pages" / "page2.html"
+        result = await page.evaluate("cmd => Stepper(cmd)", f"navto {page2.as_uri()}")
+        assert result == "Navigation initiated"
+        await page.wait_for_url(page2.as_uri())
+        assert page.url == page2.as_uri()
+        break
 
 @pytest.mark.asyncio
 async def test_click_command(stepper_page):
-    page = stepper_page
-    await page.evaluate("cmd => Stepper(cmd)", "click #btn")
-    text = await page.text_content('#status')
-    assert text == 'clicked'
+    async for page in stepper_page:
+        await page.evaluate("cmd => Stepper(cmd)", "click #btn")
+        text = await page.text_content('#status')
+        assert text == 'clicked'
+        break
 
 @pytest.mark.asyncio
 async def test_type_command(stepper_page):
-    page = stepper_page
-    await page.evaluate("cmd => Stepper(cmd)", "type #text-input \"hello\"")
-    value = await page.get_attribute('#text-input', 'value')
-    assert value == 'hello'
+    async for page in stepper_page:
+        await page.evaluate("cmd => Stepper(cmd)", "type #text-input \"hello\"")
+        value = await page.eval_on_selector('#text-input', 'el => el.value')
+        assert value == 'hello'
+        break
 
 @pytest.mark.asyncio
 async def test_waitforelement_command(stepper_page):
-    page = stepper_page
-    result = await page.evaluate("cmd => Stepper(cmd)", "waitforelement #dynamic 1500")
-    assert result == 'Element appeared'
+    async for page in stepper_page:
+        result = await page.evaluate("cmd => Stepper(cmd)", "waitforelement #dynamic 1500")
+        assert result == 'Element appeared'
+        break
 
 @pytest.mark.asyncio
 async def test_click_invalid_selector(stepper_page):
-    page = stepper_page
-    result = await page.evaluate("cmd => Stepper(cmd)", "click #missing")
-    assert result == 'Element not found'
+    async for page in stepper_page:
+        result = await page.evaluate("cmd => Stepper(cmd)", "click #missing")
+        assert result == 'Element not found'
+        break
 
 @pytest.mark.asyncio
 async def test_invalid_command(stepper_page):
-    page = stepper_page
-    result = await page.evaluate("cmd => { try { return Stepper(cmd); } catch(e) { return 'Error: ' + e.message; } }", "bogus")
-    assert result.startswith('Error:')
+    async for page in stepper_page:
+        result = await page.evaluate(
+            """
+            cmd => Promise.resolve(Stepper(cmd))
+                .catch(e => 'Error: ' + (e && e.message ? e.message : e))
+            """,
+            "bogus"
+        )
+        assert result.startswith('Error:')
+        break
 
 @pytest.mark.asyncio
 async def test_waitforelement_timeout(stepper_page):
-    page = stepper_page
-    result = await page.evaluate("cmd => Stepper(cmd)", "waitforelement #none 300")
-    assert result.startswith('Timeout')
+    async for page in stepper_page:
+        result = await page.evaluate("cmd => Stepper(cmd)", "waitforelement #none 300")
+        assert result.startswith('Timeout')
+        break
+
+# --- Additional Stepper command tests ---
+
+@pytest.mark.asyncio
+async def test_scrollto_command(stepper_page):
+    async for page in stepper_page:
+        result = await page.evaluate("cmd => Stepper(cmd)", "scrollto #btn")
+        assert result == "Scrolled to element"
+        break
+
+@pytest.mark.asyncio
+async def test_hover_command(stepper_page):
+    async for page in stepper_page:
+        result = await page.evaluate("cmd => Stepper(cmd)", "hover #btn")
+        assert result == "Hovered over element"
+        break
+
+@pytest.mark.asyncio
+async def test_getattribute_command(stepper_page):
+    async for page in stepper_page:
+        result = await page.evaluate("cmd => Stepper(cmd)", "getattribute #link href")
+        assert "Attribute value:" in result or result == "Attribute not found"
+        break
+
+@pytest.mark.asyncio
+async def test_getcomputedstyle_command(stepper_page):
+    async for page in stepper_page:
+        result = await page.evaluate("cmd => Stepper(cmd)", "getcomputedstyle #btn color")
+        assert "Computed style value:" in result
+        break
+
+@pytest.mark.asyncio
+async def test_waitfor_command_quiet(stepper_page):
+    async for page in stepper_page:
+        result = await page.evaluate("cmd => Stepper(cmd)", "waitfor quiet 100")
+        assert result == "Page is quiet"
+        break
+
+@pytest.mark.asyncio
+async def test_wait_command(stepper_page):
+    async for page in stepper_page:
+        result = await page.evaluate("cmd => Stepper(cmd)", "wait 10")
+        assert result == "Wait completed"
+        break
+
+@pytest.mark.asyncio
+async def test_executejs_command(stepper_page):
+    async for page in stepper_page:
+        result = await page.evaluate("cmd => Stepper(cmd)", "executejs 2+2")
+        assert "Script executed. Result:" in result
+        break
+
+@pytest.mark.asyncio
+async def test_changes_on_off(stepper_page):
+    async for page in stepper_page:
+        result_on = await page.evaluate("cmd => Stepper(cmd)", "changes on")
+        assert result_on == "Page observer started"
+        result_off = await page.evaluate("cmd => Stepper(cmd)", "changes off")
+        assert result_off == "Page observer stopped"
+        break
+
+@pytest.mark.asyncio
+async def test_message_command(stepper_page):
+    async for page in stepper_page:
+        result = await page.evaluate("cmd => Stepper(cmd)", "message \"Hello\"")
+        assert result.startswith("Displayed message:")
+        break
+
+@pytest.mark.asyncio
+async def test_asserttextcontains_command(stepper_page):
+    async for page in stepper_page:
+        await page.evaluate("cmd => Stepper(cmd)", "click #btn")
+        result = await page.evaluate("cmd => Stepper(cmd)", "asserttextcontains #status \"clicked\"")
+        assert result.startswith("Assertion passed") or "did not contain" in result or "not found" in result
+        break

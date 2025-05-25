@@ -15,18 +15,17 @@ import LogViewer from "../components/LogViewer"; // Import the LogViewer compone
 import { Stepper } from '../functions/Stepper';
 import instructions from '../ipc/instructions.json';
 import schema from '../../llm-reply-schema.json';
-import Ajv from 'ajv';
+import { Validator } from 'jsonschema';
 import { ToastContainer, toast, Slide } from 'react-toastify'; // Added react-toastify imports
 import 'react-toastify/dist/ReactToastify.css'; // Added react-toastify CSS
 import TestViewerDialog from "../components/TestViewerDialog"; // Import the new dialog
 
-const ajv = new Ajv({ allErrors: true });
-const validate = ajv.compile(schema as any);
+const validator = new Validator();
 
 function validateInstructionsData(data: any): string[] | null {
-  const valid = validate(data);
-  if (!valid) {
-    return (validate.errors || []).map(e => `${e.instancePath} ${e.message}`);
+  const result = validator.validate(data, schema as any);
+  if (!result.valid) {
+    return result.errors.map(e => `${e.property} ${e.message}`);
   }
   return null;
 }
