@@ -4,7 +4,9 @@ import { logInfo, logWarn, logError } from "../functions/logger";
 // Constants
 export const LAST_TAB_KEY = "yeshie_last_active_tab";
 export const APPLICATION_TABS_KEY = "yeshie_application_tabs";
-const EXTENSION_URL_PATTERN = chrome.runtime.getURL("");
+const EXTENSION_URL_PATTERN = chrome.runtime.getURL("*");
+const EXTENSION_BASE_URL = chrome.runtime.getURL("");
+const EXTENSION_TITLE = chrome.runtime.getManifest().name;
 const MIN_TAB_FOCUS_TIME = 800;
 
 export interface TabInfo {
@@ -43,7 +45,9 @@ async function trackTab(tab: chrome.tabs.Tab) {
   await storageSet(LAST_TAB_KEY, {
     id: tab.id,
     url,
-    title: tab.title || "Untitled",
+    title: url && url.startsWith(EXTENSION_BASE_URL)
+      ? EXTENSION_TITLE
+      : tab.title || "Untitled",
     timestamp: Date.now()
   });
 }
@@ -83,7 +87,9 @@ async function updateStoredTabs() {
     (groups[windowKey] ||= []).push({
       id: tab.id,
       url,
-      title: tab.title || "Untitled",
+      title: url && url.startsWith(EXTENSION_BASE_URL)
+        ? EXTENSION_TITLE
+        : tab.title || "Untitled",
       timestamp: Date.now()
     });
     return groups;
@@ -128,4 +134,17 @@ export async function focusLastActiveTab(): Promise<boolean> {
     logWarn("TabHistory", "Cannot focus last tab");
     return false;
   }
+}
+
+// Utility to fetch titles of this extension's pages
+export async function getExtensionPageTabs(): Promise<TabInfo[]> {
+  const tabs = await chrome.tabs.query({ url: EXTENSION_URL_PATTERN });
+  return tabs
+    .filter(tab => tab.id)
+    .map(tab => ({
+      id: tab.id!,
+      url: tab.url ?? '',
+      title: tab.title || EXTENSION_TITLE,
+      timestamp: Date.now()
+    }));
 }
