@@ -782,6 +782,32 @@ export const SpeechInput = ({
     }, [isListening, isSupported, permissionStatus, startListening, addToLog]); // React to listening state
 
 
+    // --- Effect to Resume Listening on Tab Focus ---
+    useEffect(() => {
+        const handleFocus = () => {
+            addToLog('Window focused', 'debug');
+            if (isSupported && permissionStatus === 'granted' && isTranscribing && !isListening) {
+                wasListeningIntentionallyRef.current = true;
+                startListening();
+            }
+        };
+
+        const handleBlur = () => {
+            addToLog('Window blurred', 'debug');
+            if (isListening) {
+                stopListening();
+            }
+        };
+
+        window.addEventListener('focus', handleFocus);
+        window.addEventListener('blur', handleBlur);
+        return () => {
+            window.removeEventListener('focus', handleFocus);
+            window.removeEventListener('blur', handleBlur);
+        };
+    }, [isSupported, permissionStatus, isTranscribing, isListening, startListening, stopListening, addToLog]);
+
+
     // --- User Interaction Handlers ---
     const handleKeyDown = (event) => {
         if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
