@@ -105,3 +105,12 @@ async def get_logs():
     """Retrieve all collected logs (debug use only)."""
     return {"logs": _logs}
 
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+@app.get("/")
+async def root():
+    return {"status": "ok"}
+
