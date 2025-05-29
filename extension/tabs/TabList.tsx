@@ -37,6 +37,23 @@ const TAB_NAMES_STORAGE_KEY = 'yeshieTabCustomNames'; // Key for chrome.storage
 const WINDOW_NAMES_STORAGE_KEY = 'yeshieWindowCustomNames'; // New key for window names
 const SAVED_PAGES_KEY = 'yeshieSavedPages';
 
+// URLs for key extension pages
+const CONTROL_PAGE_URL = chrome.runtime.getURL('tabs/index.html');
+const EXT_MANAGE_URL = `chrome://extensions/?id=${chrome.runtime.id}`;
+
+// Default labels for known extension pages
+const DEFAULT_EXTENSION_TAB_NAMES: Record<string, string> = {
+  [CONTROL_PAGE_URL]: 'Yeshie Control',
+  [EXT_MANAGE_URL]: 'Yeshie Extension Management'
+};
+
+// Normalize extension URLs for storage keys (strip query/hash for control page)
+const normalizeUrl = (url: string): string => {
+  if (url.startsWith(CONTROL_PAGE_URL)) return CONTROL_PAGE_URL;
+  if (url.startsWith(EXT_MANAGE_URL)) return EXT_MANAGE_URL;
+  return url;
+};
+
 // Helper to check for restricted URLs
 const isRestrictedUrl = (url: string | undefined): boolean => {
     if (!url) return true; // No URL means we can't analyze
@@ -156,10 +173,16 @@ const TabList: React.FC = () => {
   useEffect(() => {
       // Load Tab Names
       storageGet<CustomNameMap>(TAB_NAMES_STORAGE_KEY).then(loadedNames => {
-          setCustomTabNames(loadedNames || {});
-          setTabInputValues(loadedNames || {}); 
-          logInfo('TabList', 'storage_get: TAB_NAMES_STORAGE_KEY', { key: TAB_NAMES_STORAGE_KEY, found: !!loadedNames, count: loadedNames ? Object.keys(loadedNames).length : 0 });
-          logInfo("TabList", "Loaded custom tab names", { loadedNames });
+          const normalized: CustomNameMap = { ...DEFAULT_EXTENSION_TAB_NAMES };
+          if (loadedNames) {
+              for (const [u, n] of Object.entries(loadedNames)) {
+                  normalized[normalizeUrl(u)] = n;
+              }
+          }
+          setCustomTabNames(normalized);
+          setTabInputValues(normalized);
+          logInfo('TabList', 'storage_get: TAB_NAMES_STORAGE_KEY', { key: TAB_NAMES_STORAGE_KEY, found: !!loadedNames, count: Object.keys(normalized).length });
+          logInfo("TabList", "Loaded custom tab names", { loadedNames: normalized });
       }).catch(error => {
           logError("TabList", "Error loading custom tab names", { error });
           logError('TabList', 'storage_error: loadCustomTabNames', { operation: 'loadCustomTabNames', key: TAB_NAMES_STORAGE_KEY, error: String(error) });
@@ -250,10 +273,14 @@ const TabList: React.FC = () => {
       // Handle Tab Name Changes
       if (changes[TAB_NAMES_STORAGE_KEY]) {
           const loadedNames = (changes[TAB_NAMES_STORAGE_KEY].newValue as CustomNameMap) || {};
-          setCustomTabNames(loadedNames);
-          setTabInputValues(loadedNames); 
+          const normalized: CustomNameMap = { ...DEFAULT_EXTENSION_TAB_NAMES };
+          for (const [u, n] of Object.entries(loadedNames)) {
+            normalized[normalizeUrl(u)] = n;
+          }
+          setCustomTabNames(normalized);
+          setTabInputValues(normalized);
           logInfo('TabList', 'storage_change: TAB_NAMES_STORAGE_KEY', { key: TAB_NAMES_STORAGE_KEY, updated: true });
-          logInfo('TabList', 'Custom tab names updated via listener', { loadedNames });
+          logInfo('TabList', 'Custom tab names updated via listener', { loadedNames: normalized });
       }
 
       // Handle Window Name Changes
@@ -303,17 +330,18 @@ const TabList: React.FC = () => {
   // Function to save a custom TAB name
   const saveCustomTabName = (url: string | undefined, name: string) => {
       if (!url) return;
-      const finalName = name.trim(); 
-      
+      const finalName = name.trim();
+      const key = normalizeUrl(url);
+
       setCustomTabNames(prevNames => {
           const updatedNames = { ...prevNames };
           if (finalName === '') {
-             delete updatedNames[url];
+             delete updatedNames[key];
           } else {
-             updatedNames[url] = finalName;
+             updatedNames[key] = finalName;
           }
-          setTabInputValues(prev => ({ ...prev, [url]: finalName })); 
-          debouncedStorageSet(TAB_NAMES_STORAGE_KEY, updatedNames); 
+          setTabInputValues(prev => ({ ...prev, [key]: finalName }));
+          debouncedStorageSet(TAB_NAMES_STORAGE_KEY, updatedNames);
           return updatedNames;
       });
   };
@@ -519,12 +547,13 @@ const TabList: React.FC = () => {
   // TAB Name Handlers
   const handleTabNameKeyDown = (event: React.KeyboardEvent<HTMLSpanElement>, url: string | undefined) => {
       if (!url) return;
+      const key = normalizeUrl(url);
       if (event.key === 'Enter') {
-          event.preventDefault(); 
+          event.preventDefault();
           event.currentTarget.blur(); // Trigger blur to save
       } else if (event.key === 'Escape') {
           // Restore original value on Escape
-          setTabInputValues(prev => ({ ...prev, [url]: customTabNames[url] || '' }));
+          setTabInputValues(prev => ({ ...prev, [key]: customTabNames[key] || '' }));
           event.currentTarget.blur();
       }
   };
@@ -594,9 +623,10 @@ const TabList: React.FC = () => {
               {!collapsed && tabsInWindow && tabsInWindow.length > 0 ? (
                   <ul className="tablist-ul">
                     {tabsInWindow.map((tab, index) => {
-                       const tabDisplayName = tabInputValues[tab.url] !== undefined 
-                            ? tabInputValues[tab.url] 
-                            : (customTabNames[tab.url] || tab.title || tab.url || 'Unknown Tab');
+                       const urlKey = tab.url ? normalizeUrl(tab.url) : '';
+                       const tabDisplayName = tabInputValues[urlKey] !== undefined
+                            ? tabInputValues[urlKey]
+                            : (customTabNames[urlKey] || DEFAULT_EXTENSION_TAB_NAMES[urlKey] || tab.title || tab.url || 'Unknown Tab');
                       const shortUrl = tab.url && tab.url.length > 100
                         ? `${tab.url.slice(0, 100)}...`
                         : tab.url
@@ -656,9 +686,9 @@ const TabList: React.FC = () => {
                           >
                               Analyze
                           </button>
-                          <span 
+                          <span
                             id={`tab-name-${tab.id}`}
-                            className={`tab-name ${customTabNames[tab.url] ? 'custom-name' : ''}`}
+                            className={`tab-name ${customTabNames[urlKey] ? 'custom-name' : ''}`}
                             contentEditable={tab.id !== -1} // Don't allow editing placeholder control tab name
                             suppressContentEditableWarning={true}
                             onClick={(e) => e.stopPropagation()} 
