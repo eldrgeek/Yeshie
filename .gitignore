@@ -70,3 +70,12 @@ error_state*
 github_with_yeshie*
 project_context.txt
 project_context_*.txt
+
+# CDP Testing System
+tests/cdp/node_modules/
+tests/cdp/dist/
+tests/cdp/results.json
+tests/cdp/package-lock.json
+tests/cdp/temp-chrome-profile-*/
+tests/cdp/.turbo
+tests/cdp/.DS_Store

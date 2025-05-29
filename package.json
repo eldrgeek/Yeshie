@@ -28,7 +28,11 @@
     "test:minimal": "python3 -m pytest tests/e2e/command_execution/test_minimal.py -v -s",
     "test:minimal:debug": "python3 -m pytest tests/e2e/command_execution/test_minimal.py -v -s -o log_cli=true --keep-browser",
     "watch:test-minimal": "concurrently \"cd extension && pnpm run dev\" \"nodemon --watch tests/e2e/command_execution/test_minimal.py --watch extension/build/chrome-mv3-dev --exec pnpm run test:minimal\"",
-    "watch:test-minimal:debug": "concurrently \"cd extension && pnpm run dev\" \"nodemon --watch tests/e2e/command_execution/test_minimal.py --watch extension/build/chrome-mv3-dev --exec pnpm run test:minimal:debug\""
+    "watch:test-minimal:debug": "concurrently \"cd extension && pnpm run dev\" \"nodemon --watch tests/e2e/command_execution/test_minimal.py --watch extension/build/chrome-mv3-dev --exec pnpm run test:minimal:debug\"",
+    "test:cdp": "cd tests/cdp && npm run build && npm run test:cdp",
+    "test:cdp:watch": "cd tests/cdp && npm run build && npm run test:cdp:watch",
+    "test:cdp:speech": "cd tests/cdp && npm run build && npm run test:cdp:specific -- --test=speech-editor-focus",
+    "setup:cdp": "cd tests/cdp && npm install && npm run build"
   },
   "keywords": [],
   "author": "",
