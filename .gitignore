@@ -77,5 +77,6 @@ tests/cdp/dist/
 tests/cdp/results.json
 tests/cdp/package-lock.json
 tests/cdp/temp-chrome-profile-*/
+tests/cdp/persistent-chrome-profile/
 tests/cdp/.turbo
 tests/cdp/.DS_Store
