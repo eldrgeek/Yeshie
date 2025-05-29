@@ -321,12 +321,12 @@ const Yeshie: React.FC = () => {
           boxShadow: "0 0 10px rgba(0, 0, 0, 0.1)"
         }}
         className={isOpen ? "open" : "closed"}>
-        <img 
-          src={iconBase64} 
-          alt="Yeshie Icon" 
+        <img
+          src={iconBase64}
+          alt="Yeshie Icon"
           className="resizing-icon"
-          width={32} 
-          height={32} 
+          width={16}
+          height={16}
         />
         <div style={{ 
           display: 'flex', 
@@ -363,8 +363,8 @@ const Yeshie: React.FC = () => {
           background: 'white',
           border: '1px solid #ddd',
           borderRadius: '50%',
-          width: '48px',
-          height: '48px',
+          width: '24px',
+          height: '24px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -374,7 +374,7 @@ const Yeshie: React.FC = () => {
         }}
 
       >
-        <img src={iconBase64} alt="Yeshie Icon" width={32} height={32} />
+      <img src={iconBase64} alt="Yeshie Icon" width={16} height={16} />
       </button>
     </div>
   )

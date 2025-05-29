@@ -12,15 +12,17 @@
 
   transition: all 0.5s ease;
 }
+
 .resizing-icon {
-  width: 128px;
-  height: 128px;
+  width: 64px;
+  height: 64px;
   transition: width 2s, height 2s;
+  opacity: 0.5;
 }
 
 #yeshie-sidebar.open .resizing-icon {
-  width: 32px;
-  height: 32px;
+  width: 16px;
+  height: 16px;
 }
 #yeshie-sidebar.open {
   left: calc(var(--plasmo-google-sidebar-width) * -1);
