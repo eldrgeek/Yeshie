@@ -440,7 +440,10 @@ function TabsIndex() {
       logDebug("Background", "TabsIndex: Setting up message listener EFFECT START");
 
       const handleMessage = (message: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
-          logDebug("Background", "TabsIndex: handleMessage RECEIVED:", { message, senderId: sender?.id });
+          // Only log non-speech-polling messages to reduce noise
+          if (message?.name !== "getSpeechGlobalState" && message?.name !== "setSpeechEditorFocus") {
+            logDebug("Background", "TabsIndex: handleMessage RECEIVED:", { message, senderId: sender?.id });
+          }
 
           if (!isMounted.current) {
               logWarn("UI", "TabsIndex: handleMessage received but component not mounted.");
@@ -494,7 +497,9 @@ function TabsIndex() {
           }
 
           // Log if message wasn't handled by this listener, but don't return true unless needed for async
-          logDebug("Background", "TabsIndex: Message not handled by recording status listener", { type: message?.type });
+          if (message?.type && message.type !== 'pageInfo') {
+            logDebug("Background", "TabsIndex: Message not handled by recording status listener", { type: message?.type });
+          }
           // Explicitly return false if this listener doesn't handle the message or need to keep channel open
           return false;
       };

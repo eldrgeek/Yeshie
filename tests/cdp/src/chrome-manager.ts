@@ -8,9 +8,11 @@ const CDP = require('chrome-remote-interface');
 export class ChromeManager {
   private chrome: any;
   private extensionPath: string;
+  private persistentProfilePath: string;
   
   constructor() {
     this.extensionPath = path.resolve(__dirname, '../../../extension/build/chrome-mv3-dev');
+    this.persistentProfilePath = path.join(__dirname, '../persistent-chrome-profile');
   }
 
   async launchChrome(): Promise<void> {
@@ -21,6 +23,13 @@ export class ChromeManager {
 
     console.log('🚀 Launching Chrome with extension...');
     console.log(`📁 Extension path: ${this.extensionPath}`);
+    console.log(`👤 Profile path: ${this.persistentProfilePath}`);
+    
+    // Ensure persistent profile directory exists
+    if (!fs.existsSync(this.persistentProfilePath)) {
+      fs.mkdirSync(this.persistentProfilePath, { recursive: true });
+      console.log('📁 Created persistent Chrome profile directory');
+    }
     
     try {
       this.chrome = await chromeLauncher.launch({
@@ -38,8 +47,14 @@ export class ChromeManager {
           '--disable-ipc-flooding-protection',
           '--disable-features=VizDisplayCompositor',
           '--disable-features=MediaRouter',
+          '--disable-infobars',
+          '--disable-extensions-file-access-check',
+          '--disable-extensions-http-throttling',
+          '--allow-running-insecure-content',
+          '--disable-web-security',
+          '--disable-component-extensions-with-background-pages',
           '--window-size=1200,800',
-          '--user-data-dir=' + path.join(__dirname, '../temp-chrome-profile-' + Date.now())
+          '--user-data-dir=' + this.persistentProfilePath
         ],
         logLevel: 'error',
         connectionPollInterval: 500,
@@ -136,14 +151,18 @@ export class ChromeManager {
       await this.chrome.kill();
       console.log('🔄 Chrome instance killed');
       
-      // Clean up temporary profile directory
+      // Don't delete the persistent profile - keep it for next run
+      console.log('💾 Persistent Chrome profile preserved for next run');
+      console.log(`📁 Profile location: ${this.persistentProfilePath}`);
+      
+      // Only clean up any old temporary profiles that might exist
       try {
-        const tempProfileDir = path.join(__dirname, '../temp-chrome-profile-*');
         const { execSync } = require('child_process');
-        execSync(`rm -rf ${tempProfileDir}`, { stdio: 'ignore' });
-        console.log('🧹 Temporary Chrome profile cleaned up');
+        const tempProfilePattern = path.join(__dirname, '../temp-chrome-profile-*');
+        execSync(`rm -rf ${tempProfilePattern}`, { stdio: 'ignore' });
+        console.log('🧹 Old temporary Chrome profiles cleaned up');
       } catch (error) {
-        console.warn('⚠️ Could not clean up temporary Chrome profile:', error);
+        // Ignore errors from cleaning up temp profiles
       }
     }
   }

@@ -47,7 +47,7 @@ const defaultLogConfig: LogConfig = {
   Core: true, // Basic initialization, critical errors
   UI: true, // General UI interactions, toasts
   Stepper: false, // Detailed stepper execution (can be verbose)
-  Background: true, // Background script lifecycle, major events
+  Background: false, // Background script lifecycle, major events (disabled by default due to noise)
   Storage: false, // Storage get/set operations
   Recording: false, // User action recording feature
   TestViewer: true, // Test viewer dialog interactions
@@ -57,6 +57,9 @@ const defaultLogConfig: LogConfig = {
 // Variable to hold the active configuration
 let currentLogConfig: LogConfig = { ...defaultLogConfig };
 let configLoaded = false;
+
+// Queue for logs that arrive before config is loaded
+let pendingLogs: { level: LogLevel; feature: string; message: string; context?: LogContext }[] = [];
 
 /** Loads log configuration from storage or initializes with defaults */
 async function loadLogConfig(): Promise<void> {
@@ -77,6 +80,18 @@ async function loadLogConfig(): Promise<void> {
     currentLogConfig = { ...defaultLogConfig };
   } finally {
     configLoaded = true;
+    
+    // Process any pending logs that were queued during initialization
+    if (pendingLogs.length > 0) {
+      console.log(`[Logger] Processing ${pendingLogs.length} queued logs after config load.`);
+      const logsToProcess = [...pendingLogs]; // Copy the array
+      pendingLogs = []; // Clear the queue
+      
+      // Process each queued log
+      logsToProcess.forEach(({ level, feature, message, context }) => {
+        log(level, feature, message, context);
+      });
+    }
   }
 }
 
@@ -130,6 +145,21 @@ export async function clearSessionLogs(): Promise<void> {
 }
 
 /**
+ * Retrieves all session logs from storage.
+ * @returns Promise that resolves to an array of log entries
+ */
+export async function getSessionLogs(): Promise<LogEntry[]> {
+    try {
+        const logs = await storageGet<LogEntry[]>(LOG_STORAGE_KEY) || [];
+        console.log(`[Logger] Retrieved ${logs.length} session logs from storage.`);
+        return logs;
+    } catch (error) {
+        console.error('[Logger] Failed to retrieve session logs from storage:', error);
+        return [];
+    }
+}
+
+/**
  * Central log processing function.
  *
  * @param level - The severity level of the log message.
@@ -138,10 +168,11 @@ export async function clearSessionLogs(): Promise<void> {
  * @param context - Optional additional data related to the log entry.
  */
 function log(level: LogLevel, feature: string, message: string, context?: LogContext): void {
-  // Early exit if config not loaded yet (should be very brief)
-  // Alternatively, queue logs until config is loaded? For simplicity, just skip.
+  // If config not loaded yet, queue the log for processing later
   if (!configLoaded) {
-      console.warn('[Logger] Config not loaded, skipping log:', { level, feature, message });
+      pendingLogs.push({ level, feature, message, context });
+      // Still log to console for immediate visibility (optional)
+      console.log(`[Logger] Queued log (config loading...): [${level.toUpperCase()}] ${feature}: ${message}`);
       return;
   }
 

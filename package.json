@@ -32,7 +32,8 @@
     "test:cdp": "cd tests/cdp && npm run build && npm run test:cdp",
     "test:cdp:watch": "cd tests/cdp && npm run build && npm run test:cdp:watch",
     "test:cdp:speech": "cd tests/cdp && npm run build && npm run test:cdp:specific -- --test=speech-editor-focus",
-    "setup:cdp": "cd tests/cdp && npm install && npm run build"
+    "setup:cdp": "cd tests/cdp && npm install && npm run build",
+    "debug:manual": "cd tests/cdp && npm run build && npm run debug:manual"
   },
   "keywords": [],
   "author": "",

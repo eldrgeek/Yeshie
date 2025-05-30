@@ -8,7 +8,9 @@ import {
   testTabTracking,
   testExtensionStorage,
   testSpeechEditorRegistration,
-  testRealWorldNavigation
+  testRealWorldNavigation,
+  testSpeechEditorFocusBug,
+  testSpeechEditorStatePersistence
 } from './tests/basic-functionality';
 import * as process from 'process';
 
@@ -32,7 +34,9 @@ async function main() {
       { name: 'speech-editor-focus', fn: testSpeechEditorFocus },
       { name: 'speech-editor-registration', fn: testSpeechEditorRegistration },
       { name: 'tab-tracking', fn: testTabTracking },
-      { name: 'real-world-navigation', fn: testRealWorldNavigation }
+      { name: 'real-world-navigation', fn: testRealWorldNavigation },
+      { name: 'speech-editor-focus-bug', fn: testSpeechEditorFocusBug },
+      { name: 'speech-editor-state-persistence', fn: testSpeechEditorStatePersistence }
     ];
     
     const testsToRun = specificTest 

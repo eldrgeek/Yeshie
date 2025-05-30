@@ -20,11 +20,16 @@ import { logInfo, logWarn, logError } from "../functions/logger"
 // Remember current tab as soon as possible
 rememberCurrentTab().then(tabId => {
   if (tabId) {
-    logInfo("YeshieContent", `Tab ID ${tabId} will be restored after extension loads`);
+    // Use setTimeout to ensure logger is initialized
+    setTimeout(() => {
+      logInfo("YeshieContent", `Tab ID ${tabId} will be restored after extension loads`);
+    }, 100);
   }
 });
 
-setupCS()
+// Initialize content script communications
+const extcommsListener = setupCS();
+
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
   all_frames: false,
@@ -95,6 +100,11 @@ const Yeshie: React.FC = () => {
   }, [isOpenKey])
 
   const updateIsOpen = useCallback(async (newIsOpen: boolean) => {
+    logInfo("YeshieContent", `User toggled sidebar: ${isOpen ? 'open' : 'closed'} → ${newIsOpen ? 'open' : 'closed'}`, { 
+      previousState: isOpen, 
+      newState: newIsOpen, 
+      url: window.location.href 
+    });
     setIsOpen(newIsOpen)
     try {
       await storageSet(isOpenKey, newIsOpen)
@@ -104,7 +114,7 @@ const Yeshie: React.FC = () => {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logError('YeshieContent', 'storage_error: setIsOpen', { operation: 'setIsOpen', key: isOpenKey, error: errorMessage })
     }
-  }, [isOpenKey])
+  }, [isOpenKey, isOpen])
 
   const updateContext = useCallback(async (newContextPart: Partial<TabContext>) => {
     if (tabId === null) {
@@ -164,14 +174,14 @@ const Yeshie: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    if (window.top !== window.self || !document.getElementById(getShadowHostId())) {
-      logInfo("YeshieContent", "Yeshie is in an iframe or shadow host not found, not rendering")
+    if (window.top !== window.self) {
+      logInfo("YeshieContent", "Yeshie is in an iframe, not rendering")
       return
     }
     
     async function init() {
       if (initCalled.current) return 
-      initCalled.current = true 
+      initCalled.current = true
 
       logInfo("YeshieContent", "Initializing Yeshie content script", { isOpen, isReady });
       try {
@@ -209,27 +219,89 @@ const Yeshie: React.FC = () => {
 
     init()
 
-    const observer = new MutationObserver((mutations, obs) => {
-      const targetElement = document.querySelector('body')
-      if (targetElement) {
-        setIsReady(true)
-        obs.disconnect()
-        logInfo("YeshieContent", "Target element found, Yeshie is ready to render")
-      }
-    })
+    // Check if body already exists (since we're running at document_end, it should)
+    console.log("🔧 Checking if document.body exists:", !!document.body);
+    if (document.body) {
+      console.log("✅ Body exists, setting isReady to true");
+      setIsReady(true)
+      logInfo("YeshieContent", "Body already exists, Yeshie is ready to render")
+    } else {
+      console.log("⚠️ Body not found, setting up MutationObserver");
+      // Fallback: use MutationObserver if body doesn't exist yet
+      const observer = new MutationObserver((mutations, obs) => {
+        const targetElement = document.querySelector('body')
+        if (targetElement) {
+          console.log("✅ Body found via observer, setting isReady to true");
+          setIsReady(true)
+          obs.disconnect()
+          logInfo("YeshieContent", "Target element found via observer, Yeshie is ready to render")
+        }
+      })
 
-    observer.observe(document, {
-      childList: true,
-      subtree: true
-    })
+      observer.observe(document, {
+        childList: true,
+        subtree: true
+      })
+    }
 
     const handleKeyPress = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === 'y') {
         event.preventDefault()
+        logInfo("YeshieContent", `User pressed keyboard shortcut to toggle sidebar`, { 
+          shortcut: "Cmd/Ctrl+Shift+Y", 
+          currentState: isOpen,
+          url: window.location.href 
+        });
         updateIsOpen(!isOpen)
       }
       
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === 'z') {
+        event.preventDefault()
+        logInfo("YeshieContent", `User pressed keyboard shortcut to copy and clear logs`, { 
+          shortcut: "Cmd/Ctrl+Shift+Z",
+          url: window.location.href 
+        });
+        
+        // Get logs and copy to clipboard
+        (async () => {
+          try {
+            const response = await sendToBackground({ name: "getLogsAndClear" as any });
+            
+            if (!response?.success) {
+              setToast("❌ Failed to get logs");
+              setTimeout(() => setToast(null), 3000);
+              return;
+            }
+            
+            const logs = response?.logs || [];
+            
+            if (logs.length === 0) {
+              setToast("📋 No logs to copy");
+              setTimeout(() => setToast(null), 3000);
+              return;
+            }
+            
+            // Use the pre-formatted clipboard text from background script
+            if (response.clipboardText) {
+              await navigator.clipboard.writeText(response.clipboardText);
+            }
+            
+            setToast(`📋 Copied ${logs.length} logs to clipboard and cleared session`);
+            setTimeout(() => setToast(null), 3000);
+            
+          } catch (error) {
+            logError("YeshieContent", "Failed to copy logs to clipboard", { error });
+            setToast("❌ Failed to copy logs");
+            setTimeout(() => setToast(null), 3000);
+          }
+        })();
+      }
+      
       if (event.key === 'Escape' && isOpen) {
+        logInfo("YeshieContent", `User pressed Escape key while sidebar open`, { 
+          action: "blur_and_focus_page",
+          url: window.location.href 
+        });
         if (document.activeElement instanceof HTMLElement) {
           document.activeElement.blur()
           
@@ -250,12 +322,11 @@ const Yeshie: React.FC = () => {
     window.addEventListener('popstate', handleUrlChange)
 
     return () => {
-      observer.disconnect()
       document.removeEventListener('keydown', handleKeyPress)
       window.removeEventListener("message", handleMessage)
       window.removeEventListener('popstate', handleUrlChange)
     }
-  }, [handleMessage, updateContext, isOpen, isReady, updateIsOpen])
+  }, [handleMessage, updateContext, isOpen, updateIsOpen])
 
   useEffect(() => {
     if (document.body && isReady) {
@@ -299,17 +370,38 @@ const Yeshie: React.FC = () => {
   }, [isReady])
 
   if (!isReady) {
-    console.log("Yeshie is not ready to render yet")
+    console.log("Yeshie is not ready to render yet", { isReady, bodyExists: !!document.body })
     return null
   }
 
   if (!document.body) {
-    console.log("Body not found, not rendering Yeshie")
+    console.log("Body not found, not rendering Yeshie", { isReady, bodyExists: !!document.body })
     return null
   }
 
+  console.log("✅ Yeshie is ready to render!", { isReady, isOpen, tabId, bodyExists: !!document.body })
+
   return (
     <div id={getShadowHostId()}>
+      {toast && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          zIndex: 2147483647,
+          background: '#333',
+          color: 'white',
+          padding: '12px 16px',
+          borderRadius: '8px',
+          fontSize: '14px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          maxWidth: '300px',
+          wordWrap: 'break-word'
+        }}>
+          {toast}
+        </div>
+      )}
+      
       <div
         id="yeshie-sidebar"
         style={{
@@ -382,4 +474,7 @@ const Yeshie: React.FC = () => {
 
 export default Yeshie
 
-console.log("Yeshie script loaded")
+// Log when script loads (with delay to ensure logger is initialized)
+setTimeout(() => {
+  logInfo("YeshieContent", "Yeshie script loaded successfully");
+}, 100);

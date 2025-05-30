@@ -160,11 +160,6 @@
   border-color: #b7eb8f;
 }
 
-.tab-button.analyze {
-  background-color: #fffbe6;
-  border-color: #ffe58f;
-}
-
 .tab-button.disabled {
   opacity: 0.6;
   cursor: not-allowed;

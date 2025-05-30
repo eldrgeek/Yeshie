@@ -44,6 +44,11 @@ const ReportsPanel: React.FC<ReportsPanelProps> = ({ isOpen, onClose }) => {
   };
 
   const copyReportsToClipboard = async () => {
+    logInfo("ReportsPanel", "User clicked 'Copy Pending Reports' button", { 
+      reportCount: reports.filter(r => r.status === 'pending').length,
+      action: "copy_reports_to_clipboard"
+    });
+    
     const pendingReports = reports.filter(r => r.status === 'pending');
     if (pendingReports.length === 0) {
       setToast('No pending reports to copy');
@@ -60,6 +65,10 @@ const ReportsPanel: React.FC<ReportsPanelProps> = ({ isOpen, onClose }) => {
     try {
       await navigator.clipboard.writeText(cursorPrompt);
       setToast('Reports copied to clipboard');
+      logInfo("ReportsPanel", "Successfully copied reports to clipboard", { 
+        reportCount: pendingReports.length,
+        textLength: cursorPrompt.length
+      });
       setTimeout(() => setToast(null), 2000);
     } catch (error) {
       logError("ReportsPanel", "Error copying to clipboard", { error });
@@ -69,11 +78,27 @@ const ReportsPanel: React.FC<ReportsPanelProps> = ({ isOpen, onClose }) => {
   };
 
   const clearStoredReports = async () => {
+    logInfo("ReportsPanel", "User clicked 'Clear All Reports' button", { 
+      reportCount: reports.length,
+      action: "clear_all_reports"
+    });
+    
     const storage = new Storage();
     await storage.set('reports', []);
     setReports([]);
     setToast('All reports cleared');
+    logInfo("ReportsPanel", "Successfully cleared all reports", { 
+      clearedCount: reports.length
+    });
     setTimeout(() => setToast(null), 2000);
+  };
+
+  const handleClose = () => {
+    logInfo("ReportsPanel", "User clicked close button", { 
+      reportCount: reports.length,
+      action: "close_reports_panel"
+    });
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -113,7 +138,7 @@ const ReportsPanel: React.FC<ReportsPanelProps> = ({ isOpen, onClose }) => {
             margin: 0
           }}>Reports ({reports.length})</h2>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             style={{
               padding: '8px',
               borderRadius: '4px',

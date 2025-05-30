@@ -80,3 +80,5 @@ tests/cdp/temp-chrome-profile-*/
 tests/cdp/persistent-chrome-profile/
 tests/cdp/.turbo
 tests/cdp/.DS_Store
+tests/cdp/~/profile-debug/
+~/profile-debug/

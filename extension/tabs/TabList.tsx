@@ -55,11 +55,11 @@ const normalizeUrl = (url: string): string => {
 };
 
 // Helper to check for restricted URLs
-const isRestrictedUrl = (url: string | undefined): boolean => {
-    if (!url) return true; // No URL means we can't analyze
-    return url.startsWith('chrome://') || url.startsWith('about:') || url.startsWith('chrome-extension://');
-    // Add other patterns like chrome web store if needed
-};
+// const isRestrictedUrl = (url: string | undefined): boolean => {
+//     if (!url) return true; // No URL means we can't analyze
+//     return url.startsWith('chrome://') || url.startsWith('about:') || url.startsWith('chrome-extension://');
+//     // Add other patterns like chrome web store if needed
+// };
 
 // Define message types for communication with content script
 // interface StayMessage {
@@ -141,16 +141,21 @@ const TabList: React.FC = () => {
   // Fetch profile info and listen for cross-profile updates
   useEffect(() => {
     const fetchData = async () => {
+      let currentProfileName = profileName;
+      
       try {
         const nameRes = await sendToBackground<{}, { profile: string }>({ name: "getProfileName" })
-        if (nameRes?.profile) setProfileName(nameRes.profile)
+        if (nameRes?.profile) {
+          setProfileName(nameRes.profile)
+          currentProfileName = nameRes.profile;
+        }
       } catch (err) {
         logError("TabList", "Failed to get profile name", { error: err })
       }
 
       try {
         const profRes = await sendToBackground<{}, { profiles: Record<string, Record<string, StoredApplicationTab[]>> }>({ name: "getProfiles" })
-        if (profRes?.profiles) applyProfileData(profRes.profiles, nameRes?.profile || profileName)
+        if (profRes?.profiles) applyProfileData(profRes.profiles, currentProfileName)
       } catch (err) {
         logError("TabList", "Failed to get profiles", { error: err })
       }
@@ -410,6 +415,10 @@ const TabList: React.FC = () => {
   };
 
   const handleVisitReturn = async (tabId: number) => {
+    logInfo('TabList', 'User clicked "Visit & Return" button', { 
+      tabId, 
+      action: 'visit_return_tab'
+    });
     const switched = await navigateToTab(tabId);
     if (switched && extensionTabId) { // Only set timer if switch succeeded and we can return
         const SWITCH_BACK_DELAY = 1000; // 1 second
@@ -418,51 +427,19 @@ const TabList: React.FC = () => {
   };
 
   const handleVisitStay = async (tabId: number) => {
+    logInfo('TabList', 'User clicked "Visit & Stay" button', { 
+      tabId, 
+      action: 'visit_stay_tab'
+    });
     await navigateToTab(tabId); // Just navigate, no return timer
   };
 
-  const handleAnalyze = async (tabId: number, tabUrl: string | undefined) => {
-    if (!tabUrl || isRestrictedUrl(tabUrl)) {
-        logInfo('TabList', "Analyze called on restricted or invalid URL.");
-        return;
-    }
-    if (!extensionTabId) {
-        logError('TabList', "Extension ID needed to return after analyze.");
-        return;
-    }
-
-    logInfo('TabList', `Analyzing tab ${tabId}...`);
-    const switched = await navigateToTab(tabId);
-    if (!switched) return; // Don't proceed if switch failed
-
-    // Allow a moment for the page to potentially render/stabilize slightly
-    await new Promise(resolve => setTimeout(resolve, 200)); 
-
-    try {
-      const results = await chrome.scripting.executeScript({
-        target: { tabId: tabId },
-        files: ['content/getHtml.js'] 
-      });
-
-      if (results && results.length > 0 && results[0].result) {
-          const htmlContent = results[0].result as string;
-          await navigator.clipboard.writeText(htmlContent);
-          logInfo('TabList', `HTML content of tab ${tabId} copied to clipboard.`);
-          // Optional: Show a success message/toast here
-      } else {
-          logError('TabList', "Failed to get HTML content from content script.");
-          // Optional: Show an error message/toast here
-      }
-    } catch (err) {
-      logError('TabList', `Error injecting script or getting HTML for tab ${tabId}:`, { error: err });
-      // Optional: Show an error message/toast here
-    } finally {
-        // Navigate back regardless of success/failure of analysis
-        navigateBack(); 
-    }
-  };
-
   const handleCloseTab = async (windowId: string, tabId: number) => {
+    logInfo('TabList', 'User clicked "Close Tab" button', { 
+      windowId, 
+      tabId, 
+      action: 'close_tab'
+    });
     try {
       await chrome.tabs.remove(tabId);
       setGroupedTabs(prev => {
@@ -484,6 +461,11 @@ const TabList: React.FC = () => {
 
 
   const handleSaveAndCloseTab = async (windowId: string, tab: StoredApplicationTab) => {
+    logInfo('TabList', 'User clicked "Save and Close Tab" button', { 
+      windowId, 
+      tabId: tab.id, 
+      action: 'save_and_close_tab'
+    });
     try {
       const saved = (await storageGet<StoredApplicationTab[]>(SAVED_PAGES_KEY)) || [];
       saved.push(tab);
@@ -510,6 +492,10 @@ const TabList: React.FC = () => {
   };
 
   const handleCloseWindow = async (windowId: string) => {
+    logInfo('TabList', 'User clicked "Close Window" button', { 
+      windowId, 
+      action: 'close_window'
+    });
     try {
       await chrome.windows.remove(Number(windowId));
       logInfo('TabList', `Closed window ${windowId}`);
@@ -519,6 +505,10 @@ const TabList: React.FC = () => {
   };
 
   const handleSaveWindow = async (windowId: string) => {
+    logInfo('TabList', 'User clicked "Save Window" button', { 
+      windowId, 
+      action: 'save_window'
+    });
     try {
       const tabs = groupedTabs[windowId] || [];
       const saved = (await storageGet<StoredApplicationTab[]>(SAVED_PAGES_KEY)) || [];
@@ -534,10 +524,19 @@ const TabList: React.FC = () => {
   // --- Collapse Helpers ---
 
   const toggleProfile = (prof: string) => {
+    logInfo('TabList', 'User clicked to toggle profile', { 
+      profileName: prof, 
+      action: 'toggle_profile_collapse'
+    });
     setCollapsedProfiles(prev => ({ ...prev, [prof]: !prev[prof] }));
   };
 
   const toggleWindow = (prof: string, windowId: string) => {
+    logInfo('TabList', 'User clicked to toggle window', { 
+      profileName: prof, 
+      windowId, 
+      action: 'toggle_window_collapse'
+    });
     const key = `${prof}-${windowId}`;
     setCollapsedWindows(prev => ({ ...prev, [key]: !prev[key] }));
   };
@@ -675,16 +674,6 @@ const TabList: React.FC = () => {
                               disabled={tab.id === -1}
                           >
                               <FiSave />
-                          </button>
-                          <button 
-                              id={`analyze-${tab.id}`}
-                              className="tab-button analyze" 
-                              onClick={() => handleAnalyze(tab.id, tab.url)}
-                              disabled={isRestrictedUrl(tab.url) || (!tab.title && !tab.url) || tab.id === -1}
-                              data-tooltip={isRestrictedUrl(tab.url) ? "Cannot analyze restricted page" : "Analyze Page (Copy HTML)"}
-                              aria-label={isRestrictedUrl(tab.url) ? "Cannot analyze restricted page" : "Analyze Page (Copy HTML)"}
-                          >
-                              Analyze
                           </button>
                           <span
                             id={`tab-name-${tab.id}`}

@@ -1,6 +1,18 @@
 import { storageGet, storageSet, storageRemove } from "../functions/storage";
-import { logInfo, logWarn, logError } from "../functions/logger";
+import { logInfo, logWarn, logError, clearSessionLogs, getSessionLogs } from "../functions/logger";
 import { initWebSocketHandlers } from "./websocket-handlers";
+import { 
+  initializeSpeechGlobalState,
+  getSpeechGlobalState,
+  setSpeechGlobalState,
+  registerSpeechEditor,
+  unregisterSpeechEditor,
+  setSpeechEditorFocus,
+  handleSpeechRecognitionEnd,
+  getActiveSpeechEditors,
+  getFocusedSpeechEditor
+} from "../functions/speechGlobalState";
+import { initProfileConnector } from "./profileConnector";
 
 // Constants
 export const LAST_TAB_KEY = "yeshie_last_active_tab";
@@ -172,9 +184,6 @@ async function openOrFocusExtensionTab(options: { focus?: boolean } = {}): Promi
     const tabs = await chrome.tabs.query({ url: CONTROL_PAGE_PATTERN });
     const existing = tabs[0];
 
-    // Debugger breakpoint to inspect tab query results
-
-
     if (existing && existing.id) {
       const tabId = existing.id;
       if (focus) {
@@ -307,18 +316,13 @@ chrome.runtime.onSuspend.addListener(() => {
 });
 
 // Listen for extension startup and reload Control page tabs
-chrome.runtime.onStartup.addListener(async () => {
-  logInfo("Extension", "Extension startup detected");
-  const [original] = await chrome.tabs.query({ active: true, currentWindow: true });
-  const controlId = await openOrFocusExtensionTab({ focus: false });
-  if (original?.id && original.id !== controlId) {
-    try {
-      await chrome.tabs.update(original.id, { active: true });
-    } catch (e) {
-      logWarn("Extension", "Unable to restore original tab", { error: e });
-    }
+chrome.runtime.onStartup.addListener(() => {
+  logInfo("Background", "Extension startup");
+  if (typeof window !== 'undefined') {
+    (window as any).isExtensionStartup = true;
   }
   restoreControlTabs();
+  initProfileConnector();
 });
 
 // Add listener for extension installation or update to reload Control page tabs
@@ -380,6 +384,101 @@ initTabTracking();
 
 // Initialize WebSocket handlers
 initWebSocketHandlers();
+
+// Initialize global speech state
+initializeSpeechGlobalState();
+
+// Expose speech state functions globally for testing and debugging
+(globalThis as any).getSpeechGlobalState = getSpeechGlobalState;
+(globalThis as any).setSpeechGlobalState = setSpeechGlobalState;
+(globalThis as any).registerSpeechEditor = registerSpeechEditor;
+(globalThis as any).unregisterSpeechEditor = unregisterSpeechEditor;
+(globalThis as any).setSpeechEditorFocus = setSpeechEditorFocus;
+(globalThis as any).handleSpeechRecognitionEnd = handleSpeechRecognitionEnd;
+(globalThis as any).getActiveSpeechEditors = getActiveSpeechEditors;
+(globalThis as any).getFocusedSpeechEditor = getFocusedSpeechEditor;
+
+// Expose debug log functions globally for testing and debugging
+(globalThis as any).clearLogs = clearSessionLogs;
+
+// Enhanced function that gets logs, prints them, copies to clipboard, and clears them
+(globalThis as any).getLogsAndClear = async function() {
+  try {
+    const logs = await getSessionLogs();
+    
+    if (logs.length === 0) {
+      console.log("📋 No logs found.");
+      return;
+    }
+    
+    console.log(`📋 Found ${logs.length} log entries:`);
+    console.log("=".repeat(50));
+    
+    // Format logs nicely
+    const formattedLogs = logs.map((log, index) => {
+      const time = new Date(log.timestamp).toLocaleTimeString();
+      const levelIcon = {
+        'info': 'ℹ️',
+        'warn': '⚠️',
+        'error': '❌',
+        'debug': '🐛'
+      }[log.level] || '📝';
+      
+      let formatted = `${index + 1}. [${time}] ${levelIcon} ${log.feature}: ${log.message}`;
+      if (log.context) {
+        formatted += `\n   Context: ${JSON.stringify(log.context, null, 2).replace(/\n/g, '\n   ')}`;
+      }
+      return formatted;
+    }).join('\n\n');
+    
+    console.log(formattedLogs);
+    console.log("=".repeat(50));
+    
+    // Copy to clipboard - create a clean text format
+    const clipboardText = logs.map((log, index) => {
+      const time = new Date(log.timestamp).toLocaleTimeString();
+      let text = `${index + 1}. [${time}] ${log.level.toUpperCase()} ${log.feature}: ${log.message}`;
+      if (log.context) {
+        text += `\n   Context: ${JSON.stringify(log.context)}`;
+      }
+      return text;
+    }).join('\n\n');
+    
+    // Try to copy to clipboard, but handle gracefully if not available
+    let clipboardSuccess = false;
+    try {
+      if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(clipboardText);
+        console.log("📋 Logs copied to clipboard!");
+        clipboardSuccess = true;
+      } else {
+        console.log("⚠️ Clipboard API not available in background context. Use the bridge function from page console instead.");
+        console.log("💡 Clipboard text available in return value:");
+        console.log(clipboardText);
+      }
+    } catch (clipboardError) {
+      console.log("⚠️ Clipboard copy failed:", clipboardError);
+      console.log("💡 Clipboard text available in return value:");
+      console.log(clipboardText);
+    }
+    
+    // Clear the logs
+    await clearSessionLogs();
+    console.log("🗑️ Logs cleared from storage.");
+    
+    return {
+      logs,
+      clipboardText,
+      clipboardSuccess
+    };
+  } catch (error) {
+    console.error("❌ Error in getLogsAndClear:", error);
+    return [];
+  }
+};
+
+// Keep the simple getLogs for backward compatibility
+(globalThis as any).getLogs = getSessionLogs;
 
 // Log initialization
 logInfo("Extension", "Background script initialized");

@@ -163,6 +163,38 @@ Each major component has standalone tests that can be run independently for deve
    - LLMServer tests (`test_llmserver.py`)
    - VectorStore tests (`test_vectorstore.py`)
 
+5. **Extension E2E Testing**:
+   ```bash
+   cd tests/e2e
+   PYTHONPATH=. pytest -s command_execution/test_minimal.py -v
+   ```
+   This will:
+   - Launch Chrome with the extension loaded
+   - Test extension functionality on localhost and GitHub
+   - Verify browser automation capabilities
+
+6. **Core CDP Testing** ✨ UPDATED:
+   ```bash
+   cd tests/cdp
+   npm run test:all
+   ```
+   This streamlined test suite will:
+   - ✅ Test basic CDP connection to Chrome
+   - ✅ Verify extension loading and accessibility  
+   - ✅ Test log clearing, action recording, and log retrieval workflow
+   - ✅ Analyze current extension logs for recent activity
+   
+   **Available Tests**:
+   - `test:cdp` - Basic Chrome DevTools Protocol connection testing
+   - `test:extension` - Extension verification and functionality
+   - `test:logs` - Log testing workflow and analysis
+   
+   **Use Cases**:
+   - Testing extension loading and core functionality
+   - Validating Chrome debugging setup
+   - Monitoring extension logs and activity
+   - Ensuring CDP infrastructure works correctly
+
 Make sure to:
 - Ensure your `.env` file contains a valid `OPENAI_API_KEY` (use `setup_codex_env.sh` or edit manually)
 - Run tests in order (CodeStore → VectorStore → LLMServer)
