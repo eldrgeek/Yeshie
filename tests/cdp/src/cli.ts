@@ -3,6 +3,7 @@
 import { testCDPConnection } from './tests/simple-cdp-connection';
 import { checkExtensionSimple } from './tests/extension-verification';
 import { runLogTestingWorkflow, runLogAnalysis } from './tests/log-testing-workflow';
+import { testSpeechFeature, testTabManagement } from './tests/automated-dev-cycle';
 
 const tests = {
   'cdp-connection': {
@@ -24,6 +25,16 @@ const tests = {
     name: 'log-analysis',
     description: 'Analyze current extension logs to see recent activity',
     run: runLogAnalysis
+  },
+  'dev-cycle-speech': {
+    name: 'dev-cycle-speech',
+    description: 'Automated dev cycle test for speech recognition features',
+    run: testSpeechFeature
+  },
+  'dev-cycle-tabs': {
+    name: 'dev-cycle-tabs',
+    description: 'Automated dev cycle test for tab management features',
+    run: testTabManagement
   }
 };
 

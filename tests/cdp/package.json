@@ -11,6 +11,8 @@
     "test:cdp": "npm run build && node dist/cli.js cdp-connection",
     "test:extension": "npm run build && node dist/cli.js extension-verification",
     "test:logs": "npm run build && node dist/cli.js log-testing-workflow",
+    "test:dev-speech": "npm run build && node dist/cli.js dev-cycle-speech",
+    "test:dev-tabs": "npm run build && node dist/cli.js dev-cycle-tabs",
     "test:help": "npm run build && node dist/cli.js --help",
     "dev": "tsc --watch"
   },
