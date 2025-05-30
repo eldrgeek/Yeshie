@@ -81,6 +81,7 @@ const Yeshie: React.FC = () => {
   const [sessionID, setSessionID] = useState<string | null>(null)
   const [context, setContext] = useState<TabContext | null>(null)
   const [connectionError, setConnectionError] = useState(false)
+  const [contextInvalidated, setContextInvalidated] = useState(false)
   const initCalled = useRef(false)
   const [showReportDialog, setShowReportDialog] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -190,6 +191,7 @@ const Yeshie: React.FC = () => {
         if (response && typeof response.tabId === 'number') {
           const currentTabId = response.tabId
           setTabId(currentTabId)
+          setContextInvalidated(false) // Clear any previous invalidation state
           const contextKey = `tabContext:${currentTabId}`
 
           const storedContext = await storageGet<TabContext>(contextKey)
@@ -209,11 +211,23 @@ const Yeshie: React.FC = () => {
           }
         } else {
           logError("YeshieContent", "Invalid tab ID response", { response });
+          setContextInvalidated(true);
         }
       } catch (error) {
         logError("YeshieContent", "Error during init (getTabId or context handling)", { error });
         const errorMessage = error instanceof Error ? error.message : String(error)
-        logError('YeshieContent', 'init_error: getTabId/context', { step: 'getTabId/context', error: errorMessage })
+        
+        // Check if this is a context invalidation error
+        if (errorMessage.includes('Extension context invalidated') || 
+            errorMessage.includes('message port closed') ||
+            errorMessage.includes('receiving end does not exist')) {
+          logInfo("YeshieContent", "Detected context invalidation, will auto-reload when tab becomes active");
+          setContextInvalidated(true);
+          setToast("🔄 Extension reloaded. Page will refresh automatically when focused.");
+          setTimeout(() => setToast(null), 5000);
+        } else {
+          logError('YeshieContent', 'init_error: getTabId/context', { step: 'getTabId/context', error: errorMessage })
+        }
       }
     }
 
@@ -377,6 +391,48 @@ const Yeshie: React.FC = () => {
   if (!document.body) {
     console.log("Body not found, not rendering Yeshie", { isReady, bodyExists: !!document.body })
     return null
+  }
+
+  // Show context invalidation notice if needed
+  if (contextInvalidated) {
+    return (
+      <div style={{
+        position: 'fixed',
+        top: '10px',
+        right: '10px',
+        background: '#ff6b35',
+        color: 'white',
+        padding: '12px 16px',
+        borderRadius: '8px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+        zIndex: 10000,
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontSize: '14px',
+        maxWidth: '300px'
+      }}>
+        <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
+          🔄 Extension Context Invalidated
+        </div>
+        <div style={{ marginBottom: '8px', fontSize: '12px' }}>
+          The extension was reloaded. This page will auto-reload when you switch tabs and come back.
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          style={{
+            background: 'white',
+            color: '#ff6b35',
+            border: 'none',
+            padding: '6px 12px',
+            borderRadius: '4px',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            cursor: 'pointer'
+          }}
+        >
+          Reload Now
+        </button>
+      </div>
+    );
   }
 
   console.log("✅ Yeshie is ready to render!", { isReady, isOpen, tabId, bodyExists: !!document.body })

@@ -13,6 +13,7 @@
     "test:logs": "npm run build && node dist/cli.js log-testing-workflow",
     "test:dev-speech": "npm run build && node dist/cli.js dev-cycle-speech",
     "test:dev-tabs": "npm run build && node dist/cli.js dev-cycle-tabs",
+    "test:dev-context": "npm run build && node dist/cli.js dev-cycle-context",
     "test:help": "npm run build && node dist/cli.js --help",
     "dev": "tsc --watch"
   },

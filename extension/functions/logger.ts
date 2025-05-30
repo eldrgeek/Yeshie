@@ -44,14 +44,39 @@ export interface LogConfig {
 // Define default features and their states
 // Add more features as needed (e.g., 'Stepper', 'TabsUI', 'Background', 'API', 'Storage')
 const defaultLogConfig: LogConfig = {
+  // Core system features
   Core: true, // Basic initialization, critical errors
+  Extension: true, // Extension lifecycle, tab management
+  Background: true, // Background script lifecycle, major events 
+  
+  // UI and User Interaction
   UI: true, // General UI interactions, toasts
-  Stepper: false, // Detailed stepper execution (can be verbose)
-  Background: false, // Background script lifecycle, major events (disabled by default due to noise)
-  Storage: false, // Storage get/set operations
-  Recording: false, // User action recording feature
+  YeshieContent: true, // Content script initialization and functionality
+  TabList: true, // Tab list UI interactions
+  ReportsPanel: true, // Reports panel functionality
+  DialogPanel: true, // Dialog panel interactions
   TestViewer: true, // Test viewer dialog interactions
-  // Add others...
+  
+  // Tab and Focus Management
+  TabHistory: true, // Tab tracking and history
+  TabFocus: true, // Tab focusing functionality
+  GetLastTabHandler: true, // Last tab retrieval handler
+  
+  // Feature-specific logging
+  Stepper: false, // Detailed stepper execution (can be verbose)
+  PageObserver: false, // Page observation events (can be verbose)
+  WebSocketHandlers: true, // WebSocket connection management
+  ProfileConnector: true, // Profile/MCP connection management
+  ContextReload: true, // Context invalidation and auto-reload functionality
+  
+  // Storage and Data
+  Storage: false, // Storage get/set operations (can be verbose)
+  
+  // Development and Testing
+  Recording: false, // User action recording feature
+  ParseAndInsertWordsExample: false, // Example/test functionality
+  
+  // Add others as needed...
 };
 
 // Variable to hold the active configuration
@@ -178,7 +203,12 @@ function log(level: LogLevel, feature: string, message: string, context?: LogCon
 
   // Check if this feature's logging is enabled
   // Always log errors regardless of feature toggle (can be refined later)
-  if (level !== 'error' && !currentLogConfig[feature]) {
+  // For unknown features, default to enabled (true) to allow testing new features
+  const isFeatureEnabled = currentLogConfig.hasOwnProperty(feature) 
+    ? currentLogConfig[feature] 
+    : true; // Default to enabled for unknown features
+    
+  if (level !== 'error' && !isFeatureEnabled) {
     // Optional: console.debug(`[Logger] Log skipped for disabled feature '${feature}':`, { level, message });
     return; // Don't log if feature is disabled (and it's not an error)
   }

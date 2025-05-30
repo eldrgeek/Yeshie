@@ -3,7 +3,7 @@
 import { testCDPConnection } from './tests/simple-cdp-connection';
 import { checkExtensionSimple } from './tests/extension-verification';
 import { runLogTestingWorkflow, runLogAnalysis } from './tests/log-testing-workflow';
-import { testSpeechFeature, testTabManagement } from './tests/automated-dev-cycle';
+import { testSpeechFeature, testTabManagement, testContextInvalidationReload } from './tests/automated-dev-cycle';
 
 const tests = {
   'cdp-connection': {
@@ -35,6 +35,11 @@ const tests = {
     name: 'dev-cycle-tabs',
     description: 'Automated dev cycle test for tab management features',
     run: testTabManagement
+  },
+  'dev-cycle-context': {
+    name: 'dev-cycle-context',
+    description: 'Automated dev cycle test for context invalidation and auto-reload',
+    run: testContextInvalidationReload
   }
 };
 

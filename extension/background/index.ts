@@ -22,6 +22,10 @@ const EXTENSION_BASE_URL = chrome.runtime.getURL("");
 const EXTENSION_TITLE = chrome.runtime.getManifest().name;
 const MIN_TAB_FOCUS_TIME = 800;
 
+// New constants for auto-reload functionality
+const INVALIDATED_TABS_KEY = "yeshie_invalidated_tabs";
+const FOCUSED_TAB_KEY = "yeshie_focused_tab_on_reload";
+
 // URL for the main Control page
 const CONTROL_PAGE_URL = chrome.runtime.getURL('tabs/index.html');
 
@@ -82,7 +86,11 @@ function handleTabActivated({ tabId, windowId }: chrome.tabs.TabActiveInfo) {
   lastTabFocusTime = now;
 
   chrome.tabs.get(tabId)
-    .then(tab => trackTab(tab))
+    .then(tab => {
+      trackTab(tab);
+      // Check if this tab needs to be reloaded due to context invalidation
+      checkAndReloadInvalidatedTab(tabId);
+    })
     .catch(error => logError("TabHistory", "Activation error", { error }));
 
   debouncedUpdateTabs();
@@ -318,9 +326,11 @@ chrome.runtime.onSuspend.addListener(() => {
 // Listen for extension startup and reload Control page tabs
 chrome.runtime.onStartup.addListener(() => {
   logInfo("Background", "Extension startup");
+  logInfo("ContextReload", "onStartup event fired - calling handleContextInvalidation");
   if (typeof window !== 'undefined') {
     (window as any).isExtensionStartup = true;
   }
+  handleContextInvalidation();
   restoreControlTabs();
   initProfileConnector();
 });
@@ -328,6 +338,10 @@ chrome.runtime.onStartup.addListener(() => {
 // Add listener for extension installation or update to reload Control page tabs
 chrome.runtime.onInstalled.addListener(async (details) => {
   logInfo("Extension", "Extension installed or updated", { reason: details.reason });
+  logInfo("ContextReload", "onInstalled event fired - calling handleContextInvalidation", { reason: details.reason });
+
+  // Handle context invalidation for all extension events (install, update, reload)
+  await handleContextInvalidation();
 
   // Only restore tabs for reload/update, not for fresh install
   if (details.reason === 'update' || details.reason === 'chrome_update') {
@@ -379,6 +393,83 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+// Auto-reload functionality for context invalidation
+async function handleContextInvalidation() {
+  logInfo("ContextReload", "Extension reloaded, marking invalidated tabs for auto-reload");
+  
+  try {
+    // Get all tabs except extension tabs and the currently focused tab
+    const allTabs = await chrome.tabs.query({});
+    const currentWindow = await chrome.windows.getCurrent();
+    const [focusedTab] = await chrome.tabs.query({ active: true, windowId: currentWindow.id });
+    
+    // Store the focused tab ID to avoid reloading it
+    if (focusedTab?.id) {
+      await storageSet(FOCUSED_TAB_KEY, focusedTab.id);
+      logInfo("ContextReload", "Preserved focused tab from reload", { tabId: focusedTab.id, url: focusedTab.url });
+    }
+    
+    // Mark all other tabs (except extension tabs) as potentially invalidated
+    const invalidatedTabIds = allTabs
+      .filter(tab => {
+        const url = tab.url ?? tab.pendingUrl;
+        return tab.id && 
+               tab.id !== focusedTab?.id && 
+               !isIgnoredUrl(url) && 
+               !url?.startsWith(EXTENSION_BASE_URL);
+      })
+      .map(tab => tab.id!);
+    
+    await storageSet(INVALIDATED_TABS_KEY, invalidatedTabIds);
+    logInfo("ContextReload", "Marked tabs for potential auto-reload", { 
+      count: invalidatedTabIds.length, 
+      focusedTabId: focusedTab?.id 
+    });
+  } catch (error) {
+    logError("ContextReload", "Error handling context invalidation", { error });
+  }
+}
+
+// Check if a tab needs to be reloaded and do it
+async function checkAndReloadInvalidatedTab(tabId: number) {
+  try {
+    const invalidatedTabs = await storageGet<number[]>(INVALIDATED_TABS_KEY) || [];
+    
+    if (invalidatedTabs.includes(tabId)) {
+      const tab = await chrome.tabs.get(tabId);
+      logInfo("ContextReload", "Reloading invalidated tab", { tabId, url: tab.url });
+      
+      // Try to re-inject content scripts first (non-disruptive)
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId },
+          files: ['contents/Yeshie.js']
+        });
+        logInfo("ContextReload", "Re-injected content script successfully", { tabId });
+        
+        // Remove from invalidated list since re-injection succeeded
+        const updatedList = invalidatedTabs.filter(id => id !== tabId);
+        await storageSet(INVALIDATED_TABS_KEY, updatedList);
+        
+      } catch (injectionError) {
+        // If injection fails, fall back to full page reload
+        logWarn("ContextReload", "Content script re-injection failed, reloading page", { 
+          tabId, 
+          error: injectionError 
+        });
+        
+        await chrome.tabs.reload(tabId);
+        
+        // Remove from invalidated list after reload
+        const updatedList = invalidatedTabs.filter(id => id !== tabId);
+        await storageSet(INVALIDATED_TABS_KEY, updatedList);
+      }
+    }
+  } catch (error) {
+    logError("ContextReload", "Error checking/reloading invalidated tab", { tabId, error });
+  }
+}
+
 // Initialize tab tracking
 initTabTracking();
 
@@ -397,6 +488,10 @@ initializeSpeechGlobalState();
 (globalThis as any).handleSpeechRecognitionEnd = handleSpeechRecognitionEnd;
 (globalThis as any).getActiveSpeechEditors = getActiveSpeechEditors;
 (globalThis as any).getFocusedSpeechEditor = getFocusedSpeechEditor;
+
+// Expose context invalidation functions globally for testing and debugging
+(globalThis as any).handleContextInvalidation = handleContextInvalidation;
+(globalThis as any).checkAndReloadInvalidatedTab = checkAndReloadInvalidatedTab;
 
 // Expose debug log functions globally for testing and debugging
 (globalThis as any).clearLogs = clearSessionLogs;
@@ -482,3 +577,26 @@ initializeSpeechGlobalState();
 
 // Log initialization
 logInfo("Extension", "Background script initialized");
+
+// Manual testing functions for context invalidation
+async function testContextInvalidationManually() {
+  logInfo("ContextReload", "MANUAL TEST: Starting context invalidation test");
+  
+  // Manually trigger context invalidation logic
+  await handleContextInvalidation();
+  
+  // Log current invalidated tabs
+  const invalidatedTabs = await chrome.storage.local.get([INVALIDATED_TABS_KEY]);
+  logInfo("ContextReload", "MANUAL TEST: Current invalidated tabs", invalidatedTabs);
+}
+
+async function testTabSwitchDetection() {
+  logInfo("ContextReload", "MANUAL TEST: Testing tab switch detection");
+  
+  // Get current active tab
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tabs[0]) {
+    logInfo("ContextReload", "MANUAL TEST: Simulating tab activation", { tabId: tabs[0].id });
+    await checkAndReloadInvalidatedTab(tabs[0].id);
+  }
+}
