@@ -1,6 +1,6 @@
 import { storageGet, storageSet, storageRemove } from "../functions/storage";
 import { logInfo, logWarn, logError, clearSessionLogs, getSessionLogs } from "../functions/logger";
-import { initWebSocketHandlers } from "./websocket-handlers";
+// import { initWebSocketHandlers } from "./websocket-handlers";
 import { 
   initializeSpeechGlobalState,
   getSpeechGlobalState,
@@ -12,7 +12,7 @@ import {
   getActiveSpeechEditors,
   getFocusedSpeechEditor
 } from "../functions/speechGlobalState";
-import { initProfileConnector } from "./profileConnector";
+// import { initProfileConnector } from "./profileConnector";
 
 // Constants
 export const LAST_TAB_KEY = "yeshie_last_active_tab";
@@ -332,7 +332,7 @@ chrome.runtime.onStartup.addListener(() => {
   }
   handleContextInvalidation();
   restoreControlTabs();
-  initProfileConnector();
+  // initProfileConnector();
 });
 
 // Add listener for extension installation or update to reload Control page tabs
@@ -474,7 +474,7 @@ async function checkAndReloadInvalidatedTab(tabId: number) {
 initTabTracking();
 
 // Initialize WebSocket handlers
-initWebSocketHandlers();
+// initWebSocketHandlers();
 
 // Initialize global speech state
 initializeSpeechGlobalState();

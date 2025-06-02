@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import ReactDOM from "react-dom/client";
 import YeshieEditor from "../components/YeshieEditor";
+import { SpeechInput } from "../components/SpeechEditor"; // Import SpeechEditor
 import TabList from "./TabList";
 import { sendToBackground } from "@plasmohq/messaging";
 import ReportsPanel from "../components/ReportsPanel";
@@ -117,10 +118,12 @@ const DownloadIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
 );
 const RecordIcon = ({ recording }: { recording: boolean }) => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill={recording ? 'red' : 'none'} stroke={recording ? 'red' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8" /></svg>
+  <svg width="16" height="16" viewBox="0 0 24 24" fill={recording ? "#ff4444" : "currentColor"} stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
 );
 
-function TabsIndex() {
+const TabsIndex = React.memo(() => {
   const [buildInfo] = useState<BuildInfo>(getBuildInfo());
   const [lastTabInfo, setLastTabInfo] = useState<TabInfo | null>(null);
   const [loading, setLoading] = useState(false);
@@ -135,14 +138,14 @@ function TabsIndex() {
   const [reloadCount, setReloadCount] = useState<number>(0);
   const [customNames, setCustomNames] = useState<CustomNameMap>({});
   const [lastErrorDetails, setLastErrorDetails] = useState<string | null>(null);
-  const [showLogViewer, setShowLogViewer] = useState<boolean>(false); // State for LogViewer visibility
+  const [showLogViewer, setShowLogViewer] = useState<boolean>(false);
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [isProcessingRecording, setIsProcessingRecording] = useState<boolean>(false);
   const [hasResults, setHasResults] = useState(false);
-  const [runScriptOnReload, setRunScriptOnReload] = useState<boolean>(false); // New state
-  const [showTestViewerDialog, setShowTestViewerDialog] = useState<boolean>(false); // New state for dialog
+  const [runScriptOnReload, setRunScriptOnReload] = useState<boolean>(false);
+  const [showTestViewerDialog, setShowTestViewerDialog] = useState<boolean>(false);
   const [recordedTasks, setRecordedTasks] = useState<string[]>([]);
-  const [activeInteractiveToast, setActiveInteractiveToast] = useState<string | null>(null); // To track active interactive toast ID
+  const [activeInteractiveToast, setActiveInteractiveToast] = useState<string | null>(null);
 
   // --- State for API Key Management ---
   const [hasApiKey, setHasApiKey] = useState(false);
@@ -271,7 +274,7 @@ function TabsIndex() {
     
     return () => {
     };
-  }, [fetchLastTab]);
+  }, []); // Remove fetchLastTab dependency - run only on mount
 
   // --- Reload recorded tasks from storage ---
   const reloadTasksFromStorage = useCallback(async () => {
@@ -292,7 +295,7 @@ function TabsIndex() {
   // Load tasks on mount
   useEffect(() => {
     reloadTasksFromStorage();
-  }, [reloadTasksFromStorage]);
+  }, []); // Remove reloadTasksFromStorage dependency - run only on mount
 
   // Load reports when component mounts and when tabInfoReady changes
   useEffect(() => {
@@ -337,13 +340,13 @@ function TabsIndex() {
       // Check if the LAST_TAB_KEY changed
       if (changes[LAST_TAB_KEY]) {
           logInfo('TabTracking', 'Detected LAST_TAB_KEY change, fetching updated tab info...');
-          fetchLastTab(); // Call the memoized function
+          fetchLastTab(); // Call the function directly
       }
 
       const taskKeyChanged = Object.keys(changes).some((key) => key.startsWith(ARCHIVED_TEST_PREFIX));
       if (taskKeyChanged) {
           logInfo('Storage', 'Detected archived test change via storage listener');
-          reloadTasksFromStorage();
+          reloadTasksFromStorage(); // Call the function directly
       }
     };
 
@@ -351,7 +354,7 @@ function TabsIndex() {
     return () => {
       chrome.storage.onChanged.removeListener(handleStorageChange);
     };
-  }, [setCustomNames, fetchLastTab, reloadTasksFromStorage]);
+  }, []); // Remove function dependencies - functions are stable
 
   // Add listener for window focus
   useEffect(() => {
@@ -559,22 +562,39 @@ function TabsIndex() {
     }
   };
 
-  // Format timestamp to readable date/time
-  const formatTimestamp = (timestamp: number) => {
+  // Define formatTimestamp function first (before useMemo hooks that depend on it)
+  const formatTimestamp = useCallback((timestamp: number) => {
     return new Date(timestamp).toLocaleString();
-  };
+  }, []);
 
-  // Get domain from URL
-  const getDomainFromUrl = (url: string) => {
+  // Memoize expensive timestamp formatting operations
+  const formattedFocusedTime = useMemo(() => {
+    return tabPaneFocusedTime ? formatTimestamp(tabPaneFocusedTime) : null;
+  }, [tabPaneFocusedTime, formatTimestamp]);
+
+  const formattedLastTabTime = useMemo(() => {
+    return lastTabInfo?.timestamp ? formatTimestamp(lastTabInfo.timestamp) : null;
+  }, [lastTabInfo?.timestamp, formatTimestamp]);
+
+  const focusedTimeTooltip = useMemo(() => {
+    return tabPaneFocusedTime ? new Date(tabPaneFocusedTime).toISOString() : null;
+  }, [tabPaneFocusedTime]);
+
+  const lastTabTooltip = useMemo(() => {
+    return lastTabInfo?.timestamp ? new Date(lastTabInfo.timestamp).toISOString() : null;
+  }, [lastTabInfo?.timestamp]);
+
+  // Get domain from URL - memoized
+  const getDomainFromUrl = useCallback((url: string) => {
     try {
       return new URL(url).hostname;
     } catch (e) {
       return url;
     }
-  };
+  }, []);
 
   // Add handleReportSubmit logic (can be simplified)
-  const handleReportSubmit = async (reportData: NewReportPayload) => {
+  const handleReportSubmit = useCallback(async (reportData: NewReportPayload) => {
     logInfo("UI", "TabsIndex: Handling report submission", { reportData });
     try {
       // Directly send message to background
@@ -599,20 +619,20 @@ function TabsIndex() {
       }, 3000);
       // Consider leaving dialog open on error?
     }
-  };
+  }, []);
 
   // --- Functions for API Key Management ---
-  const handleOpenApiKeyModal = () => {
+  const handleOpenApiKeyModal = useCallback(() => {
     setApiKeyInput(""); 
     setIsApiKeyModalOpen(true);
-  };
+  }, []);
 
-  const handleCloseApiKeyModal = () => {
+  const handleCloseApiKeyModal = useCallback(() => {
     setIsApiKeyModalOpen(false);
     setApiKeyInput(""); 
-  };
+  }, []);
 
-  const handleSaveApiKey = async () => {
+  const handleSaveApiKey = useCallback(async () => {
     if (!apiKeyInput.trim()) {
       toast.warning("API Key cannot be empty.");
       setTimeout(() => setLegacyToastMessage(null), 3000);
@@ -637,7 +657,42 @@ function TabsIndex() {
          setLastErrorDetails(null); // Clear details when toast fades
       }, 3000);
     }
-  };
+  }, [apiKeyInput]);
+
+  // --- Handler for SpeechEditor submit (Processes speech input) ---
+  const handleSpeechSubmit = useCallback(async (text: string) => {
+    logInfo("Speech", "TabsIndex: SpeechEditor submitting text", { textLength: text.length });
+    
+    // Process the speech input text
+    if (text.trim().toLowerCase() === 'help') {
+      // Show help for speech commands
+      toast.info("Speech commands: 'transcribe' to start, 'stop' to pause, 'send' to submit, 'back' to delete last word. Say punctuation names like 'period', 'comma', etc.");
+      return;
+    }
+    
+    // For now, just display the transcribed text in a toast
+    // You can extend this to integrate with other functionality
+    toast.success(`Speech transcribed: "${text.substring(0, 100)}${text.length > 100 ? '...' : ''}"`);
+    
+    // Optionally, you could send this to an LLM or perform other actions
+    logInfo("Speech", "Speech input processed successfully", { text: text.substring(0, 100) });
+  }, []);
+
+  // --- Handler for showing speech help ---
+  const handleShowSpeechHelp = useCallback(() => {
+    toast.info(`
+    **Speech Input Help**
+    
+    • Click the microphone 🎤 to toggle speech-to-text
+    • Speak clearly and your words will appear in the text box
+    • Say punctuation names: "period", "comma", "question mark"
+    • Say "new line" to start a new paragraph
+    • Say "all caps" to make text uppercase until "end caps"
+    • Say "literally" before a command to type it (e.g., "literally period")
+    • Press Cmd+Enter (Mac) or Ctrl+Enter (Windows) to submit
+    • Say "transcribe" to start, "stop" to pause, "send" to submit, "back" to delete last word
+    `, { autoClose: false, closeOnClick: true });
+  }, []);
 
   // --- Handler for YeshieEditor submit (Sends to LLM) ---
   const handleEditorSubmit = async (text: string) => {
@@ -708,12 +763,12 @@ function TabsIndex() {
       setLegacyToastMessage(message);
       // Automatically clear non-error toasts
       // Error toasts are cleared via specific logic in handleError integration
-      if (!lastErrorDetails) { 
-          setTimeout(() => {
-              setLegacyToastMessage(null);
-          }, duration);
-      }
-  }, [lastErrorDetails]); // Dependency: Recreate only if lastErrorDetails changes (relevant for clearing logic)
+      // Note: Removed lastErrorDetails dependency to prevent infinite loops
+      // Error clearing logic is handled elsewhere in the component
+      setTimeout(() => {
+          setLegacyToastMessage(null);
+      }, duration);
+  }, []); // Remove lastErrorDetails dependency to prevent infinite loops
 
   // --- Function to copy error details ---
   const copyErrorDetailsToClipboard = () => {
@@ -974,10 +1029,10 @@ function TabsIndex() {
     return () => {
       window.removeEventListener('message', handleStepperMessages);
     };
-  // Listen to activeInteractiveToast to handle onClose correctly
-  }, [activeInteractiveToast, logInfo, setLegacyToastMessage]); 
+  // Only depend on activeInteractiveToast - logInfo and setLegacyToastMessage are stable
+  }, [activeInteractiveToast]);
 
-  const handleRunScriptOnReloadChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRunScriptOnReloadChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.checked;
     setRunScriptOnReload(newValue);
     try {
@@ -993,9 +1048,9 @@ function TabsIndex() {
       toast.error("Error saving preference. Click to copy details.");
       // Revert UI if save failed? For now, optimistic.
     }
-  };
+  }, []);
 
-  const handleArchiveTest = async () => {
+  const handleArchiveTest = useCallback(async () => {
     logInfo("UI", "Attempting to archive current test...");
     if (!instructions || !instructions.tasks || instructions.tasks.length === 0) {
       toast.error("No test loaded or tasks found in instructions.json to archive.");
@@ -1037,7 +1092,7 @@ function TabsIndex() {
       setLastErrorDetails(errorDetails);
       toast.error(`Failed to archive test "${taskName}". Click to copy details.`);
     }
-  };
+  }, []);
 
   return (
     <div className="tabs-container">
@@ -1073,8 +1128,8 @@ function TabsIndex() {
                  Reload #{reloadCount}
              </span>
              {tabPaneFocusedTime && (
-                 <span style={{ fontSize: '0.8em', color: '#888', marginTop: '2px' }} data-tooltip={new Date(tabPaneFocusedTime).toISOString()}>
-                     Focused: {formatTimestamp(tabPaneFocusedTime)}
+                 <span style={{ fontSize: '0.8em', color: '#888', marginTop: '2px' }} data-tooltip={focusedTimeTooltip}>
+                     Focused: {formattedFocusedTime}
                  </span>
              )}
          </div>
@@ -1105,11 +1160,11 @@ function TabsIndex() {
                  {/* Updated Timestamp Below Link */}
                  <span
                     className="timestamp"
-                    data-tooltip={new Date(lastTabInfo.timestamp).toISOString()}
-                    aria-label={new Date(lastTabInfo.timestamp).toISOString()}
+                    data-tooltip={lastTabTooltip}
+                    aria-label={lastTabTooltip}
                     style={{ fontSize: '0.8em', color: '#888', marginTop: '2px' }}
                   >
-                   Updated: {formatTimestamp(lastTabInfo.timestamp)}
+                   Updated: {formattedLastTabTime}
                  </span>
                </>
              ) : (
@@ -1317,8 +1372,13 @@ function TabsIndex() {
       
       <div className="main-content">
         <div className="left-panel">
-          <div className="editor-section">
-            <YeshieEditor onSubmit={handleEditorSubmit} />
+          <div className="editor-section" style={{ padding: '20px', minHeight: '300px' }}>
+            <h3 style={{ marginTop: '0', marginBottom: '15px', color: '#333' }}>Speech Input</h3>
+            {/* <SpeechInput 
+              onSubmit={handleSpeechSubmit} 
+              onShowHelp={handleShowSpeechHelp}
+              initialText="Welcome to the Yeshie Tab page! Try speaking to add text here."
+            /> */}
           </div>
         </div>
         <div className="right-panel">
@@ -1372,7 +1432,9 @@ function TabsIndex() {
 
     </div>
   );
-}
+});
+
+TabsIndex.displayName = 'TabsIndex';
 
 const root = ReactDOM.createRoot(document.getElementById("root")!);
 root.render(<TabsIndex />);

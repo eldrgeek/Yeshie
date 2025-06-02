@@ -1,6 +1,22 @@
 import React, { useState, useEffect, useRef, useCallback, forwardRef, useMemo } from 'react';
 import { sendToBackground } from "@plasmohq/messaging";
 
+// TEST MESSAGE LISTENER - Add this early to catch all messages
+let globalMessageHandler: ((message: any, sender: chrome.runtime.MessageSender) => void) | null = null;
+
+if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
+        // Forward to React component if handler is set
+        if (globalMessageHandler) {
+            globalMessageHandler(message, sender);
+        }
+        
+        return false; // Don't keep port open
+    });
+} else {
+    // No logging here since addToLog isn't available yet
+}
+
 // Speech Global State Helper Functions
 const getSpeechGlobalState = async () => {
     return await sendToBackground({ name: "getSpeechGlobalState" });
@@ -195,10 +211,18 @@ const useSpeechRecognition = ({ onResult, onError, onEnd, onLog }) => {
         };
         recognition.onend = () => {
             log("SpeechRecognition: onend fired");
-            // Important: Don't set isListening false here directly.
-            // Let the parent component manage state via the onEnd callback
-            // based on its own logic (wasListeningIntentionallyRef).
-            if (onEnd) onEnd();
+            // CRITICAL FIX: Reset isListening state when service actually ends
+            // This is essential for restart logic to work properly
+            log("SpeechRecognition: onend - setting isListening to false");
+            setIsListening(false);
+            
+            // Then call the parent's onEnd callback for restart logic
+            if (onEnd) {
+                log("SpeechRecognition: onend - calling parent onEnd callback");
+                onEnd();
+            } else {
+                log("SpeechRecognition: onend - NO parent onEnd callback");
+            }
         };
 
         // Check initial permission state
@@ -244,15 +268,16 @@ const useSpeechRecognition = ({ onResult, onError, onEnd, onLog }) => {
                 recognitionRef.current = null;
             }
         };
-    }, [onResult, onError, onEnd, log]); // log is stable due to useCallback
+    }, [onResult, onError, onEnd, log]);
 
     const startListening = useCallback(() => {
         if (recognitionRef.current && !isListening && isSupported) {
              try {
                  log("startListening: Attempting to start...");
                  recognitionRef.current.start();
-                 log("startListening: recognition.start() called.");
+                 log("startListening: recognition.start() called successfully");
                  setIsListening(true);
+                 log("startListening: setIsListening(true) called");
                  // Don't assume pending, wait for events or errors
               } catch(e) {
                  log("startListening: Error during start", 'error', e);
@@ -261,9 +286,15 @@ const useSpeechRecognition = ({ onResult, onError, onEnd, onLog }) => {
                  setIsListening(false); // Ensure state reflects failure
              }
         } else {
-             if (!isSupported) log("startListening: Not starting, not supported", 'warn');
-             if (isListening) log("startListening: Not starting, already listening", 'warn');
-             if (!recognitionRef.current) log("startListening: Not starting, recognition instance not available", 'error');
+             if (!isSupported) {
+                 log("startListening: Not starting, not supported", 'warn');
+             }
+             if (isListening) {
+                 log("startListening: Not starting, already listening", 'warn');
+             }
+             if (!recognitionRef.current) {
+                 log("startListening: Not starting, recognition instance not available", 'error');
+             }
         }
     }, [isListening, isSupported, onError, log]);
 
@@ -273,8 +304,8 @@ const useSpeechRecognition = ({ onResult, onError, onEnd, onLog }) => {
                  log("stopListening: Attempting to stop...");
                  // Use abort() for a potentially quicker stop and to discard results
                  recognitionRef.current.abort();
+                 log("stopListening: recognition.abort() called");
                  // recognitionRef.current.stop(); // stop() waits for result processing
-                 log("stopListening: recognition.abort() called.");
                  // Important: Let the 'onend' event triggered by stop/abort
                  // handle the final state update via the onEnd callback.
                  // Avoid setting isListening false directly here unless absolutely necessary.
@@ -286,8 +317,12 @@ const useSpeechRecognition = ({ onResult, onError, onEnd, onLog }) => {
                  // Force state if stop fails badly? Maybe not, let onEnd handle.
              }
         } else {
-             if (!isListening) log("stopListening: Not stopping, not listening", 'warn');
-             if (!recognitionRef.current) log("stopListening: Not stopping, recognition instance not available", 'error');
+             if (!isListening) {
+                 log("stopListening: Not stopping, not listening", 'warn');
+             }
+             if (!recognitionRef.current) {
+                 log("stopListening: Not stopping, recognition instance not available", 'error');
+             }
         }
     }, [isListening, onError, log]);
 
@@ -303,6 +338,16 @@ const useSpeechRecognition = ({ onResult, onError, onEnd, onLog }) => {
     };
 };
 
+// Add periodic status check inside the hook
+const useSpeechRecognitionWithDebug = ({ onResult, onError, onEnd, onLog }) => {
+    const hookResult = useSpeechRecognition({ onResult, onError, onEnd, onLog });
+    
+    // This will be inside the hook context but we can't access recognitionRef from outside
+    // Instead, let's add the debugging directly in the main hook
+    
+    return hookResult;
+};
+
 
 // --- The Main Component ---
 interface SpeechInputProps {
@@ -313,18 +358,18 @@ interface SpeechInputProps {
 }
 
 export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
-    onSubmit = (text) => console.log('Submitted:', text), // Keep console for demo submit
     onShowHelp = () => alert('Help: ...'), // Provide default help message
     initialText = '',
     onChange = (text) => {}, // Add optional onChange prop with default no-op
+    onSubmit, // Will be set after addToLog is available
 }, forwardedRef) => {
+    // --- State Declarations First ---
     const [text, setText] = useState(initialText);
     const [isAllCaps, setIsAllCaps] = useState(false);
     const [statusMessage, setStatusMessage] = useState('Initializing...');
     const [micPosition, setMicPosition] = useState<'top' | 'bottom'>('bottom');
     const [logBuffer, setLogBuffer] = useState<string[]>([]); // Store logs
     const [isTranscribing, setIsTranscribing] = useState(true); // Initialize to true by default
-    const [isTextareaFocused, setIsTextareaFocused] = useState(false); // Track textarea focus
     const [permissionDeniedCount, setPermissionDeniedCount] = useState(0); // Track permission denial attempts
 
     // Generate unique editor ID for this instance
@@ -344,10 +389,37 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
     const justManuallyStartedRef = useRef(false); // Track recent manual start attempt
     const manualStartTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-    // --- Logging Function ---
+    // Add rate limiting for restart attempts
+    const lastRestartAttemptRef = useRef<number>(0);
+    const RESTART_COOLDOWN_MS = 500; // Reduced from 2000 to 500ms for debugging
+
+    // --- Logging Function with Page Identification (AFTER STATE DECLARATIONS) ---
     const addToLog = useCallback((message: string, level: string = 'info', data: any = undefined) => {
         const timestamp = getTimestamp();
-        let logEntry = `${timestamp} [${level.toUpperCase()}] ${message}`;
+        
+        // Get page identification
+        const pageInfo = (() => {
+            try {
+                const url = window.location.href;
+                const isExtensionPage = url.startsWith('chrome-extension://');
+                const isContentScript = !isExtensionPage;
+                
+                if (isExtensionPage) {
+                    // Extract page type from extension URL
+                    const pathMatch = url.match(/\/([^\/]+)\.html/);
+                    const pageType = pathMatch ? pathMatch[1] : 'extension';
+                    return `[EXT:${pageType}]`;
+                } else {
+                    // Content script - get domain
+                    const domain = new URL(url).hostname;
+                    return `[CONTENT:${domain}]`;
+                }
+            } catch (e) {
+                return '[UNKNOWN]';
+            }
+        })();
+        
+        let logEntry = `${timestamp} ${pageInfo} [${level.toUpperCase()}] ${message}`;
         if (data !== undefined) {
             try {
                 // Append simple data directly, stringify complex objects/errors
@@ -364,7 +436,10 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
             }
         }
         setLogBuffer(prev => [...prev, logEntry]);
-    }, []); // Empty dependency array - this function relies only on getTimestamp and setLogBuffer
+    }, [setLogBuffer]); // Correct dependency array
+
+    // Set default onSubmit now that addToLog is available
+    const finalOnSubmit = onSubmit || ((text) => addToLog('Submitted: ' + text, 'info'));
 
     // --- Speech Recognition Hook (Declared Early) ---
     const handleResultRef = useRef(null);
@@ -441,7 +516,10 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
 
     // Listen for global state changes and focus commands from background
     useEffect(() => {
-        const handleMessage = (message: any) => {
+        const handleMessage = (message: any, sender: chrome.runtime.MessageSender) => {
+            // DEBUG: Log all received messages
+            addToLog(`MESSAGE RECEIVED: ${JSON.stringify(message)}, sender: ${JSON.stringify(sender)}`, 'info');
+            
             // Handle global state updates (existing functionality)
             if (message.type === "speechGlobalStateUpdate" && 
                 message.data?.targetEditorId === editorId) {
@@ -452,12 +530,7 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
                 
                 addToLog(`Received global state update: ${JSON.stringify(newGlobalState)}`, 'info');
                 
-                // If transcribing was enabled globally and we have a focused textarea, ensure listening
-                if (newGlobalState.isTranscribing && isTextareaFocused && 
-                    isSupported && permissionStatus === 'granted' && !isListening) {
-                    wasListeningIntentionallyRef.current = true;
-                    startListening();
-                }
+                // REMOVED: No auto-restart here - only handle state updates
             }
             
             // Handle new focus commands (event-driven approach)
@@ -467,35 +540,23 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
                 const command = message.data.command;
                 addToLog(`Received focus command: ${command}`, 'info');
                 
-                if (command === "startListening") {
-                    // Background told us to start listening because we gained focus
-                    if (isSupported && permissionStatus === 'granted' && !isListening) {
-                        addToLog('Focus command: Starting listening', 'info');
-                        wasListeningIntentionallyRef.current = true;
-                        startListening();
-                    }
-                } else if (command === "stopListening") {
-                    // Background told us to stop listening because we lost focus
-                    if (isListening) {
-                        addToLog('Focus command: Stopping listening', 'info');
-                        wasListeningIntentionallyRef.current = false;
-                        stopListening();
-                    }
-                }
+                // REMOVED: Focus commands are now handled by visibility change handler
+                // This avoids duplicate restart logic and conflicts
+                addToLog(`Focus command ignored - handled by visibility change instead: ${command}`, 'debug');
             }
         };
         
-        // Add the message listener
-        chrome.runtime.onMessage.addListener(handleMessage);
+        // Use the global bridge instead of direct chrome.runtime.onMessage listener
+        globalMessageHandler = handleMessage;
         
         return () => {
-            chrome.runtime.onMessage.removeListener(handleMessage);
+            globalMessageHandler = null;
         };
-    }, [editorId, isTextareaFocused, isSupported, permissionStatus, isListening, startListening, stopListening, addToLog]);
+    }, [editorId, isSupported, permissionStatus, isListening, startListening, stopListening, addToLog]);
 
     // --- Update Status Message based on State ---
     useEffect(() => {
-        addToLog(`Status Effect: isSupported=${isSupported}, permission=${permissionStatus}, isListening=${isListening}, wasIntentional=${wasListeningIntentionallyRef.current}, isTextareaFocused=${isTextareaFocused}`, 'debug');
+        addToLog(`Status Effect: isSupported=${isSupported}, permission=${permissionStatus}, isListening=${isListening}, wasIntentional=${wasListeningIntentionallyRef.current}`, 'debug');
         if (!isSupported) {
             setStatusMessage('Speech recognition not supported by this browser.');
         } else if (permissionStatus === 'denied') {
@@ -505,16 +566,67 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
             } else {
                 setStatusMessage('Microphone permission denied. Click the mic icon to try again.');
             }
-        } else if (isTranscribing && isTextareaFocused) {
+        } else if (isTranscribing) {
             setStatusMessage('Transcribing...');
-        } else if (isTranscribing && !isTextareaFocused) {
-            setStatusMessage('Ready to transcribe. Click to focus the textarea.');
         } else if (!isTranscribing) {
             setStatusMessage('Transcription disabled. Click mic to enable.');
         } else if (permissionStatus === 'prompt') {
             setStatusMessage('Click the mic icon to grant microphone permission.');
         }
-    }, [isListening, isSupported, permissionStatus, addToLog, isTranscribing, isTextareaFocused, permissionDeniedCount]);
+    }, [isListening, isSupported, permissionStatus, addToLog, isTranscribing, permissionDeniedCount]);
+
+
+    // --- SIMPLIFIED Tab Focus/Blur Handlers (Cases #3 and #4) ---
+    useEffect(() => {
+        let stopListeningTimeout: NodeJS.Timeout | null = null;
+
+        const handleVisibilityChange = () => {
+            if (document.hidden) {
+                // Case #4: Stop when page loses focus (user goes to another tab/app)
+                // Add a short delay to handle quick switches to extension pages
+                if (isListening && !stopListeningTimeout) {
+                    addToLog('Page became hidden: Scheduling stop listening in 2 seconds', 'info');
+                    
+                    stopListeningTimeout = setTimeout(() => {
+                        // Only stop if still hidden after delay
+                        if (document.hidden && isListening) {
+                            addToLog('Page still hidden after delay: Stopping listening', 'info');
+                            wasListeningIntentionallyRef.current = false;
+                            stopListening();
+                        }
+                        stopListeningTimeout = null;
+                    }, 2000); // 2 second delay for extension page switches
+                }
+            } else {
+                // Case #3: Start when user returns to tab (ALWAYS start listening when page has focus)
+                addToLog('Page became visible: Setting listening as intentional', 'info');
+                
+                // Cancel any pending stop
+                if (stopListeningTimeout) {
+                    clearTimeout(stopListeningTimeout);
+                    stopListeningTimeout = null;
+                    addToLog('Canceled scheduled stop', 'debug');
+                }
+                
+                wasListeningIntentionallyRef.current = true; // ALWAYS intentional when page has focus
+                
+                if (!isListening && isSupported && permissionStatus === 'granted') {
+                    addToLog('Page became visible: Starting listening', 'info');
+                    startListening();
+                }
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            // Clean up timeout on unmount
+            if (stopListeningTimeout) {
+                clearTimeout(stopListeningTimeout);
+            }
+        };
+    }, [isSupported, permissionStatus, isListening, startListening, stopListening, addToLog]);
 
 
     // --- Processing Transcript ---
@@ -620,7 +732,7 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
 
         addToLog(`Segment processing result: "${result}"`, 'debug');
         return result;
-    }, [isAllCaps, addToLog]); // isAllCaps state, addToLog
+    }, [isAllCaps, addToLog]);
 
 
     // --- Event Handlers ---
@@ -672,7 +784,7 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
                 if (text.trim().toLowerCase() === 'help') {
                     onShowHelp();
                 } else {
-                    onSubmit(text);
+                    finalOnSubmit(text);
                 }
                 interimRangeRef.current = { start: null, end: null };
                 return;
@@ -704,9 +816,9 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
             }
         }
 
-        // If not transcribing or textarea not focused, don't process or insert any text
-        if (!isTranscribing || !isTextareaFocused) {
-            addToLog('Not transcribing or textarea not focused, ignoring transcript.', 'debug');
+        // If not transcribing, don't process or insert any text
+        if (!isTranscribing) {
+            addToLog('Not transcribing, ignoring transcript.', 'debug');
             return;
         }
 
@@ -785,7 +897,7 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
             addToLog(`handleResult: No change in text.`, 'debug');
         }
 
-    }, [processTranscriptSegment, setText, addToLog, isAllCaps, setIsTranscribing, isTranscribing, onSubmit, onShowHelp, onChange, isTextareaFocused, text]);
+    }, [processTranscriptSegment, setText, addToLog, isAllCaps, setIsTranscribing, isTranscribing, finalOnSubmit, onShowHelp, onChange, text]);
 
     handleErrorRef.current = useCallback((event) => {
         addToLog(`handleError: ${event.error}`, 'error', event.message);
@@ -833,7 +945,7 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
 
 
     handleEndRef.current = useCallback(async () => {
-        addToLog(`handleEnd: Recognition service ended. Was intentional: ${wasListeningIntentionallyRef.current}`, 'info');
+        addToLog(`handleEnd: Recognition service ended. Was intentional: ${wasListeningIntentionallyRef.current}, Page hidden: ${document.hidden}`, 'info');
 
         // If it ended, any manual start grace period is over.
         if (manualStartTimerRef.current) clearTimeout(manualStartTimerRef.current);
@@ -842,59 +954,71 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
         // If the service ends, clear the current interim range tracking.
         interimRangeRef.current = { start: null, end: null };
 
-        try {
-            // Use global auto-restart logic instead of local restart logic
-            const shouldRestart = await handleSpeechRecognitionEnd(editorId, !wasListeningIntentionallyRef.current);
+        // SIMPLIFIED RESTART LOGIC: Always restart if page is visible and listening was intentional
+        if (wasListeningIntentionallyRef.current && !document.hidden) {
+            addToLog('Service ended but page is visible and listening was intentional - attempting restart', 'info');
             
-            if (shouldRestart) {
-                addToLog('Global auto-restart triggered, starting listening again', 'info');
-                // The global state change will trigger our useEffect to restart
-                // We don't need to call startListening directly here
-                wasListeningIntentionallyRef.current = true;
-            } else {
-                addToLog('Global auto-restart not triggered', 'info');
+            // Add small delay to avoid immediate restart conflicts
+            setTimeout(() => {
+                // Re-check basic conditions for restart (isListening should now be false)
+                if (isSupported && permissionStatus === 'granted' && !isListening && !document.hidden) {
+                    addToLog('Auto restart: Starting listening now', 'info');
+                    wasListeningIntentionallyRef.current = true; // Keep intent flag true
+                    startListening();
+                } else {
+                    addToLog(`Auto restart: Conditions not met - supported:${isSupported}, permission:${permissionStatus}, listening:${isListening}, hidden:${document.hidden}`, 'warn');
+                    // Only reset intent if page is hidden, otherwise keep trying
+                    if (document.hidden) {
+                        wasListeningIntentionallyRef.current = false;
+                    }
+                }
+            }, 100);
+        } else {
+            addToLog(`Service ended - not restarting. Intentional: ${wasListeningIntentionallyRef.current}, Hidden: ${document.hidden}`, 'info');
+            if (document.hidden) {
                 wasListeningIntentionallyRef.current = false;
             }
-        } catch (error) {
-            addToLog(`Error in global speech recognition end handler: ${error}`, 'error');
-            wasListeningIntentionallyRef.current = false;
         }
 
-    }, [addToLog, editorId]); // Dependencies
+    }, [addToLog, isSupported, permissionStatus, isListening, startListening]);
 
 
     // --- Effect for Initial Setup with Global State ---
     useEffect(() => {
+        addToLog('===== SpeechInput component mounted =====', 'debug');
         addToLog('Component Mounted', 'info');
+        
+        // ALWAYS set listening as intentional when component mounts (page loads)
+        if (!document.hidden) {
+            wasListeningIntentionallyRef.current = true;
+            addToLog('Initial setup: Setting listening as intentional (page visible)', 'info');
+        }
+        
         if (isSupported) {
-            if (permissionStatus === 'granted' && globalSpeechState) {
-                addToLog('Initial Effect: Permission granted. Checking global state for startup behavior.', 'info');
+            if (permissionStatus === 'granted') {
+                addToLog('Initial Effect: Permission granted, starting listening if not hidden', 'info');
                 
-                // Start listening if global state indicates we should be transcribing and listening
-                if (globalSpeechState.isTranscribing && globalSpeechState.isListening) {
-                    addToLog('Initial Effect: Global state indicates listening should start.', 'info');
+                // Start listening immediately if page is visible and basic conditions are met
+                if (!document.hidden && !isListening) {
+                    addToLog('Initial Effect: Starting listening on page load', 'info');
                     // Add a small delay to avoid race conditions with DOM readiness
                     setTimeout(() => {
-                        if (!isListening && globalSpeechState?.isTranscribing && globalSpeechState?.isListening) {
+                        if (!isListening && !document.hidden) {
+                            addToLog('Actually calling startListening now', 'debug');
                             startListening(); // Start the service
-                            wasListeningIntentionallyRef.current = true; // Keep it running
                         }
                     }, 50);
-                } else {
-                    addToLog('Initial Effect: Global state indicates no listening needed on startup.', 'info');
                 }
             } else if (permissionStatus === 'prompt') {
                 setStatusMessage('Click the mic icon to grant permission.');
             } else if (permissionStatus === 'denied') {
                 setStatusMessage('Microphone permission denied. Click the mic icon to try again.');
-            } else if (!globalSpeechState) {
-                addToLog('Initial Effect: Waiting for global state to load...', 'info');
-                setStatusMessage('Loading speech settings...');
             } else if (permissionStatus === 'pending' || permissionStatus === null) {
                 addToLog('Initial Effect: Waiting for permission status...', 'info');
                 setStatusMessage('Checking microphone permission...');
             }
         } else {
+            addToLog('Speech Recognition NOT supported', 'warn');
             setStatusMessage('Speech recognition not supported by this browser.');
         }
         
@@ -909,158 +1033,24 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
                 stopListening();
             }
         };
-    }, [isSupported, permissionStatus, addToLog, startListening, stopListening, isListening, globalSpeechState]); // React to global state
+    }, [isSupported, permissionStatus, addToLog, startListening, stopListening, isListening]); // Removed globalSpeechState dependency
 
-
-    // --- Effect for Restarting Listening based on Global State ---
+    // --- Periodic Status Check for Debugging ---
     useEffect(() => {
-        // This effect now reacts to global state changes for listening
-        if (isSupported && permissionStatus === 'granted' && !isListening && globalSpeechState) {
-            // Check if global state indicates we should be listening
-            if (globalSpeechState.isTranscribing && globalSpeechState.isListening && globalSpeechState.autoRestart) {
-                // Only restart if we're not already in a manual start grace period
-                if (!justManuallyStartedRef.current) {
-                    addToLog(`Global State Restart: Conditions met. Restarting listen after delay...`, 'info');
-                    
-                    // Use a timer to prevent rapid loops
-                    const timer = setTimeout(() => {
-                        // Re-check conditions inside timer, state might have changed
-                        if (isSupported && permissionStatus === 'granted' && !isListening && 
-                            globalSpeechState?.isTranscribing && globalSpeechState?.isListening && !justManuallyStartedRef.current) {
-                            addToLog('Global State Restart: Timer fired. Calling startListening()', 'info');
-                            wasListeningIntentionallyRef.current = true;
-                            startListening();
-                        } else {
-                            addToLog('Global State Restart: Timer fired, but conditions changed. Not restarting.', 'info');
-                        }
-                    }, 500); // 500ms delay
-                    
-                    return () => clearTimeout(timer);
-                } else {
-                    addToLog(`Global State Restart: Conditions NOT met due to manual start grace period.`, 'debug');
-                }
-            } else {
-                addToLog(`Global State Restart: Global state doesn't require restart. Transcribing: ${globalSpeechState.isTranscribing}, Listening: ${globalSpeechState.isListening}, AutoRestart: ${globalSpeechState.autoRestart}`, 'debug');
-            }
-        }
-    }, [isListening, isSupported, permissionStatus, startListening, addToLog, globalSpeechState]); // React to global state changes
+        const interval = setInterval(() => {
+            addToLog('Status Check from Component', 'debug', {
+                isListening,
+                isSupported,
+                permissionStatus,
+                wasIntentional: wasListeningIntentionallyRef.current,
+                pageHidden: document.hidden,
+                isTranscribing
+            });
+        }, 5000); // Every 5 seconds
 
+        return () => clearInterval(interval);
+    }, [isListening, isSupported, permissionStatus, isTranscribing, addToLog]);
 
-    // --- Effect to Resume Listening on Tab/Page Focus and Visibility ---
-    useEffect(() => {
-        const handleFocus = () => {
-            addToLog('Window focused', 'debug');
-            // Check if we should start listening based on global state
-            if (isSupported && permissionStatus === 'granted' && !isListening && globalSpeechState) {
-                if (globalSpeechState.isTranscribing && globalSpeechState.isListening) {
-                    addToLog('Window focus: Starting listening based on global state', 'info');
-                    wasListeningIntentionallyRef.current = true;
-                    startListening();
-                }
-            }
-        };
-
-        const handleBlur = () => {
-            addToLog('Window blurred', 'debug');
-            // Only stop if we're listening and global auto-restart is disabled
-            // Otherwise, keep running in background
-            if (isListening && globalSpeechState && !globalSpeechState.autoRestart) {
-                addToLog('Window blur: Stopping listening (auto-restart disabled)', 'info');
-                wasListeningIntentionallyRef.current = false;
-                stopListening();
-            }
-        };
-
-        const handleVisibilityChange = () => {
-            if (document.hidden) {
-                addToLog('Page became hidden', 'debug');
-                // Don't stop listening when page becomes hidden - keep running in background
-                // This allows speech recognition to continue working even when user switches tabs
-            } else {
-                addToLog('Page became visible', 'debug');
-                // When page becomes visible again, ensure listening is active if it should be
-                if (isSupported && permissionStatus === 'granted' && !isListening && globalSpeechState) {
-                    if (globalSpeechState.isTranscribing && globalSpeechState.isListening) {
-                        addToLog('Page visible: Restarting listening based on global state', 'info');
-                        wasListeningIntentionallyRef.current = true;
-                        startListening();
-                    }
-                }
-            }
-        };
-
-        // Add both window focus/blur and page visibility listeners
-        window.addEventListener('focus', handleFocus);
-        window.addEventListener('blur', handleBlur);
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        
-        return () => {
-            window.removeEventListener('focus', handleFocus);
-            window.removeEventListener('blur', handleBlur);
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
-        };
-    }, [isSupported, permissionStatus, isListening, startListening, stopListening, addToLog, globalSpeechState]);
-
-    // --- Effect for Auto-restarting when page loads and global state is available ---
-    useEffect(() => {
-        // This effect specifically handles the case where the component loads and global state becomes available
-        // It ensures that if transcribing should be active, listening starts automatically
-        if (isSupported && permissionStatus === 'granted' && globalSpeechState && !isListening) {
-            if (globalSpeechState.isTranscribing && globalSpeechState.isListening) {
-                // Add a small delay to ensure DOM is ready and avoid race conditions
-                const timer = setTimeout(() => {
-                    if (!isListening && globalSpeechState?.isTranscribing && globalSpeechState?.isListening) {
-                        addToLog('Auto-restart on load: Starting listening based on global state', 'info');
-                        wasListeningIntentionallyRef.current = true;
-                        startListening();
-                    }
-                }, 100); // Small delay to ensure everything is initialized
-                
-                return () => clearTimeout(timer);
-            }
-        }
-    }, [globalSpeechState, isSupported, permissionStatus, isListening, startListening, addToLog]);
-
-    // --- Effect for Robust Auto-restart Monitoring ---
-    useEffect(() => {
-        // Set up a periodic check to ensure speech recognition is running when it should be
-        // This acts as a fallback for cases where normal restart logic fails
-        const intervalId = setInterval(() => {
-            // Only check if we have the necessary conditions
-            if (isSupported && permissionStatus === 'granted' && globalSpeechState) {
-                // Check if we should be listening but aren't
-                if (globalSpeechState.isTranscribing && globalSpeechState.isListening && !isListening) {
-                    // Additional checks to avoid unnecessary restarts
-                    if (isTextareaFocused && !justManuallyStartedRef.current) {
-                        addToLog('Periodic check: Speech recognition should be running but isn\'t. Restarting...', 'info');
-                        wasListeningIntentionallyRef.current = true;
-                        startListening();
-                    }
-                }
-            }
-        }, 5000); // Check every 5 seconds
-        
-        return () => clearInterval(intervalId);
-    }, [isSupported, permissionStatus, globalSpeechState, isListening, isTextareaFocused, startListening, addToLog]);
-
-    // --- Effect for Enhanced Focus-based Restart ---
-    useEffect(() => {
-        // When textarea focus changes and conditions are met, ensure listening starts
-        if (isTextareaFocused && isSupported && permissionStatus === 'granted' && globalSpeechState && !isListening) {
-            if (globalSpeechState.isTranscribing && globalSpeechState.isListening) {
-                // Add a slight delay to avoid race conditions with focus events
-                const timer = setTimeout(() => {
-                    if (isTextareaFocused && !isListening && globalSpeechState?.isTranscribing && globalSpeechState?.isListening) {
-                        addToLog('Focus-based restart: Starting listening due to textarea focus', 'info');
-                        wasListeningIntentionallyRef.current = true;
-                        startListening();
-                    }
-                }, 200);
-                
-                return () => clearTimeout(timer);
-            }
-        }
-    }, [isTextareaFocused, isSupported, permissionStatus, globalSpeechState, isListening, startListening, addToLog]);
 
     // --- User Interaction Handlers ---
     const handleKeyDown = (event) => {
@@ -1070,7 +1060,7 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
             if (text.trim().toLowerCase() === 'help') {
                 onShowHelp();
             } else {
-                onSubmit(text);
+                finalOnSubmit(text);
                 // Optional: Clear text after submit?
                 // setText('');
             }
@@ -1213,22 +1203,15 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
 
     // Handle textarea focus
     const handleTextareaFocus = async () => {
-        setIsTextareaFocused(true);
         addToLog('Textarea focused', 'debug');
         
         try {
             // Update focus state in global registry
             await setSpeechEditorFocus(editorId, true);
             
-            // Get fresh global state in case it has changed
-            const currentGlobalState = await getSpeechGlobalState();
+            // Don't directly start listening here - let the consolidated auto-restart effect handle it
+            // This prevents multiple restart attempts and conflicts between effects
             
-            // If global transcribing is enabled and we have permission, ensure recognition is running
-            if (currentGlobalState.isTranscribing && isSupported && permissionStatus === 'granted' && !isListening) {
-                addToLog('Textarea focus: Starting listening based on global state', 'info');
-                wasListeningIntentionallyRef.current = true;
-                startListening();
-            }
         } catch (error) {
             addToLog(`Error setting editor focus: ${error}`, 'error');
         }
@@ -1236,7 +1219,6 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
 
     // Handle textarea blur
     const handleTextareaBlur = async () => {
-        setIsTextareaFocused(false);
         addToLog('Textarea blurred', 'debug');
         
         try {
