@@ -41,7 +41,7 @@ The SpeechInput supports special phrases that translate into punctuation or cont
 | `close bracket` | `]` | space after |
 | `open brace` | `{` | space before |
 | `close brace` | `}` | space after |
-| `new line` | `\n` | removes trailing space before newline |
+| `new line` | `\n` | removes trailing space before newline; newline characters are preserved |
 | `all caps` | toggles uppercase mode | continues until `end caps` |
 | `end caps` | exit uppercase mode | |
 | `literally <command>` | inserts `<command>` text | e.g. `literally period` -> `period` |
