@@ -81,6 +81,22 @@ punctuation.forEach(([name, symbol, position]) => {
   PUNCTUATION_MAP[name] = { before: position === P.before, after: position === P.after };
 });
 
+// Map punctuation symbols to their spacing behaviour so we can
+// determine if a leading space is required when a segment begins
+// with punctuation. If multiple commands map to the same symbol,
+// we merge the spacing flags so `before` is true if any command
+// expects a leading space.
+const PUNCTUATION_SYMBOL_MAP: Record<string, { before: boolean; after: boolean }> = {};
+punctuation.forEach(([_, symbol, position]) => {
+  const existing = PUNCTUATION_SYMBOL_MAP[symbol];
+  if (!existing) {
+    PUNCTUATION_SYMBOL_MAP[symbol] = { before: position === P.before, after: position === P.after };
+  } else {
+    existing.before = existing.before || position === P.before;
+    existing.after = existing.after || position === P.after;
+  }
+});
+
 
 
 const CONTROL_WORDS = {
@@ -95,6 +111,153 @@ const SPECIAL_COMMANDS = new Set([
     ...Object.keys(PUNCTUATION_MAP),
     ...Object.keys(CONTROL_WORDS),
 ]);
+
+// Processing helper used by the component and unit tests. The function is
+// pure aside from the logging and state callbacks passed in via `opts`.
+export interface ProcessOptions {
+  isAllCaps: boolean;
+  setIsAllCaps?: (v: boolean) => void;
+  addToLog?: (msg: string, level?: string, data?: any) => void;
+}
+
+export function processTranscriptSegmentImpl(
+  segment: string,
+  textBeforeSegment = '',
+  opts: ProcessOptions
+): string {
+  const { isAllCaps, setIsAllCaps, addToLog } = opts;
+  const words = segment.toLowerCase().split(' ');
+  let processedWords: string[] = [];
+  let currentIsAllCaps = isAllCaps;
+  let literallyMode = false;
+
+  let requiresCapitalization =
+    textBeforeSegment === '' || /[.!?\n]\s*$/.test(textBeforeSegment);
+
+  addToLog?.(
+    `Processing segment: "${segment}". Initial cap: ${requiresCapitalization}. AllCaps: ${currentIsAllCaps}`,
+    'debug',
+    { textBeforeSegment }
+  );
+
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    if (!word) continue;
+
+    if (literallyMode) {
+      processedWords.push(currentIsAllCaps ? word.toUpperCase() : word);
+      literallyMode = false;
+      requiresCapitalization = false;
+      continue;
+    }
+    if (word === 'literally') {
+      literallyMode = true;
+      continue;
+    }
+    if (word === 'all' && words[i + 1] === 'caps') {
+      currentIsAllCaps = true;
+      setIsAllCaps?.(true);
+      i++;
+      addToLog?.('Command: ALL CAPS ON', 'debug');
+      continue;
+    }
+    if (word === 'end' && words[i + 1] === 'caps') {
+      currentIsAllCaps = false;
+      setIsAllCaps?.(false);
+      i++;
+      addToLog?.('Command: ALL CAPS OFF', 'debug');
+      continue;
+    }
+
+    const punctuationInfo = PUNCTUATION_MAP[word];
+    if (punctuationInfo) {
+      const symbol: string = punctuation[
+        punctuation.findIndex(([name]) => name === word)
+      ][1] as string;
+      addToLog?.(`Command: Punctuation "${word}" -> "${symbol}"`, 'debug');
+
+      if (
+        processedWords.length > 0 &&
+        !punctuationInfo.before &&
+        /\s$/.test(processedWords[processedWords.length - 1])
+      ) {
+        processedWords[processedWords.length - 1] = processedWords[
+          processedWords.length - 1
+        ].trimEnd();
+      }
+      if (
+        punctuationInfo.before &&
+        processedWords.length > 0 &&
+        !/\s$/.test(processedWords[processedWords.length - 1])
+      ) {
+        processedWords.push(' ');
+      }
+
+      processedWords.push(symbol);
+      if (punctuationInfo.after) processedWords.push(' ');
+
+      requiresCapitalization = ['.', '!', '?'].includes(symbol);
+      if (!punctuationInfo.after) {
+        requiresCapitalization = false;
+      }
+      continue;
+    }
+
+    const control = CONTROL_WORDS[word];
+    if (control === '\n') {
+      addToLog?.('Command: New Line', 'debug');
+      if (
+        processedWords.length > 0 &&
+        /\s$/.test(processedWords[processedWords.length - 1])
+      ) {
+        processedWords[processedWords.length - 1] = processedWords[
+          processedWords.length - 1
+        ].trimEnd();
+      }
+      processedWords.push(control);
+      requiresCapitalization = true;
+      continue;
+    } else if (control) {
+      processedWords.push(control);
+      requiresCapitalization = false;
+      continue;
+    }
+
+    let processedWord = word;
+    if (currentIsAllCaps) {
+      processedWord = word.toUpperCase();
+    } else if (requiresCapitalization) {
+      if (word.length > 0 && word[0] >= 'a' && word[0] <= 'z') {
+        processedWord = word.charAt(0).toUpperCase() + word.slice(1);
+        addToLog?.(`Capitalized "${word}" -> "${processedWord}"`, 'debug');
+      }
+    }
+    requiresCapitalization = false;
+    processedWords.push(processedWord + ' ');
+  }
+
+  let result = processedWords.join('');
+  result = result.replace(/ {2,}/g, ' ');
+  result = result.replace(/ ?\n ?/g, '\n');
+  result = result.trimEnd();
+
+  addToLog?.(`Segment processing result: "${result}"`, 'debug');
+  return result;
+}
+
+// Determine whether a space should be inserted before `segment` based on
+// the text already present. This mirrors the behaviour of
+// `processTranscriptSegmentImpl` which may produce punctuation that does not
+// require a leading space.
+export function shouldPrependSpace(textBefore: string, segment: string): boolean {
+  if (textBefore.length === 0) return false;
+  if (/[\s\n]$/.test(textBefore)) return false;
+  const first = segment.charAt(0);
+  if (first === '\n') return false;
+  const info = PUNCTUATION_SYMBOL_MAP[first];
+  if (info) return info.before;
+  return true;
+}
 
 // Simple timestamp function
 const getTimestamp = () => new Date().toISOString();
@@ -670,109 +833,15 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
 
 
     // --- Processing Transcript ---
-    const processTranscriptSegment = useCallback((segment, isFirstSegmentOfResult = false, textBeforeSegment = '') => {
-        const words = segment.toLowerCase().split(' ');
-        let processedWords = [];
-        let currentIsAllCaps = isAllCaps; // Use state at time of processing
-        let literallyMode = false;
-
-        // Capitalization check based on text *immediately* before where this segment starts
-        let requiresCapitalization =
-            textBeforeSegment === '' ||
-            /[.!?\n]\s*$/.test(textBeforeSegment);
-
-        addToLog(`Processing segment: "${segment}". Initial cap: ${requiresCapitalization}. AllCaps: ${currentIsAllCaps}`, 'debug', {textBeforeSegment});
-
-
-        for (let i = 0; i < words.length; i++) {
-            const word = words[i];
-            if (!word) continue;
-
-            // --- Command Handling ---
-            if (literallyMode) {
-                processedWords.push(currentIsAllCaps ? word.toUpperCase() : word);
-                literallyMode = false;
-                requiresCapitalization = false; // Word typed literally doesn't reset sentence start
-                continue;
-            }
-            if (word === 'literally') { literallyMode = true; continue; }
-            if (word === 'all' && words[i+1] === 'caps') { currentIsAllCaps = true; setIsAllCaps(true); i++; addToLog('Command: ALL CAPS ON', 'debug'); continue; }
-            if (word === 'end' && words[i+1] === 'caps') { currentIsAllCaps = false; setIsAllCaps(false); i++; addToLog('Command: ALL CAPS OFF', 'debug'); continue; }
-
-            // --- Punctuation Handling ---
-            const punctuationInfo = PUNCTUATION_MAP[word]; // Use the correct map
-            if (punctuationInfo) {
-                const symbol: string = punctuation[punctuation.findIndex(([name]) => name === word)][1] as string; // Get symbol and assert type
-                addToLog(`Command: Punctuation "${word}" -> "${symbol}"`, 'debug');
-
-                let needsSpaceAfter = false;
-                // Remove trailing space from previous word if needed (no space BEFORE symbol)
-                if (processedWords.length > 0 && !punctuationInfo.before && /\s$/.test(processedWords[processedWords.length - 1])) {
-                    processedWords[processedWords.length - 1] = processedWords[processedWords.length - 1].trimEnd();
-                }
-                // Add space before if needed (rare for punctuation but check map)
-                if (punctuationInfo.before && processedWords.length > 0 && !/\s$/.test(processedWords[processedWords.length - 1])) {
-                    processedWords.push(' ');
-                }
-                needsSpaceAfter = punctuationInfo.after;
-
-                processedWords.push(symbol);
-
-                // Determine if next word needs capitalization based on this punctuation
-                requiresCapitalization = ['.', '!', '?'].includes(symbol);
-
-                if (needsSpaceAfter) {
-                     processedWords.push(' ');
-                     // If space added, next word doesn't need cap unless punctuation dictates it
-                } else {
-                     // If no space added after (e.g., closing bracket), next word doesn't automatically need cap
-                     requiresCapitalization = false; // Adjusted: Assume no cap if no space follows
-                }
-                continue;
-            }
-
-            // --- Control Word Handling ---
-            const control = CONTROL_WORDS[word];
-             if (control === '\n') {
-                addToLog(`Command: New Line`, 'debug');
-                // Remove trailing space before newline
-                if (processedWords.length > 0 && /\s$/.test(processedWords[processedWords.length - 1])) {
-                    processedWords[processedWords.length - 1] = processedWords[processedWords.length - 1].trimEnd();
-                }
-                processedWords.push(control);
-                requiresCapitalization = true; // Capitalize after newline
-                continue;
-            } else if (control) {
-                 // Other control words (if any)
-                 processedWords.push(control);
-                 requiresCapitalization = false;
-                 continue;
-            }
-
-            // --- Regular Word Processing ---
-            let processedWord = word;
-            if (currentIsAllCaps) {
-                processedWord = word.toUpperCase();
-            } else if (requiresCapitalization) {
-                // Capitalize if it looks like a standard lowercase word start
-                if (word.length > 0 && word[0] >= 'a' && word[0] <= 'z') {
-                   processedWord = word.charAt(0).toUpperCase() + word.slice(1);
-                   addToLog(`Capitalized "${word}" -> "${processedWord}"`, 'debug');
-                }
-            }
-            // Whether we capitalized or not, the *next* word doesn't need forced capitalization unless a rule triggers later
-            requiresCapitalization = false;
-
-            // Add space *after* the word
-            processedWords.push(processedWord + ' ');
-        }
-
-        // Join and clean up potentially multiple spaces or trailing space from last word
-        let result = processedWords.join('').replace(/\s+/g, ' ').trimEnd();
-
-        addToLog(`Segment processing result: "${result}"`, 'debug');
-        return result;
-    }, [isAllCaps, addToLog]);
+    const processTranscriptSegment = useCallback(
+        (segment: string, _isFirstSegmentOfResult = false, textBeforeSegment = '') =>
+            processTranscriptSegmentImpl(segment, textBeforeSegment, {
+                isAllCaps,
+                setIsAllCaps,
+                addToLog,
+            }),
+        [isAllCaps, setIsAllCaps, addToLog]
+    );
 
 
     // --- Event Handlers ---
@@ -894,8 +963,7 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
         if (finalTranscriptSegment) {
             // Process final segment first if available
             const processedFinal = processTranscriptSegment(finalTranscriptSegment, true, textBefore);
-            // Add a space if this is the first segment after restarting transcription
-            const needsSpace = textBefore.length > 0 && !textBefore.endsWith(' ');
+            const needsSpace = shouldPrependSpace(textBefore, processedFinal);
             newText = textBefore + (needsSpace ? ' ' : '') + processedFinal + textAfter;
             newCursorPos = replaceStart + (needsSpace ? 1 : 0) + processedFinal.length;
 
@@ -908,8 +976,7 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
         } else if (interimTranscript) {
             // Process interim segment if no final segment in this event
             const processedInterim = processTranscriptSegment(interimTranscript, interimRangeRef.current.start === textarea.selectionStart, textBefore);
-             // Add a space if this is the first segment after restarting transcription
-             const needsSpace = textBefore.length > 0 && !textBefore.endsWith(' ');
+             const needsSpace = shouldPrependSpace(textBefore, processedInterim);
              newText = textBefore + (needsSpace ? ' ' : '') + processedInterim + textAfter;
              newCursorPos = replaceStart + (needsSpace ? 1 : 0) + processedInterim.length;
 

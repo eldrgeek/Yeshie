@@ -13,8 +13,10 @@
 - Command word processing:
   - "literally" to type command words verbatim
   - "all caps" and "end caps" for capitalization control
-  - "new line" for paragraph breaks
-  - Various punctuation commands (period, comma, etc.)
+- "new line" for paragraph breaks
+- Various punctuation commands (period, comma, etc.)
+- Preserves new line characters in output so capitalization after a break works
+  consistently
 
 ### User Interface
 - Microphone toggle button with visual feedback
