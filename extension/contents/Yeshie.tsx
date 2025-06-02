@@ -16,6 +16,12 @@ import { rememberCurrentTab, attemptTabFocusWithRetries, storedTabId } from "../
 import ReportsPanel from "../components/ReportsPanel"
 import { storageGet, storageSet, storageGetAll } from "../functions/storage"
 import { logInfo, logWarn, logError } from "../functions/logger"
+import { 
+  getSliderMode, 
+  getSliderVisibility, 
+  setSliderVisibility,
+  type SliderMode 
+} from "../functions/globalSettings"
 
 // Remember current tab as soon as possible
 rememberCurrentTab().then(tabId => {
@@ -75,6 +81,7 @@ function debounce(func: Function, wait: number) {
 
 const Yeshie: React.FC = () => {
   const [isOpen, setIsOpen] = useState<boolean>(false)
+  const [sliderMode, setSliderMode] = useState<SliderMode>('overlay')
   const isOpenKey = "isOpen" + window.location.hostname
   const [isReady, setIsReady] = useState(false)
   const [tabId, setTabId] = useState<number | null>(null)
@@ -88,17 +95,66 @@ const Yeshie: React.FC = () => {
   const [showReportsPanel, setShowReportsPanel] = useState(false)
   const [reportCount, setReportCount] = useState(0)
 
+  // Load global settings on mount, with fallback to per-hostname for visibility
   useEffect(() => {
-    storageGet<boolean>(isOpenKey).then(value => {
-      setIsOpen(value ?? false)
-      logInfo('YeshieContent', 'storage_get: isOpenKey', { key: isOpenKey, found: value !== undefined, value: value ?? false })
-    }).catch(error => {
-      logError("YeshieContent", `Error getting initial state for ${isOpenKey}`, { error });
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logError('YeshieContent', 'storage_error: getIsOpenInitial', { operation: 'getIsOpenInitial', key: isOpenKey, error: errorMessage })
-      setIsOpen(false)
-    })
-  }, [isOpenKey])
+    const loadSettings = async () => {
+      try {
+        // Load global slider mode
+        const globalSliderMode = await getSliderMode();
+        setSliderMode(globalSliderMode);
+        
+        // Try global visibility first, fallback to per-hostname
+        try {
+          const globalVisibility = await getSliderVisibility();
+          setIsOpen(globalVisibility);
+          logInfo('YeshieContent', 'Loaded global settings', { 
+            sliderMode: globalSliderMode, 
+            visibility: globalVisibility 
+          });
+        } catch (globalError) {
+          // Fallback to per-hostname visibility
+          const hostVisibility = await storageGet<boolean>(isOpenKey);
+          setIsOpen(hostVisibility ?? false);
+          logInfo('YeshieContent', 'Fallback to hostname visibility', { 
+            key: isOpenKey, 
+            visibility: hostVisibility ?? false 
+          });
+        }
+      } catch (error) {
+        logError("YeshieContent", "Error loading settings", { error });
+        setSliderMode('overlay');
+        setIsOpen(false);
+      }
+    };
+
+    loadSettings();
+  }, [isOpenKey]);
+
+  // Listen for storage changes to sync settings across tabs
+  useEffect(() => {
+    const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => {
+      if (areaName !== 'local') return;
+
+      if (changes.yeshie_slider_visibility) {
+        const newVisibility = changes.yeshie_slider_visibility.newValue;
+        if (newVisibility !== undefined) {
+          setIsOpen(newVisibility);
+          logInfo('YeshieContent', 'Slider visibility updated from storage', { visibility: newVisibility });
+        }
+      }
+
+      if (changes.yeshie_slider_mode) {
+        const newMode = changes.yeshie_slider_mode.newValue;
+        if (newMode !== undefined) {
+          setSliderMode(newMode);
+          logInfo('YeshieContent', 'Slider mode updated from storage', { mode: newMode });
+        }
+      }
+    };
+
+    chrome.storage.onChanged.addListener(handleStorageChange);
+    return () => chrome.storage.onChanged.removeListener(handleStorageChange);
+  }, []);
 
   const updateIsOpen = useCallback(async (newIsOpen: boolean) => {
     logInfo("YeshieContent", `User toggled sidebar: ${isOpen ? 'open' : 'closed'} → ${newIsOpen ? 'open' : 'closed'}`, { 
@@ -107,15 +163,22 @@ const Yeshie: React.FC = () => {
       url: window.location.href 
     });
     setIsOpen(newIsOpen)
+    
     try {
-      await storageSet(isOpenKey, newIsOpen)
-      logInfo('YeshieContent', 'storage_set: isOpenKey', { key: isOpenKey, value: newIsOpen })
-    } catch (error) {
-      logError("YeshieContent", `Error setting state for ${isOpenKey}`, { error });
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logError('YeshieContent', 'storage_error: setIsOpen', { operation: 'setIsOpen', key: isOpenKey, error: errorMessage })
+      // Try to update global visibility first
+      await setSliderVisibility(newIsOpen);
+      logInfo('YeshieContent', 'Updated global slider visibility', { visibility: newIsOpen });
+    } catch (globalError) {
+      logWarn('YeshieContent', 'Failed to update global visibility, using hostname fallback', { error: globalError });
+      // Fallback to per-hostname storage
+      try {
+        await storageSet(isOpenKey, newIsOpen)
+        logInfo('YeshieContent', 'Updated hostname visibility fallback', { key: isOpenKey, value: newIsOpen })
+      } catch (error) {
+        logError("YeshieContent", `Error setting state for ${isOpenKey}`, { error });
+      }
     }
-  }, [isOpenKey, isOpen])
+  }, [isOpenKey, isOpen]);
 
   const updateContext = useCallback(async (newContextPart: Partial<TabContext>) => {
     if (tabId === null) {
@@ -208,6 +271,17 @@ const Yeshie: React.FC = () => {
             await storageSet(contextKey, newContext)
             logInfo('YeshieContent', 'storage_set: contextKey, Initializing', { key: contextKey, reason: 'Initializing new context' })
             setContext(newContext)
+          }
+
+          // Get session ID now that we have a valid tab ID
+          try {
+            const instanceId = await getOrCreateInstanceId(currentTabId)
+            setSessionID(instanceId)
+            logInfo("YeshieContent", "Session ID set", { sessionID: instanceId });
+          } catch (sessionError) {
+            logError("YeshieContent", "Error getting session ID", { error: sessionError });
+            const errorMessage = sessionError instanceof Error ? sessionError.message : String(sessionError)
+            logError('YeshieContent', 'session_error', { operation: 'getOrCreateInstanceId', error: errorMessage })
           }
         } else {
           logError("YeshieContent", "Invalid tab ID response", { response });
@@ -344,9 +418,23 @@ const Yeshie: React.FC = () => {
 
   useEffect(() => {
     if (document.body && isReady) {
-      document.body.classList.toggle("plasmo-google-sidebar-show", isOpen)
+      // Remove existing classes
+      document.body.classList.remove(
+        "plasmo-google-sidebar-show", 
+        "plasmo-google-sidebar-overlay", 
+        "plasmo-google-sidebar-push-content"
+      );
+      
+      if (isOpen) {
+        document.body.classList.add("plasmo-google-sidebar-show");
+        if (sliderMode === 'push-content') {
+          document.body.classList.add("plasmo-google-sidebar-push-content");
+        } else {
+          document.body.classList.add("plasmo-google-sidebar-overlay");
+        }
+      }
     }
-  }, [isOpen, isReady])
+  }, [isOpen, isReady, sliderMode])
 
   useEffect(() => {
     const style = document.createElement("style")
@@ -468,7 +556,7 @@ const Yeshie: React.FC = () => {
           border: "2px solid #e2e8f0",
           boxShadow: "0 0 10px rgba(0, 0, 0, 0.1)"
         }}
-        className={isOpen ? "open" : "closed"}>
+        className={`${isOpen ? "open" : "closed"} ${sliderMode === 'overlay' ? 'overlay-mode' : 'push-content-mode'}`}>
         <img
           src={iconBase64}
           alt="Yeshie Icon"

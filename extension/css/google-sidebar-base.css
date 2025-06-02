@@ -11,7 +11,19 @@
   --plasmo-google-sidebar-width: 400px;
 }
 
+/* Default state - no margin adjustment */
 body.plasmo-google-sidebar-show {
+  margin-right: 0;
+}
+
+/* Push-content mode: adjust body margin when sidebar is open */
+body.plasmo-google-sidebar-show.plasmo-google-sidebar-push-content {
+  margin-right: var(--plasmo-google-sidebar-width);
+  transition: margin-right 0.3s ease;
+}
+
+/* Overlay mode: no body margin adjustment (default) */
+body.plasmo-google-sidebar-show.plasmo-google-sidebar-overlay {
   margin-right: 0;
 }
 
@@ -30,6 +42,17 @@ body.plasmo-google-sidebar-show {
   border: 2px solid #e2e8f0;
   box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
   transform-origin: right center;
+  z-index: 2147483647; /* Default to overlay mode z-index */
+}
+
+/* Overlay mode: higher z-index to stay above content */
+#yeshie-sidebar.overlay-mode {
+  z-index: 2147483647;
+}
+
+/* Push-content mode: lower z-index since content is pushed */
+#yeshie-sidebar.push-content-mode {
+  z-index: 1000;
 }
 
 #yeshie-sidebar.open {

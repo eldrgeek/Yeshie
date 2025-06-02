@@ -20,6 +20,11 @@ import { Validator } from 'jsonschema';
 import { ToastContainer, toast, Slide } from 'react-toastify'; // Added react-toastify imports
 import 'react-toastify/dist/ReactToastify.css'; // Added react-toastify CSS
 import TestViewerDialog from "../components/TestViewerDialog"; // Import the new dialog
+import { 
+  getSliderMode, 
+  setSliderMode, 
+  type SliderMode 
+} from "../functions/globalSettings";
 
 const validator = new Validator();
 
@@ -152,6 +157,10 @@ const TabsIndex = React.memo(() => {
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [apiKeyLoading, setApiKeyLoading] = useState(false);
+
+  // --- State for Slider Mode Management ---
+  const [sliderMode, setSliderModeState] = useState<SliderMode>('overlay');
+  const [sliderModeLoading, setSliderModeLoading] = useState(false);
 
   // Ref to prevent setting state on unmounted component
   const isMounted = useRef(true); // Ensure this is defined
@@ -420,6 +429,25 @@ const TabsIndex = React.memo(() => {
 
     incrementReloadCount();
   }, []); // Run only once on component mount
+
+  // --- Effect to load slider mode on mount ---
+  useEffect(() => {
+    const loadSliderMode = async () => {
+      try {
+        const currentMode = await getSliderMode();
+        if (isMounted.current) {
+          setSliderModeState(currentMode);
+          logInfo('UI', 'Loaded slider mode setting', { mode: currentMode });
+        }
+      } catch (error) {
+        logError('UI', 'Failed to load slider mode', { error });
+        if (isMounted.current) {
+          setSliderModeState('overlay'); // Default fallback
+        }
+      }
+    };
+    loadSliderMode();
+  }, []);
 
   // --- Effect to check for API Key on load ---
   useEffect(() => {
@@ -1050,6 +1078,32 @@ const TabsIndex = React.memo(() => {
     }
   }, []);
 
+  const handleSliderModeChange = useCallback(async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newMode = e.target.value as SliderMode;
+    setSliderModeLoading(true);
+    
+    try {
+      await setSliderMode(newMode);
+      setSliderModeState(newMode);
+      logInfo('UI', 'Slider mode updated', { mode: newMode });
+      toast.info(`Slider mode changed to: ${newMode === 'overlay' ? 'Overlay (slides over content)' : 'Push Content (reduces viewport)'}`);
+    } catch (error) {
+      logError('UI', 'Failed to update slider mode', { error, mode: newMode });
+      toast.error("Error updating slider mode. Click to copy details.");
+      
+      // Revert UI on error
+      try {
+        const currentMode = await getSliderMode();
+        setSliderModeState(currentMode);
+      } catch (revertError) {
+        logError('UI', 'Failed to revert slider mode', { error: revertError });
+        setSliderModeState('overlay'); // Ultimate fallback
+      }
+    } finally {
+      setSliderModeLoading(false);
+    }
+  }, []);
+
   const handleArchiveTest = useCallback(async () => {
     logInfo("UI", "Attempting to archive current test...");
     if (!instructions || !instructions.tasks || instructions.tasks.length === 0) {
@@ -1287,6 +1341,40 @@ const TabsIndex = React.memo(() => {
           </label>
         </div>
 
+        {/* --- Grid Area 7: Slider Mode Selection --- */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <label
+            htmlFor="sliderModeSelect"
+            style={{ fontSize: '0.9em', fontWeight: 'bold' }}
+            data-tooltip="Controls how the Yeshie sidebar behaves when open"
+            aria-label="Controls how the Yeshie sidebar behaves when open"
+          >
+            Sidebar Mode:
+          </label>
+          <select
+            id="sliderModeSelect"
+            value={sliderMode}
+            onChange={handleSliderModeChange}
+            disabled={sliderModeLoading}
+            style={{
+              padding: '4px 8px',
+              fontSize: '0.9em',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              background: sliderModeLoading ? '#f5f5f5' : '#fff',
+              cursor: sliderModeLoading ? 'not-allowed' : 'pointer'
+            }}
+            data-tooltip={sliderMode === 'overlay' ? 'Sidebar slides over page content' : 'Sidebar pushes page content to the left'}
+            aria-label={sliderMode === 'overlay' ? 'Sidebar slides over page content' : 'Sidebar pushes page content to the left'}
+          >
+            <option value="overlay">Overlay (slides over content)</option>
+            <option value="push-content">Push Content (reduces viewport)</option>
+          </select>
+          {sliderModeLoading && (
+            <span style={{ fontSize: '0.8em', color: '#666' }}>Updating...</span>
+          )}
+        </div>
+
       </div> {/* End Grid Header */}
 
       {/* --- Test Actions Panel --- */}
@@ -1320,6 +1408,40 @@ const TabsIndex = React.memo(() => {
           >
             Auto-run Script
           </label>
+        </div>
+
+        {/* Slider Mode Selection */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <label
+            htmlFor="sliderModeSelect"
+            style={{ fontSize: '0.9em', fontWeight: 'bold' }}
+            data-tooltip="Controls how the Yeshie sidebar behaves when open"
+            aria-label="Controls how the Yeshie sidebar behaves when open"
+          >
+            Sidebar Mode:
+          </label>
+          <select
+            id="sliderModeSelect"
+            value={sliderMode}
+            onChange={handleSliderModeChange}
+            disabled={sliderModeLoading}
+            style={{
+              padding: '4px 8px',
+              fontSize: '0.9em',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              background: sliderModeLoading ? '#f5f5f5' : '#fff',
+              cursor: sliderModeLoading ? 'not-allowed' : 'pointer'
+            }}
+            data-tooltip={sliderMode === 'overlay' ? 'Sidebar slides over page content' : 'Sidebar pushes page content to the left'}
+            aria-label={sliderMode === 'overlay' ? 'Sidebar slides over page content' : 'Sidebar pushes page content to the left'}
+          >
+            <option value="overlay">Overlay (slides over content)</option>
+            <option value="push-content">Push Content (reduces viewport)</option>
+          </select>
+          {sliderModeLoading && (
+            <span style={{ fontSize: '0.8em', color: '#666' }}>Updating...</span>
+          )}
         </div>
 
         {/* Download Results Button - Moved Here */}
