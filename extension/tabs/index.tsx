@@ -1374,11 +1374,11 @@ const TabsIndex = React.memo(() => {
         <div className="left-panel">
           <div className="editor-section" style={{ padding: '20px', minHeight: '300px' }}>
             <h3 style={{ marginTop: '0', marginBottom: '15px', color: '#333' }}>Speech Input</h3>
-            {/* <SpeechInput 
+            <SpeechInput 
               onSubmit={handleSpeechSubmit} 
               onShowHelp={handleShowSpeechHelp}
               initialText="Welcome to the Yeshie Tab page! Try speaking to add text here."
-            /> */}
+            />
           </div>
         </div>
         <div className="right-panel">
@@ -1436,7 +1436,8 @@ const TabsIndex = React.memo(() => {
 
 TabsIndex.displayName = 'TabsIndex';
 
-const root = ReactDOM.createRoot(document.getElementById("root")!);
-root.render(<TabsIndex />);
+// Plasmo automatically renders the default export, so no manual rendering needed
+// This prevents the double rendering issue where both manual and Plasmo rendering were active
+console.log(`✅ TabsIndex component loaded for Plasmo auto-rendering`);
 
 export default TabsIndex;

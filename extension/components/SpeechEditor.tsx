@@ -231,6 +231,16 @@ const useSpeechRecognition = ({ onResult, onError, onEnd, onLog }) => {
                 .then((permission) => {
                     log(`Initial microphone permission state: ${permission.state}`, 'info');
                     setPermissionStatus(permission.state);
+                    
+                    // Automatically request permission if it's in prompt state
+                    if (permission.state === 'prompt') {
+                        log('Permission is in prompt state, automatically requesting permission...', 'info');
+                        // Use a small delay to ensure the component is fully mounted
+                        setTimeout(() => {
+                            requestMicrophonePermissionAutomatically();
+                        }, 100);
+                    }
+                    
                     permission.onchange = () => {
                         log(`Microphone permission state changed to: ${permission.state}`, 'info');
                         setPermissionStatus(permission.state);
@@ -240,12 +250,42 @@ const useSpeechRecognition = ({ onResult, onError, onEnd, onLog }) => {
                      log('Could not query microphone permission', 'error', err);
                       // Assume denied if query fails? Or prompt? Let's assume prompt.
                      setPermissionStatus('prompt');
+                     // Also try to request permission in this case
+                     setTimeout(() => {
+                         requestMicrophonePermissionAutomatically();
+                     }, 100);
                 });
         } else {
             log('navigator.permissions API not supported', 'warn');
             // Cannot check permission proactively, will rely on start() errors
              setPermissionStatus('prompt'); // Assume we need to ask
+             // Try to request permission since we can't check
+             setTimeout(() => {
+                 requestMicrophonePermissionAutomatically();
+             }, 100);
         }
+
+        // Internal function to request permission automatically (simpler than the full UI version)
+        const requestMicrophonePermissionAutomatically = () => {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                log('Automatically requesting microphone permission via getUserMedia...', 'info');
+                navigator.mediaDevices.getUserMedia({ audio: true })
+                    .then((stream) => {
+                        log('Microphone permission granted automatically', 'info');
+                        // Stop all tracks to release the microphone immediately
+                        stream.getTracks().forEach(track => track.stop());
+                        // Permission status will be updated via the permission.onchange handler
+                    })
+                    .catch(err => {
+                        log(`Automatic permission request failed: ${err.name}`, 'warn', err);
+                        // Don't show alerts or change UI for automatic requests
+                        // The user can still manually click the mic button if needed
+                    });
+            } else {
+                log('MediaDevices API not available for automatic permission request', 'warn');
+                // Don't try SpeechRecognition directly for automatic requests as it's more intrusive
+            }
+        };
 
         return () => {
             log('Cleaning up SpeechRecognition instance', 'info');
