@@ -83,6 +83,20 @@ export default function LearnMode() { // Renamed component export for clarity
     logDebug("LearnMode", "Setting up key event listener for Ctrl+Shift+L", undefined);
 
     const handleKey = (e: KeyboardEvent) => {
+      // Check if user is currently typing in an input field
+      const target = e.target as HTMLElement;
+      const isTyping = target && (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable ||
+        target.closest('input, textarea, [contenteditable="true"]')
+      );
+
+      // Skip keyboard shortcuts if user is typing
+      if (isTyping) {
+        return;
+      }
+
       logDebug("LearnMode", "Key pressed", { key: e.key, ctrl: e.ctrlKey, shift: e.shiftKey, meta: e.metaKey }); // Log any keydown
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "l") {
         logInfo("LearnMode", "Ctrl+Shift+L DETECTED. Sending toggle message to background.", undefined); // More prominent log

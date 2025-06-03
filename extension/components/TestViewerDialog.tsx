@@ -83,6 +83,21 @@ const TestViewerDialog: React.FC<TestViewerDialogProps> = ({ isOpen, onClose }) 
     if (!isOpen) return;
 
     const handleEscKey = (event: KeyboardEvent) => {
+      // Check if user is currently typing in an input field
+      const target = event.target as HTMLElement;
+      const isTyping = target && (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable ||
+        target.closest('input, textarea, select, [contenteditable="true"]')
+      );
+
+      // Skip escape handling if user is typing
+      if (isTyping) {
+        return;
+      }
+
       if (event.key === 'Escape') {
         onClose();
       }

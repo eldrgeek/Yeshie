@@ -1161,6 +1161,9 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
 
     // --- User Interaction Handlers ---
     const handleKeyDown = (event) => {
+        // Always prevent keyboard events from bubbling up to the parent page
+        event.stopPropagation();
+        
         if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
             event.preventDefault();
             addToLog(`Submit triggered (Cmd/Ctrl+Enter)`, 'info');
@@ -1397,6 +1400,9 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
 
     // Update textarea onChange handler
     const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        // Prevent input events from bubbling up to the parent page
+        e.stopPropagation();
+        
         addToLog('Text changed via keyboard/input event', 'debug');
         updateText(e.target.value);
         // When user types manually, reset the interim range as it's no longer valid
@@ -1409,7 +1415,12 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
     }, [updateText, addToLog]);
 
     return (
-        <div className="speech-input-container">
+        <div className="speech-input-container"
+             onKeyDown={(e) => e.stopPropagation()}
+             onKeyUp={(e) => e.stopPropagation()}
+             onKeyPress={(e) => e.stopPropagation()}
+             onInput={(e) => e.stopPropagation()}
+        >
             <textarea
                 ref={textAreaRef}
                 value={text}

@@ -29,7 +29,7 @@ function LogViewer({ isOpen, onClose, showToast }: LogViewerProps) {
         .then(storedLogs => {
           const currentLogs = storedLogs || [];
           setLogs(currentLogs);
-          logDebug(`[LogViewer] Fetched ${currentLogs.length} logs from storage.`);
+          logDebug('[LogViewer]', `Fetched ${currentLogs.length} logs from storage.`);
           
           if (currentLogs.length > 0) {
               // Format logs for clipboard (Keep using simpler format for copy)
@@ -39,7 +39,7 @@ function LogViewer({ isOpen, onClose, showToast }: LogViewerProps) {
               
               navigator.clipboard.writeText(logTextForClipboard)
                 .then(() => {
-                   logInfo('[LogViewer] Session logs automatically copied to clipboard on open.');
+                   logInfo('[LogViewer]', 'Session logs automatically copied to clipboard on open.');
                    showToast('Session logs copied to clipboard!');
                 })
                 .catch(clipError => {
@@ -66,6 +66,20 @@ function LogViewer({ isOpen, onClose, showToast }: LogViewerProps) {
     if (!isOpen) return; // Only run when the viewer is open
 
     const handleEscapeKey = (event: KeyboardEvent) => {
+      // Check if user is currently typing in an input field
+      const target = event.target as HTMLElement;
+      const isTyping = target && (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable ||
+        target.closest('input, textarea, [contenteditable="true"]')
+      );
+
+      // Skip escape handling if user is typing
+      if (isTyping) {
+        return;
+      }
+
       if (event.key === 'Escape') {
         onClose();
       }
@@ -92,7 +106,7 @@ function LogViewer({ isOpen, onClose, showToast }: LogViewerProps) {
     try {
       await storageRemove(LOG_STORAGE_KEY);
       setLogs([]); // Clear logs in the UI
-      logInfo('Session logs cleared by user from LogViewer.');
+      logInfo('[LogViewer]', 'Session logs cleared by user from LogViewer.');
       showToast('Session logs cleared.');
     } catch (clearError) {
        handleError(clearError, { operation: 'LogViewer - clearLogs' });
@@ -111,7 +125,7 @@ function LogViewer({ isOpen, onClose, showToast }: LogViewerProps) {
 
       navigator.clipboard.writeText(logTextForClipboard)
         .then(() => {
-           logInfo('[LogViewer] Session logs manually copied to clipboard.');
+           logInfo('[LogViewer]', 'Session logs manually copied to clipboard.');
            showToast('Logs copied to clipboard!');
         })
         .catch(clipError => {

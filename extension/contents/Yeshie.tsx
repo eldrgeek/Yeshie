@@ -95,6 +95,25 @@ const Yeshie: React.FC = () => {
   const [showReportsPanel, setShowReportsPanel] = useState(false)
   const [reportCount, setReportCount] = useState(0)
 
+  // Event handlers to prevent keyboard/input events from bubbling to parent page
+  // Must be defined early to maintain hooks order consistency
+  const handleSidebarKeyEvent = useCallback((event: React.KeyboardEvent) => {
+    if (isOpen) {
+      // Prevent keyboard events from bubbling up to the parent page
+      event.stopPropagation();
+      logInfo("YeshieContent", "Prevented keyboard event from bubbling to parent page", { 
+        key: event.key, 
+        type: event.type 
+      });
+    }
+  }, [isOpen]);
+
+  const handleSidebarEvent = useCallback((event: React.SyntheticEvent) => {
+    if (isOpen) {
+      event.stopPropagation();
+    }
+  }, [isOpen]);
+
   // Load global settings on mount, with fallback to per-hostname for visibility
   useEffect(() => {
     const loadSettings = async () => {
@@ -333,6 +352,20 @@ const Yeshie: React.FC = () => {
     }
 
     const handleKeyPress = (event: KeyboardEvent) => {
+      // Check if user is currently typing in an input field
+      const target = event.target as HTMLElement;
+      const isTyping = target && (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable ||
+        target.closest('input, textarea, [contenteditable="true"]')
+      );
+
+      // Skip keyboard shortcuts if user is typing
+      if (isTyping) {
+        return;
+      }
+
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === 'y') {
         event.preventDefault()
         logInfo("YeshieContent", `User pressed keyboard shortcut to toggle sidebar`, { 
@@ -386,6 +419,7 @@ const Yeshie: React.FC = () => {
       }
       
       if (event.key === 'Escape' && isOpen) {
+        // Only handle Escape if not in an input field (already checked above)
         logInfo("YeshieContent", `User pressed Escape key while sidebar open`, { 
           action: "blur_and_focus_page",
           url: window.location.href 
@@ -556,7 +590,11 @@ const Yeshie: React.FC = () => {
           border: "2px solid #e2e8f0",
           boxShadow: "0 0 10px rgba(0, 0, 0, 0.1)"
         }}
-        className={`${isOpen ? "open" : "closed"} ${sliderMode === 'overlay' ? 'overlay-mode' : 'push-content-mode'}`}>
+        className={`${isOpen ? "open" : "closed"} ${sliderMode === 'overlay' ? 'overlay-mode' : 'push-content-mode'}`}
+        onKeyDown={handleSidebarKeyEvent}
+        onMouseDown={handleSidebarEvent}
+        onTouchStart={handleSidebarEvent}
+      >
         <img
           src={iconBase64}
           alt="Yeshie Icon"
