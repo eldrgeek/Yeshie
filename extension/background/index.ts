@@ -375,6 +375,94 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // Handle recording control messages
+  if (message.type === 'START_RECORDING_FROM_UI') {
+    logInfo("Recording", "Background: Received START_RECORDING_FROM_UI message", { tabId: sender.tab?.id });
+    
+    // Send message to the current active tab to start recording
+    chrome.tabs.query({ active: true, currentWindow: true }).then(([activeTab]) => {
+      if (activeTab?.id) {
+        chrome.tabs.sendMessage(activeTab.id, { 
+          type: 'START_RECORDING',
+          payload: { tabId: activeTab.id }
+        }).then(() => {
+          // Notify control page that recording started
+          notifyControlPage('RECORDING_STARTED', { 
+            success: true, 
+            message: "Recording started",
+            tabId: activeTab.id 
+          });
+          sendResponse({ success: true, message: "Recording started" });
+        }).catch(error => {
+          logError("Recording", "Error starting recording", { error, tabId: activeTab.id });
+          sendResponse({ success: false, error: error.message });
+        });
+      } else {
+        sendResponse({ success: false, error: "No active tab found" });
+      }
+    }).catch(error => {
+      logError("Recording", "Error querying active tab", { error });
+      sendResponse({ success: false, error: error.message });
+    });
+    
+    return true; // Async response
+  }
+
+  if (message.type === 'STOP_RECORDING_FROM_UI') {
+    logInfo("Recording", "Background: Received STOP_RECORDING_FROM_UI message", { tabId: sender.tab?.id });
+    
+    // Send message to the current active tab to stop recording
+    chrome.tabs.query({ active: true, currentWindow: true }).then(([activeTab]) => {
+      if (activeTab?.id) {
+        chrome.tabs.sendMessage(activeTab.id, { 
+          type: 'STOP_RECORDING',
+          payload: { tabId: activeTab.id }
+        }).then(() => {
+          // Notify control page that recording stopped (processing will be handled by FORWARD_RECORDED_STEPS)
+          notifyControlPage('RECORDING_STOPPED', { 
+            success: true, 
+            message: "Recording stopped, processing...",
+            tabId: activeTab.id 
+          });
+          sendResponse({ success: true, message: "Recording stopped" });
+        }).catch(error => {
+          logError("Recording", "Error stopping recording", { error, tabId: activeTab.id });
+          sendResponse({ success: false, error: error.message });
+        });
+      } else {
+        sendResponse({ success: false, error: "No active tab found" });
+      }
+    }).catch(error => {
+      logError("Recording", "Error querying active tab", { error });
+      sendResponse({ success: false, error: error.message });
+    });
+    
+    return true; // Async response
+  }
+
+  if (message.type === 'TOGGLE_RECORDING_FROM_SHORTCUT') {
+    logInfo("Recording", "Background: Received TOGGLE_RECORDING_FROM_SHORTCUT message", { tabId: sender.tab?.id });
+    
+    // Since we don't track recording state in background, we'll send a toggle message to content script
+    // and let it decide based on its current state
+    const sourceTabId = sender.tab?.id;
+    if (sourceTabId) {
+      chrome.tabs.sendMessage(sourceTabId, { 
+        type: 'TOGGLE_RECORDING_VIA_SHORTCUT',
+        payload: { tabId: sourceTabId }
+      }).then(() => {
+        sendResponse({ success: true, message: "Toggle recording message sent" });
+      }).catch(error => {
+        logError("Recording", "Error toggling recording via shortcut", { error, tabId: sourceTabId });
+        sendResponse({ success: false, error: error.message });
+      });
+    } else {
+      sendResponse({ success: false, error: "No sender tab ID found" });
+    }
+    
+    return true; // Async response
+  }
+
   if (message.type === 'FORWARD_RECORDED_STEPS') {
     const { steps } = message.payload || {}
 

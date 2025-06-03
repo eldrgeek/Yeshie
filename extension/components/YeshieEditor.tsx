@@ -1,5 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { SpeechInput } from './SpeechEditor';
+import LearnMode from "../contents/LearnMode"
+import type { RecordedEvent } from "../functions/passiveRecorder"
 
 // --- Interface Definitions (assuming these are correct as provided) ---
 interface SpeechRecognitionEvent extends Event {
@@ -51,7 +53,10 @@ interface Message {
   content: string;
 }
 interface YeshieEditorProps {
-  sessionId?: string;
+  sessionId: string
+  isRecording?: boolean
+  recordedSteps?: RecordedEvent[]
+  onClearRecordedSteps?: () => void
   onClose?: () => void;
   onSubmit?: (text: string) => void;
 }
@@ -80,9 +85,12 @@ const punctuationMap: { [key: string]: string } = {
   'ellipsis': '...'
 };
 
-const YeshieEditor: React.FC<YeshieEditorProps> = ({ 
-  sessionId, 
-  onClose, 
+const YeshieEditor: React.FC<YeshieEditorProps> = ({
+  sessionId,
+  isRecording = false,
+  recordedSteps = [],
+  onClearRecordedSteps,
+  onClose,
   onSubmit: externalOnSubmit
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -176,6 +184,15 @@ const YeshieEditor: React.FC<YeshieEditorProps> = ({
           initialText=""
         />
       </div>
+      
+      {/* LearnMode integration - only show when sidebar is open and have steps to annotate */}
+      {recordedSteps.length > 0 && (
+        <LearnMode 
+          isRecording={isRecording}
+          recordedSteps={recordedSteps}
+          onClearSteps={onClearRecordedSteps}
+        />
+      )}
     </div>
   );
 };

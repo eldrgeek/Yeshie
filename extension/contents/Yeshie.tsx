@@ -22,6 +22,9 @@ import {
   setSliderVisibility,
   type SliderMode 
 } from "../functions/globalSettings"
+import GlobalKeyboardListener from "./GlobalKeyboardListener"
+import { startRecording, stopRecording, type RecordedEvent } from "../functions/passiveRecorder"
+import { getLearnedStepsSummary } from "../functions/inspectStorage"
 
 // Remember current tab as soon as possible
 rememberCurrentTab().then(tabId => {
@@ -94,6 +97,10 @@ const Yeshie: React.FC = () => {
   const [toast, setToast] = useState<string | null>(null)
   const [showReportsPanel, setShowReportsPanel] = useState(false)
   const [reportCount, setReportCount] = useState(0)
+
+  // Global recording state - managed here since Yeshie is always mounted
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordedSteps, setRecordedSteps] = useState<RecordedEvent[]>([])
 
   // Event handlers to prevent keyboard/input events from bubbling to parent page
   // Must be defined early to maintain hooks order consistency
@@ -351,6 +358,65 @@ const Yeshie: React.FC = () => {
       })
     }
 
+    // Add chrome.runtime.onMessage listener for recording control messages from background
+    const handleRuntimeMessage = (message: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
+      logInfo("YeshieContent", "Received runtime message", { type: message.type, payload: message.payload });
+
+      if (message.type === 'START_RECORDING') {
+        logInfo("YeshieContent", "Background requested recording start");
+        handleStartRecording();
+        sendResponse({ success: true });
+        return false; // Sync response
+      }
+
+      if (message.type === 'STOP_RECORDING') {
+        logInfo("YeshieContent", "Background requested recording stop");
+        if (isRecording) {
+          try {
+            const steps = stopRecording();
+            handleStopRecording(steps);
+            sendResponse({ success: true, stepsCount: steps.length });
+          } catch (error) {
+            logError("YeshieContent", "Error stopping recording", { error });
+            sendResponse({ success: false, error: error.message });
+          }
+        } else {
+          logInfo("YeshieContent", "Not currently recording, ignoring stop request");
+          sendResponse({ success: true, message: "Not recording" });
+        }
+        return false; // Sync response
+      }
+
+      if (message.type === 'TOGGLE_RECORDING_VIA_SHORTCUT') {
+        logInfo("YeshieContent", "Background requested recording toggle via shortcut", { currentIsRecording: isRecording });
+        
+        if (isRecording) {
+          try {
+            const steps = stopRecording();
+            handleStopRecording(steps);
+            sendResponse({ success: true, action: 'stopped', stepsCount: steps.length });
+          } catch (error) {
+            logError("YeshieContent", "Error stopping recording via shortcut", { error });
+            sendResponse({ success: false, error: error.message });
+          }
+        } else {
+          try {
+            handleStartRecording();
+            sendResponse({ success: true, action: 'started' });
+          } catch (error) {
+            logError("YeshieContent", "Error starting recording via shortcut", { error });
+            sendResponse({ success: false, error: error.message });
+          }
+        }
+        return false; // Sync response
+      }
+
+      // Return false if we don't handle the message
+      return false;
+    };
+
+    chrome.runtime.onMessage.addListener(handleRuntimeMessage);
+
     const handleKeyPress = (event: KeyboardEvent) => {
       // Check if user is currently typing in an input field
       const target = event.target as HTMLElement;
@@ -447,6 +513,7 @@ const Yeshie: React.FC = () => {
       document.removeEventListener('keydown', handleKeyPress)
       window.removeEventListener("message", handleMessage)
       window.removeEventListener('popstate', handleUrlChange)
+      chrome.runtime.onMessage.removeListener(handleRuntimeMessage)
     }
   }, [handleMessage, updateContext, isOpen, updateIsOpen])
 
@@ -505,152 +572,388 @@ const Yeshie: React.FC = () => {
     }
   }, [isReady])
 
-  if (!isReady) {
-    console.log("Yeshie is not ready to render yet", { isReady, bodyExists: !!document.body })
-    return null
-  }
+  // Global recording handlers
+  const handleStartRecording = useCallback(() => {
+    logInfo("YeshieGlobal", "handleStartRecording called", { currentIsRecording: isRecording });
+    
+    // Prevent double-start
+    if (isRecording) {
+      logInfo("YeshieGlobal", "Already recording, ignoring start request");
+      return;
+    }
 
-  if (!document.body) {
-    console.log("Body not found, not rendering Yeshie", { isReady, bodyExists: !!document.body })
-    return null
-  }
+    try {
+      // Start the actual recording service
+      startRecording()
+      
+      // Update UI state
+      setIsRecording(true)
+      setRecordedSteps([])
+      
+      // Show toast notification instead of fixed banner
+      setToast("🔴 Recording started! Click the stop button to finish.")
+      
+      logInfo("YeshieGlobal", "Recording service started and state updated to true")
+    } catch (error) {
+      logError("YeshieGlobal", "Error starting recording", { error })
+      setToast("❌ Error starting recording")
+      setTimeout(() => setToast(null), 3000)
+      setIsRecording(false)
+    }
+  }, [isRecording])
+
+  const handleStopRecording = useCallback((steps: RecordedEvent[]) => {
+    logInfo("YeshieGlobal", "handleStopRecording called", { 
+      currentIsRecording: isRecording, 
+      stepsReceived: steps.length 
+    });
+
+    try {
+      // Update UI state
+      setIsRecording(false)
+      setRecordedSteps(steps)
+      
+      // Show completion toast
+      setToast(`✅ Recording stopped! Captured ${steps.length} steps.`)
+      setTimeout(() => setToast(null), 3000)
+      
+      // Send steps to background for processing
+      chrome.runtime.sendMessage({ 
+        type: 'FORWARD_RECORDED_STEPS', 
+        payload: { steps } 
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          logError("YeshieGlobal", "Error forwarding recorded steps", { 
+            error: chrome.runtime.lastError.message 
+          });
+        } else {
+          logInfo("YeshieGlobal", "Recorded steps forwarded to background successfully", { 
+            stepsCount: steps.length,
+            response 
+          });
+        }
+      });
+      
+      logInfo("YeshieGlobal", "Recording stopped successfully", { stepsCount: steps.length });
+    } catch (error) {
+      logError("YeshieGlobal", "Error in handleStopRecording", { error });
+      setToast("❌ Error stopping recording")
+      setTimeout(() => setToast(null), 3000)
+    }
+  }, [isRecording])
+
+  const handleStopRecordingButton = useCallback(() => {
+    logInfo("YeshieGlobal", "Stop recording button clicked");
+    
+    if (!isRecording) {
+      logInfo("YeshieGlobal", "Not currently recording, ignoring stop request");
+      return;
+    }
+
+    try {
+      const steps = stopRecording();
+      handleStopRecording(steps);
+    } catch (error) {
+      logError("YeshieGlobal", "Error stopping recording via button", { error });
+      setToast("❌ Error stopping recording")
+      setTimeout(() => setToast(null), 3000)
+    }
+  }, [isRecording, handleStopRecording])
+
+  const handleClearRecordedSteps = useCallback(() => {
+    setRecordedSteps([])
+    logInfo("YeshieGlobal", "Recorded steps cleared")
+  }, [])
+
+  // Help function to show storage information
+  const showStorageHelp = useCallback(async () => {
+    try {
+      const summary = await getLearnedStepsSummary()
+      alert(summary)
+    } catch (error) {
+      alert("Error loading learned steps information.")
+    }
+  }, [])
+
+  // Debug function for keyboard testing
+  const enableKeyboardDebug = useCallback(() => {
+    logInfo("YeshieDebug", "Enabling keyboard debug for 30 seconds");
+    
+    const debugHandler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey) {
+        logInfo("YeshieDebug", `Keyboard event: ${e.type} ${e.key}`, {
+          ctrl: e.ctrlKey,
+          meta: e.metaKey, 
+          shift: e.shiftKey,
+          key: e.key,
+          target: (e.target as HTMLElement)?.tagName,
+          defaultPrevented: e.defaultPrevented,
+          currentRecordingState: isRecording
+        });
+      }
+    };
+    
+    document.addEventListener('keydown', debugHandler, true);
+    
+    setTimeout(() => {
+      document.removeEventListener('keydown', debugHandler, true);
+      logInfo("YeshieDebug", "Keyboard debug disabled");
+    }, 30000);
+  }, [isRecording])
 
   // Show context invalidation notice if needed
   if (contextInvalidated) {
     return (
-      <div style={{
-        position: 'fixed',
-        top: '10px',
-        right: '10px',
-        background: '#ff6b35',
-        color: 'white',
-        padding: '12px 16px',
-        borderRadius: '8px',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-        zIndex: 10000,
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-        fontSize: '14px',
-        maxWidth: '300px'
-      }}>
-        <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
-          🔄 Extension Context Invalidated
+      <>
+        {/* Global keyboard listener - ALWAYS active, even during context invalidation */}
+        <GlobalKeyboardListener
+          onRecordingStart={handleStartRecording}
+          onRecordingStop={handleStopRecording}
+          isRecording={isRecording}
+        />
+        
+        <div style={{
+          position: 'fixed',
+          top: '10px',
+          right: '10px',
+          background: '#ff6b35',
+          color: 'white',
+          padding: '12px 16px',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          zIndex: 10000,
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontSize: '14px',
+          maxWidth: '300px'
+        }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
+            🔄 Extension Context Invalidated
+          </div>
+          <div style={{ marginBottom: '8px', fontSize: '12px' }}>
+            The extension was reloaded. This page will auto-reload when you switch tabs and come back.
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              background: 'white',
+              color: '#ff6b35',
+              border: 'none',
+              padding: '6px 12px',
+              borderRadius: '4px',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              cursor: 'pointer'
+            }}
+          >
+            Reload Now
+          </button>
         </div>
-        <div style={{ marginBottom: '8px', fontSize: '12px' }}>
-          The extension was reloaded. This page will auto-reload when you switch tabs and come back.
-        </div>
-        <button
-          onClick={() => window.location.reload()}
-          style={{
-            background: 'white',
-            color: '#ff6b35',
-            border: 'none',
-            padding: '6px 12px',
-            borderRadius: '4px',
-            fontSize: '12px',
-            fontWeight: 'bold',
-            cursor: 'pointer'
-          }}
-        >
-          Reload Now
-        </button>
-      </div>
+      </>
+    );
+  }
+
+  if (!isReady) {
+    console.log("Yeshie is not ready to render yet", { isReady, bodyExists: !!document.body })
+    return (
+      <>
+        {/* Global keyboard listener - ALWAYS active, even when not ready */}
+        <GlobalKeyboardListener
+          onRecordingStart={handleStartRecording}
+          onRecordingStop={handleStopRecording}
+          isRecording={isRecording}
+        />
+      </>
+    );
+  }
+
+  if (!document.body) {
+    console.log("Body not found, not rendering Yeshie", { isReady, bodyExists: !!document.body })
+    return (
+      <>
+        {/* Global keyboard listener - ALWAYS active, even without body */}
+        <GlobalKeyboardListener
+          onRecordingStart={handleStartRecording}
+          onRecordingStop={handleStopRecording}
+          isRecording={isRecording}
+        />
+      </>
     );
   }
 
   console.log("✅ Yeshie is ready to render!", { isReady, isOpen, tabId, bodyExists: !!document.body })
 
   return (
-    <div id={getShadowHostId()}>
-      {toast && (
-        <div style={{
-          position: 'fixed',
-          top: '20px',
-          right: '20px',
-          zIndex: 2147483647,
-          background: '#333',
-          color: 'white',
-          padding: '12px 16px',
-          borderRadius: '8px',
-          fontSize: '14px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          maxWidth: '300px',
-          wordWrap: 'break-word'
-        }}>
-          {toast}
-        </div>
-      )}
+    <>
+      {/* Global keyboard listener - ALWAYS active, regardless of UI state */}
+      <GlobalKeyboardListener
+        onRecordingStart={handleStartRecording}
+        onRecordingStop={handleStopRecording}
+        isRecording={isRecording}
+      />
       
-      <div
-        id="yeshie-sidebar"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "flex-start",
-          flexDirection: "column",
-          border: "2px solid #e2e8f0",
-          boxShadow: "0 0 10px rgba(0, 0, 0, 0.1)"
-        }}
-        className={`${isOpen ? "open" : "closed"} ${sliderMode === 'overlay' ? 'overlay-mode' : 'push-content-mode'}`}
-        onKeyDown={handleSidebarKeyEvent}
-        onMouseDown={handleSidebarEvent}
-        onTouchStart={handleSidebarEvent}
-      >
-        <img
-          src={iconBase64}
-          alt="Yeshie Icon"
-          className="resizing-icon"
-          width={16}
-          height={16}
-        />
-        <div style={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          flex: 1,
-          overflow: 'hidden',
-          width: '100%'
-        }}>
-          <div style={{ height: '100%', width: '100%' }}>
-            <YeshieEditor sessionId={sessionID || ''} />
+      <div id={getShadowHostId()}>
+        {toast && (
+          <div style={{
+            position: 'fixed',
+            top: '20px',
+            right: '20px',
+            zIndex: 2147483647,
+            background: '#333',
+            color: 'white',
+            padding: '12px 16px',
+            borderRadius: '8px',
+            fontSize: '14px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            maxWidth: '300px',
+            wordWrap: 'break-word'
+          }}>
+            {toast}
+          </div>
+        )}
+        
+        <div
+          id="yeshie-sidebar"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-start",
+            flexDirection: "column",
+            border: "2px solid #e2e8f0",
+            boxShadow: "0 0 10px rgba(0, 0, 0, 0.1)"
+          }}
+          className={`${isOpen ? "open" : "closed"} ${sliderMode === 'overlay' ? 'overlay-mode' : 'push-content-mode'}`}
+          onKeyDown={handleSidebarKeyEvent}
+          onMouseDown={handleSidebarEvent}
+          onTouchStart={handleSidebarEvent}
+        >
+          <img
+            src={iconBase64}
+            alt="Yeshie Icon"
+            className="resizing-icon"
+            width={16}
+            height={16}
+          />
+          <div style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            flex: 1,
+            overflow: 'hidden',
+            width: '100%'
+          }}>
+            <div style={{ height: '100%', width: '100%' }}>
+              <YeshieEditor 
+                sessionId={sessionID || ''} 
+                isRecording={isRecording}
+                recordedSteps={recordedSteps}
+                onClearRecordedSteps={handleClearRecordedSteps}
+              />
+            </div>
+          </div>
+          <div style={{ 
+            padding: '8px', 
+            borderTop: '1px solid #e0e0e0',
+            backgroundColor: '#f8f8f8',
+            fontSize: '12px',
+            color: '#666',
+            width: '100%'
+          }}>
+            <span>Tab ID: {tabId !== null ? tabId : 'Loading...'}</span>
+            <span style={{ marginLeft: '12px' }}>Session ID: {sessionID !== null ? sessionID : 'Loading...'}</span>
           </div>
         </div>
-        <div style={{ 
-          padding: '8px', 
-          borderTop: '1px solid #e0e0e0',
-          backgroundColor: '#f8f8f8',
-          fontSize: '12px',
-          color: '#666',
-          width: '100%'
-        }}>
-          <span>Tab ID: {tabId !== null ? tabId : 'Loading...'}</span>
-          <span style={{ marginLeft: '12px' }}>Session ID: {sessionID !== null ? sessionID : 'Loading...'}</span>
-        </div>
-      </div>
-      
-      <button 
-        className="sidebar-toggle" 
-        onClick={() => updateIsOpen(!isOpen)}
-        style={{
-          position: 'fixed',
-          right: '20px',
-          bottom: '20px',
-          zIndex: 2147483647,
-          background: 'white',
-          border: '1px solid #ddd',
-          borderRadius: '50%',
-          width: '24px',
-          height: '24px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
-          transition: 'transform 0.2s ease'
-        }}
+        
+        <button 
+          className="sidebar-toggle" 
+          onClick={() => updateIsOpen(!isOpen)}
+          style={{
+            position: 'fixed',
+            right: '20px',
+            bottom: '20px',
+            zIndex: 2147483647,
+            background: 'white',
+            border: '1px solid #ddd',
+            borderRadius: '50%',
+            width: '24px',
+            height: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+            transition: 'transform 0.2s ease'
+          }}
+          title={`${isOpen ? 'Close' : 'Open'} Yeshie (Cmd+Shift+Y)`}
+        >
+        <img src={iconBase64} alt="Yeshie Icon" width={16} height={16} />
+        </button>
 
-      >
-      <img src={iconBase64} alt="Yeshie Icon" width={16} height={16} />
-      </button>
-    </div>
+        {/* Recording Button - Start/Stop */}
+        <button 
+          onClick={isRecording ? handleStopRecordingButton : handleStartRecording}
+          style={{
+            position: 'fixed',
+            right: '80px',
+            bottom: '20px',
+            zIndex: 2147483647,
+            background: isRecording ? '#f44336' : '#4CAF50',
+            border: 'none',
+            borderRadius: '50%',
+            width: '24px',
+            height: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: isRecording 
+              ? '0 2px 8px rgba(244, 67, 54, 0.4)' 
+              : '0 2px 5px rgba(0,0,0,0.2)',
+            color: 'white',
+            fontSize: '12px',
+            animation: isRecording ? 'pulse-recording 2s infinite' : 'none'
+          }}
+          title={isRecording ? "Stop Recording" : "Start Recording"}
+        >
+          {isRecording ? '⏹️' : '🔴'}
+        </button>
+
+        {/* Help button for learned steps */}
+        <button 
+          onClick={(e) => {
+            if (e.ctrlKey || e.metaKey) {
+              // Ctrl/Cmd+Click = Enable keyboard debug
+              enableKeyboardDebug();
+              setToast("🔍 Keyboard debug enabled for 30 seconds. Check console logs.");
+              setTimeout(() => setToast(null), 3000);
+            } else {
+              // Normal click = Show storage help
+              showStorageHelp();
+            }
+          }}
+          style={{
+            position: 'fixed',
+            right: '50px',
+            bottom: '20px',
+            zIndex: 2147483647,
+            background: '#4CAF50',
+            border: 'none',
+            borderRadius: '50%',
+            width: '20px',
+            height: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+            color: 'white',
+            fontSize: '12px',
+            fontWeight: 'bold'
+          }}
+          title="View saved learned steps | Ctrl+Click for keyboard debug"
+        >
+          ?
+        </button>
+      </div>
+    </>
   )
 }
 
@@ -659,4 +962,14 @@ export default Yeshie
 // Log when script loads (with delay to ensure logger is initialized)
 setTimeout(() => {
   logInfo("YeshieContent", "Yeshie script loaded successfully");
+  
+  // Export debug functions to window for console access
+  if (typeof window !== 'undefined') {
+    (window as any).yeshieDebug = {
+      enableKeyboardDebug: () => {
+        // Trigger the debug function (will need to be updated after mounting)
+        console.log("Keyboard debug - access via Ctrl+Click on help button");
+      }
+    };
+  }
 }, 100);

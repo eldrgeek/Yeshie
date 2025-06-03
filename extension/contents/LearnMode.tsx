@@ -3,6 +3,8 @@ import { toggleRecording } from '../functions/learn'
 import { storageGet, storageSet } from "../functions/storage"
 import { logInfo, logError, logDebug } from "../functions/logger"
 import { startRecording, stopRecording, type RecordedEvent } from "../functions/passiveRecorder"
+import AnnotationDialog, { type Step } from "../components/AnnotationDialog"
+import { saveLearnedStep } from "../functions/learnedSteps"
 // import type { PlasmoCSConfig } from "plasmo" // Removed config
  
 // Removed Plasmo config as this is now a standard component
@@ -17,7 +19,7 @@ logInfo("LearnMode", "LearnMode.tsx component module loaded", { timestamp: new D
 const styles = {
   toast: {
     position: 'fixed',
-    bottom: '20px',
+    bottom: '70px',
     right: '20px',
     backgroundColor: '#4CAF50',
     color: 'white',
@@ -45,7 +47,7 @@ const styles = {
   },
   recordingControls: {
     position: 'fixed',
-    top: '60px',
+    top: '100px',
     right: '20px',
     backgroundColor: 'white',
     border: '1px solid #ccc',
@@ -73,7 +75,7 @@ const styles = {
   },
   eventsDisplay: {
     position: 'fixed',
-    bottom: '20px',
+    bottom: '120px',
     left: '20px',
     backgroundColor: 'white',
     border: '1px solid #ccc',
@@ -82,19 +84,39 @@ const styles = {
     boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
     zIndex: 2147483647,
     maxWidth: '400px',
-    maxHeight: '300px',
+    maxHeight: '200px',
     overflow: 'auto'
   }
 } as const
 
-export default function LearnMode() { // Renamed component export for clarity
+interface LearnModeProps {
+  isRecording?: boolean
+  recordedSteps?: RecordedEvent[]
+  onClearSteps?: () => void
+}
+
+export default function LearnMode({ 
+  isRecording = false, 
+  recordedSteps = [], 
+  onClearSteps 
+}: LearnModeProps) {
   logInfo("LearnMode", "LearnMode component initializing");
   const [isProcessing, setIsProcessing] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   
-  // New state for passive recording
-  const [isRecording, setIsRecording] = useState(false)
-  const [recordedSteps, setRecordedSteps] = useState<RecordedEvent[]>([])
+  // Local state for annotation dialog
+  const [showAnnotationDialog, setShowAnnotationDialog] = useState(false)
+
+  // Auto-clear toast after 3 seconds
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => {
+        setToast(null)
+      }, 3000) // Clear after 3 seconds
+
+      return () => clearTimeout(timer)
+    }
+  }, [toast])
 
   // Function to toggle the Yeshie sidebar by simulating the keyboard shortcut
   const toggleYeshieSidebar = async () => {
@@ -138,132 +160,59 @@ export default function LearnMode() { // Renamed component export for clarity
     }
   }
 
-  // New function to start recording
-  const handleStartRecording = () => {
+  // New function to handle saving a learned step
+  const handleSaveLearnedStep = async (name: string, description: string, parameterizedSteps: Step[]) => {
     try {
-      startRecording()
-      setIsRecording(true)
-      setRecordedSteps([])
-      setToast("📹 Recording started! Interact with the page, then click Stop.")
-      logInfo("LearnMode", "Passive recording started")
-    } catch (error) {
-      logError("LearnMode", "Error starting recording", { error })
-      setToast("Error starting recording")
-    }
-  }
-
-  // New function to stop recording
-  const handleStopRecording = () => {
-    try {
-      const steps = stopRecording()
-      setRecordedSteps(steps)
-      setIsRecording(false)
-      setToast(`📹 Recording stopped! Captured ${steps.length} events.`)
-      logInfo("LearnMode", "Passive recording stopped", { eventsCount: steps.length })
-    } catch (error) {
-      logError("LearnMode", "Error stopping recording", { error })
-      setToast("Error stopping recording")
-    }
-  }
-
-  // Effect for handling keyboard shortcuts
-  useEffect(() => {
-    logDebug("LearnMode", "Setting up key event listener for Ctrl+Shift+L", undefined);
-
-    const handleKey = (e: KeyboardEvent) => {
-      // Check if user is currently typing in an input field
-      const target = e.target as HTMLElement;
-      const isTyping = target && (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable ||
-        target.closest('input, textarea, [contenteditable="true"]')
-      );
-
-      // Skip keyboard shortcuts if user is typing
-      if (isTyping) {
-        return;
-      }
-
-      logDebug("LearnMode", "Key pressed", { key: e.key, ctrl: e.ctrlKey, shift: e.shiftKey, meta: e.metaKey }); // Log any keydown
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "l") {
-        logInfo("LearnMode", "Ctrl+Shift+L DETECTED. Sending toggle message to background.", undefined); // More prominent log
-        e.preventDefault();
-        e.stopPropagation();
-
-        // Send message to background to toggle recording state
-        chrome.runtime.sendMessage({ type: "TOGGLE_RECORDING_FROM_SHORTCUT" }, (response) => {
-            if (chrome.runtime.lastError) {
-                logError("LearnMode:", "Error sending toggle shortcut message", { error: chrome.runtime.lastError.message });
-            } else {
-                logInfo("LearnMode","Toggle shortcut message sent successfully.", { response }); // Log success
-            }
-        });
-      }
-      // New shortcut for passive recording (Ctrl+Shift+R)
-      else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "r") {
-        logInfo("LearnMode", "Ctrl+Shift+R DETECTED. Toggling passive recording.", undefined);
-        e.preventDefault();
-        e.stopPropagation();
-
-        if (isRecording) {
-          handleStopRecording();
-        } else {
-          handleStartRecording();
-        }
+      const hostname = window.location.hostname
+      const success = await saveLearnedStep(hostname, name, description, parameterizedSteps)
+      
+      if (success) {
+        // Close dialog and show success message
+        setShowAnnotationDialog(false)
+        onClearSteps?.() // Clear steps in parent component
+        setToast(`✅ Saved step sequence "${name}" for ${hostname}`)
+        
+        logInfo("LearnMode", `Successfully saved learned step: ${name}`, { 
+          hostname, 
+          stepsCount: parameterizedSteps.length,
+          description 
+        })
       } else {
-          // Log if the key combination didn't match
-          // logDebug("LearnMode: Keypress did not match shortcut"); // Can be noisy
+        setToast("❌ Error saving step sequence")
       }
-    };
 
-    window.addEventListener("keydown", handleKey, true);
-
-    return () => {
-      logDebug("LearnMode", "Removing keydown listener", undefined);
-      window.removeEventListener("keydown", handleKey, true);
-    };
-  }, [isRecording]); // Added isRecording to dependency array
+    } catch (error) {
+      logError("LearnMode", "Error saving learned step", { error, name, hostname: window.location.hostname })
+      setToast("❌ Error saving step sequence")
+    }
+  }
 
   logInfo("LearnMode", "LearnMode component rendered");
   return (
     <div className="yeshie-ui">
-      {/* Recording indicator */}
-      {isRecording && (
-        <div style={styles.recordingIndicator}>
-          🔴 Recording... Interact with the page, then click Stop.
-        </div>
-      )}
-
-      {/* Recording controls - show when not recording or when recording */}
-      {(isRecording || recordedSteps.length > 0) && (
+      {/* Recording controls - show when recording or when steps are available */}
+      {(isRecording || recordedSteps.length > 0) && !showAnnotationDialog && (
         <div style={styles.recordingControls}>
           <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>Yeshie Recorder</h3>
           
-          {!isRecording ? (
-            <button
-              style={{ ...styles.button, ...styles.startButton }}
-              onClick={handleStartRecording}
-            >
-              Start Recording
-            </button>
-          ) : (
-            <button
-              style={{ ...styles.button, ...styles.stopButton }}
-              onClick={handleStopRecording}
-            >
-              Stop Recording
-            </button>
-          )}
+          <div style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
+            {isRecording 
+              ? "🔴 Recording... Press Cmd+Shift+R to stop" 
+              : `📹 ${recordedSteps.length} events recorded`
+            }
+          </div>
           
-          {recordedSteps.length > 0 && (
+          {recordedSteps.length > 0 && !isRecording && (
             <div style={{ marginTop: '10px' }}>
-              <p style={{ margin: '5px 0', fontSize: '12px' }}>
-                Recorded {recordedSteps.length} events
-              </p>
+              <button
+                style={{ ...styles.button, ...styles.startButton }}
+                onClick={() => setShowAnnotationDialog(true)}
+              >
+                Annotate Steps
+              </button>
               <button
                 style={styles.button}
-                onClick={() => setRecordedSteps([])}
+                onClick={onClearSteps}
               >
                 Clear
               </button>
@@ -272,17 +221,22 @@ export default function LearnMode() { // Renamed component export for clarity
         </div>
       )}
 
-      {/* Display recorded events */}
-      {recordedSteps.length > 0 && (
+      {/* Annotation Dialog */}
+      {showAnnotationDialog && recordedSteps.length > 0 && (
+        <AnnotationDialog
+          steps={recordedSteps}
+          onSave={handleSaveLearnedStep}
+          onCancel={() => setShowAnnotationDialog(false)}
+        />
+      )}
+
+      {/* Display recorded events (only show when not annotating) */}
+      {recordedSteps.length > 0 && !showAnnotationDialog && (
         <div style={styles.eventsDisplay}>
           <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>Recorded Events:</h4>
           <pre style={{ fontSize: '10px', margin: 0, whiteSpace: 'pre-wrap' }}>
             {JSON.stringify(recordedSteps, null, 2)}
           </pre>
-          {/* TODO: Add annotation UI here */}
-          <div style={{ marginTop: '10px', padding: '5px', backgroundColor: '#f0f0f0', fontSize: '12px' }}>
-            TODO: Add annotation UI here
-          </div>
         </div>
       )}
 
