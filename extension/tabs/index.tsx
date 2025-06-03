@@ -20,6 +20,7 @@ import { Validator } from 'jsonschema';
 import { ToastContainer, toast, Slide } from 'react-toastify'; // Added react-toastify imports
 import 'react-toastify/dist/ReactToastify.css'; // Added react-toastify CSS
 import TestViewerDialog from "../components/TestViewerDialog"; // Import the new dialog
+import DailyRitualDialog from "../components/DailyRitualDialog";
 import { 
   getSliderMode, 
   setSliderMode, 
@@ -151,6 +152,7 @@ const TabsIndex = React.memo(() => {
   const [showTestViewerDialog, setShowTestViewerDialog] = useState<boolean>(false);
   const [recordedTasks, setRecordedTasks] = useState<string[]>([]);
   const [activeInteractiveToast, setActiveInteractiveToast] = useState<string | null>(null);
+  const [showDailyRitualDialog, setShowDailyRitualDialog] = useState(false);
 
   // --- State for API Key Management ---
   const [hasApiKey, setHasApiKey] = useState(false);
@@ -525,6 +527,11 @@ const TabsIndex = React.memo(() => {
                }, 5000);
                sendResponse({success: true});
                return false; // Indicate sync response handled
+          }
+          else if (message.type === "DAILY_RITUAL_START") {
+              setShowDailyRitualDialog(true);
+              sendResponse({success: true});
+              return false;
           }
 
           // Log if message wasn't handled by this listener, but don't return true unless needed for async
@@ -1547,9 +1554,14 @@ const TabsIndex = React.memo(() => {
         showToast={toast.info} // Pass the react-toastify toast.info function
       />
 
-      <TestViewerDialog 
+      <TestViewerDialog
         isOpen={showTestViewerDialog}
         onClose={() => setShowTestViewerDialog(false)}
+      />
+
+      <DailyRitualDialog
+        isOpen={showDailyRitualDialog}
+        onClose={() => setShowDailyRitualDialog(false)}
       />
 
     </div>

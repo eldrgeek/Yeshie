@@ -185,7 +185,7 @@ export async function getExtensionPageTabs(): Promise<TabInfo[]> {
  * @param options Set `focus` to false to avoid stealing focus during startup.
  * @returns The tab ID of the Control page, or null if creation failed.
  */
-async function openOrFocusExtensionTab(options: { focus?: boolean } = {}): Promise<number | null> {
+export async function openOrFocusExtensionTab(options: { focus?: boolean } = {}): Promise<number | null> {
   const { focus = true } = options;
 
   try {
@@ -305,6 +305,50 @@ async function processRecordedSteps(steps: Array<any>): Promise<string> {
   return taskName
 }
 
+interface RitualPayload {
+  dayIntent: string
+  mainTask: string
+  workspace: string
+  cleanTabs: string
+}
+
+async function handleDailyRitualComplete(payload: RitualPayload) {
+  const date = new Date().toISOString().slice(0, 10)
+  const key = `ritual_${date.replace(/-/g, '')}.md`
+  const content = `# Daily Ritual - ${date}\n` +
+    `- Intent: ${payload.dayIntent}\n` +
+    `- Task: ${payload.mainTask}\n` +
+    `- Workspace: ${payload.workspace}\n` +
+    `- Clean Tabs: ${payload.cleanTabs}\n`
+
+  await storageSet(key, content)
+
+  const shouldClean = /^\s*(yes|true|y)/i.test(payload.cleanTabs)
+  if (shouldClean) {
+    const tabs = await chrome.tabs.query({})
+    for (const tab of tabs) {
+      if (!tab.id || !tab.url) continue
+      const allowed = tab.url.startsWith('https://cursor.dev') ||
+        tab.url.startsWith('https://substack.com') ||
+        tab.url.startsWith(EXTENSION_BASE_URL)
+      if (!allowed) {
+        try { await chrome.tabs.remove(tab.id) } catch {}
+      }
+    }
+  }
+
+  let targetUrl = ''
+  if (/cursor/i.test(payload.workspace)) targetUrl = 'https://cursor.dev'
+  else if (/blog/i.test(payload.workspace)) targetUrl = 'https://substack.com'
+  else if (payload.workspace) targetUrl = payload.workspace
+
+  if (targetUrl) {
+    await chrome.tabs.create({ url: targetUrl })
+  }
+
+  logInfo('DailyRitual', 'Handled ritual completion', { key, targetUrl, shouldClean })
+}
+
 // Notify the Control page tab of a status update
 async function notifyControlPage(type: string, payload: any) {
   const tabs = await chrome.tabs.query({ url: CONTROL_PAGE_PATTERN })
@@ -389,6 +433,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ success: false, error: errMsg })
       })
 
+    return true
+  }
+
+  if (message.type === 'DAILY_RITUAL_COMPLETE') {
+    handleDailyRitualComplete(message.payload)
+      .then(() => sendResponse({ success: true }))
+      .catch(error => {
+        const errMsg = error instanceof Error ? error.message : String(error)
+        sendResponse({ success: false, error: errMsg })
+      })
     return true
   }
 });
