@@ -185,7 +185,7 @@ export async function getExtensionPageTabs(): Promise<TabInfo[]> {
  * @param options Set `focus` to false to avoid stealing focus during startup.
  * @returns The tab ID of the Control page, or null if creation failed.
  */
-async function openOrFocusExtensionTab(options: { focus?: boolean } = {}): Promise<number | null> {
+export async function openOrFocusExtensionTab(options: { focus?: boolean } = {}): Promise<number | null> {
   const { focus = true } = options;
 
   try {
@@ -389,6 +389,47 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ success: false, error: errMsg })
       })
 
+    return true
+  }
+
+  if (message.type === 'DAILY_RITUAL_COMPLETE') {
+    const answers = message.answers || {}
+    const key = `ritual_${new Date().toISOString()}`
+    storageSet(key, answers).catch(error =>
+      logError("DailyRitual", "Error storing ritual answers", { error })
+    )
+
+    const workspace: string = answers.workspace || ''
+    const cleanTabs: boolean = Boolean(answers.cleanTabs)
+
+    const closeUnrelatedTabs = async () => {
+      const tabs = await chrome.tabs.query({})
+      for (const tab of tabs) {
+        const url = tab.url || ''
+        const keep = url.startsWith(EXTENSION_BASE_URL) ||
+                     url.includes('cursor') ||
+                     url.includes('chat.openai.com')
+        if (!keep && tab.id) {
+          await chrome.tabs.remove(tab.id).catch(() => {})
+        }
+      }
+    }
+
+    const openWorkspace = async () => {
+      let target = ''
+      if (/cursor/i.test(workspace)) target = 'https://www.cursor.dev'
+      else if (/blog/i.test(workspace)) target = 'https://substack.com'
+      if (target) await chrome.tabs.create({ url: target })
+    }
+
+    ;(async () => {
+      if (cleanTabs) await closeUnrelatedTabs()
+      await openWorkspace()
+    })().catch(error =>
+      logError('DailyRitual', 'Error handling ritual completion', { error })
+    )
+
+    sendResponse({ success: true })
     return true
   }
 });

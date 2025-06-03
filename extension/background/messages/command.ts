@@ -1,5 +1,6 @@
 import type { PlasmoMessaging } from "@plasmohq/messaging"
 import { logInfo, logError } from "../../functions/logger"
+import { openOrFocusExtensionTab } from "../index"
 
 export interface CommandRequest {
   command: unknown
@@ -27,6 +28,14 @@ export async function executeCommand (
   }
 
   try {
+    if (typeof command === 'string' && command.toLowerCase() === 'start daily mode') {
+      const tabId = await openOrFocusExtensionTab({ focus: true })
+      if (!tabId) throw new Error('Control page not found')
+      await chrome.tabs.sendMessage(tabId, { type: 'DAILY_RITUAL_START' })
+      logInfo('BGCommand', 'Daily ritual start sent', { tabId })
+      return { success: true }
+    }
+
     const CONTROL_PAGE_URL = chrome.runtime.getURL("tabs/index.html")
     const CONTROL_PAGE_PATTERN = `${CONTROL_PAGE_URL}*`
 

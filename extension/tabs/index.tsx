@@ -6,6 +6,7 @@ import TabList from "./TabList";
 import { sendToBackground } from "@plasmohq/messaging";
 import ReportsPanel from "../components/ReportsPanel";
 import ReportDialog from "../components/ReportDialog";
+import DailyRitualDialog from "../components/DailyRitualDialog";
 import { getBuildInfo } from '../background/buildCounter';
 import { storageGet, storageSet, storageGetAll } from "../functions/storage";
 import { logInfo, logWarn, logError, logDebug, clearSessionLogs } from "../functions/logger";
@@ -139,6 +140,7 @@ const TabsIndex = React.memo(() => {
   const [reportCount, setReportCount] = useState(0);
   const [tabPaneFocusedTime, setTabPaneFocusedTime] = useState<number | null>(null);
   const [showReportDialog, setShowReportDialog] = useState(false);
+  const [showDailyRitualDialog, setShowDailyRitualDialog] = useState(false);
   const [legacyToastMessage, setLegacyToastMessage] = useState<string | null>(null);
   const [reloadCount, setReloadCount] = useState<number>(0);
   const [customNames, setCustomNames] = useState<CustomNameMap>({});
@@ -868,6 +870,12 @@ const TabsIndex = React.memo(() => {
       });
       return true; // Indicates async response
     }
+    if (msg && msg.type === 'DAILY_RITUAL_START') {
+      logInfo('TabsIndex', 'Opening daily ritual dialog');
+      setShowDailyRitualDialog(true);
+      sendResponse({ success: true });
+      return false;
+    }
   });
 
   // Utility to write results.json
@@ -1547,9 +1555,14 @@ const TabsIndex = React.memo(() => {
         showToast={toast.info} // Pass the react-toastify toast.info function
       />
 
-      <TestViewerDialog 
+      <TestViewerDialog
         isOpen={showTestViewerDialog}
         onClose={() => setShowTestViewerDialog(false)}
+      />
+
+      <DailyRitualDialog
+        isOpen={showDailyRitualDialog}
+        onClose={() => setShowDailyRitualDialog(false)}
       />
 
     </div>
