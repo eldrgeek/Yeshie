@@ -4,7 +4,14 @@ import { sendToBackground } from "@plasmohq/messaging";
 // TEST MESSAGE LISTENER - Add this early to catch all messages
 let globalMessageHandler: ((message: any, sender: chrome.runtime.MessageSender) => void) | null = null;
 
-if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+// Expose the global message handler on window for access by other components
+(window as any).speechGlobalMessageHandler = () => globalMessageHandler;
+
+// Only set up chrome.runtime.onMessage listener if we're NOT in an extension page
+// Extension pages will handle message forwarding themselves
+const isExtensionPage = typeof window !== 'undefined' && window.location.href.startsWith('chrome-extension://');
+
+if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage && !isExtensionPage) {
     chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
         // Forward to React component if handler is set
         if (globalMessageHandler) {
@@ -13,8 +20,9 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
         
         return false; // Don't keep port open
     });
-} else {
-    // No logging here since addToLog isn't available yet
+} else if (isExtensionPage) {
+    // In extension pages, the message forwarding will be handled by the page's own listener
+    console.log('SpeechEditor: Running in extension page, relying on page message forwarding');
 }
 
 // Speech Global State Helper Functions
@@ -24,6 +32,10 @@ const getSpeechGlobalState = async () => {
 
 const setSpeechGlobalState = async (state: any) => {
     return await sendToBackground({ name: "setSpeechGlobalState", body: state });
+};
+
+const updateSharedText = async (text: string, editorId?: string) => {
+    return await sendToBackground({ name: "updateSharedText", body: { text, updatingEditorId: editorId } });
 };
 
 const registerSpeechEditor = async (editorId: string, tabId: number) => {
@@ -676,6 +688,19 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
         onLog: addToLog, // Pass the logging function to the hook
     });
 
+    // Update text state and call onChange
+    const updateText = useCallback((newText: string, skipSync = false) => {
+        setText(newText);
+        onChange(newText);
+        
+        // Sync to shared state unless this update came from shared state
+        if (!skipSync) {
+            updateSharedText(newText, editorId).catch(error => {
+                addToLog(`Error syncing text to shared state: ${error}`, 'error');
+            });
+        }
+    }, [onChange, editorId, addToLog]);
+
     // Register this speech editor instance on mount and get initial global state
     useEffect(() => {
         let mounted = true;
@@ -696,6 +721,15 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
                         setGlobalSpeechState(initialGlobalState);
                         setIsTranscribing(initialGlobalState.isTranscribing);
                         
+                        // Initialize with shared text if available, otherwise use initialText
+                        const textToUse = initialGlobalState.sharedText || initialText;
+                        if (textToUse !== text) {
+                            updateText(textToUse, true); // Skip sync since we're loading from shared state
+                        } else if (initialText && !initialGlobalState.sharedText) {
+                            // If we have initial text but no shared text, sync it to shared state
+                            updateText(initialText, false);
+                        }
+                        
                         addToLog(`Speech editor registered with global state: ${JSON.stringify(initialGlobalState)}`, 'info');
                     }
                 }
@@ -715,7 +749,7 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
                 addToLog(`Error unregistering speech editor: ${error}`, 'error');
             });
         };
-    }, [editorId, addToLog]);
+    }, [editorId, addToLog, initialText, text, updateText]);
 
     // Listen for global state changes and focus commands from background
     useEffect(() => {
@@ -734,6 +768,26 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
                 addToLog(`Received global state update: ${JSON.stringify(newGlobalState)}`, 'info');
                 
                 // REMOVED: No auto-restart here - only handle state updates
+            }
+
+            // Handle shared text updates from other editors
+            if (message.type === "speechTextUpdate" && 
+                message.data?.targetEditorId === editorId) {
+                
+                const { sharedText, lastTextUpdate } = message.data;
+                addToLog(`Received shared text update: ${sharedText?.length} chars`, 'info');
+                
+                // Update local text state with skipSync to avoid circular updates
+                updateText(sharedText, true);
+                
+                // Update textarea directly to ensure sync
+                if (textAreaRef.current) {
+                    const cursorPos = textAreaRef.current.selectionStart;
+                    textAreaRef.current.value = sharedText;
+                    // Try to preserve cursor position if reasonable
+                    const newCursorPos = Math.min(cursorPos, sharedText.length);
+                    textAreaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+                }
             }
             
             // Handle new focus commands (event-driven approach)
@@ -755,7 +809,7 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
         return () => {
             globalMessageHandler = null;
         };
-    }, [editorId, isSupported, permissionStatus, isListening, startListening, stopListening, addToLog]);
+    }, [editorId, isSupported, permissionStatus, isListening, startListening, stopListening, addToLog, onChange, updateText]);
 
     // --- Update Status Message based on State ---
     useEffect(() => {
@@ -909,7 +963,7 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
                 if (lastWordMatch) {
                     const lastWordStart = textBeforeCursor.lastIndexOf(lastWordMatch[0]);
                     const newText = currentText.substring(0, lastWordStart) + currentText.substring(cursorPos);
-                    setText(newText);
+                    updateText(newText); // Use updateText to sync to shared state
                     
                     // Update cursor position
                     setTimeout(() => {
@@ -988,8 +1042,7 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
 
         // --- Update State and DOM ---
         if (newText !== currentText) {
-            setText(newText); // Update React state
-            onChange(newText); // Notify parent of change
+            updateText(newText); // Use updateText to sync to shared state
 
             // Use setTimeout to ensure cursor/scroll update happens after DOM update
              setTimeout(() => {
@@ -1004,7 +1057,7 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
             addToLog(`handleResult: No change in text.`, 'debug');
         }
 
-    }, [processTranscriptSegment, setText, addToLog, isAllCaps, setIsTranscribing, isTranscribing, finalOnSubmit, onShowHelp, onChange, text]);
+    }, [processTranscriptSegment, addToLog, isAllCaps, setIsTranscribing, isTranscribing, finalOnSubmit, onShowHelp, updateText, text]);
 
     handleErrorRef.current = useCallback((event) => {
         addToLog(`handleError: ${event.error}`, 'error', event.message);
@@ -1391,12 +1444,6 @@ export const SpeechInput = forwardRef<HTMLTextAreaElement, SpeechInputProps>(({
         if (isTranscribing) return `${baseClass} listening`; // Use isTranscribing for icon state
         return `${baseClass} idle`;
     }
-
-    // Update text state and call onChange
-    const updateText = useCallback((newText: string) => {
-        setText(newText);
-        onChange(newText);
-    }, [onChange]);
 
     // Update textarea onChange handler
     const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {

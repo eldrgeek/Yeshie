@@ -10,6 +10,8 @@ export interface SpeechGlobalState {
   isTranscribing: boolean;
   isListening: boolean;
   autoRestart: boolean; // Whether to auto-restart listening when it stops
+  sharedText: string; // Shared text content across all instances
+  lastTextUpdate: number; // Timestamp of last text update
 }
 
 // Speech editor instance interface
@@ -24,7 +26,9 @@ export interface SpeechEditorInstance {
 const DEFAULT_GLOBAL_STATE: SpeechGlobalState = {
   isTranscribing: true,
   isListening: true,
-  autoRestart: true
+  autoRestart: true,
+  sharedText: "",
+  lastTextUpdate: 0
 };
 
 // Get current global speech state
@@ -43,6 +47,12 @@ export async function setSpeechGlobalState(state: Partial<SpeechGlobalState>): P
   try {
     const currentState = await getSpeechGlobalState();
     const newState = { ...currentState, ...state };
+    
+    // If updating text, ensure timestamp is current
+    if (state.sharedText !== undefined) {
+      newState.lastTextUpdate = Date.now();
+    }
+    
     await storageSet(SPEECH_GLOBAL_STATE_KEY, newState);
     
     logInfo("SpeechGlobalState", "Global speech state updated", { 
@@ -55,6 +65,36 @@ export async function setSpeechGlobalState(state: Partial<SpeechGlobalState>): P
     await notifyAllSpeechEditors("stateChanged", newState);
   } catch (error) {
     logError("SpeechGlobalState", "Error setting global speech state", { error, state });
+  }
+}
+
+// Update shared text content across all editors
+export async function updateSharedText(text: string, updatingEditorId?: string): Promise<void> {
+  try {
+    const currentState = await getSpeechGlobalState();
+    const newState = {
+      ...currentState,
+      sharedText: text,
+      lastTextUpdate: Date.now()
+    };
+    
+    await storageSet(SPEECH_GLOBAL_STATE_KEY, newState);
+    
+    logInfo("SpeechGlobalState", "Shared text updated", { 
+      textLength: text.length,
+      updatingEditorId,
+      timestamp: newState.lastTextUpdate
+    });
+
+    // Notify all active speech editors about the text change
+    // Pass the updating editor ID to avoid circular updates
+    await notifyAllSpeechEditors("textChanged", {
+      sharedText: text,
+      lastTextUpdate: newState.lastTextUpdate,
+      updatingEditorId
+    });
+  } catch (error) {
+    logError("SpeechGlobalState", "Error updating shared text", { error, text, updatingEditorId });
   }
 }
 
@@ -199,15 +239,35 @@ async function notifyAllSpeechEditors(type: string, data: any): Promise<void> {
     
     for (const editor of editors) {
       try {
-        // Send message to the tab containing this speech editor
-        await chrome.tabs.sendMessage(editor.tabId, {
-          type: "speechGlobalStateUpdate",
-          data: {
-            type,
-            state: data,
-            targetEditorId: editor.editorId
+        let messageData;
+        
+        if (type === "textChanged") {
+          // Special handling for text changes to avoid updating the editor that initiated the change
+          if (data.updatingEditorId && data.updatingEditorId === editor.editorId) {
+            continue; // Skip notifying the editor that made the change
           }
-        });
+          messageData = {
+            type: "speechTextUpdate",
+            data: {
+              sharedText: data.sharedText,
+              lastTextUpdate: data.lastTextUpdate,
+              targetEditorId: editor.editorId
+            }
+          };
+        } else {
+          // Standard state change notification
+          messageData = {
+            type: "speechGlobalStateUpdate",
+            data: {
+              type,
+              state: data,
+              targetEditorId: editor.editorId
+            }
+          };
+        }
+        
+        // Send message to the tab containing this speech editor
+        await chrome.tabs.sendMessage(editor.tabId, messageData);
       } catch (error) {
         // Tab might be closed, remove this editor
         logWarn("SpeechGlobalState", "Failed to notify speech editor, removing from registry", { 

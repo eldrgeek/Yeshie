@@ -481,6 +481,31 @@ const TabsIndex = React.memo(() => {
               return false;
           }
 
+          // Forward speech-related messages to SpeechEditor's global message handler
+          if (message.type === "speechGlobalStateUpdate" || 
+              message.type === "speechTextUpdate" || 
+              message.type === "speechFocusCommand") {
+              
+              logDebug("TabsIndex", "Received speech message, attempting to forward", { 
+                  messageType: message.type, 
+                  messageData: message.data 
+              });
+              
+              // Access the global message handler that SpeechEditor sets up
+              const getGlobalHandler = (window as any).speechGlobalMessageHandler;
+              const globalHandler = getGlobalHandler ? getGlobalHandler() : null;
+              if (globalHandler) {
+                  logDebug("TabsIndex", "Forwarding speech message to SpeechEditor handler");
+                  globalHandler(message, sender);
+              } else {
+                  logWarn("TabsIndex", "Speech message received but no global handler available", { 
+                      messageType: message.type,
+                      getGlobalHandlerExists: !!getGlobalHandler
+                  });
+              }
+              return false; // Message handled by SpeechEditor
+          }
+
           // Handle reload message from background
           // Note: We now use direct tab.reload() in the background script as the primary method,
           // but keeping this handler as a fallback for any legacy or custom implementations
