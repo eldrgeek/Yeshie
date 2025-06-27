@@ -388,3 +388,46 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduc
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
+
+## Development Setup
+
+### Extension Development
+
+#### Quick Start with Launch Scripts
+
+For Chrome debugging with extension:
+```bash
+./extension/launch-chrome-debug.sh
+```
+
+For Plasmo development mode with hot reload:
+```bash
+./extension/launch-plasmo-dev.sh
+```
+
+These scripts will:
+- Close existing Chrome instances safely
+- Launch Chrome with debugging enabled on port 9222
+- Load the Yeshie extension automatically
+- Enable hot reload (for Plasmo dev mode)
+- Create clean debug profiles
+
+#### Manual Setup
+
+If you prefer manual setup or need custom configuration:
+
+1. Install dependencies:
+```bash
+cd extension
+npm install
+```
+
+2. Build the extension:
+```bash
+npm run build
+```
+
+3. Load in Chrome:
+   - Go to `chrome://extensions`
+   - Enable Developer mode
+   - Load unpacked: select `build/chrome-mv3-dev`
