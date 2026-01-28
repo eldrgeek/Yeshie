@@ -16,7 +16,7 @@ import LogViewer from "../components/LogViewer"; // Import the LogViewer compone
 import { Stepper } from '../functions/Stepper';
 import instructions from '../ipc/instructions.json';
 import schema from '../../llm-reply-schema.json';
-import { Validator } from 'jsonschema';
+import Ajv from 'ajv';
 import { ToastContainer, toast, Slide } from 'react-toastify'; // Added react-toastify imports
 import 'react-toastify/dist/ReactToastify.css'; // Added react-toastify CSS
 import TestViewerDialog from "../components/TestViewerDialog"; // Import the new dialog
@@ -26,12 +26,13 @@ import {
   type SliderMode 
 } from "../functions/globalSettings";
 
-const validator = new Validator();
+const ajv = new Ajv({ allErrors: true });
+const validateInstructions = ajv.compile(schema as any);
 
 function validateInstructionsData(data: any): string[] | null {
-  const result = validator.validate(data, schema as any);
-  if (!result.valid) {
-    return result.errors.map(e => `${e.property} ${e.message}`);
+  const valid = validateInstructions(data);
+  if (!valid) {
+    return (validateInstructions.errors || []).map((e) => `${e.instancePath} ${e.message}`);
   }
   return null;
 }
