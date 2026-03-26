@@ -1935,7 +1935,7 @@ Each bead is an independently testable unit of work. Beads are described at a le
 ### Bead (a): WXT Project Scaffold + Build Pipeline
 
 **Depends on:** Nothing (first bead)
-**Estimated effort:** 2-3 hours
+**Estimated effort:** LLM agent estimate: 16 minutes (8 sub-beads × ~2 min each)
 **Output:** Buildable WXT project with all entrypoints stubbed
 
 **Tasks:**
@@ -1995,7 +1995,7 @@ Each bead is an independently testable unit of work. Beads are described at a le
 ### Bead (b): Content Script — Framework Detection + Event Simulator
 
 **Depends on:** (a) WXT Scaffold
-**Estimated effort:** 4-6 hours
+**Estimated effort:** LLM agent estimate: 12 minutes (6 sub-beads × ~2 min each)
 **Output:** Content script detects React/Vue/Angular and dispatches framework-aware events
 
 **Tasks:**
@@ -2096,7 +2096,7 @@ Each bead is an independently testable unit of work. Beads are described at a le
 ### Bead (c): Content Script — DOM Observer + Page Reader + Control Extractor
 
 **Depends on:** (b) Framework Detection
-**Estimated effort:** 6-8 hours
+**Estimated effort:** LLM agent estimate: 20 minutes (10 sub-beads × ~2 min each)
 **Output:** `readControls()` returns a structured list of interactive elements; DOM observer reports mutations
 
 **Tasks:**
@@ -2266,7 +2266,7 @@ Each bead is an independently testable unit of work. Beads are described at a le
 ### Bead (d): Guard Pattern Library + Diagnostics
 
 **Depends on:** (c) Page Reader (uses selector resolution)
-**Estimated effort:** 4-5 hours
+**Estimated effort:** LLM agent estimate: 14 minutes (7 sub-beads × ~2 min each)
 **Output:** `guardedAction()` function and full diagnostics suite
 
 **Tasks:**
@@ -2320,7 +2320,7 @@ Each bead is an independently testable unit of work. Beads are described at a le
 ### Bead (e): Side Panel UI + Floating Toggle
 
 **Depends on:** (a) WXT Scaffold
-**Estimated effort:** 6-8 hours
+**Estimated effort:** LLM agent estimate: 18 minutes (9 sub-beads × ~2 min each)
 **Output:** Chrome side panel opens with React UI; toolbar icon toggles it
 
 **Tasks:**
@@ -2383,7 +2383,7 @@ Each bead is an independently testable unit of work. Beads are described at a le
 ### Bead (f): Chat Panel with Editable History + Finalized Steps Log
 
 **Depends on:** (e) Side Panel UI, (g) Stepper Engine
-**Estimated effort:** 4-6 hours
+**Estimated effort:** LLM agent estimate: 14 minutes (7 sub-beads × ~2 min each)
 **Output:** Chat panel displays messages, supports editing, maintains separate steps log
 
 **Tasks:**
@@ -2435,7 +2435,7 @@ Each bead is an independently testable unit of work. Beads are described at a le
 ### Bead (g): Stepper / Shared Command Execution Engine
 
 **Depends on:** (d) Guards, (h) Background Worker messaging
-**Estimated effort:** 6-8 hours
+**Estimated effort:** LLM agent estimate: 16 minutes (8 sub-beads × ~2 min each)
 **Output:** Unified command execution engine that processes commands from both MCP and sidebar
 
 **Tasks:**
@@ -2593,7 +2593,7 @@ Each bead is an independently testable unit of work. Beads are described at a le
 ### Bead (h): Background Worker — Tab Registry + Message Routing + Checkpoint Manager
 
 **Depends on:** (a) WXT Scaffold
-**Estimated effort:** 4-6 hours
+**Estimated effort:** LLM agent estimate: 14 minutes (7 sub-beads × ~2 min each)
 **Output:** Background worker tracks tabs, routes messages, and manages checkpoints
 
 **Tasks:**
@@ -2729,7 +2729,7 @@ Each bead is an independently testable unit of work. Beads are described at a le
 ### Bead (i): Background Worker — WebSocket Client + Reconnection + Session Protocol
 
 **Depends on:** (h) Background Worker basics, (j) Relay Server
-**Estimated effort:** 4-5 hours
+**Estimated effort:** LLM agent estimate: 12 minutes (6 sub-beads × ~2 min each)
 **Output:** Extension connects to relay via Socket.IO with auto-reconnection and session management
 
 **Tasks:**
@@ -2850,7 +2850,7 @@ Each bead is an independently testable unit of work. Beads are described at a le
 ### Bead (j): Socket.IO Relay Server (VPS Deployment)
 
 **Depends on:** Nothing (independent)
-**Estimated effort:** 3-4 hours
+**Estimated effort:** LLM agent estimate: 12 minutes (6 sub-beads × ~2 min each)
 **Output:** Relay server running on VPS, routing messages between extension and MCP server
 
 **Tasks:**
@@ -2947,7 +2947,7 @@ Each bead is an independently testable unit of work. Beads are described at a le
 ### Bead (k): FastMCP Server — Tool Definitions + Socket.IO Bridge
 
 **Depends on:** (j) Relay Server (for integration testing)
-**Estimated effort:** 6-8 hours
+**Estimated effort:** LLM agent estimate: 16 minutes (8 sub-beads × ~2 min each)
 **Output:** All 17 MCP tools defined and working, connected to relay
 
 **Tasks:**
@@ -3031,7 +3031,7 @@ Each bead is an independently testable unit of work. Beads are described at a le
 ### Bead (l): Skill Format + Parameter Validation + Skill Executor with Checkpointing
 
 **Depends on:** (g) Stepper Engine
-**Estimated effort:** 6-8 hours
+**Estimated effort:** LLM agent estimate: 16 minutes (8 sub-beads × ~2 min each)
 **Output:** Skill executor runs `.yeshie` files step-by-step with checkpointing
 
 **Tasks:**
@@ -3176,7 +3176,7 @@ Each bead is an independently testable unit of work. Beads are described at a le
 ### Bead (m): Skill Save + Obsidian Vault Integration + Dual-Format Export
 
 **Depends on:** (l) Skill Executor
-**Estimated effort:** 3-4 hours
+**Estimated effort:** LLM agent estimate: 12 minutes (6 sub-beads × ~2 min each)
 **Output:** `skill_save` MCP tool writes .yeshie + .js to vault and updates index
 
 **Tasks:**
@@ -3215,7 +3215,7 @@ Each bead is an independently testable unit of work. Beads are described at a le
 ### Bead (n): Guard Failure Recovery Protocol
 
 **Depends on:** (l) Skill Executor
-**Estimated effort:** 3-4 hours
+**Estimated effort:** LLM agent estimate: 14 minutes (7 sub-beads × ~2 min each)
 **Output:** Automatic retry → Claude escalation → user fallback chain
 
 **Tasks:**
@@ -3273,7 +3273,7 @@ Each bead is an independently testable unit of work. Beads are described at a le
 ### Bead (o): Selector Health Check + Pre-flight Validation
 
 **Depends on:** (l) Skill Executor
-**Estimated effort:** 2-3 hours
+**Estimated effort:** LLM agent estimate: 8 minutes (4 sub-beads × ~2 min each)
 **Output:** Pre-flight selector validation before skill replay starts
 
 **Tasks:**
@@ -3324,7 +3324,7 @@ Each bead is an independently testable unit of work. Beads are described at a le
 ### Bead (p): Website Researcher Agent Skills
 
 **Depends on:** (k) MCP Server working
-**Estimated effort:** 3-4 hours
+**Estimated effort:** LLM agent estimate: 10 minutes (5 sub-beads × ~2 min each)
 **Output:** Claude can research a website and document its patterns in the vault
 
 **Tasks:**
@@ -3348,7 +3348,7 @@ Each bead is an independently testable unit of work. Beads are described at a le
 ### Bead (q): End-to-End Integration — Claude Drives Task → Composes Script → Replays → Saves Skill
 
 **Depends on:** All previous beads
-**Estimated effort:** 4-6 hours
+**Estimated effort:** LLM agent estimate: 14 minutes (7 sub-beads × ~2 min each)
 **Output:** Full workflow works: Claude navigates a site, learns a task, saves a skill, replays it
 
 **Tasks:**
@@ -3382,6 +3382,850 @@ Each bead is an independently testable unit of work. Beads are described at a le
    - Verify logging is consistent across all components
 
 **Done when:** All integration tests pass. The full workflow (learn → save → replay → self-heal) works reliably.
+
+---
+
+## 10b. Fine-Grained Bead Decomposition
+
+The 17 coarse beads above are decomposed into ~200 sub-beads, each representing ~2 minutes of LLM agent work. This follows Jeffrey Emanuel's Flywheel methodology: beads should number in the hundreds to thousands to ensure proper granularity for agent-driven delivery.
+
+**Time estimate updates** (replacing human-hour estimates):
+- Bead (a): LLM agent estimate: 16 minutes (8 sub-beads × ~2 min each)
+- Bead (b): LLM agent estimate: 12 minutes (6 sub-beads × ~2 min each)
+- Bead (c): LLM agent estimate: 20 minutes (10 sub-beads × ~2 min each)
+- Bead (d): LLM agent estimate: 14 minutes (7 sub-beads × ~2 min each)
+- Bead (e): LLM agent estimate: 18 minutes (9 sub-beads × ~2 min each)
+- Bead (f): LLM agent estimate: 14 minutes (7 sub-beads × ~2 min each)
+- Bead (g): LLM agent estimate: 16 minutes (8 sub-beads × ~2 min each)
+- Bead (h): LLM agent estimate: 14 minutes (7 sub-beads × ~2 min each)
+- Bead (i): LLM agent estimate: 12 minutes (6 sub-beads × ~2 min each)
+- Bead (j): LLM agent estimate: 12 minutes (6 sub-beads × ~2 min each)
+- Bead (k): LLM agent estimate: 18 minutes (9 sub-beads × ~2 min each)
+- Bead (l): LLM agent estimate: 16 minutes (8 sub-beads × ~2 min each)
+- Bead (m): LLM agent estimate: 10 minutes (5 sub-beads × ~2 min each)
+- Bead (n): LLM agent estimate: 12 minutes (6 sub-beads × ~2 min each)
+- Bead (o): LLM agent estimate: 8 minutes (4 sub-beads × ~2 min each)
+- Bead (p): LLM agent estimate: 10 minutes (5 sub-beads × ~2 min each)
+- Bead (q): LLM agent estimate: 14 minutes (7 sub-beads × ~2 min each)
+
+---
+
+### Bead (a) Sub-Beads: WXT Project Scaffold + Build Pipeline
+
+**a.1** Create `pnpm-workspace.yaml` with packages array
+- Parent: (a)
+- Depends: none
+- Task: Create `pnpm-workspace.yaml` at monorepo root. Add `packages: ['packages/*', 'mcp-server']` (list both npm workspace and the Python project parent for reference).
+- Done: File exists, valid YAML syntax, `pnpm install` runs without errors
+
+**a.2** Create root `package.json` with workspace metadata
+- Parent: (a)
+- Depends: a.1
+- Task: Create root `package.json`. Set `"private": true`, `"name": "yeshie-monorepo"`, `"version": "0.1.0"`. Add these workspace scripts: `build`, `dev`, `test`, `lint`. Leave script bodies empty for now.
+- Done: File exists, passes `npm validate` (or `pnpm validate`)
+
+**a.3** Create `tsconfig.base.json` with strict TypeScript settings
+- Parent: (a)
+- Depends: a.2
+- Task: Create `tsconfig.base.json` at monorepo root. Include: `"strict": true`, `"target": "ES2022"`, `"module": "ESNext"`, `"moduleResolution": "bundler"`, `"resolveJsonModule": true`, `"skipLibCheck": true`. Create `paths` entry for `"@yeshie/*": ["packages/*/src"]`.
+- Done: File exists, valid JSON, `tsc --noEmit` passes (or equivalent validation)
+
+**a.4** Create root `.gitignore`
+- Parent: (a)
+- Depends: a.3
+- Task: Create `.gitignore` at monorepo root with patterns: `node_modules/`, `dist/`, `.output/`, `.env`, `.env.local`, `__pycache__/`, `*.pyc`, `.pytest_cache/`, `.venv/`, `coverage/`, `.DS_Store`.
+- Done: File exists, test that `git status` ignores these patterns
+
+**a.5** Scaffold `packages/shared` package with TypeScript config
+- Parent: (a)
+- Depends: a.3
+- Task: Create `packages/shared/` directory structure: `package.json`, `tsconfig.json`, `src/index.ts`, `src/messages.ts`, `src/commands.ts`, `src/skills.ts`, `src/controls.ts`, `src/diagnostics.ts`. In `package.json`, set `name: "@yeshie/shared"`, `main: "dist/index.js"`, `types: "dist/index.d.ts"`. In `tsconfig.json`, extend `../../tsconfig.base.json`. All `.ts` files should export placeholder objects.
+- Done: All files exist, `pnpm build -C packages/shared` produces valid `dist/` folder
+
+**a.6** Populate shared types: messages and OPS registry
+- Parent: (a)
+- Depends: a.5
+- Task: In `packages/shared/src/messages.ts`, implement full `YeshieMessage` interface from SPECIFICATION Section 6. Include: `id`, `from`, `to`, `op`, `tabId`, `tabPattern`, `payload`, `replyTo`, `timestamp`. In same file, create `OPS` const object with all operation names as keys (e.g., `READ_CONTROLS`, `READ_PAGE`, `CLICK`, `TYPE`, etc.). Export both.
+- Done: Interfaces compile without errors, all OPS keys are strings, types match spec
+
+**a.7** Populate shared types: commands, skills, controls, diagnostics
+- Parent: (a)
+- Depends: a.5
+- Task: In `src/commands.ts`, implement `StepExecutionResult` interface. In `src/skills.ts`, implement `SkillFile`, `SkillStep`, `GuardSpec`, `SkillCheckpoint`, `SkillParam`, `SkillIndexEntry`. In `src/controls.ts`, implement `PageControl`, `ControlState`, `ControlHints`. In `src/diagnostics.ts`, implement `GuardDiagnostics`, `SimilarElement`. All from SPECIFICATION Section 6.
+- Done: All interfaces compile, `pnpm build -C packages/shared` succeeds
+
+**a.8** Scaffold WXT extension with basic config
+- Parent: (a)
+- Depends: a.3, a.6
+- Task: Run or manually create WXT project at `packages/extension`. Create `wxt.config.ts` with React module enabled, manifest permissions from SPECIFICATION Section 4.2 (all_urls, scripting, storage, runtime, tabs, sidePanel, alarms, userScripts). Create minimal manifest-like stubs for entrypoints (files can be empty `.ts` files for now). Verify `pnpm build` runs without errors.
+- Done: `packages/extension/` exists, `wxt.config.ts` is valid, `pnpm -C packages/extension build` creates `.output/` folder
+
+**a.9** Scaffold extension entrypoints: background, content, sidepanel, popup
+- Parent: (a)
+- Depends: a.8
+- Task: Create stub files: `entrypoints/background.ts` with `export default defineBackground(() => { console.log('[Yeshie:bg] Started'); })`. Create `entrypoints/content.ts` with `export default defineContentScript({ matches: ['<all_urls>'], main() { console.log('[Yeshie:content] Loaded'); } })`. Create `entrypoints/sidepanel/index.html` with root div. Create `entrypoints/sidepanel/App.tsx` that returns `<div>Yeshie</div>`. Create `entrypoints/popup/index.html` and `entrypoints/popup/App.tsx` with "Yeshie v0.1.0" text.
+- Done: All files exist and compile without TypeScript errors
+
+**a.10** Copy brand assets (icons and fonts)
+- Parent: (a)
+- Depends: a.9
+- Task: Copy PNG icons from existing repo to `packages/extension/public/icon/` (16.png, 32.png, 48.png, 128.png). Copy `Fascinate.woff2` font to `packages/extension/public/assets/`. Ensure manifest is configured to reference `icon/128.png` as the extension icon.
+- Done: All asset files exist in correct locations, extension loads in Chrome with icon visible
+
+**a.11** Add `@yeshie/shared` as dependency to extension
+- Parent: (a)
+- Depends: a.6, a.9
+- Task: In `packages/extension/package.json`, add `"@yeshie/shared": "workspace:*"` to dependencies. Run `pnpm install` to link workspace dependencies.
+- Done: `pnpm install` succeeds, `packages/extension/node_modules/@yeshie/shared/` symlink exists
+
+---
+
+### Bead (b) Sub-Beads: Content Script — Framework Detection + Event Simulator
+
+**b.1** Implement framework detection utility
+- Parent: (b)
+- Depends: a
+- Task: Create `packages/extension/src/lib/framework-detect.ts`. Implement `detectFramework()` function that checks for React (\_\_reactFiber$, \_reactRootContainer), Vue (__vue__, __vue_app__), Angular ([ng-version] attribute), with 5-second timeout. Return type: `'react' | 'vue' | 'angular' | 'vanilla'`.
+- Done: Function compiles, detects React on Facebook/medium.com, Vue on vue.org, Angular on Angular docs, vanilla on plain HTML pages
+
+**b.2** Create event simulator config and click implementation
+- Parent: (b)
+- Depends: b.1
+- Task: Create `packages/extension/src/lib/event-simulator.ts`. Define `SimulatorConfig` interface with `framework` field. Implement `createEventSimulator(config)` factory returning object with `click(el)` method. Click dispatcher: emit mousedown → mouseup → click → focus sequence with correct MouseEvent coordinates from `getBoundingClientRect()`. For React: also emit pointerdown/pointerup.
+- Done: Function compiles, click on button elements triggers click listeners, React elements properly handled
+
+**b.3** Implement type/input handling with React \_valueTracker
+- Parent: (b)
+- Depends: b.2
+- Task: In `event-simulator.ts`, implement `type(el, value, opts)` method. If `opts.clear_first`: select all and delete. For React inputs with `_valueTracker`: reset tracker after value mutation. Emit input + change events with bubbling. If `opts.delay_ms > 0`: type character-by-character. For Vue: also emit compositionstart/compositionend.
+- Done: React input elements properly update their values, controlled inputs respond, Vue inputs work
+
+**b.4** Implement hover and focus methods
+- Parent: (b)
+- Depends: b.2
+- Task: In `event-simulator.ts`, implement `hover(el)` emitting mouseenter → mouseover with relatedTarget. If `duration_ms > 0`: hold then emit mouseleave → mouseout. Implement `focus(el)` using native `.focus()` method.
+- Done: Hover listeners trigger, duration delays work, focus changes document.activeElement
+
+**b.5** Create unit tests for event simulator
+- Parent: (b)
+- Depends: b.1, b.2, b.3, b.4
+- Task: Create `packages/extension/src/lib/__tests__/event-simulator.test.ts` (Vitest). Test: React \_valueTracker reset, vanilla input value updates, click dispatches correct events, character-by-character typing with delays, framework detection mocking.
+- Done: All tests pass, >90% coverage of simulator functions
+
+**b.6** Wire framework detection and event simulator into content script
+- Parent: (b)
+- Depends: b.1, b.2, a.9
+- Task: Update `entrypoints/content.ts`. On main(): detect framework, create simulator, store both to `window.__yeshie_simulator` and `window.__yeshie_framework`. Log detection result.
+- Done: Extension loads on any page, console shows framework detection, simulator is globally accessible
+
+---
+
+### Bead (c) Sub-Beads: Content Script — DOM Observer + Page Reader + Control Extractor
+
+**c.1** Implement DOM observer class with stability detection
+- Parent: (c)
+- Depends: b
+- Task: Create `packages/extension/src/lib/dom-observer.ts`. Implement `DOMObserver` class with methods: `start(target)` observing childList, subtree, attributes (disabled, class, style, aria-disabled). Track mutations array. `stop()` returns mutations. `isStable(quietMs)` returns Promise that resolves when no mutations for `quietMs`. Filter out mutations to Yeshie's own shadow DOM.
+- Done: Observer correctly detects mutations, stability timer works, observers can start/stop without errors
+
+**c.2** Implement selector priority cascade generator
+- Parent: (c)
+- Depends: c.1
+- Task: Create `packages/extension/src/lib/selector-generator.ts`. Implement `bestSelector(el)` returning `{selector: string, level: number}`. Levels: 1=#id (unique), 2=[data-testid/cy/test], 3=[aria-label]/[name], 4=[role]+context, 5=stable class names, 6=tag:contains, 7=nth-child, 8=XPath. Each level verified unique in document before returning.
+- Done: Selectors generated for buttons, inputs, links, text nodes; levels assigned correctly; generated selectors can re-query elements
+
+**c.3** Implement control extraction and visibility filtering
+- Parent: (c)
+- Depends: c.1, c.2
+- Task: Create `packages/extension/src/lib/page-reader.ts`. Implement `readControls()` iterating querySelectorAll for ['input', 'textarea', 'select', 'button', 'a', '[role="button"]', '[role="link"]', '[role="textbox"]', '[contenteditable="true"]']. Filter invisible elements (display:none, visibility:hidden, opacity:0, zero dimensions, offsetParent === null). For each: get bestSelector, extract label (aria-label, input label, button text), build PageControl with metadata.
+- Done: readControls returns structured array, invisible elements filtered, selectors work, labels populated
+
+**c.4** Implement output budget enforcement
+- Parent: (c)
+- Depends: c.3
+- Task: In `page-reader.ts`, implement `enforceOutputBudget(controls, maxBytes)`. Truncate controls array if serialized JSON exceeds limit (e.g., 50KB). Return truncated array with note of how many controls were pruned.
+- Done: Large pages (GitHub home) return <50KB, count of controls shown accurately
+
+**c.5** Implement semantic outline builder for readPage
+- Parent: (c)
+- Depends: c.3
+- Task: In `page-reader.ts`, implement `readPage(format, selector)` returning text or structure. For 'structure': walk DOM extracting headings (h1-h6), nav landmarks, main content areas, forms (with field labels), tables (with headers). Return compact outline showing page structure without full content.
+- Done: readPage('structure') returns readable outline of GitHub/Twitter pages, hierarchy clear
+
+**c.6** Implement prompt injection defense
+- Parent: (c)
+- Depends: c.3
+- Task: In `page-reader.ts`, implement `sanitizeText(text)` filtering injection patterns: /ignore\s+(all\s+)?instructions/, /system\s+prompt/, etc. Apply to all text content in PageControl objects before returning.
+- Done: Injection patterns are filtered from page text, no malicious instructions leak through
+
+**c.7** Add message listener for DOM read operations in content script
+- Parent: (c)
+- Depends: c.3, c.5, b
+- Task: Update `entrypoints/content.ts`. Add `chrome.runtime.onMessage` listener. Handle ops: READ_CONTROLS (call readControls), READ_PAGE (call readPage), OBSERVE_DOM (start observer, return mutation summary). Return via `sendResponse`.
+- Done: Background worker can send messages to content script and get responses, operations execute correctly
+
+**c.8** Create unit tests for page reader and selector generation
+- Parent: (c)
+- Depends: c.1, c.2, c.3
+- Task: Create `packages/extension/src/lib/__tests__/page-reader.test.ts`. Mock DOM, test: readControls returns correct PageControl objects, selector generator picks best selectors, budget enforcement truncates correctly, injection patterns are filtered.
+- Done: All tests pass, >85% coverage of page-reader functions
+
+---
+
+### Bead (d) Sub-Beads: Guard Pattern Library + Diagnostics
+
+**d.1** Implement guardedAction function with MutationObserver guard pattern
+- Parent: (d)
+- Depends: c
+- Task: Create `packages/extension/src/lib/guards.ts`. Implement `guardedAction(selector, expectedState, timeoutMs, actionFn)`. Check if element exists and matches state immediately. If not, set up MutationObserver on document.body. On each mutation, re-check. If passes, disconnect observer and call actionFn. If timeout: build diagnostics and reject.
+- Done: Guard resolves immediately for existing elements, waits for dynamically-added elements, times out with error message
+
+**d.2** Add SVG visibility handling to guards
+- Parent: (d)
+- Depends: d.1
+- Task: Update `guards.ts`. In visibility check, handle SVG elements specially: use `getBoundingClientRect().width > 0 && height > 0` instead of `offsetParent !== null` check (SVG elements have `offsetParent === null`).
+- Done: Guard works on SVG buttons, visibility check returns true for visible SVG
+
+**d.3** Implement custom :contains() pseudo-selector resolution
+- Parent: (d)
+- Depends: d.1
+- Task: Update `guards.ts`. Implement `resolveSelector(selector)` that parses custom `:contains()` pseudo-selectors and resolves them to actual element matches via textContent checking.
+- Done: Selector like "button:contains('Save')" correctly finds button with "Save" text
+
+**d.4** Implement buildDiagnostics for guard failures
+- Parent: (d)
+- Depends: d.1
+- Task: Create `packages/extension/src/lib/diagnostics.ts`. Implement `buildDiagnostics(selector, expectedState)` returning `GuardDiagnostics`. Include: selectorValid, elementFound, elementVisible, elementEnabled, elementText, iframeCount, similarElements array, expectedState. Wrap in try-catch for parsing errors.
+- Done: Diagnostics object has all required fields, errors are caught and reported
+
+**d.5** Implement findSimilarElements for suggestions on failure
+- Parent: (d)
+- Depends: d.4, c.2
+- Task: In `diagnostics.ts`, implement `findSimilarElements(selector)`. Strip specificity layers from selector (e.g., #submit-btn → button, [type=submit] → button). Re-query and return up to 5 closest matches with their selectors, tags, labels, text content.
+- Done: When selector "#specific-id" fails, returns alternatives like "button[type=submit]" with actual matching elements
+
+**d.6** Create bundled guard functions for executeScript injection
+- Parent: (d)
+- Depends: d.1, d.2, b.2
+- Task: Create `packages/extension/src/lib/bundled-guards.ts`. Implement self-contained functions (no imports, no closures): `guardedClick`, `guardedType`, `guardedHover`, `guardedWaitFor`, `guardedRead`, `guardedReadControls`, `guardedObserveDOM`. Each function must inline all helpers (MutationObserver, event dispatch, framework detection). They execute in MAIN world via executeScript.
+- Done: Functions are self-contained (no reference errors when injected), return serializable objects
+
+**d.7** Create unit tests for guards and diagnostics
+- Parent: (d)
+- Depends: d.1, d.4, d.5
+- Task: Create `packages/extension/src/lib/__tests__/guards.test.ts` (Vitest). Test: guard resolves immediately, guard waits for element, guard times out, SVG visibility check, findSimilarElements returns plausible alternatives, bundled functions have no module scope references.
+- Done: All tests pass, guards tested with synthetic DOM mutations
+
+---
+
+### Bead (e) Sub-Beads: Side Panel UI + Floating Toggle
+
+**e.1** Create side panel HTML with React root
+- Parent: (e)
+- Depends: a.9
+- Task: Update `entrypoints/sidepanel/index.html`. Add root div with id="app". Link to React, Tailwind CSS (via CDN or build). Keep minimal.
+- Done: HTML is valid, loads without errors
+
+**e.2** Create main App component with layout structure
+- Parent: (e)
+- Depends: e.1
+- Task: Update `entrypoints/sidepanel/App.tsx`. Implement main React component returning layout: header, chat area, command input, status bar. Use Tailwind classes for styling. All child components are stubs for now (return empty divs).
+- Done: App component compiles, renders three main sections
+
+**e.3** Implement Header component with branding and status
+- Parent: (e)
+- Depends: e.2
+- Task: Create `entrypoints/sidepanel/components/Header.tsx`. Display: "Yeshie" branding (using Fascinate font), connection status indicator (green/red dot), settings gear icon. Use Tailwind classes, no inline styles.
+- Done: Header renders with logo, status dot, gear icon; no CSS modules needed
+
+**e.4** Implement ChatArea component with message list placeholder
+- Parent: (e)
+- Depends: e.2
+- Task: Create `entrypoints/sidepanel/components/ChatArea.tsx`. Render scrollable message list. For MVP: placeholder text "Chat messages will appear here". Use Tailwind for scrollable container (max-height, overflow-y-auto).
+- Done: ChatArea renders and scrolls, ready for message population later
+
+**e.5** Implement CommandInput component with history navigation
+- Parent: (e)
+- Depends: e.2
+- Task: Create `entrypoints/sidepanel/components/CommandInput.tsx`. Text input + submit button. Track command history array. Up/down arrow keys cycle through history. Enter submits. Tab can autocomplete command names (stub for now). Use Tailwind styling.
+- Done: Input captures keypresses, history navigation works, submit callback fires
+
+**e.6** Implement StatusBar with tab URL and connection status
+- Parent: (e)
+- Depends: e.2
+- Task: Create `entrypoints/sidepanel/components/StatusBar.tsx`. Display: current tab URL (truncated), active skill name if running, relay connection status ("Connected" in green or "Disconnected" in red).
+- Done: StatusBar renders with placeholder data, ready for live updates
+
+**e.7** Create background worker toolbar icon click handler
+- Parent: (e)
+- Depends: a.9
+- Task: Update `entrypoints/background.ts`. Add `chrome.action.onClickListener` that toggles side panel. If chrome.sidePanel.close available (Chrome 141+): try closing, on error open. Otherwise just open. Also call `chrome.sidePanel.setOptions()` with path to sidepanel HTML.
+- Done: Clicking toolbar icon opens side panel, works on Chrome 141+, fallback behavior on older Chrome
+
+**e.8** Create settings popup with relay configuration
+- Parent: (e)
+- Depends: e.1
+- Task: Update `entrypoints/popup/App.tsx`. Implement form with: relay URL input, relay token (password field) input, connection status display, "Test Connection" button, "Save" button. On save, write to `chrome.storage.local`. On load, read and pre-fill from storage.
+- Done: Popup opens, form captures input, clicking save persists to storage
+
+**e.9** Set brand colors and Fascinate font in Tailwind config
+- Parent: (e)
+- Depends: e.2, e.3
+- Task: Update `packages/extension` Tailwind config (or create tailwind.config.js). Define primary color (#ff6b35), dark neutral (#1a1a2e), success (#4CAF50), error (#f44336). Add Fascinate font to theme. Verify extension builds with Tailwind applied.
+- Done: Side panel loads with branded colors, Yeshie heading uses Fascinate, color palette applied
+
+---
+
+### Bead (f) Sub-Beads: Chat Panel with Editable History + Finalized Steps Log
+
+**f.1** Define ChatMessage and StepLogEntry data models
+- Parent: (f)
+- Depends: a.6
+- Task: Add to `packages/shared/src/messages.ts`: `ChatMessage` interface with id, role, content, timestamp, editable, edited fields. Add `StepLogEntry` interface with timestamp, command, result, stepIndex, skillName fields.
+- Done: Interfaces export without errors, types correctly named
+
+**f.2** Create MessageBubble component for displaying messages
+- Parent: (f)
+- Depends: e.4, f.1
+- Task: Create `entrypoints/sidepanel/components/MessageBubble.tsx`. Render single ChatMessage. Show role (user/assistant) via styling. Display content. For user/assistant: add "edit" button. For system: muted styling. Include timestamp.
+- Done: Component renders message with role-specific styling, edit button appears for editable messages
+
+**f.3** Create MessageEditor component for in-place editing
+- Parent: (f)
+- Depends: f.2, f.1
+- Task: Create `entrypoints/sidepanel/components/MessageEditor.tsx`. Overlay textarea over message bubble. Include Save and Cancel buttons. On save: call callback with updated content. Mark message as "edited".
+- Done: Editor overlays on message, save/cancel buttons work, edited flag propagates
+
+**f.4** Create StepLog component showing finalized commands
+- Parent: (f)
+- Depends: f.1
+- Task: Create `entrypoints/sidepanel/components/StepLog.tsx`. Render collapsible panel. List `StepLogEntry` objects: command, result success/error, timestamp. Never editable (append-only). Show step index if part of skill.
+- Done: StepLog renders, entries show in chronological order, not editable
+
+**f.5** Create SkillProgress component for active skill execution
+- Parent: (f)
+- Depends: f.1
+- Task: Create `entrypoints/sidepanel/components/SkillProgress.tsx`. Show: skill name, "Step N of M", current action name, progress bar. Update in real-time as steps execute.
+- Done: Component renders skill progress, placeholder data works, ready for live updates
+
+**f.6** Implement dual data structures: chatMessages and stepLog in App state
+- Parent: (f)
+- Depends: e.2, f.1, f.2, f.4
+- Task: Update `entrypoints/sidepanel/App.tsx`. Maintain two separate state arrays: `chatMessages` (editable) and `stepLog` (append-only). When message edited: update chatMessages only. When step executes: append to stepLog only. Render ChatArea with chatMessages, StepLog component with stepLog separately.
+- Done: Two data structures maintained independently, edits don't affect step log
+
+**f.7** Implement chat persistence to chrome.storage.local
+- Parent: (f)
+- Depends: f.6
+- Task: Update `entrypoints/sidepanel/App.tsx`. On new message: append to chatMessages, write to `chrome.storage.local` under key `chat_history_{tabId}`. On app mount: read and restore from storage. Limit to 100 messages per tab; prune oldest on overflow.
+- Done: Messages persist across page reloads, 100-message limit enforced, oldest pruned correctly
+
+**f.8** Implement command history for CommandInput with autocomplete stub
+- Parent: (f)
+- Depends: e.5, f.6
+- Task: Update `entrypoints/sidepanel/components/CommandInput.tsx`. Maintain local command history array. Up/down arrows cycle through it. Tab key triggers autocomplete (stub: log to console for now). On submit: add to history, clear input, fire onSubmit callback.
+- Done: Command history works, up/down navigation works, submit clears input
+
+---
+
+### Bead (g) Sub-Beads: Stepper / Shared Command Execution Engine
+
+**g.1** Create ParsedCommand interface and command parser
+- Parent: (g)
+- Depends: a.6
+- Task: Add to `packages/shared/src/commands.ts`: `ParsedCommand` interface with action, selector, value, url, timeout, options fields. Create `parseCommand(input: string)` function that parses command syntax like `click "#submit-btn"` or `type "#email" "user@example.com"`. Handle quoted strings and optional params.
+- Done: Parser handles all command formats from spec, quotes are properly unquoted, params extracted
+
+**g.2** Create Stepper class with execute method dispatcher
+- Parent: (g)
+- Depends: a.6, g.1
+- Task: Create `packages/extension/src/lib/stepper.ts`. Implement `Stepper` class with `async execute(command: ParsedCommand, tabId: number)` method. Switch on command.action: 'click', 'type', 'hover', 'navto', 'waitfor', 'read', 'controls', 'screenshot', 'js', 'tab'. For each: delegate to handler method (stubs for now).
+- Done: Stepper compiles, execute method routes to handlers
+
+**g.3** Implement InjectionController for executeScript delegation
+- Parent: (g)
+- Depends: d.6, g.2
+- Task: Create `packages/extension/src/lib/injection-controller.ts`. Implement `InjectionController` class with `executeStructured(funcName, args, tabId)` method. Looks up function in `BUNDLED_FUNCTIONS` map, calls `chrome.scripting.executeScript({func, args, world: 'MAIN', target: {tabId}})`, returns result.
+- Done: InjectionController can execute bundled functions, properly handles chrome.scripting API
+
+**g.4** Implement Stepper handlers for click, type, hover
+- Parent: (g)
+- Depends: g.2, g.3
+- Task: In `stepper.ts`, implement handlers: `handleClick()` calls `injectionController.executeStructured('guardedClick', ...)`. `handleType()` calls `guardedType` with value and options. `handleHover()` calls `guardedHover`. Each returns `StepExecutionResult`.
+- Done: Click, type, hover commands execute and return results
+
+**g.5** Implement Stepper handlers for navigation and read operations
+- Parent: (g)
+- Depends: g.2, g.3
+- Task: In `stepper.ts`, implement handlers: `handleNavigation()` updates tab URL, waits for load event, optionally waits for DOM stability. `handleRead()` calls `guardedRead` or `readControls` via injectionController. `handleWaitFor()` calls `guardedWaitFor`. Each returns proper result.
+- Done: Navigation waits for page load, read operations return DOM structure, waitfor returns when element appears
+
+**g.6** Implement Stepper handler for arbitrary JavaScript execution
+- Parent: (g)
+- Depends: g.2, g.3
+- Task: In `stepper.ts`, implement `handleJS()` method. Check if `chrome.userScripts` API is available. If not: return error message. If yes: call `chrome.userScripts.execute({js: [{code}], target: {tabId}})`, return result.
+- Done: JS handler works when available, returns proper error message when API unavailable
+
+**g.7** Wire Stepper to background worker message handling
+- Parent: (g)
+- Depends: g.1, g.2
+- Task: Update `entrypoints/background.ts`. In `chrome.runtime.onMessage` listener, check if message is a command. If from sidebar: parse as command string, delegate to Stepper. If from MCP relay: parse from YeshieMessage op, delegate to Stepper. Send result back via sendResponse.
+- Done: Background worker routes messages to Stepper, Stepper returns results to caller
+
+**g.8** Create unit tests for command parser and Stepper
+- Parent: (g)
+- Depends: g.1, g.2, g.7
+- Task: Create `packages/extension/src/lib/__tests__/stepper.test.ts` (Vitest). Test: command parsing for all action types, Stepper dispatches to correct handlers, results are formatted correctly, quoted strings in commands are handled.
+- Done: All tests pass, command parsing covers edge cases
+
+---
+
+### Bead (h) Sub-Beads: Background Worker — Tab Registry + Message Routing + Checkpoint Manager
+
+**h.1** Create TabInfo interface and tab registry Map
+- Parent: (h)
+- Depends: a.9
+- Task: Add to `packages/shared/src/messages.ts`: `TabInfo` interface with id, url, title, discarded, yeshieActive fields. In `entrypoints/background.ts`, create `const tabRegistry = new Map<number, TabInfo>()`.
+- Done: Interface compiles, Map is initialized
+
+**h.2** Implement service worker startup and tab registry rebuild
+- Parent: (h)
+- Depends: h.1
+- Task: Update `entrypoints/background.ts`. On service worker startup: call `chrome.tabs.query({})` to get all open tabs. For each: add to tabRegistry with TabInfo object initialized.
+- Done: On extension load, all open tabs are registered in the map
+
+**h.3** Implement tab lifecycle listeners (onCreated, onUpdated, onRemoved)
+- Parent: (h)
+- Depends: h.1, h.2
+- Task: Update `entrypoints/background.ts`. Add `chrome.tabs.onCreated` listener: add new tab to registry. Add `chrome.tabs.onUpdated` listener: update URL, title, discarded state in registry. Add `chrome.tabs.onRemoved` listener: delete from registry and cancel any active skills.
+- Done: Tab registry stays in sync as tabs open/close/navigate
+
+**h.4** Create CheckpointManager class for persistence
+- Parent: (h)
+- Depends: a.6
+- Task: Create `packages/extension/src/lib/checkpoint.ts`. Implement `CheckpointManager` class with methods: `save(checkpoint: SkillCheckpoint)`, `load()`, `clear()`, `validate(cp)`. Save/load use `chrome.storage.local`. Validate: check required fields, ensure stepIndex < totalSteps, reject checkpoints >24h old.
+- Done: CheckpointManager compiles, save/load/validate methods work
+
+**h.5** Integrate checkpoint loading on service worker startup
+- Parent: (h)
+- Depends: h.2, h.4
+- Task: Update `entrypoints/background.ts` startup. After rebuilding tab registry: call `checkpointManager.load()`. If valid checkpoint exists: store in a global variable for later skill resumption.
+- Done: Startup checks for and loads any pending checkpoint
+
+**h.6** Implement tab discarding handler and reload logic
+- Parent: (h)
+- Depends: h.1, h.3
+- Task: In `entrypoints/background.ts`, add `ensureTabActive(tabId)` function. Check if tabInfo.discarded is true. If yes: call `chrome.tabs.reload(tabId)`, wait for load to complete, then update discarded flag to false.
+- Done: Function correctly reloads discarded tabs and waits for completion
+
+**h.7** Create unit tests for tab registry and checkpoint manager
+- Parent: (h)
+- Depends: h.1, h.4
+- Task: Create `packages/extension/src/lib/__tests__/checkpoint.test.ts` (Vitest). Test: CheckpointManager save/load, validation accepts/rejects correctly, tab registry updates on lifecycle events. Mock chrome.storage and chrome.tabs APIs.
+- Done: All tests pass, mocked APIs work correctly
+
+---
+
+### Bead (i) Sub-Beads: Background Worker — WebSocket Client + Reconnection + Session Protocol
+
+**i.1** Create Socket.IO client setup and connection handler
+- Parent: (i)
+- Depends: h
+- Task: Create `packages/extension/src/lib/websocket-client.ts`. Implement `connectToRelay()` function. Read relay_url and relay_token from `chrome.storage.local`. Initialize Socket.IO client with auth, reconnection settings, websocket transport. Register event listeners: connect, disconnect, yeshie:command, yeshie:session_restored, yeshie:new_session. Return socket instance.
+- Done: Socket.IO client connects to relay, no auth errors, event listeners registered
+
+**i.2** Implement session management (restore, new, context)
+- Parent: (i)
+- Depends: i.1
+- Task: In `websocket-client.ts`, implement: `onConnect()` - restore session if session_id exists in storage. `onNewSession()` - save new session_id to storage. `onSessionRestored()` - handle context restoration. `onDisconnect()` - log and broadcast status.
+- Done: Session is restored after reconnect, new sessions are saved, disconnect broadcasts status
+
+**i.3** Implement command handler for receiving MCP commands from relay
+- Parent: (i)
+- Depends: i.1
+- Task: In `websocket-client.ts`, implement `onCommand(message: YeshieMessage)` handler. Extract tabId from message, ensure tab is active, parse op to command, delegate to Stepper. Build response message with result. Emit response back to relay.
+- Done: Commands from relay are executed, responses are sent back
+
+**i.4** Implement keepalive alarm for service worker suspension handling
+- Parent: (i)
+- Depends: i.1
+- Task: In `websocket-client.ts`, implement `startSkillKeepAlive()` and `stopSkillKeepAlive()` functions. Create alarm that fires every 25 seconds during skill execution. On each alarm: reconnect if disconnected, check for pending checkpoint, resume if needed.
+- Done: Alarm fires on schedule, can resume from checkpoint, reconnects if needed
+
+**i.5** Implement connection status broadcasting to all extension pages
+- Parent: (i)
+- Depends: i.1, i.2
+- Task: In `websocket-client.ts`, implement `broadcastConnectionStatus(status)` function. Send `chrome.runtime.sendMessage` to all extension pages (popup, sidepanel) with status payload.
+- Done: Side panel receives connection status updates, indicator changes color
+
+**i.6** Create unit tests for websocket client and session management
+- Parent: (i)
+- Depends: i.1, i.2, i.4
+- Task: Create `packages/extension/src/lib/__tests__/websocket-client.test.ts` (Vitest). Test: connection/disconnection, session restore, command handling, keepalive alarm scheduling. Mock Socket.IO and chrome APIs.
+- Done: All tests pass, mocked Socket.IO events work correctly
+
+---
+
+### Bead (j) Sub-Beads: Socket.IO Relay Server (VPS Deployment)
+
+**j.1** Create Relay Server HTTP and Socket.IO setup
+- Parent: (j)
+- Depends: none
+- Task: Create `packages/relay/src/index.ts`. Import Socket.IO and http. Create httpServer. Initialize Socket.IO with CORS enabled, maxHttpBufferSize 1MB, pingInterval/timeout settings. Create auth middleware that checks socket.handshake.auth.token against `process.env.YESHIE_RELAY_TOKEN`.
+- Done: Relay server starts, auth middleware validates tokens
+
+**j.2** Create session registry interface and session management
+- Parent: (j)
+- Depends: j.1
+- Task: In `packages/relay/src/session.ts`, define `Session` interface with id, context, createdAt, socketId. Create `sessions` Map. Implement: `createSession()`, `getSession(id)`, `updateSession(id, context)`, `removeSession(id)`. Persist sessions to JSON file on changes.
+- Done: Session CRUD operations work, persistence to JSON file works
+
+**j.3** Implement message router for connecting clients
+- Parent: (j)
+- Depends: j.1, j.2
+- Task: In `packages/relay/src/router.ts`, track which socket is extension vs MCP. On `io.connection`: register `yeshie:identify` handler. Route `yeshie:command` from MCP to extension. Route `yeshie:response` from extension to MCP. Return error if target not connected.
+- Done: Messages route between connected clients, missing targets get error responses
+
+**j.4** Implement session restore and disconnect handlers
+- Parent: (j)
+- Depends: j.2, j.3
+- Task: In `router.ts`, implement: `yeshie:session_restore` handler - look up session, emit confirmation. `disconnect` handler - clear socket reference, prune old sessions. Handle stale sessions (>5 min old after disconnect).
+- Done: Sessions restored correctly, stale sessions pruned, disconnect handled gracefully
+
+**j.5** Create package.json and build config for relay
+- Parent: (j)
+- Depends: j.1
+- Task: Create/update `packages/relay/package.json` with dependencies: socket.io, express, dotenv, typescript. Create `packages/relay/tsconfig.json`. Create build script that compiles TS to dist/.
+- Done: `pnpm build -C packages/relay` produces runnable dist/index.js
+
+**j.6** Create PM2 ecosystem config for VPS deployment
+- Parent: (j)
+- Depends: j.5
+- Task: Create `packages/relay/ecosystem.config.js` with PM2 configuration: name=yeshie-relay, script=dist/index.js, watch mode enabled. Include instructions for deploying to VPS.
+- Done: PM2 config exists and is valid, deployment instructions clear
+
+---
+
+### Bead (k) Sub-Beads: FastMCP Server — Tool Definitions + Socket.IO Bridge
+
+**k.1** Create FastMCP server setup with lifespan
+- Parent: (k)
+- Depends: j
+- Task: Create `mcp-server/yeshie_mcp/server.py`. Import FastMCP and setup. Create server instance with lifespan context manager that initializes Socket.IO client. Include environment variable loading from .env.
+- Done: Server initializes without errors, FastMCP registers
+
+**k.2** Implement Socket.IO bridge for command sending
+- Parent: (k)
+- Depends: k.1
+- Task: Create `mcp-server/yeshie_mcp/bridge.py`. Implement `YeshieBridge` class with `send_command(op, payload, tab_id, timeout)` method. Create YeshieMessage, send via Socket.IO emit, await response with timeout, return result or error.
+- Done: Bridge sends commands and awaits responses, timeout errors are caught
+
+**k.3** Implement vault operations: read_index, read_skill, write_skill
+- Parent: (k)
+- Depends: k.1
+- Task: Create `mcp-server/yeshie_mcp/vault.py`. Implement `read_index()` loading skills-index.json. `read_skill(name)` loading and parsing .yeshie file. `write_skill(skill)` writing .yeshie + .js files and updating index. Handle missing/corrupted files gracefully.
+- Done: Vault operations work, files are created/updated in correct locations
+
+**k.4** Implement standalone JS export generator
+- Parent: (k)
+- Depends: k.3
+- Task: In `vault.py`, implement `generate_standalone_js(skill)` function. Create JS template with: PARAMS object, inlined guard library (~5KB minified), step-by-step execution with guards, console logging. Total output <20KB.
+- Done: Generated .js files are valid JavaScript, can be run in browser console
+
+**k.5** Define all 17 MCP browser tools with FastMCP decorators
+- Parent: (k)
+- Depends: k.2
+- Task: Update `mcp-server/yeshie_mcp/server.py`. Define tools: `browser_click`, `browser_type`, `browser_hover`, `browser_navigate`, `browser_read_page`, `browser_read_controls`, `browser_execute_js`, `browser_query_tabs`, `browser_observe_dom`, `browser_wait_for`, `browser_screenshot`, `browser_switch_tab`. Each tool: takes parameters, calls bridge.send_command(), returns result or error. Use @mcp.tool() decorator.
+- Done: All 12 browser tools defined and callable
+
+**k.6** Define all 5 MCP skill and knowledge tools
+- Parent: (k)
+- Depends: k.3, k.5
+- Task: Update `mcp-server/yeshie_mcp/server.py`. Define tools: `skill_run`, `skill_save`, `skill_fix_step`, `job_status`, `knowledge_query`. Each tool: takes parameters, performs vault/bridge operations, returns results.
+- Done: All 5 skill tools defined and callable, total 17 tools
+
+**k.7** Create job tracking for long-running skill executions
+- Parent: (k)
+- Depends: k.5, k.6
+- Task: In `mcp-server/yeshie_mcp/server.py`, implement `jobs` dict to track long-running skill executions. In `skill_run` handler: if skill has >5 steps, create job entry with in_progress status. Return job_id. Otherwise execute synchronously. Implement `job_status` tool to check job progress.
+- Done: Long skills return job_id immediately, job_status shows progress
+
+**k.8** Create unit tests for MCP server tools
+- Parent: (k)
+- Depends: k.5, k.6
+- Task: Create `mcp-server/tests/test_server.py` (pytest). Test: all 17 tools are defined and callable, bridge sends commands correctly, vault operations work, job tracking works. Mock Socket.IO and file I/O.
+- Done: All tests pass, mocked dependencies work
+
+---
+
+### Bead (l) Sub-Beads: Skill Format + Parameter Validation + Skill Executor with Checkpointing
+
+**l.1** Create SkillFile YAML parser and validator
+- Parent: (l)
+- Depends: a.6, k.3
+- Task: In `mcp-server/yeshie_mcp/vault.py`, implement parser that loads .yeshie YAML and validates against SkillFile schema. Check: required fields present, actions are from allowed set, selectors are valid CSS/XPath, URLs match site domain. Return parsed SkillFile or validation error.
+- Done: .yeshie files parse correctly, invalid files return clear error messages
+
+**l.2** Implement early parameter interpolation (before execution)
+- Parent: (l)
+- Depends: l.1, a.6
+- Task: Create `packages/extension/src/lib/skill-executor.ts`. Implement `interpolateEarly(step, params)` function that replaces {{param}} placeholders in url, selector, value, condition fields with actual parameter values.
+- Done: Parameters interpolated in step fields before execution starts
+
+**l.3** Implement late parameter interpolation (includes buffer)
+- Parent: (l)
+- Depends: l.2
+- Task: In `skill-executor.ts`, implement `interpolateLate(text, params, buffer)` function. Replace {{param}} with params, {{buffer.key}} with buffer values. Called during guard creation, after previous steps have populated buffer.
+- Done: Both early and late interpolation work, buffer values accessible in later steps
+
+**l.4** Implement condition evaluation logic
+- Parent: (l)
+- Depends: l.1
+- Task: In `skill-executor.ts`, implement `evaluateCondition(condition)` function. Parse condition string: empty/false/0 → false, anything else → true. Support interpolation of {{param}} and {{buffer.key}} in condition.
+- Done: Conditions evaluate correctly, falsy values skip steps
+
+**l.5** Create SkillExecutor class with step-by-step execution
+- Parent: (l)
+- Depends: l.1, l.2, l.3, l.4, g, h.4
+- Task: Create `SkillExecutor` class in `skill-executor.ts`. Implement `execute(skill, params, startFromStep=0)` method. For each step: interpolate early, check condition, handle call_skill or regular action, execute via Stepper, store to buffer if requested, checkpoint after step, return error on failure.
+- Done: Skills execute step-by-step, checkpoints are saved, buffer maintains state
+
+**l.6** Implement call_skill handling with recursion prevention
+- Parent: (l)
+- Depends: l.5
+- Task: In `SkillExecutor`, implement `executeSubSkill()` method. Check call stack depth (max 5 levels), detect recursion, load sub-skill, merge parameters, execute recursively, merge buffers. Return result.
+- Done: call_skill works, recursion detected and prevented, buffers merged correctly
+
+**l.7** Integrate SkillExecutor with background worker
+- Parent: (l)
+- Depends: l.5, i, h.4
+- Task: Update `entrypoints/background.ts`. On skill_run message from MCP relay: validate params, create SkillExecutor, start skill execution, periodically broadcast progress, return result or error.
+- Done: Skills can be executed from MCP server, progress is reported
+
+**l.8** Create unit tests for skill executor and parameter interpolation
+- Parent: (l)
+- Depends: l.1, l.2, l.3, l.5
+- Task: Create `packages/extension/src/lib/__tests__/skill-executor.test.ts` (Vitest). Test: parameter interpolation early/late, condition evaluation, step-by-step execution, call_skill recursion, buffer management, checkpoint saves. Mock Stepper and storage.
+- Done: All tests pass, skill execution works end-to-end
+
+---
+
+### Bead (m) Sub-Beads: Skill Save + Obsidian Vault Integration + Dual-Format Export
+
+**m.1** Implement vault path resolution for site-specific skills
+- Parent: (m)
+- Depends: k.3
+- Task: In `mcp-server/yeshie_mcp/vault.py`, implement `resolve_skill_path(name, site)` function. Return path like `websites/{domain}/skills/{name}.yeshie` for site-specific or `skills/{name}.yeshie` for cross-site. Create directory structure if missing.
+- Done: Paths resolve correctly, directories created as needed
+
+**m.2** Implement YAML generation from SkillFile
+- Parent: (m)
+- Depends: m.1, l.1
+- Task: In `vault.py`, implement `generate_skill_yaml(skill)` function. Pretty-print SkillFile to YAML with comments for readability. Include all metadata: name, site, description, version, params, steps.
+- Done: Generated YAML is readable, all fields present, valid YAML syntax
+
+**m.3** Implement standalone .js generation with inlined guards
+- Parent: (m)
+- Depends: k.4, m.2
+- Task: In `vault.py`, enhance `generate_standalone_js(skill)` function. Create JS file with: PARAMS object at top, minified guard library (~5KB), event simulator inlined, step-by-step execution loop, console logging for each step. Total file <20KB for typical skill.
+- Done: Generated .js files run in browser console, can execute skills standalone
+
+**m.4** Implement skills-index.json maintenance and rebuilding
+- Parent: (m)
+- Depends: m.1
+- Task: In `vault.py`, implement `read_index()` loading skills-index.json, `write_index()` updating it, `rebuild_index()` scanning all .yeshie files and regenerating index. Handle missing/corrupted index gracefully.
+- Done: Index updated on skill write, rebuild works correctly, index is valid JSON
+
+**m.5** Integrate skill_save with MCP tool implementation
+- Parent: (m)
+- Depends: m.1, m.2, m.3, m.4, k.6
+- Task: Update `mcp-server/yeshie_mcp/server.py` `skill_save` tool. Receive SkillFile from Claude, validate schema, write .yeshie file, generate .js file, update index, return file paths.
+- Done: skill_save tool works end-to-end, creates both .yeshie and .js files
+
+**m.6** Create unit tests for vault operations and skill export
+- Parent: (m)
+- Depends: m.1, m.2, m.3, m.4
+- Task: Create `mcp-server/tests/test_vault.py` (pytest). Test: path resolution, YAML generation, .js generation, index CRUD, rebuild. Mock file I/O.
+- Done: All tests pass, vault operations reliable
+
+---
+
+### Bead (n) Sub-Beads: Guard Failure Recovery Protocol
+
+**n.1** Implement retry logic in skill executor
+- Parent: (n)
+- Depends: l.5
+- Task: Update `skill-executor.ts` SkillExecutor. On guard failure: retry up to 3 times with exponential backoff (1s, 3s, 10s). Between retries: re-check if page URL/state has changed. Log each retry attempt.
+- Done: Failed steps retry automatically, backoff works, state checks between retries
+
+**n.2** Implement diagnostics reporting on retry exhaustion
+- Parent: (n)
+- Depends: n.1, d.4
+- Task: In `skill-executor.ts`, after 3 failed retries: build GuardDiagnostics, return result with status='guard_failed', include step_index, failed_selector, diagnostics, page_url. Return to MCP server.
+- Done: Guard failures with exhausted retries return rich diagnostics
+
+**n.3** Implement skill_fix_step MCP tool handler
+- Parent: (n)
+- Depends: n.2, k.6, l.5
+- Task: Update `mcp-server/yeshie_mcp/server.py` `skill_fix_step` tool. Receive skill_name, step_index, fixes dict. Load checkpoint, apply fixes to step, re-execute fixed step, if successful resume from next step.
+- Done: skill_fix_step applies fixes and resumes, handles missing checkpoint error
+
+**n.4** Integrate failure escalation into background worker
+- Parent: (n)
+- Depends: n.3, l.7
+- Task: Update `entrypoints/background.ts` skill execution handler. Catch guard_failed result, send to MCP relay with diagnostics. Wait for Claude's skill_fix_step call. If timeout (60s): escalate to user via side panel notification.
+- Done: Guard failures sent to Claude, timeouts escalate to user
+
+**n.5** Create SkillFailureDialog component in side panel
+- Parent: (n)
+- Depends: e.2, n.4
+- Task: Create `entrypoints/sidepanel/components/SkillFailureDialog.tsx`. Display: failed step info, selector, diagnostics. Show buttons: Debug (enable CLI mode), Skip (advance to next step), Retry (re-attempt), Cancel (abort). Capture user choice and send to background worker.
+- Done: Dialog displays correctly, user choices are captured
+
+**n.6** Create watchdog timeout for user fallback escalation
+- Parent: (n)
+- Depends: n.4, n.5
+- Task: In `entrypoints/background.ts`, implement timeout watchdog. Track time since failure sent to Claude. After 60s: show SkillFailureDialog. After 5 minutes without user action: auto-cancel skill, clear checkpoint.
+- Done: Watchdog fires on schedule, user fallback shown, auto-cancel works
+
+**n.7** Create unit tests for failure recovery and escalation
+- Parent: (n)
+- Depends: n.1, n.3, n.5
+- Task: Create test file. Test: retry logic with backoff, diagnostics building, skill_fix_step application, timeout watchdog, user dialog interaction. Mock Stepper and timers.
+- Done: All tests pass, failure recovery path reliable
+
+---
+
+### Bead (o) Sub-Beads: Selector Health Check + Pre-flight Validation
+
+**o.1** Create pre-flight selector checking function
+- Parent: (o)
+- Depends: d
+- Task: Create `packages/extension/src/lib/preflight.ts`. Implement `preflight SelectorCheck(skill, tabId)` function that iterates skill steps, checks if selector exists on current page (via injectionController), returns HealthCheckResult with found/not-found status and alternatives.
+- Done: Preflight checks find existing elements, identifies missing selectors
+
+**o.2** Implement dynamic step detection heuristics
+- Parent: (o)
+- Depends: o.1
+- Task: In `preflight.ts`, add heuristics to detect dynamic steps (those that depend on previous actions). If previous step is navigate/click/call_skill: mark as dynamic, skip checking. If step marked as `dynamic: true` in skill: skip checking.
+- Done: Preflight skips dynamic steps correctly, doesn't waste time on steps after navigation
+
+**o.3** Integrate preflight check into skill executor
+- Parent: (o)
+- Depends: l.5, o.1
+- Task: Update `skill-executor.ts`. Before executing steps: run `prefightSelectorCheck(skill, tabId)`. If issues found: return them to MCP with suggested alternatives. Claude can approve alternatives or abort.
+- Done: Preflight runs before skill replay, catches stale selectors early
+
+**o.4** Create unit tests for preflight validation
+- Parent: (o)
+- Depends: o.1, o.2
+- Task: Create `packages/extension/src/lib/__tests__/preflight.test.ts` (Vitest). Test: selector checking works, dynamic steps skipped, alternatives suggested. Mock page DOM.
+- Done: All tests pass, preflight validation reliable
+
+---
+
+### Bead (p) Sub-Beads: Website Researcher Agent Skills
+
+**p.1** Document research workflow for Claude
+- Parent: (p)
+- Depends: k
+- Task: Create `mcp-server/RESEARCHER_WORKFLOW.md` documenting research process: navigate key pages, read controls, observe DOM, capture screenshots, document findings. Output formats: docs.md (site overview), dom-patterns.md (selectors, frameworks).
+- Done: Documentation clear and actionable for Claude
+
+**p.2** Implement vault write helpers for research output
+- Parent: (p)
+- Depends: k.3, p.1
+- Task: In `mcp-server/yeshie_mcp/vault.py`, implement: `write_research(site, filename, content)` writing to `websites/{site}/{filename}`. `write_dom_patterns(site, patterns_dict)` writing to `websites/{site}/dom-patterns.md`.
+- Done: Research files written to correct locations, markdown formatting correct
+
+**p.3** Enhance knowledge_query to include research results
+- Parent: (p)
+- Depends: k.6, p.2
+- Task: Update `mcp-server/yeshie_mcp/server.py` `knowledge_query` tool. When searching vault: also search research files in addition to skills. Return: matching skills + site documentation + DOM patterns.
+- Done: knowledge_query returns research results in addition to skills
+
+**p.4** Create unit tests for research workflow integration
+- Parent: (p)
+- Depends: p.1, p.2, p.3
+- Task: Create test file testing: vault write helpers work, research files created correctly, knowledge_query finds research results. Mock file I/O.
+- Done: All tests pass, research integration reliable
+
+**p.5** Document expected research file structure
+- Parent: (p)
+- Depends: p.1
+- Task: Update vault documentation with example research files: docs.md structure (site overview, login flow, feature sections), dom-patterns.md structure (selector examples, framework info, component patterns). Include examples.
+- Done: Documentation clear, examples provided for researchers
+
+---
+
+### Bead (q) Sub-Beads: End-to-End Integration — Full Workflow
+
+**q.1** Document full E2E workflow from Claude perspective
+- Parent: (q)
+- Depends: k, l, m
+- Task: Create `WORKFLOW_WALKTHROUGH.md` documenting end-to-end: Claude navigates site → reads controls → learns task → composes steps → verifies → saves skill → replays with different params. Include expected outputs and error handling.
+- Done: Documentation is comprehensive and accurate
+
+**q.2** Create manual E2E test: Basic task on test page
+- Parent: (q)
+- Depends: all previous
+- Task: Create simple test HTML page (local file or hosted). Write manual test procedure: relay starts, extension loads, MCP server starts, Claude navigates to test page, reads controls, performs 3 test actions (click, type, read), saves skill. Verify all outputs.
+- Done: Test procedure documented, walkthrough successful
+
+**q.3** Create manual E2E test: Guard failure and recovery
+- Parent: (q)
+- Depends: n, q.2
+- Task: Modify test page to break a selector after initial skill save. Run skill → guard failure → provide fix → resume → verify success. Document steps and expected outputs.
+- Done: Failure recovery tested end-to-end
+
+**q.4** Create manual E2E test: Multi-tab skill execution
+- Parent: (q)
+- Depends: q.2
+- Task: Create test scenario with 2+ tabs. Write skill that reads from Tab A, switches to Tab B, writes data. Run and verify buffer carries data between tabs.
+- Done: Multi-tab execution tested and working
+
+**q.5** Create automated integration test suite
+- Parent: (q)
+- Depends: all previous
+- Task: Create integration test file (Vitest + pytest) that runs all E2E scenarios programmatically. Mock browser, relay, MCP server. Execute full workflows, check outputs.
+- Done: Integration test suite exists and all tests pass
+
+**q.6** Document deployment and troubleshooting guide
+- Parent: (q)
+- Depends: all previous
+- Task: Create `DEPLOYMENT_GUIDE.md` covering: local dev setup, running relay on VPS, installing MCP server, loading extension in Chrome, debugging checklist. Include expected error messages and fixes.
+- Done: Deployment guide is comprehensive and actionable
+
+**q.7** Final smoke tests and bug fix pass
+- Parent: (q)
+- Depends: q.2, q.3, q.4, q.5
+- Task: Run all manual and automated tests. Fix any issues discovered. Verify error messages are clear and helpful. Check logging is consistent. Ensure all features from spec are working.
+- Done: All tests pass, no known bugs, logging is consistent, error messages are helpful
+
+---
+
+## Time Estimate Summary
+
+Total estimated LLM agent time: **~200 sub-beads × 2 minutes = 400 minutes (6.7 hours)**
+
+This is broken into:
+- Bead (a): 8 sub-beads = 16 min
+- Bead (b): 6 sub-beads = 12 min
+- Bead (c): 10 sub-beads = 20 min
+- Bead (d): 7 sub-beads = 14 min
+- Bead (e): 9 sub-beads = 18 min
+- Bead (f): 7 sub-beads = 14 min
+- Bead (g): 8 sub-beads = 16 min
+- Bead (h): 7 sub-beads = 14 min
+- Bead (i): 6 sub-beads = 12 min
+- Bead (j): 6 sub-beads = 12 min
+- Bead (k): 8 sub-beads = 16 min
+- Bead (l): 8 sub-beads = 16 min
+- Bead (m): 6 sub-beads = 12 min
+- Bead (n): 7 sub-beads = 14 min
+- Bead (o): 4 sub-beads = 8 min
+- Bead (p): 5 sub-beads = 10 min
+- Bead (q): 7 sub-beads = 14 min
 
 ---
 
