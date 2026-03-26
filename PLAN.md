@@ -1042,7 +1042,7 @@ All interfaces live in `@yeshie/shared` and are the canonical source of truth.
 export type MessageSender = 'content' | 'background' | 'mcp' | 'relay' | 'client';
 
 export interface YeshieMessage {
-  id: string;                    // UUID v4 for request/response correlation
+  id: string;                    // UUID v4 for request/response correlation (commandId for deduplication)
   from: MessageSender;
   to: MessageSender;
   op: string;                    // Operation name (see ops registry below)
@@ -1053,6 +1053,9 @@ export interface YeshieMessage {
   error?: string;                // Error message if the operation failed
   diagnostics?: GuardDiagnostics; // Rich error context (guard failures, etc.)
   timestamp: number;             // Unix milliseconds
+  // Message correlation epoch fields (FM-07) — drop responses with mismatched epoch
+  sessionEpoch: number;          // Monotonic integer; incremented on each new session
+  runId?: string;                // Associate command with a specific run; required for skill steps
 }
 
 // Operation registry
@@ -1216,14 +1219,41 @@ export interface SkillFile {
 }
 
 export interface SkillCheckpoint {
+  // Identity & versioning (FM-01, FM-16, FM-19)
+  runId: string;                  // UUID — unique per execution instance; checkpoints stored at runs/{runId}/checkpoint
+  schemaVersion: number;          // Increment on breaking changes; refuse resume on major mismatch
   skillName: string;
-  stepIndex: number;
+  stepIndex: number;              // Last COMMITTED completed step
   totalSteps: number;
   buffer: Record<string, unknown>;
   activeTabId: number;
+  tabDependencies: number[];      // All tab IDs this run will need (FM-05)
   callStack: string[];            // Parent skill names for nested call_skill
   startedAt: number;
   lastCheckpoint: number;
+  // Write-ahead journal for exactly-once execution semantics (FM-01)
+  inFlight?: {
+    stepIndex: number;
+    attempt: number;
+    phase: 'dispatched' | 'result_received' | 'checkpoint_committed';
+    dispatchedAt: number;
+  };
+  // Per-run budget counters — persisted so limits survive restarts (FM-26)
+  stepsExecuted: number;          // Cap: MAX_STEPS_PER_RUN = 500
+  totalRetries: number;           // Cap: MAX_RETRIES_PER_RUN = 50
+  claudeFixCycles: number;        // Cap: MAX_CLAUDE_FIXES_PER_RUN = 20
+  wallClockMs: number;            // Cap: MAX_WALL_CLOCK_MS = 1_800_000 (30 min)
+  // Escalation state (FM-27)
+  escalationState?: {
+    target: 'claude' | 'user';
+    failedStepIndex: number;
+    pendingCommandId?: string;
+    deadline: number;             // Unix ms
+    correlationId: string;
+  };
+  // Reload recovery state machine (FM-18)
+  runState: 'executing' | 'waiting_for_claude' | 'waiting_for_user' | 'suspended';
+  lastKnownTransportState: 'connected' | 'disconnected' | 'unknown';
 }
 
 export interface SkillIndexEntry {
@@ -1632,6 +1662,313 @@ def write_skill(skill: SkillFile) -> str:
 | Page freezes (infinite loop in JS) | Guard timeouts will fire (from the 10s timeout). But if the page's main thread is frozen, the `setTimeout` won't fire either. No mitigation at extension level — this is a Chrome-level hang. User must close the tab. |
 | Very large DOM (>10K elements) | `readControls` limits output to 50KB by truncating to top-N most relevant controls (inputs, buttons, links first, then other interactive elements). Include count of total vs. returned controls. |
 | Single Page Application (SPA) navigation | Content script stays injected. `chrome.tabs.onUpdated` fires but tab ID doesn't change. Framework detection may need re-running if the SPA switches frameworks (unlikely but possible with micro-frontends). |
+| `chrome://`, `devtools://`, or restricted page targeted | `isInjectableUrl()` gate returns `unsupported_page` immediately; no injection attempted, no retry (FM-11). |
+| Script injection fails due to sandboxed or opaque-origin frame | Catch `chrome.scripting.executeScript` error separately; return `unsupported_frame` / `sandboxed_frame` / `permission_denied` error code, not a guard timeout (FM-12). |
+
+---
+
+### 7.8 Exactly-Once Execution & Checkpoint Integrity (FM-01, FM-03)
+
+**Problem:** The service worker may be suspended after a step is dispatched to the page but before the result is checkpointed. On wake-up, naive resume replays the step — potentially a second side effect.
+
+**Implementation requirements:**
+
+1. **Write-ahead journal:** Before dispatching step N, write `inFlight: { stepIndex: N, phase: 'dispatched', attempt, dispatchedAt }` to `runs/{runId}/checkpoint_tmp`.
+2. **Phase progression:** Update `inFlight.phase` to `result_received` when the content script returns a result, and to `checkpoint_committed` when the full checkpoint write completes.
+3. **Resume reconciliation:** On wake-up with an `inFlight` entry:
+   - If `phase === 'checkpoint_committed'`: checkpoint is complete; resume from `stepIndex + 1` normally.
+   - If `phase === 'result_received'`: result was received but not committed; reconstruct checkpoint from result, complete commit, then resume from `stepIndex + 1`.
+   - If `phase === 'dispatched'`: unknown whether step ran. Query content script for cached result. If result available, treat as `result_received`. If no result and step is idempotent: re-dispatch. If non-idempotent and no result: escalate to Claude with "possible duplicate action" context.
+
+4. **Two-phase checkpoint writes (FM-03):**
+   ```
+   write(runs/{runId}/checkpoint_tmp, newCheckpoint)
+   validate readback(runs/{runId}/checkpoint_tmp)
+   overwrite(runs/{runId}/checkpoint, newCheckpoint)
+   delete(runs/{runId}/checkpoint_tmp)
+   ```
+   On startup, if `checkpoint_tmp` exists, compare with `checkpoint` — whichever has the higher `version` is the good copy.
+
+---
+
+### 7.9 Concurrent Skill Execution (FM-16, FM-17, FM-02)
+
+**Implementation requirements for the background worker:**
+
+**Per-run state isolation:**
+```typescript
+// All per-run state keyed by runId (not global singletons)
+const RUN_CHECKPOINT_KEY = (runId: string) => `runs/${runId}/checkpoint`;
+const RUN_RESUME_OWNER_KEY = (runId: string) => `runs/${runId}/resumeOwner`;
+const RUN_ALARM_NAME = (runId: string) => `skill-heartbeat-${runId}`;
+const TAB_LEASE_KEY = (tabId: number) => `tabs/${tabId}/lease`;
+```
+
+**Resume mutex:**
+```typescript
+async function acquireResumeLock(runId: string): Promise<boolean> {
+  const key = RUN_RESUME_OWNER_KEY(runId);
+  const existing = await chrome.storage.local.get(key);
+  const owner = existing[key];
+  if (owner && (Date.now() - owner.timestamp) < 30_000) {
+    return false; // Another wake path owns this run
+  }
+  await chrome.storage.local.set({ [key]: { timestamp: Date.now() } });
+  return true;
+}
+```
+
+**Tab lease acquisition:**
+```typescript
+async function acquireTabLease(tabId: number, runId: string): Promise<boolean> {
+  const key = TAB_LEASE_KEY(tabId);
+  const existing = await chrome.storage.local.get(key);
+  const currentLease = existing[key];
+  if (currentLease && currentLease !== runId) {
+    return false; // Tab leased by another run
+  }
+  await chrome.storage.local.set({ [key]: runId });
+  return true;
+}
+
+async function releaseAllTabLeases(runId: string, tabIds: number[]): Promise<void> {
+  const keys = tabIds.map(TAB_LEASE_KEY);
+  // Only clear if our run still holds the lease
+  const current = await chrome.storage.local.get(keys);
+  const toRemove = keys.filter(k => current[k] === runId);
+  await chrome.storage.local.remove(toRemove);
+}
+```
+
+---
+
+### 7.10 Navigation Attribution (FM-04)
+
+Each step that causes a navigation declares an `expectedNavigation` contract before the navigation is triggered:
+
+```typescript
+interface ExpectedNavigation {
+  initiatorStepId: string;
+  allowedUrlPatterns: string[];   // Glob patterns (e.g., "https://github.com/*/issues/*")
+  deadline: number;               // Unix ms — navigation must complete by this time
+}
+
+// Set before dispatch
+await chrome.storage.local.set({
+  [`runs/${runId}/expectedNavigation`]: contract
+});
+
+// In tabs.onUpdated handler
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  if (changeInfo.status !== 'complete') return;
+  const stored = await chrome.storage.local.get(`runs/${runId}/expectedNavigation`);
+  const contract: ExpectedNavigation = stored[`runs/${runId}/expectedNavigation`];
+  if (contract && urlMatchesPatterns(tab.url, contract.allowedUrlPatterns)) {
+    // Expected navigation — clear contract, continue skill
+    await chrome.storage.local.remove(`runs/${runId}/expectedNavigation`);
+  } else if (skillIsRunning(runId, tabId)) {
+    // Unexpected navigation — pause skill, alert user
+    await pauseRunWithAlert(runId, 'unexpected_navigation', tab.url);
+  }
+});
+```
+
+---
+
+### 7.11 Tab Dependency Validation (FM-05)
+
+On every `tabs.onRemoved` and `tabs.onUpdated` event, the background worker checks all active runs' `tabDependencies`:
+
+```typescript
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+  const activeRuns = await getActiveRuns();
+  for (const run of activeRuns) {
+    if (run.tabDependencies.includes(tabId)) {
+      if (tabId === run.activeTabId) {
+        // Active tab closed — cancel immediately
+        await failRun(run.runId, { type: 'active_tab_closed', tabId });
+      } else {
+        // Future dependency tab closed — convert to resumable error at next step
+        await markTabDependencyStale(run.runId, tabId);
+      }
+    }
+  }
+});
+```
+
+Before any `switch_tab` step, validate that the target tab is still open. If stale, fail with `stale_tab_dependency` before executing the step.
+
+---
+
+### 7.12 Extension Reload / Update Recovery (FM-18, FM-22)
+
+**On `chrome.runtime.onInstalled`:**
+
+```typescript
+chrome.runtime.onInstalled.addListener(async (details) => {
+  // FM-22: Reinject content scripts into existing injectable tabs
+  const allTabs = await chrome.tabs.query({});
+  for (const tab of allTabs) {
+    if (tab.url && isInjectableUrl(tab.url).injectable) {
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id! },
+          func: pingContentScript
+        });
+      } catch {
+        // Tab cannot be injected — mark as needing reload
+        await setTabNeedsReload(tab.id!);
+      }
+    }
+  }
+
+  // FM-18: Reconcile any active run state after reload/update
+  const activeRuns = await getActiveRuns();
+  for (const run of activeRuns) {
+    switch (run.runState) {
+      case 'waiting_for_claude':
+      case 'waiting_for_user': {
+        if (run.escalationState && Date.now() < run.escalationState.deadline) {
+          // Restore watchdog timer
+          await restoreEscalationWatchdog(run);
+        } else {
+          // Deadline passed — cancel escalation
+          await cancelEscalationCleanly(run, 'reload_timeout');
+        }
+        break;
+      }
+      case 'executing':
+      case 'suspended':
+        // Normal checkpoint resume path
+        await scheduleResume(run.runId);
+        break;
+    }
+  }
+});
+```
+
+---
+
+### 7.13 YAML Skill Parser Configuration (FM-25)
+
+The `.yeshie` YAML parser must use a strict safe loader. In Python (MCP server side):
+
+```python
+import yaml
+
+def load_skill_yaml(text: str, file_path: str) -> dict:
+    """Load skill YAML with strict safe parsing."""
+    try:
+        # Use SafeLoader which disables custom tags
+        data = yaml.load(text, Loader=yaml.CSafeLoader)
+    except yaml.YAMLError as e:
+        mark = getattr(e, 'problem_mark', None)
+        location = f" at line {mark.line + 1}, column {mark.column + 1}" if mark else ""
+        raise SkillParseError(f"YAML parse error in {file_path}{location}: {e.problem}")
+
+    # Reject implicit dangerous coercions by re-parsing with strict checks
+    _validate_no_duplicate_keys(text, file_path)   # custom check on raw text
+    _validate_alias_depth(data, max_depth=5, max_count=100, path=file_path)
+    return data
+```
+
+The TypeScript extension-side parser (for skill replay) must use a YAML library configured with equivalent strictness — no `!!python/object`, no alias bombing, duplicate keys raise an error.
+
+---
+
+### 7.14 MCP Tool Timeout / Job Registry (FM-20, FM-21)
+
+**Updated `send_and_wait` with job-registry integration:**
+
+```python
+async def send_and_wait(message: YeshieMessage, timeout: float = 30.0) -> dict:
+    """Send a command and wait for response; register as job on successful dispatch."""
+    future = asyncio.get_event_loop().create_future()
+    ctx = self.lifespan_context
+    ctx["pending"][message.id] = future
+
+    await ctx["sio"].emit("yeshie:command", message.model_dump())
+    # Register job immediately after successful emit (FM-20)
+    ctx["jobs"][message.id] = {"status": "in_progress", "dispatchedAt": time.time(), "commandId": message.id}
+
+    try:
+        result = await asyncio.wait_for(future, timeout=timeout)
+        ctx["jobs"][message.id] = {"status": "completed", "result": result, "completedAt": time.time()}
+        return result
+    except asyncio.TimeoutError:
+        del ctx["pending"][message.id]
+        # Return in_progress instead of hard timeout — result queryable via job_status
+        return {
+            "status": "in_progress",
+            "job_id": message.id,
+            "hint": "Command dispatched but response pending. Poll job_status(job_id) for result."
+        }
+
+async def on_disconnect():
+    """FM-08: Reject all pending futures immediately on disconnect."""
+    for command_id, future in list(ctx["pending"].items()):
+        if not future.done():
+            future.set_exception(TransportDisconnectedError(
+                command_id=command_id,
+                retryable=True,
+                message="Socket.IO disconnected while awaiting browser response"
+            ))
+    ctx["pending"].clear()
+```
+
+**Command cancellation (FM-21):**
+```python
+async def cancel_command(command_id: str) -> dict:
+    """Cancel an in-progress command. If already executing, mark orphaned."""
+    if command_id in ctx["pending"]:
+        # Pre-dispatch cancellation
+        ctx["pending"][command_id].cancel()
+        del ctx["pending"][command_id]
+    await ctx["sio"].emit("yeshie:cancel_command", {"commandId": command_id})
+    ctx["jobs"][command_id] = {**ctx["jobs"].get(command_id, {}), "status": "cancelled"}
+    return {"cancelled": True, "command_id": command_id}
+```
+
+---
+
+### 7.15 Storage Write Safety (FM-14)
+
+**Startup writability probe:**
+```typescript
+async function probeStorageWritability(): Promise<void> {
+  const testKey = '__yeshie_write_probe__';
+  const testValue = { ts: Date.now() };
+  try {
+    await chrome.storage.local.set({ [testKey]: testValue });
+    const result = await chrome.storage.local.get(testKey);
+    if (!result[testKey] || result[testKey].ts !== testValue.ts) {
+      throw new Error('Read-back mismatch');
+    }
+    await chrome.storage.local.remove(testKey);
+  } catch (e) {
+    // Fatal: log and block any skill execution requiring durable checkpoints
+    console.error('[Yeshie:bg] FATAL: chrome.storage.local is not writable:', e);
+    await setExtensionFatalState('storage_unavailable', String(e));
+    throw new StorageUnavailableError(String(e));
+  }
+}
+```
+
+All `chrome.storage.local.set()` calls are wrapped:
+```typescript
+async function safeStorageSet(items: Record<string, unknown>): Promise<void> {
+  try {
+    await chrome.storage.local.set(items);
+  } catch (e) {
+    const err = e as chrome.runtime.LastError;
+    if (err.message?.includes('QUOTA_BYTES_PER_ITEM exceeded') ||
+        err.message?.includes('QUOTA_BYTES exceeded')) {
+      throw new StorageQuotaError(err.message);
+    }
+    throw new StorageFatalError(err.message ?? 'Unknown storage error');
+  }
+}
+```
 
 ---
 
@@ -1704,6 +2041,43 @@ def write_skill(skill: SkillFile) -> str:
 - Clears stale checkpoints (>24h old)
 - Preserves call stack for nested `call_skill` operations
 - Rejects corrupted checkpoint (missing fields, stepIndex > totalSteps)
+- Two-phase write: `checkpoint_tmp` created before `checkpoint` overwritten (FM-03)
+- Readback validation fails → abort write, preserve old checkpoint (FM-03)
+- `inFlight` journal updated correctly through `dispatched → result_received → checkpoint_committed` (FM-01)
+- Resume with `inFlight.phase === 'dispatched'` triggers reconciliation before re-dispatch (FM-01)
+- `schemaVersion` mismatch → refuse resume (FM-19)
+- Budget counters (`stepsExecuted`, `totalRetries`, etc.) persisted across restarts (FM-26)
+- `escalationState` persisted and restored on reload (FM-27)
+- `runState` correctly set and read during reload recovery (FM-18)
+- Startup writability probe fails → extension enters fatal state (FM-14)
+
+**Concurrent execution (`lib/concurrent.test.ts`):**
+- Acquiring resume mutex when no owner → succeeds (FM-02)
+- Acquiring resume mutex when owner timestamp < 30s → blocked (FM-02)
+- Tab lease acquisition with no current lease → succeeds (FM-17)
+- Tab lease acquisition when tab leased by another run → `tab_leased_by_other_run` error (FM-17)
+- Run completion releases all owned tab leases (FM-17)
+- Two concurrent resume paths for same `runId` → only one proceeds (FM-02)
+
+**URL injection gate (`lib/injection-gate.test.ts`):**
+- `chrome://settings` → `{ injectable: false, reason: 'unsupported_scheme' }` (FM-11)
+- `devtools://inspector` → `{ injectable: false, reason: 'unsupported_scheme' }` (FM-11)
+- `https://chrome.google.com/webstore` → `{ injectable: false, reason: 'restricted_host' }` (FM-11)
+- `https://github.com/user/repo` → `{ injectable: true }` (FM-11)
+- Sandboxed frame injection error → returns `sandboxed_frame` error code, not guard timeout (FM-12)
+
+**YAML parser (`lib/skill-parser.test.ts`):**
+- Duplicate keys in YAML → parse error with line/column (FM-25)
+- Custom YAML tags (`!python/object`) → rejected (FM-25)
+- Alias bomb (1000 aliases) → rejected with count-exceeded error (FM-25)
+- Implicit `yes`/`no` coercion → treated as string, not boolean (FM-25)
+
+**Guard diagnostics (`lib/guards.test.ts` additions):**
+- `buildDiagnostics` sets `capabilityBoundary: true` when closed shadow DOM detected (FM-23)
+- `buildDiagnostics` sets `likelyCrossOriginIframe: true` when cross-origin iframes present (FM-23)
+- `buildDiagnostics` reports `sameOriginFrameCount` and `crossOriginFrameCount` (FM-13)
+- Guard with `capabilityBoundary: true` skips retry loop and returns hard boundary error (FM-23)
+- `attachShadowObservers` attaches MutationObserver to open shadow roots (FM-24)
 
 **Message routing (`entrypoints/background.test.ts`):**
 - Routes content script messages to correct handler based on `op`
@@ -1762,13 +2136,23 @@ def write_skill(skill: SkillFile) -> str:
 - Guard times out and returns diagnostics
 - Stepper checkpoints after each step
 - Stepper resumes from checkpoint after simulated restart
+- Simulated suspend after step dispatch (before checkpoint) → on wake, journal reconciliation prevents re-dispatch (FM-01)
+- Simulated concurrent alarm + reconnect wake for same runId → only one proceeds past mutex (FM-02)
+- Budget ceiling hit (`stepsExecuted >= MAX_STEPS_PER_RUN`) → run terminated with `budget_exceeded` (FM-26)
+- Two-phase checkpoint write with storage failure mid-write → `checkpoint` unchanged, error surfaced (FM-03)
+- Tab dependency tab closed → `markTabDependencyStale` called; next `switch_tab` fails gracefully (FM-05)
+- `expectedNavigation` contract set → expected URL navigates → run continues; unexpected URL → pause (FM-04)
 
 **MCP Server + Relay (network integration):**
 - MCP server connects to relay with valid token
 - MCP server sends command, relay forwards to mock extension socket
 - Mock extension responds, relay forwards to MCP server
 - MCP server resolves the pending Future with the response
-- Timeout handling: mock extension doesn't respond → MCP returns timeout error
+- Timeout handling: mock extension doesn't respond → MCP returns `{ status: "in_progress", job_id }` (FM-20)
+- Socket.IO disconnects mid-tool-call → all pending futures rejected immediately with `TransportDisconnectedError` (FM-08)
+- MCP retries with same commandId → relay deduplicates, only one execution reaches extension (FM-09)
+- Relay restarts → pending-command ledger restored → both MCP and extension can reconcile orphans (FM-10, FM-28)
+- `sessionEpoch` mismatch in response → response dropped, not resolved to new pending future (FM-07)
 
 **Skill Lifecycle (vault integration):**
 - Save a skill → read it back → verify contents match

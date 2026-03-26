@@ -439,25 +439,50 @@ function guardedAction(selector, expectedState, actionFn, timeoutMs = 10000) {
       childList: true, subtree: true,
       attributes: true, attributeFilter: ['disabled', 'class', 'style', 'aria-disabled']
     });
+    // FM-24: Fan out observer to open shadow roots relevant to the selector path.
+    // Walk document tree, find open shadow roots, and observe them too.
+    attachShadowObservers(observer);
   });
 }
 
 function buildDiagnostics(selector, expectedState) {
   try {
     const el = document.querySelector(selector);
+    const iframes = document.querySelectorAll('iframe');
+    // Capability boundary detection (FM-23, FM-24)
+    const likelyClosedShadowDom = detectClosedShadowDomLikelihood(selector);
+    const likelyCrossOriginIframe = Array.from(iframes).some(f => {
+      try { return !f.contentDocument; } catch { return true; }
+    });
+    const sameOriginFrameCount = Array.from(iframes).filter(f => {
+      try { return !!f.contentDocument; } catch { return false; }
+    }).length;
+    const crossOriginFrameCount = iframes.length - sameOriginFrameCount;
     return {
       selectorValid: true,
       elementFound: !!el,
       elementVisible: el ? el.offsetParent !== null : null,
       elementEnabled: el ? !el.disabled : null,
       elementText: el ? el.textContent?.substring(0, 100) : null,
-      iframeCount: document.querySelectorAll('iframe').length,
+      iframeCount: iframes.length,
+      sameOriginFrameCount,    // FM-13: if > 0 and element not found, may be in a frame
+      crossOriginFrameCount,   // FM-13: if > 0, cross-origin frames are invisible to scripts
       similarElements: findSimilarElements(selector),
+      // Capability boundary flags (FM-23) — bypass normal self-healing retries when true
+      likelyClosedShadowDom,
+      likelyCrossOriginIframe,
+      capabilityBoundary: likelyClosedShadowDom || likelyCrossOriginIframe,
       expectedState
     };
   } catch (e) {
     return { selectorValid: false, parseError: e.message };
   }
+}
+
+// Heuristic: if element not found and page has web components, flag potential closed shadow DOM
+function detectClosedShadowDomLikelihood(selector) {
+  const hostElements = document.querySelectorAll('[class*="lightning"], [class*="slds-"], lightning-*, sl-*');
+  return hostElements.length > 0;
 }
 
 function findSimilarElements(selector) {
@@ -470,7 +495,7 @@ function findSimilarElements(selector) {
 ### Guard Known Limitations
 
 - **Virtual scrolling (React Virtualized, TanStack Virtual):** Elements may exist in data but not in DOM. Guard cannot reveal off-screen virtualized elements. Claude must scroll to reveal, then guard the revealed content.
-- **Shadow DOM inside the page (open):** `MutationObserver` on `document.body` does NOT observe mutations inside Shadow DOM trees. If target is in a web component's open shadow root, must observe the specific `shadowRoot`, not `document.body`. The Stepper must support deep-traversal selectors by recursively checking `el.shadowRoot.querySelector()` for open shadow roots.
+- **Shadow DOM inside the page (open):** `MutationObserver` on `document.body` does NOT observe mutations inside Shadow DOM trees. The guard uses `attachShadowObservers()` to fan out to discovered open shadow roots before entering the wait loop. The Stepper also uses a deep-selector resolver that walks open shadow roots recursively. (FM-24)
 - **Shadow DOM (closed):** Elements inside closed shadow roots (`mode: 'closed'`) are entirely inaccessible to `querySelector` or any DOM traversal from content scripts. `MutationObserver` cannot see into them either. This affects modern component libraries (Salesforce Lightning, some Google properties). Fallback: escalate to screenshot-based reasoning or manual user interaction. Guard will time out with a diagnostic indicating "possible closed shadow DOM."
 - **Canvas-based UIs (Figma, Google Sheets):** Elements rendered to `<canvas>` are not DOM nodes. Guard pattern is inapplicable. Defer to screenshot-based approach.
 - **SVG elements:** `offsetParent` is always `null` for SVG elements. Replace the visibility check with `getBoundingClientRect().width > 0 && getBoundingClientRect().height > 0` for SVG.
@@ -488,6 +513,22 @@ interface GuardSpec {
     attribute?: Record<string, string>;  // Element attributes match these values
   };
   timeout?: number;          // Override default 10000ms (range: 500-60000)
+}
+
+// Extended diagnostics returned on guard timeout (FM-23, FM-13)
+interface GuardDiagnostics {
+  selectorValid: boolean;
+  elementFound: boolean;
+  elementVisible: boolean | null;
+  elementEnabled: boolean | null;
+  elementText: string | null;
+  iframeCount: number;
+  sameOriginFrameCount: number;   // FM-13: element may be in a same-origin subframe
+  crossOriginFrameCount: number;  // FM-13: element may be in a cross-origin frame (inaccessible)
+  similarElements: Array<{ selector: string; tag: string; type?: string; label?: string }>;
+  likelyClosedShadowDom: boolean; // FM-23: bypass retries, send hard capability-boundary error
+  likelyCrossOriginIframe: boolean; // FM-23
+  capabilityBoundary: boolean;    // FM-23: true → skip Claude fix loop, report hard error
 }
 ```
 
@@ -541,25 +582,68 @@ Chrome MV3 service workers are suspended after ~30 seconds of **inactivity** (no
 
 ### Checkpoint Strategy
 
-1. **Each skill step that succeeds triggers a checkpoint** written to `chrome.storage.local`:
+1. **Each skill step that succeeds triggers a checkpoint** written to `chrome.storage.local`. Checkpoints are namespaced per run (`runs/{runId}/checkpoint`) to support concurrent skill execution:
    ```typescript
    interface SkillCheckpoint {
+     // Identity & versioning (FM-01, FM-16, FM-19)
+     runId: string;           // UUID — unique per execution instance
+     schemaVersion: number;   // Incremented on breaking checkpoint shape changes; refuse resume on major mismatch
      skillName: string;
-     stepIndex: number;       // Last completed step
+     stepIndex: number;       // Last completed step (COMMITTED state)
      totalSteps: number;
      buffer: Record<string, unknown>;  // Inter-tab shared state
      activeTabId: number;
+     tabDependencies: number[];        // All tab IDs this run will need (FM-05)
      callStack: string[];     // Parent skill names for call_skill nesting (e.g., ["github-create-issue", "common/github-login"])
      startedAt: number;       // Unix ms
      lastCheckpoint: number;  // Unix ms
+     // Execution journal for exactly-once semantics (FM-01)
+     inFlight?: {
+       stepIndex: number;
+       attempt: number;
+       phase: 'dispatched' | 'result_received' | 'checkpoint_committed';
+       dispatchedAt: number;
+     };
+     // Run budgets (FM-26)
+     stepsExecuted: number;      // Cumulative across restarts; cap at MAX_STEPS_PER_RUN (500)
+     totalRetries: number;       // Guard retries across all steps; cap at MAX_RETRIES_PER_RUN (50)
+     claudeFixCycles: number;    // skill_fix_step calls; cap at MAX_CLAUDE_FIXES (20)
+     wallClockMs: number;        // Cumulative elapsed; cap at MAX_WALL_CLOCK_MS (30 min)
+     // Escalation state (FM-27)
+     escalationState?: {
+       target: 'claude' | 'user';
+       failedStepIndex: number;
+       pendingCommandId?: string;
+       deadline: number;         // Unix ms — when to cancel if no response
+       correlationId: string;
+     };
+     // Reload recovery (FM-18)
+     runState: 'executing' | 'waiting_for_claude' | 'waiting_for_user' | 'suspended';
+     lastKnownTransportState: 'connected' | 'disconnected' | 'unknown';
    }
    ```
 
-2. **On service worker wake-up**, the background worker checks for pending checkpoints:
-   - **Validate checkpoint** before use: verify JSON schema is correct, verify `activeTabId` still exists and its URL matches the skill's `site` domain pattern, verify `stepIndex < totalSteps`. If validation fails, clear the corrupted checkpoint and notify the user/Claude rather than attempting to resume (prevents crash loops and wrong-tab actions).
+2. **Checkpoint writes are two-phase to prevent partial-write corruption (FM-03):**
+   - Write to `runs/{runId}/checkpoint_tmp` first.
+   - Validate readback (parse JSON, verify required fields, check `schemaVersion`).
+   - Only then rename (overwrite) `runs/{runId}/checkpoint`.
+   - Include a monotonically-increasing `version` counter and a checksum of critical fields.
+   - Wrap all storage writes in typed error handling; if any write fails, surface a fatal persistence error and block further execution (FM-14).
+
+3. **Buffer mutations are persisted before any `switch_tab` or long wait (FM-06):**
+   - After `store_to_buffer`, immediately flush buffer deltas to the execution journal before the next IO-crossing action (tab switch, network wait).
+   - The journal entry includes the buffer mutation so it survives suspension between the write and the next full checkpoint.
+
+4. **On service worker wake-up**, the background worker checks for pending checkpoints:
+   - **Single-flight resume lock (FM-02):** Before resuming any run, acquire a per-run mutex keyed by `runId` stored in `chrome.storage.local` under `runs/{runId}/resumeOwner`. If a `resumeOwner` timestamp less than 30s ago already exists, skip — another wake path is already handling this run.
+   - **Validate checkpoint** before use: verify JSON schema is correct, verify `activeTabId` still exists and its URL matches the skill's `site` domain pattern, verify `stepIndex < totalSteps`, verify `schemaVersion` compatibility. If validation fails, clear the corrupted checkpoint and notify the user/Claude rather than attempting to resume (prevents crash loops and wrong-tab actions).
+   - **Reconcile in-flight journal (FM-01):** Before replaying step `stepIndex + 1`, inspect `inFlight`. If `phase` is `dispatched` or `result_received`, the step may have already executed — query the content script for a result before re-dispatching. Only re-dispatch if no result can be recovered and the step is idempotent (or confirmed not run).
    - If valid: Resume execution from `stepIndex + 1`
    - Verify active tab still exists (if not, trigger guard failure recovery)
+   - **Validate tab dependencies (FM-05):** Check all `tabDependencies` entries are still open and accessible; convert stale tab references into a resumable error before the next step.
    - Restore buffer state and call stack
+   - **Restore escalation state (FM-27):** If `escalationState` is present, either restore the watchdog timer (if deadline has not passed) or immediately cancel the escalation and surface the cancellation to Claude/user.
+   - **Startup writability probe (FM-14):** On extension startup, write a small test value to `chrome.storage.local` and verify it can be read back. If the probe fails, log a fatal error and block any skill execution that requires durable checkpointing.
 
 3. **Individual steps must complete within 25 seconds** (with buffer before the 30s suspension threshold). If a step's guard timeout exceeds 25s, the step is split into a "wait" checkpoint + "action" checkpoint:
    - Checkpoint 1: Start waiting for element (with keepalive ping)
@@ -581,13 +665,27 @@ When the WebSocket connection drops and reconnects (or the service worker wakes 
 
 1. Extension sends stored session ID to relay server.
 2. Relay responds with one of:
-   - **Session valid:** Returns preserved session context. Extension resumes normally.
+   - **Session valid:** Returns preserved session context, including any queued pending commands. Extension resumes normally.
    - **Session expired (relay restarted):** Returns empty context. Extension must:
      a. Query all active tabs to rebuild tab registry
      b. Cancel any pending skill operations
      c. Re-register with relay under new session ID
      d. Store new session ID in `chrome.storage.local`
 3. Active skill checkpoints are preserved in `chrome.storage.local` regardless of relay state — skill execution can resume even if relay was briefly unavailable.
+
+### Message Correlation and Epoch Tracking (FM-07, FM-09)
+
+Every command and response carries a `sessionEpoch` (monotonic integer incremented on each new session) and the originating `runId`. On reconnect, both the MCP bridge and extension **must drop any response whose `sessionEpoch` does not match the current epoch**, preventing stale responses from pre-disconnect sessions from resolving new pending futures.
+
+MCP retries reuse the original `commandId`. The relay deduplicates by `(clientId, commandId)` with a TTL-based replay window (5 minutes) so that only one logical command executes even if the MCP client retries on timeout.
+
+### MCP Bridge Pending Future Cancellation (FM-08)
+
+On Socket.IO `disconnect`, the MCP bridge immediately rejects **all** unresolved pending futures with a typed `TransportDisconnectedError` carrying `retryable: true` and the original command metadata. This prevents futures from hanging until timeout when the transport is already known to be dead.
+
+### Relay Durability and In-Flight Delivery (FM-10, FM-28)
+
+The relay maintains a **persistent pending-command ledger** (backed by a durable log or at minimum a file-persisted store) keyed by `commandId`. Each command progresses through explicit ack stages: `accepted → forwarded → completed`. On relay restart, the ledger is restored so the extension and MCP client can re-drive or cancel any orphaned commands. Session restore returns both the session context and the list of pending commands so both sides can reconcile.
 
 ---
 
@@ -666,6 +764,114 @@ interface PageControl {
   3. Call `readControls` again to see the newly-visible controls
 - Complex controls (sliders, datepickers, color pickers) include metadata where possible (min/max values, current position) and a `complexControl` hint when visual context might be needed
 - Claude can request `browser.screenshot(selector=".complex-widget")` as fallback for controls that can't be fully represented by DOM structure alone
+
+---
+
+## Concurrent Skill Execution Isolation (FM-16, FM-17, FM-02)
+
+When two or more skills execute simultaneously (e.g., triggered from different browser tabs or MCP sessions), all shared singleton state must be replaced with per-run scoped records.
+
+### Per-Run State Isolation (FM-16)
+
+- **Checkpoints** are stored under `runs/{runId}/checkpoint`, not a global `checkpoint` key.
+- **Alarms** use a per-run name `skill-heartbeat-{runId}` instead of one global heartbeat alarm.
+- **UI status channels** are scoped by `runId` so the sidebar can display independent status for each active run.
+- **Tab registry** is shared (global) but each run tracks its owned tab set in `tabDependencies`.
+
+### Per-Run Resume Mutex (FM-02)
+
+A `resumeOwner` record stored at `runs/{runId}/resumeOwner` contains a timestamp and the wake-up event type. Before any code path starts resuming a run (alarm wake, startup, reconnect handler), it must:
+1. Read `resumeOwner` — if a value exists and is < 30s old, abort this wake path.
+2. Write its own timestamp to `resumeOwner`.
+3. Proceed with resume.
+
+This prevents alarm-driven resume and reconnect-handler resume from running the same checkpoint concurrently.
+
+### Tab Leases (FM-17)
+
+Each tab can be exclusively leased to at most one active run. Leases are stored as `tabs/{tabId}/lease → runId`. Before any command targets a tab:
+1. Read the lease. If `lease !== null && lease !== currentRunId`, fail with `tab_leased_by_other_run` error.
+2. If lease is absent or owned by the current run, proceed.
+3. On run completion or failure, release all leases owned by that run.
+
+`switch_tab` must honor leases: resolving a tab by URL pattern also checks whether the matching tab is already leased.
+
+---
+
+## URL Injection Gate (FM-11, FM-12)
+
+Before every `chrome.scripting.executeScript` call, the **Injection Controller** must call `isInjectableUrl(url)`:
+
+```typescript
+const BLOCKED_SCHEMES = ['chrome:', 'chrome-extension:', 'devtools:', 'view-source:', 'about:', 'data:'];
+const BLOCKED_HOSTS = ['chrome.google.com']; // Chrome Web Store
+
+function isInjectableUrl(url: string): { injectable: boolean; reason?: string } {
+  try {
+    const parsed = new URL(url);
+    if (BLOCKED_SCHEMES.some(s => parsed.protocol.startsWith(s.replace(':', '')))) {
+      return { injectable: false, reason: 'unsupported_scheme' };
+    }
+    if (BLOCKED_HOSTS.includes(parsed.hostname)) {
+      return { injectable: false, reason: 'restricted_host' };
+    }
+    return { injectable: true };
+  } catch {
+    return { injectable: false, reason: 'invalid_url' };
+  }
+}
+```
+
+If `injectable` is false, return a typed `unsupported_page` result immediately — no retry, no Claude escalation. Frame injection errors (sandboxed frames, missing host permission for a subframe) are caught separately and mapped to `unsupported_frame`, `sandboxed_frame`, or `permission_denied` error codes, not surfaced as guard timeouts (FM-12).
+
+---
+
+## YAML Skill Parser Requirements (FM-25)
+
+The `.yeshie` YAML parser must use a **strict safe loader** with the following constraints enforced at parse time. Invalid files are rejected with line/column diagnostics:
+
+| Constraint | Rationale |
+|-----------|-----------|
+| Reject duplicate keys | Prevents silent last-wins behavior that obscures intent |
+| Disable custom tags (`!tag`) | Prevents unexpected type instantiation |
+| Limit alias expansion to depth 5, count 100 | Prevents alias bomb DoS |
+| Reject implicit dangerous coercions (e.g., `yes`/`no` → bool, `1.2.3` → string) | Use explicit quoting; YAML's permissive scalars cause subtle bugs |
+| Report parser `line`/`column` in error messages | Required for actionable user feedback |
+
+---
+
+## Skill Execution Budgets (FM-26)
+
+Every skill run is subject to global budget ceilings enforced by the executor. Budget counters are persisted in the checkpoint so limits survive restarts:
+
+| Budget | Constant | Default |
+|--------|----------|---------|
+| Total steps executed | `MAX_STEPS_PER_RUN` | 500 |
+| Total guard retries | `MAX_RETRIES_PER_RUN` | 50 |
+| Claude fix cycles (`skill_fix_step` calls) | `MAX_CLAUDE_FIXES_PER_RUN` | 20 |
+| Wall-clock duration | `MAX_WALL_CLOCK_MS` | 1,800,000 (30 min) |
+
+When a budget is exceeded, the executor fails the run with a `budget_exceeded` error identifying which ceiling was hit. The `call_skill` depth cap (5 levels) and direct recursion detection remain in place as additional guards.
+
+---
+
+## Job Registry for All Browser Actions (FM-20)
+
+FastMCP times out waiting for the browser while the extension may still be mid-execution. To prevent duplicate side effects from MCP retries, every browser action command is routed through the **job registry** once dispatch succeeds:
+
+- On successful emit to relay, create a job entry keyed by `commandId`.
+- If FastMCP times out before receiving a response, return `{ status: "in_progress", job_id: commandId }` instead of a hard timeout error (identical pattern to long-running skills).
+- Claude can poll `job_status(commandId)` to check completion.
+- If the extension later completes the action, store the result in the job entry.
+- Job entries expire after 5 minutes.
+
+This means **no browser action can produce a silent duplicate side effect from an MCP timeout** — the original command's result is always retrievable via `job_id`.
+
+### Command Cancellation (FM-21)
+
+When Claude or MCP abandons a job, a `cancel_command` message is sent to the extension. The extension:
+1. Attempts to cancel execution if the step has not yet started (pre-dispatch).
+2. If execution is already in progress, marks the command as **orphaned**; the extension quarantines any late result under the original `commandId` and does NOT apply it to the current run's state unless the run still owns that `commandId`.
 
 ---
 
@@ -1200,7 +1406,14 @@ interface YeshieMessage {
 - **`chrome.storage.local`:** Default quota is 10MB on Chrome 114+ (was 5MB on Chrome 113 and earlier). With `unlimitedStorage` permission, the `storage.local` byte quota is effectively removed.
 - **`readControls` output budget:** Summarize to <50KB per page. Complex pages with 500+ controls should be truncated with a "more available" indicator.
 - **Checkpoint data:** Minimal — step index, buffer keys, active tab ID. Not full DOM snapshots.
-- **Storage cleanup:** Prune stale checkpoints (>24h old) and chat history beyond retention limit on extension startup.
+- **Storage cleanup (FM-15):** On extension startup, run compaction:
+  - Prune run journals older than 24h.
+  - Prune stale checkpoints (>24h old) and completed run records (>1h old).
+  - Prune chat history beyond retention limit (last 100 messages per tab).
+  - Prune pending-command records with TTL expired.
+  - Prune per-run diagnostics blobs older than 1h.
+  - Emit telemetry counter for bytes reclaimed and records pruned.
+- **Per-keyspace retention caps (FM-15):** Tab registry versions: keep last 3 per tab. Run journals: keep last 20 completed runs. Session recovery metadata: keep last 10 sessions. Diagnostics blobs: keep last 50, capped at 500KB total.
 - **Socket.IO `maxHttpBufferSize`:** 1MB default. Messages exceeding this are rejected — `readPage(format='full')` must chunk or summarize.
 
 ### Performance
@@ -1215,10 +1428,21 @@ interface YeshieMessage {
 ### Failure Modes
 - **Relay unreachable:** Local commands and skill replay still work. Claude escalation shows offline status.
 - **Guard failure during replay:** Trigger recovery protocol (see Guard Failure Recovery section).
-- **Tab closed mid-task:** Background worker detects removal, cancels pending operations for that tab. If multi-tab skill, fail the skill with clear error identifying which tab closed.
+- **Tab closed mid-task:** Background worker detects removal, cancels pending operations for that tab. If multi-tab skill, fail the skill with clear error identifying which tab closed. If the closed tab is a *future dependency tab* (present in `tabDependencies` but not yet the active step), convert the stale reference into a resumable error before the next step reaches it (FM-05).
+- **Tab navigated during skill:** Reconcile against the per-step `expectedNavigation` contract (FM-04). Each step that triggers navigation records `{ initiatorStepId, allowedUrlPatterns, deadline }`. If `tabs.onUpdated` fires and the resulting URL matches `allowedUrlPatterns`, treat as expected. If no contract is set or the URL doesn't match, pause skill and alert user. This distinguishes expected redirects from user interference.
+- **Capability boundary (closed shadow DOM / cross-origin iframe):** Guard returns `capabilityBoundary: true` in diagnostics. Skip normal self-healing retry loop and send a hard error to Claude with specific boundary type (FM-23).
+- **Wrong frame / same-origin subframe:** When element is not found and `sameOriginFrameCount > 0`, emit `unsupported_frame` diagnostic before timing out so Claude receives an actionable boundary error, not a generic stale-selector failure (FM-12, FM-13).
+- **Unsupported page (chrome://, devtools://, chrome-extension://):** `isInjectableUrl()` gate blocks command before injection attempt and returns a deterministic `unsupported_page` error (FM-11).
 - **MCP server crash:** Claude Code handles reconnection. Extension state unaffected.
 - **Framework detection wrong:** Fall back to vanilla JS event dispatch.
-- **Service worker suspended:** Resume from checkpoint on wake-up.
+- **Service worker suspended:** Resume from checkpoint on wake-up (see Checkpoint Strategy).
+- **Extension reload / update during active skill (FM-18):** On `chrome.runtime.onInstalled`, reconstruct `runState` from checkpoint. If `runState` was `waiting_for_claude` or `waiting_for_user`, either restore the watchdog timer or cancel the escalation and surface cancellation explicitly. Do not treat reload as generic checkpoint resume.
+- **Buffer loss during suspension (FM-06):** Buffer mutations are flushed to the write-ahead journal before any `switch_tab` so they survive suspension.
+- **Storage write failure (FM-14):** Wrap all writes in typed error handling. If writes fail for any reason (disk full, enterprise policy, profile corruption), surface a fatal persistence error and block resumable skill execution.
+- **Concurrent skill tab contention (FM-17):** Two simultaneous runs targeting the same tab are blocked by a tab lease. Whichever run holds the lease proceeds; the other receives a conflict error and must wait or fail.
+- **Runaway skill (FM-26):** If any per-run budget ceiling is exceeded (`MAX_STEPS`, `MAX_RETRIES`, `MAX_CLAUDE_FIXES`, `MAX_WALL_CLOCK`), the executor terminates the run and reports which budget was exhausted.
+- **Post-install tabs missing content scripts (FM-22):** On `chrome.runtime.onInstalled`, enumerate all tabs matching host permissions and reinject or ping content scripts. Mark tabs that Chrome forbids injection into (pre-existing restricted pages) with a "needs reload" indicator.
+- **MCP server crash:** Claude Code handles reconnection. Extension state unaffected.
 
 ### Observability
 - **Extension:** `[Yeshie:bg]`, `[Yeshie:content]`, `[Yeshie:sidebar]` structured console logs.
@@ -1307,6 +1531,41 @@ yeshie/
 ---
 
 ## Review Integration Log
+
+### Rev 10 Changes (Codex R3 review integration)
+
+**From Codex R3 failure-mode review (28 findings: 5 CRITICAL, 16 HIGH, 7 MEDIUM):**
+
+| # | Finding | Severity | Action |
+|---|---------|----------|--------|
+| FM-01 | Service worker suspend between step dispatch and checkpoint — non-idempotent step replayed | **CRITICAL** | **Adopted**: Added write-ahead execution journal (`inFlight` field in checkpoint) with `phase: dispatched\|result_received\|checkpoint_committed`; resume logic reconciles journal before replaying. |
+| FM-02 | Alarm-driven resume races with reconnect-handler resume — double execution | HIGH | **Adopted**: Added per-run `resumeOwner` mutex in `chrome.storage.local`; all wake paths check and set it before resuming. |
+| FM-03 | Partial storage write leaves semantically mixed checkpoint | HIGH | **Adopted**: Two-phase checkpoint writes: write `checkpoint_tmp`, validate readback, then swap to `checkpoint`; added monotonic `version` and checksum fields. |
+| FM-04 | Cannot distinguish expected navigation from user interference during multi-step skills | HIGH | **Adopted**: Added per-step `expectedNavigation` contract (`initiatorStepId`, `allowedUrlPatterns`, `deadline`); `tabs.onUpdated` handler reconciles against contract before pausing. |
+| FM-05 | Non-active dependency tab closed before its `switch_tab` step | HIGH | **Adopted**: Added `tabDependencies` array to checkpoint; all `tabs.onRemoved`/`tabs.onUpdated` events validated against it; stale references converted to resumable errors. |
+| FM-06 | Service worker suspends after `store_to_buffer` but before checkpoint, losing buffer | MEDIUM | **Adopted**: Buffer mutations flushed to write-ahead journal before any `switch_tab` or long wait. |
+| FM-07 | Late response from pre-disconnect session matched to new pending request | **CRITICAL** | **Adopted**: Added `sessionEpoch` and `runId` to all command/response messages; both bridge and extension drop mismatched epochs. |
+| FM-08 | Socket.IO disconnect leaves FastMCP pending futures hanging | HIGH | **Adopted**: On `disconnect`, reject all unresolved pending futures immediately with typed `TransportDisconnectedError { retryable: true }`. |
+| FM-09 | Relay queues command; MCP retries; both execute when extension wakes | HIGH | **Adopted**: MCP retries reuse original `commandId`; relay deduplicates by `(clientId, commandId)` with TTL-based replay protection. |
+| FM-10 | Relay crashes after accepting command — ambiguous delivery | **CRITICAL** | **Adopted**: Relay maintains durable pending-command ledger with `accepted\|forwarded\|completed` ack stages; restored on restart. |
+| FM-11 | Command targets restricted page (chrome://, devtools://, Web Store) | HIGH | **Adopted**: Added `isInjectableUrl()` gate before every injection; returns `unsupported_page` error, no retry. |
+| FM-12 | executeScript fails in sandboxed/opaque-origin frame — looks like guard timeout | HIGH | **Adopted**: Frame injection errors caught separately; mapped to `unsupported_frame`, `sandboxed_frame`, or `permission_denied` codes, not guard timeout. |
+| FM-13 | Element exists in same-origin subframe — guard fails with generic error | MEDIUM | **Adopted**: `buildDiagnostics` now includes `sameOriginFrameCount`/`crossOriginFrameCount`; emits `unsupported_iframe` diagnostic before timeout when non-main-frame matches are plausible. |
+| FM-14 | `chrome.storage.local` writes fail from non-quota causes | HIGH | **Adopted**: Startup writability probe; all writes wrapped in typed error handling; fatal persistence error blocks resumable execution. |
+| FM-15 | Chat history/run journals/diagnostics accumulate without bound | MEDIUM | **Adopted**: Added per-keyspace retention caps and startup compaction rules (see Storage & Message Budgets). |
+| FM-16 | Concurrent skills share singleton checkpoint, alarm, and status UI | **CRITICAL** | **Adopted**: All per-run state moved to `runs/{runId}/` namespace; per-run alarms; per-run UI status channels; `SkillCheckpoint` gained `runId`. |
+| FM-17 | Simultaneous skills command the same tab — interleaved actions | HIGH | **Adopted**: Tab lease system (`tabs/{tabId}/lease → runId`); competing runs receive `tab_leased_by_other_run` error. |
+| FM-18 | Extension reloads while skill is waiting for Claude/user — state lost | HIGH | **Adopted**: Added `runState` and `lastKnownTransportState` to checkpoint; startup reconciles each state explicitly (restore timer or cancel escalation). |
+| FM-19 | Incompatible schema version on checkpoint/session restore | MEDIUM | **Adopted**: Added `schemaVersion` to checkpoints, run journals, session payloads; refuse resume on major version mismatch. |
+| FM-20 | FastMCP times out but extension later completes — duplicate side effects | **CRITICAL** | **Adopted**: Every browser action routed through job registry on successful dispatch; return `{ status: "in_progress", job_id }` on MCP timeout instead of hard error. |
+| FM-21 | Timed-out commands leave extension mid-execution with no cancellation path | HIGH | **Adopted**: Added `cancel_command` message and orphan tracking; late results quarantined unless run still owns the `commandId`. |
+| FM-22 | Pre-existing tabs lack content scripts after extension install/update | MEDIUM | **Adopted**: `chrome.runtime.onInstalled` handler enumerates injectable tabs and reinjects; marks restricted tabs as needing reload. |
+| FM-23 | Selector fails in closed shadow DOM / cross-origin iframe — escalated as stale selector | HIGH | **Adopted**: `GuardDiagnostics` extended with `likelyClosedShadowDom`, `likelyCrossOriginIframe`, `capabilityBoundary`; when `capabilityBoundary` is true, skip self-healing and send hard boundary error. |
+| FM-24 | Open shadow DOM element undetected by `document.body` observer | MEDIUM | **Adopted**: Guard fans out `MutationObserver` to discovered open shadow roots via `attachShadowObservers()`; deep-selector resolver walks open shadow trees. |
+| FM-25 | Malformed YAML in `.yeshie` files silently parsed into wrong skill shape | HIGH | **Adopted**: Strict safe loader: reject duplicate keys, custom tags, excessive alias expansion, implicit dangerous coercions; report line/column in errors. |
+| FM-26 | Infinite loop via `call_skill` chains or huge step counts | HIGH | **Adopted**: Per-run budget ceilings (`MAX_STEPS=500`, `MAX_RETRIES=50`, `MAX_CLAUDE_FIXES=20`, `MAX_WALL_CLOCK=30min`) persisted in checkpoint; run terminated with `budget_exceeded` error on breach. |
+| FM-27 | Extension reloads while escalation outstanding — escalation lost | MEDIUM | **Adopted**: `escalationState` persisted in checkpoint with target, deadline, failed step, and correlation IDs; startup restores timer or cancels cleanly. |
+| FM-28 | Relay restores session but not queued in-flight messages | HIGH | **Adopted**: Session restore returns pending command list; both MCP and extension reconcile orphaned commands. |
 
 ### Rev 9 Changes (Codex R2 review integration)
 
