@@ -1,4 +1,4 @@
-# Yeshie — Flywheel Phase 0 Specification (Rev 9)
+# Yeshie — Flywheel Phase 0 Specification (Rev 11)
 
 ## Product Vision
 
@@ -90,12 +90,12 @@ When a task requires actions across multiple tabs (e.g., copy data from Tab A, p
 1. The composed script includes **page-change markers** — directives that tell the Stepper to switch tab context.
 2. The Stepper maintains a pointer to the "active tab" for each step in the sequence.
 3. Page-change steps include guards that verify the target tab is loaded and ready before proceeding.
-4. **Inter-tab data passing:** Skills can define shared variables via `store_to_buffer(key, value)`. The buffer is held in the background worker's memory (not `chrome.storage`, to avoid conflicts between concurrent skills). On `switch_tab`, the buffer carries over. Variables are accessible in subsequent steps as `{{buffer.key}}`.
+4. **Inter-tab data passing:** Any step can store its result into a shared buffer via the `store_to_buffer` attribute (a key name). The buffer is held in the background worker's memory (not `chrome.storage`, to avoid conflicts between concurrent skills). On `switch_tab`, the buffer carries over. Variables are accessible in subsequent steps as `{{buffer.key}}`.
 5. Format in `.yeshie` skill files:
    ```yaml
-   - action: store_to_buffer
-     key: issue_title
-     value: "{{read_result}}"
+   - action: read
+     selector: "#issue_title"
+     store_to_buffer: "issue_title"
    - action: switch_tab
      pattern: "*.jira.com"
      guard: { url_contains: "jira.com" }
@@ -103,6 +103,7 @@ When a task requires actions across multiple tabs (e.g., copy data from Tab A, p
      selector: "#summary"
      value: "{{buffer.issue_title}}"
    ```
+   Note: `store_to_buffer` is a **step attribute** (usable on any action type), not a separate action. It stores the step's `result` value into the named buffer key.
 
 ### Workflow 6: Remote Control via WebSocket
 
@@ -144,8 +145,8 @@ When a task requires actions across multiple tabs (e.g., copy data from Tab A, p
 │              (Node.js — Contabo VPS)                                 │
 │                vpsmikewolf.duckdns.org                                │
 │                                                                      │
-│  Pure relay. No business logic.                                      │
-│  Session registry, message routing, reconnect support.               │
+│  Message relay with durable command tracking.                        │
+│  Session registry, routing, reconnect, pending-command ledger.       │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │ Socket.IO (WebSocket transport)
                                ▼
@@ -184,7 +185,7 @@ When a task requires actions across multiple tabs (e.g., copy data from Tab A, p
 |-----------|:-:|:-:|---|
 | Claude (via MCP) | Yes | Yes (conversation) | Reasons about tasks, composes scripts, drives automation |
 | MCP Server | No | No | Pure translator: MCP calls ↔ Socket.IO messages |
-| Relay Server | No | Minimal (session registry) | Pure message router between connected clients |
+| Relay Server | No | Yes (session registry, command ledger) | Message relay with durable command tracking (FM-10) |
 | Background Worker | Limited | Yes (tab registry, skill execution, checkpoints) | Routes messages, executes learned skills without Claude |
 | Content Script | No | No (per-page lifecycle) | Instruments DOM, executes commands, reports results |
 
@@ -201,6 +202,8 @@ When a multi-step learned skill is being replayed, the **extension background wo
 **Yeshie uses two execution paths:**
 
 **Path 1 — Structured commands (primary):** Claude sends structured data (selector, action type, expected state, params) via MCP tools. The extension maps these to **pre-bundled functions** — the guard library, event simulator, and all standard actions are compiled into the extension at build time. Execution uses `chrome.scripting.executeScript({ func: prebuiltFunction, args: [selector, state, params] })`.
+
+**Build-time bundling:** Each bundled function (e.g., `guardedClick`, `guardedType`) must be entirely self-contained — no imports, no closures over module scope — because `chrome.scripting.executeScript({ func })` serializes the function in isolation. Shared helpers (MutationObserver guard, framework detection, event dispatch, diagnostics builder) must be inlined into each function. Use a Vite plugin or pre-build script to concatenate shared helper modules into each bundled function with tree-shaking, avoiding ~350+ lines of manual duplication per function across 7+ bundled entry points.
 
 **Path 2 — Arbitrary JS escape hatch:** For cases where Claude needs to compose custom logic, use `chrome.userScripts.execute()` (Chrome 135+, March 2025). This API explicitly allows `{js: [{code: "..."}]}` but requires the `userScripts` permission and either Developer mode (Chrome <138) or the per-extension "Allow User Scripts" toggle (Chrome 138+). Acceptable for developer sideloading.
 
@@ -809,7 +812,7 @@ const BLOCKED_HOSTS = ['chrome.google.com']; // Chrome Web Store
 function isInjectableUrl(url: string): { injectable: boolean; reason?: string } {
   try {
     const parsed = new URL(url);
-    if (BLOCKED_SCHEMES.some(s => parsed.protocol.startsWith(s.replace(':', '')))) {
+    if (BLOCKED_SCHEMES.some(s => parsed.protocol === s || parsed.protocol === s.replace(':', ''))) {
       return { injectable: false, reason: 'unsupported_scheme' };
     }
     if (BLOCKED_HOSTS.includes(parsed.hostname)) {
@@ -1040,6 +1043,13 @@ async def knowledge_query(site: str, topic: str | None = None) -> dict:
     """Query the Obsidian vault for knowledge about a website.
     Returns site documentation, known DOM patterns, and available skills."""
     ...
+
+@mcp.tool()
+async def rebuild_skill_index() -> dict:
+    """Regenerate skills-index.json by scanning all .yeshie files in the vault.
+    Use when the index is missing, corrupted, or out of sync after manual
+    vault edits or git merge conflicts. Returns count of indexed skills."""
+    ...
 ```
 
 ---
@@ -1147,6 +1157,26 @@ steps:
     timeout: 10000
 ```
 
+### Supported Step Actions
+
+| Action | Description | Key fields |
+|--------|-------------|------------|
+| `navigate` | Navigate tab to URL | `url`, `guard` |
+| `click` | Click an element | `selector`, `guard` |
+| `type` | Type into input/textarea/contenteditable | `selector`, `value`, `guard` |
+| `hover` | Hover over element | `selector`, `guard` |
+| `scroll` | Scroll element into view or to position | `selector`, `guard` |
+| `select` | Select dropdown option / toggle checkbox/radio | `selector`, `value`, `guard` |
+| `wait_for` | Wait for element to reach state | `selector`, `timeout`, `guard` |
+| `read` | Read text content | `selector` |
+| `screenshot` | Capture viewport or element | `selector` |
+| `switch_tab` | Switch active tab context | `pattern` (URL glob) or `tab_id` |
+| `call_skill` | Invoke a sub-skill | `name`, `params` |
+| `assert` | Assert element text content | `selector`, `value` (expected text) |
+| `js` | Execute arbitrary JavaScript | `code` |
+
+All actions support optional `store_to_buffer` (key name to store result), `condition` (truthy check), `dynamic` (skip pre-flight check), and `guard` attributes.
+
 ### Skill Parameter Interpolation
 
 Parameter placeholders (`{{param_name}}`) are resolved in two phases:
@@ -1197,7 +1227,10 @@ steps:
     name: "common/github-login"
     params:
       username: "{{github_user}}"
-    on_already_logged_in: skip    # Skip if precondition already met
+    precondition:
+      selector: ".user-avatar"
+      state: { visible: true }
+    on_precondition_met: skip    # Skip sub-skill if precondition already satisfied
 
   - action: navigate
     url: "{{repo_url}}/issues/new"
@@ -1207,6 +1240,7 @@ steps:
 The `call_skill` action:
 - Resolves the skill name against the vault's `skills-index.json`
 - Passes params from the parent skill's scope
+- **Precondition check:** If `precondition` is defined (a `GuardSpec`-like object), the Stepper checks if the condition is already met before invoking the sub-skill. If met and `on_precondition_met: skip`, the sub-skill is skipped entirely. This handles common patterns like "skip login if already logged in" without hardcoding specific conditions.
 - Returns the sub-skill's buffer values to the parent scope (merged; on key collision, sub-skill values take precedence — sub-skills should namespace buffer keys like `login_session_token` to avoid unintended collisions)
 - If the sub-skill fails, the parent skill's guard failure recovery triggers
 - **Cycle detection:** The Stepper tracks the call stack and rejects recursive calls (max depth: 5)
@@ -1249,7 +1283,7 @@ This separation ensures the user can curate context freely without corrupting th
 
 ```typescript
 interface YeshieMessage {
-  id: string;              // UUID for request/response correlation
+  id: string;              // UUID for request/response correlation (also serves as commandId)
   from: 'content' | 'background' | 'mcp' | 'relay' | 'client';
   to: 'content' | 'background' | 'mcp' | 'relay' | 'client';
   op: string;              // Operation name
@@ -1260,6 +1294,9 @@ interface YeshieMessage {
   error?: string;          // Error message if failed
   diagnostics?: object;    // Rich error context (guard failures, etc.)
   timestamp: number;       // Unix ms
+  // Epoch & correlation fields (FM-07, FM-09)
+  sessionEpoch?: number;   // Monotonic counter, incremented on each new relay session
+  runId?: string;          // Originating skill run ID (for command deduplication and correlation)
 }
 ```
 
@@ -1447,7 +1484,6 @@ interface YeshieMessage {
 - **Post-install tabs missing content scripts (FM-22):** On `chrome.runtime.onInstalled`, enumerate all tabs matching host permissions and reinject or ping content scripts. Mark tabs that Chrome forbids injection into (pre-existing restricted pages) with a "needs reload" indicator.
 - **Storage write race condition (FM-29):** All `chrome.storage.local` writes use key-level atomic sets (`{ [specificKey]: value }`). Read-modify-write patterns on shared keys are prohibited for async paths. Multi-key transactional writes use a storage mutex.
 - **Multi-window tab focus interference (FM-30):** `switch_tab` resolution includes `windowId` constraints when context is available. Tab queries for skill execution use `lastFocusedWindow: true` fallback rather than `currentWindow: true`.
-- **MCP server crash:** Claude Code handles reconnection. Extension state unaffected.
 
 ### Observability
 - **Extension:** `[Yeshie:bg]`, `[Yeshie:content]`, `[Yeshie:sidebar]` structured console logs.
@@ -1536,6 +1572,35 @@ yeshie/
 ---
 
 ## Review Integration Log
+
+### Rev 11 Changes (Claude R4 ultrathink review integration)
+
+**From Claude R4 review (22 findings: 2 CRITICAL, 8 HIGH, 7 MEDIUM, 5 LOW):**
+
+| # | Finding | Severity | Action |
+|---|---------|----------|--------|
+| C4-01 | Python SkillCheckpoint Pydantic model missing 15 fields from FM integrations | **CRITICAL** | **Deferred to plan**: Python model sync is a plan-level fix (§6.2). Spec interfaces are canonical. |
+| C4-02 | Plan GuardDiagnostics missing FM-13/FM-23 fields | HIGH | **Deferred to plan**: Plan §6.1.3 must sync with spec's GuardDiagnostics. |
+| C4-03 | StepExecutionResult type mismatch (missing stepId, guardPassed; wrong mutation type) | HIGH | **Deferred to plan**: Plan's interface must match spec's canonical version. |
+| C4-04 | `sessionEpoch` and `runId` not in YeshieMessage interface despite FM-07 mandate | HIGH | **Adopted**: Added `sessionEpoch` and `runId` fields to `YeshieMessage` interface. |
+| C4-05 | Plan storage layout table uses global `checkpoint` key instead of per-run `runs/{runId}/` | HIGH | **Deferred to plan**: Plan §6.3 table must reflect FM-16 per-run namespacing. |
+| C4-06 | `resumeOwner` mutex code has TOCTOU race violating FM-29 | **CRITICAL** | **Deferred to plan**: Plan §7.9 code must use optimistic CAS lock pattern instead of read-then-write. |
+| C4-07 | `send_and_wait` code ignores FM-08 (fast-fail on disconnect) and FM-20 (job registry) | HIGH | **Deferred to plan**: Plan §7.6 code must implement TransportDisconnectedError and job registry. |
+| C4-08 | `store_to_buffer` used as action type in spec but as step attribute in plan | HIGH | **Adopted**: Changed spec Workflow 5 to use attribute form (`store_to_buffer` on any step). Documented as step attribute, not action type. |
+| C4-09 | Spec header/footer still says Rev 9 | MEDIUM | **Fixed**: Updated to Rev 11. |
+| C4-10 | Navigation handler uses unscoped `runId` in global listener | MEDIUM | **Deferred to plan**: Plan §7.10 code must iterate all active runs. |
+| C4-11 | Duplicate "MCP server crash" entry in Failure Modes | LOW | **Fixed**: Removed duplicate. |
+| C4-12 | Python `YeshieMessage.from_` field alias doesn't work in Pydantic v2 | MEDIUM | **Deferred to plan**: Must use `Field(alias="from")`. |
+| C4-13 | Plan claims "~200 sub-beads" but has 121 | LOW | **Deferred to plan**: Update count. |
+| C4-14 | Bundled guard function size/duplication not addressed | MEDIUM | **Adopted**: Added build-time bundling note to Command Execution Architecture. |
+| C4-15 | `isInjectableUrl` scheme check uses imprecise prefix match | LOW | **Fixed**: Changed to exact protocol match. |
+| C4-16 | Missing `scroll`, `select`, `assert` actions in SkillStep | MEDIUM | **Adopted**: Added Supported Step Actions table to Skill System section. |
+| C4-17 | Socket.IO auth token fetch timing on SW wake not specified | MEDIUM | **Deferred to plan**: Background worker init sequence needs explicit async token fetch. |
+| C4-18 | `on_already_logged_in: skip` has no implementation spec | MEDIUM | **Adopted**: Generalized to `precondition` field with GuardSpec-like check on `call_skill`. |
+| C4-19 | Plan header references Rev 9 | LOW | **Deferred to plan**: Update to Rev 11. |
+| C4-20 | Relay described as "pure relay, no business logic" but FM-10 requires durable ledger | HIGH | **Adopted**: Updated architecture diagram and design table to acknowledge relay statefulness. |
+| C4-21 | Missing `rebuild_skill_index` MCP tool definition | LOW | **Adopted**: Added tool definition. |
+| C4-22 | Plan bead time estimate summary counts don't match actual | LOW | **Deferred to plan**: Reconcile summary. |
 
 ### Rev 10 Changes (Codex R3 review integration)
 
@@ -1739,5 +1804,5 @@ This specification is ready for Flywheel Phase 1 (Planning Orchestrator). The pl
 ---
 
 *Generated via Flywheel Phase 0 — Requirement Extraction & Refinement*
-*Revision: 9 — Codex R2 6 findings + Gemini R2 6 findings integrated. Total: 7 review rounds, 69 findings addressed. Previous: Claude R3 14 + R1 31 + R2 + Codex R1 7 + Gemini R1 11.*
-*Date: 2026-03-25*
+*Revision: 11 — Claude R4 22 findings integrated. Total: 10 review rounds, ~120 findings addressed. Previous: Rev 10 (Codex R3 28 FM findings + Gemini R3 7), Rev 9 (Codex R2 6 + Gemini R2 6), Rev 7–8, Rev 4–6.*
+*Date: 2026-03-26*

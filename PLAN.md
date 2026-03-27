@@ -1,6 +1,6 @@
 # Yeshie Implementation Plan
 
-**Source specification:** YESHIE-SPECIFICATION.md Rev 9
+**Source specification:** SPECIFICATION.md Rev 11
 **Generated:** 2026-03-25
 **Methodology:** Flywheel Phase 1 — Planning Orchestrator
 **Target:** Exhaustive implementation plan (3,500–6,000 lines). Implementation should be mechanical after reading this document.
@@ -1156,7 +1156,13 @@ export interface GuardDiagnostics {
   elementEnabled: boolean | null;
   elementText: string | null;      // First 100 chars
   iframeCount: number;
+  sameOriginFrameCount: number;    // FM-13: element may be in a same-origin subframe
+  crossOriginFrameCount: number;   // FM-13: cross-origin frames are inaccessible
   similarElements: SimilarElement[];
+  // Capability boundary flags (FM-23) — bypass self-healing retries when true
+  likelyClosedShadowDom: boolean;
+  likelyCrossOriginIframe: boolean;
+  capabilityBoundary: boolean;     // true → skip Claude fix loop, report hard error
   expectedState: GuardSpec['state'];
 }
 ```
@@ -1167,13 +1173,21 @@ export interface GuardDiagnostics {
 // packages/shared/src/commands.ts
 
 export interface StepExecutionResult {
+  stepId: string;                  // Correlation ID (matches command ID for FM-01 journal)
   success: boolean;
+  guardPassed: boolean;            // Did guard verify element before action?
   selector?: string;
   result?: unknown;                // Action-specific return value
   error?: string;
   diagnostics?: GuardDiagnostics;
-  duration_ms: number;
-  mutations_observed?: number;     // DOM mutations during execution
+  durationMs: number;
+  mutationsSeen?: Array<{          // DOM changes during execution
+    type: 'childList' | 'attributes' | 'characterData';
+    target: string;                // Selector of mutated element
+    addedNodes?: number;
+    removedNodes?: number;
+  }>;
+  mutationsCount?: number;         // Quick count for budget checks
 }
 ```
 
@@ -1272,7 +1286,7 @@ The MCP server maintains equivalent Pydantic models in `yeshie_mcp/types.py`. Th
 
 ```python
 # yeshie_mcp/types.py
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, Any
 from enum import Enum
 
@@ -1285,7 +1299,7 @@ class MessageSender(str, Enum):
 
 class YeshieMessage(BaseModel):
     id: str
-    from_: MessageSender  # 'from' is reserved in Python
+    from_: MessageSender = Field(alias="from")  # 'from' is reserved in Python
     to: MessageSender
     op: str
     tab_id: Optional[int] = None
@@ -1295,12 +1309,12 @@ class YeshieMessage(BaseModel):
     error: Optional[str] = None
     diagnostics: Optional[dict] = None
     timestamp: int
+    # Epoch & correlation fields (FM-07, FM-09)
+    session_epoch: Optional[int] = None   # Monotonic counter per relay session
+    run_id: Optional[str] = None          # Originating skill run ID
 
     class Config:
-        populate_by_name = True
-        json_schema_extra = {
-            "field_aliases": {"from_": "from"}
-        }
+        populate_by_name = True  # Allows both 'from' and 'from_' in Python code
 
 class GuardSpec(BaseModel):
     selector: str
@@ -1338,15 +1352,46 @@ class SkillFile(BaseModel):
     params: list[SkillParam] = []
     steps: list[SkillStep]
 
-class SkillCheckpoint(BaseModel):
-    skill_name: str
+class InFlightStep(BaseModel):
+    """Write-ahead journal entry for exactly-once execution (FM-01)."""
     step_index: int
+    attempt: int
+    phase: str  # 'dispatched' | 'result_received' | 'checkpoint_committed'
+    dispatched_at: int
+
+class EscalationState(BaseModel):
+    """Persisted escalation state for reload recovery (FM-27)."""
+    target: str  # 'claude' | 'user'
+    failed_step_index: int
+    pending_command_id: Optional[str] = None
+    deadline: int  # Unix ms
+    correlation_id: str
+
+class SkillCheckpoint(BaseModel):
+    # Identity & versioning (FM-01, FM-16, FM-19)
+    run_id: str                     # UUID — unique per execution; stored at runs/{run_id}/checkpoint
+    schema_version: int = 1         # Increment on breaking changes; refuse resume on major mismatch
+    skill_name: str
+    step_index: int                 # Last COMMITTED completed step
     total_steps: int
     buffer: dict = {}
     active_tab_id: int
-    call_stack: list[str] = []
+    tab_dependencies: list[int] = []  # All tab IDs this run needs (FM-05)
+    call_stack: list[str] = []      # Parent skill names for nested call_skill
     started_at: int
     last_checkpoint: int
+    # Write-ahead journal for exactly-once semantics (FM-01)
+    in_flight: Optional[InFlightStep] = None
+    # Per-run budget counters — persist so limits survive restarts (FM-26)
+    steps_executed: int = 0         # Cap: MAX_STEPS_PER_RUN = 500
+    total_retries: int = 0          # Cap: MAX_RETRIES_PER_RUN = 50
+    claude_fix_cycles: int = 0      # Cap: MAX_CLAUDE_FIXES_PER_RUN = 20
+    wall_clock_ms: int = 0          # Cap: MAX_WALL_CLOCK_MS = 1_800_000 (30 min)
+    # Escalation state (FM-27)
+    escalation_state: Optional[EscalationState] = None
+    # Reload recovery state machine (FM-18)
+    run_state: str = 'executing'    # 'executing' | 'waiting_for_claude' | 'waiting_for_user' | 'suspended'
+    last_known_transport_state: str = 'unknown'  # 'connected' | 'disconnected' | 'unknown'
 
 class SkillIndexEntry(BaseModel):
     skill_name: str
@@ -1361,13 +1406,18 @@ class SkillIndexEntry(BaseModel):
 
 **`chrome.storage.local` keys:**
 
-| Key | Type | Purpose | Cleanup |
-|-----|------|---------|---------|
+| Key Pattern | Type | Purpose | Cleanup |
+|-------------|------|---------|---------|
 | `relay_token` | string | Pre-shared auth token | Never (user-managed) |
 | `relay_url` | string | Relay server URL | Never (user-managed) |
 | `session_id` | string | Current relay session ID | On session expiry |
+| `session_epoch` | number | Monotonic session counter (FM-07) | Never (only increments) |
 | `tab_registry` | Record<number, TabInfo> | Active tab tracking | Pruned on startup |
-| `checkpoint` | SkillCheckpoint \| null | Active skill execution state | Cleared on completion or >24h stale |
+| `runs/{runId}/checkpoint` | SkillCheckpoint | Per-run execution state (FM-16) | Cleared on completion or >24h stale |
+| `runs/{runId}/checkpoint_tmp` | SkillCheckpoint | Two-phase write staging (FM-03) | Cleared after commit or on startup |
+| `runs/{runId}/resumeOwner` | `{ timestamp, lockId }` | Per-run resume mutex (FM-02) | Cleared with run |
+| `runs/{runId}/expectedNavigation` | ExpectedNavigation | Navigation attribution (FM-04) | Cleared after navigation resolves |
+| `tabs/{tabId}/lease` | string (runId) | Tab lease for concurrency (FM-17) | Released on run completion |
 | `chat_history_{tabId}` | ChatMessage[] | Last 100 messages per tab | Pruned on startup (>100 messages) |
 | `settings` | UserSettings | User preferences | Never |
 | `safe_domains` | string[] | Allowed cross-domain navigation | Never (user-managed) |
@@ -1600,35 +1650,70 @@ io.on('connection', (socket) => {
 
 ### 7.6 MCP Server Error Handling
 
-**Socket.IO disconnection:**
+**Socket.IO disconnection (FM-08: fast-fail all pending futures):**
 ```python
 @sio.event
 async def disconnect():
-    logger.warning("Disconnected from relay. Reconnecting...")
+    logger.warning("Disconnected from relay. Rejecting all pending futures...")
+    ctx = self.lifespan_context
+    # FM-08: Immediately reject ALL unresolved pending futures
+    for cmd_id, future in list(ctx["pending"].items()):
+        if not future.done():
+            future.set_exception(TransportDisconnectedError(
+                command_id=cmd_id, retryable=True,
+                message="Socket.IO disconnected — transport dead"
+            ))
+    ctx["pending"].clear()
     # python-socketio handles reconnection automatically
-    # Tool calls during disconnection return error:
-    # { "error": "Extension unreachable — relay disconnected", "retry": true }
+
+class TransportDisconnectedError(Exception):
+    def __init__(self, command_id: str, retryable: bool, message: str):
+        super().__init__(message)
+        self.command_id = command_id
+        self.retryable = retryable
 ```
 
-**Tool call timeout:**
+**Tool call timeout + job registry (FM-20):**
 ```python
+# Job registry — stores results of in-flight commands for later retrieval
+job_registry: dict[str, dict] = {}  # command_id → { status, result, expires_at }
+
 async def send_and_wait(message: YeshieMessage, timeout: float = 30.0) -> dict:
     """Send a message to the extension and wait for the response."""
     future = asyncio.get_event_loop().create_future()
     ctx = self.lifespan_context
     ctx["pending"][message.id] = future
 
-    await ctx["sio"].emit("yeshie:command", message.model_dump())
+    await ctx["sio"].emit("yeshie:command", message.model_dump(by_alias=True))
+
+    # FM-20: Register in job registry on successful dispatch
+    job_registry[message.id] = {
+        "status": "in_progress",
+        "dispatched_at": time.time(),
+        "expires_at": time.time() + 300  # 5 min TTL
+    }
 
     try:
         result = await asyncio.wait_for(future, timeout=timeout)
+        job_registry[message.id] = {
+            "status": "completed", "result": result,
+            "expires_at": time.time() + 300
+        }
         return result
     except asyncio.TimeoutError:
-        del ctx["pending"][message.id]
+        ctx["pending"].pop(message.id, None)
+        # FM-20: Return in_progress with job_id instead of hard error
         return {
-            "error": f"Extension did not respond within {timeout}s",
-            "retry": True,
-            "hint": "The extension's service worker may be suspended. Try again — it will wake on the next attempt."
+            "status": "in_progress",
+            "job_id": message.id,
+            "hint": "Extension still executing. Poll job_status(job_id) for result."
+        }
+    except TransportDisconnectedError as e:
+        ctx["pending"].pop(message.id, None)
+        return {
+            "error": str(e),
+            "retryable": e.retryable,
+            "command_id": e.command_id
         }
 ```
 
@@ -1704,31 +1789,39 @@ const RUN_ALARM_NAME = (runId: string) => `skill-heartbeat-${runId}`;
 const TAB_LEASE_KEY = (tabId: number) => `tabs/${tabId}/lease`;
 ```
 
-**Resume mutex:**
+**Resume mutex (optimistic CAS — avoids TOCTOU race per FM-29):**
 ```typescript
 async function acquireResumeLock(runId: string): Promise<boolean> {
   const key = RUN_RESUME_OWNER_KEY(runId);
-  const existing = await chrome.storage.local.get(key);
-  const owner = existing[key];
-  if (owner && (Date.now() - owner.timestamp) < 30_000) {
-    return false; // Another wake path owns this run
+  const lockId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  // Step 1: Write our lock claim unconditionally
+  await chrome.storage.local.set({ [key]: { timestamp: Date.now(), lockId } });
+  // Step 2: Read back immediately — whoever's lockId is stored won the race
+  const readback = await chrome.storage.local.get(key);
+  if (readback[key]?.lockId === lockId) {
+    return true; // We won the race
   }
-  await chrome.storage.local.set({ [key]: { timestamp: Date.now() } });
-  return true;
+  // Another path wrote after us — they own the lock
+  // Check if their lock is stale (>30s old)
+  if (readback[key] && (Date.now() - readback[key].timestamp) > 30_000) {
+    // Stale lock — try again (recursive, max 1 retry)
+    await chrome.storage.local.set({ [key]: { timestamp: Date.now(), lockId } });
+    const retry = await chrome.storage.local.get(key);
+    return retry[key]?.lockId === lockId;
+  }
+  return false;
 }
 ```
 
-**Tab lease acquisition:**
+**Tab lease acquisition (optimistic CAS — avoids TOCTOU race per FM-29):**
 ```typescript
 async function acquireTabLease(tabId: number, runId: string): Promise<boolean> {
   const key = TAB_LEASE_KEY(tabId);
-  const existing = await chrome.storage.local.get(key);
-  const currentLease = existing[key];
-  if (currentLease && currentLease !== runId) {
-    return false; // Tab leased by another run
-  }
+  // Step 1: Write our lease claim
   await chrome.storage.local.set({ [key]: runId });
-  return true;
+  // Step 2: Read back — if our runId is stored, we won
+  const readback = await chrome.storage.local.get(key);
+  return readback[key] === runId;
 }
 
 async function releaseAllTabLeases(runId: string, tabIds: number[]): Promise<void> {
@@ -1758,17 +1851,22 @@ await chrome.storage.local.set({
   [`runs/${runId}/expectedNavigation`]: contract
 });
 
-// In tabs.onUpdated handler
+// In tabs.onUpdated handler — iterates ALL active runs (C4-10)
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status !== 'complete') return;
-  const stored = await chrome.storage.local.get(`runs/${runId}/expectedNavigation`);
-  const contract: ExpectedNavigation = stored[`runs/${runId}/expectedNavigation`];
-  if (contract && urlMatchesPatterns(tab.url, contract.allowedUrlPatterns)) {
-    // Expected navigation — clear contract, continue skill
-    await chrome.storage.local.remove(`runs/${runId}/expectedNavigation`);
-  } else if (skillIsRunning(runId, tabId)) {
-    // Unexpected navigation — pause skill, alert user
-    await pauseRunWithAlert(runId, 'unexpected_navigation', tab.url);
+  const activeRuns = await getActiveRuns();
+  for (const run of activeRuns) {
+    if (run.activeTabId !== tabId) continue;
+    const navKey = `runs/${run.runId}/expectedNavigation`;
+    const stored = await chrome.storage.local.get(navKey);
+    const contract: ExpectedNavigation = stored[navKey];
+    if (contract && urlMatchesPatterns(tab.url!, contract.allowedUrlPatterns)) {
+      // Expected navigation — clear contract, continue skill
+      await chrome.storage.local.remove(navKey);
+    } else if (run.runState === 'executing') {
+      // Unexpected navigation — pause skill, alert user
+      await pauseRunWithAlert(run.runId, 'unexpected_navigation', tab.url!);
+    }
   }
 });
 ```
@@ -3771,23 +3869,23 @@ Each bead is an independently testable unit of work. Beads are described at a le
 
 ## 10b. Fine-Grained Bead Decomposition
 
-The 17 coarse beads above are decomposed into ~200 sub-beads, each representing ~2 minutes of LLM agent work. This follows Jeffrey Emanuel's Flywheel methodology: beads should number in the hundreds to thousands to ensure proper granularity for agent-driven delivery.
+The 17 coarse beads above are decomposed into 124 sub-beads, each representing ~2 minutes of LLM agent work. This follows Jeffrey Emanuel's Flywheel methodology: beads should be fine-grained enough for mechanical agent-driven delivery.
 
-**Time estimate updates** (replacing human-hour estimates):
-- Bead (a): LLM agent estimate: 16 minutes (8 sub-beads × ~2 min each)
+**Time estimate updates** (replacing human-hour estimates, reconciled with actual sub-bead definitions — C4-22):
+- Bead (a): LLM agent estimate: 22 minutes (11 sub-beads × ~2 min each)
 - Bead (b): LLM agent estimate: 12 minutes (6 sub-beads × ~2 min each)
-- Bead (c): LLM agent estimate: 20 minutes (10 sub-beads × ~2 min each)
+- Bead (c): LLM agent estimate: 16 minutes (8 sub-beads × ~2 min each)
 - Bead (d): LLM agent estimate: 14 minutes (7 sub-beads × ~2 min each)
 - Bead (e): LLM agent estimate: 18 minutes (9 sub-beads × ~2 min each)
-- Bead (f): LLM agent estimate: 14 minutes (7 sub-beads × ~2 min each)
+- Bead (f): LLM agent estimate: 16 minutes (8 sub-beads × ~2 min each)
 - Bead (g): LLM agent estimate: 18 minutes (9 sub-beads × ~2 min each)
 - Bead (h): LLM agent estimate: 14 minutes (7 sub-beads × ~2 min each)
 - Bead (i): LLM agent estimate: 12 minutes (6 sub-beads × ~2 min each)
 - Bead (j): LLM agent estimate: 14 minutes (7 sub-beads × ~2 min each)
-- Bead (k): LLM agent estimate: 18 minutes (9 sub-beads × ~2 min each)
+- Bead (k): LLM agent estimate: 16 minutes (8 sub-beads × ~2 min each)
 - Bead (l): LLM agent estimate: 18 minutes (9 sub-beads × ~2 min each)
-- Bead (m): LLM agent estimate: 10 minutes (5 sub-beads × ~2 min each)
-- Bead (n): LLM agent estimate: 12 minutes (6 sub-beads × ~2 min each)
+- Bead (m): LLM agent estimate: 12 minutes (6 sub-beads × ~2 min each)
+- Bead (n): LLM agent estimate: 14 minutes (7 sub-beads × ~2 min each)
 - Bead (o): LLM agent estimate: 8 minutes (4 sub-beads × ~2 min each)
 - Bead (p): LLM agent estimate: 10 minutes (5 sub-beads × ~2 min each)
 - Bead (q): LLM agent estimate: 14 minutes (7 sub-beads × ~2 min each)
@@ -4221,8 +4319,8 @@ The 17 coarse beads above are decomposed into ~200 sub-beads, each representing 
 **i.1** Create Socket.IO client setup and connection handler
 - Parent: (i)
 - Depends: h
-- Task: Create `packages/extension/src/lib/websocket-client.ts`. Implement `connectToRelay()` function. Read relay_url and relay_token from `chrome.storage.local`. Initialize Socket.IO client with auth, reconnection settings, websocket transport. Register event listeners: connect, disconnect, yeshie:command, yeshie:session_restored, yeshie:new_session. Return socket instance.
-- Done: Socket.IO client connects to relay, no auth errors, event listeners registered
+- Task: Create `packages/extension/src/lib/websocket-client.ts`. Implement `connectToRelay()` function. **Init sequence (C4-17): (1) await chrome.storage.local.get for relay_url and relay_token — these are async and must resolve before any connection attempt; (2) validate both values are non-empty strings; (3) only then initialize Socket.IO client with auth, reconnection settings, websocket transport.** Register event listeners: connect, disconnect, yeshie:command, yeshie:session_restored, yeshie:new_session. Return socket instance. If token fetch fails, log error and do NOT attempt connection (prevents unauthenticated connect loops).
+- Done: Socket.IO client connects to relay only after token is resolved, no auth errors, event listeners registered
 
 **i.2** Implement session management (restore, new, context)
 - Parent: (i)
@@ -4608,15 +4706,15 @@ The 17 coarse beads above are decomposed into ~200 sub-beads, each representing 
 
 ## Time Estimate Summary
 
-Total estimated LLM agent time: **~200 sub-beads × 2 minutes = 400 minutes (6.7 hours)**
+Total estimated LLM agent time: **124 sub-beads × 2 minutes = 248 minutes (~4.1 hours)**
 
-This is broken into:
-- Bead (a): 8 sub-beads = 16 min
+This is broken into (reconciled with actual sub-bead definitions — C4-22):
+- Bead (a): 11 sub-beads = 22 min
 - Bead (b): 6 sub-beads = 12 min
-- Bead (c): 10 sub-beads = 20 min
+- Bead (c): 8 sub-beads = 16 min
 - Bead (d): 7 sub-beads = 14 min
 - Bead (e): 9 sub-beads = 18 min
-- Bead (f): 7 sub-beads = 14 min
+- Bead (f): 8 sub-beads = 16 min
 - Bead (g): 9 sub-beads = 18 min
 - Bead (h): 7 sub-beads = 14 min
 - Bead (i): 6 sub-beads = 12 min
