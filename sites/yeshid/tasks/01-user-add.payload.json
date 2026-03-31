@@ -2,117 +2,221 @@
   "_meta": {
     "task": "user-add",
     "description": "Add (onboard) a new person to YeshID. Navigates to the onboard form, fills all fields, and submits.",
-    "params": ["first_name", "last_name", "company_email", "personal_email"],
-    "optionalParams": ["personal_email"],
+    "params": [
+      "first_name",
+      "last_name",
+      "company_email",
+      "personal_email"
+    ],
+    "optionalParams": [
+      "personal_email"
+    ],
     "selfImproving": true,
-    "runCount": 0,
-    "lastSuccess": null,
+    "runCount": 1,
+    "lastSuccess": "2026-03-31T00:11:57.745179+00:00",
     "prerequisite": "00-login.payload.json"
   },
-
   "runId": "yeshid-user-add-{{timestamp}}",
   "mode": "verification",
   "site": "app.yeshid.com",
-
   "params": {
     "first_name": "{{first_name}}",
     "last_name": "{{last_name}}",
     "company_email": "{{company_email}}",
     "personal_email": "{{personal_email}}",
-    "base_url": "https://app.yeshid.com"
+    "base_url": "https://app.yeshid.com",
+    "start_date_preset": "{{start_date_preset}}"
   },
-
   "stateGraph": {
     "currentNode": "authenticated",
     "nodes": {
       "authenticated": {
         "signals": [
-          { "type": "element_visible", "selector": ".v-navigation-drawer a[href='/overview']" }
+          {
+            "type": "element_visible",
+            "selector": ".v-navigation-drawer a[href='/overview']"
+          }
         ]
       },
       "onboard-form": {
         "signals": [
-          { "type": "url_matches", "pattern": "/organization/people/onboard" }
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/onboard"
+          }
         ]
       },
       "people-list": {
         "signals": [
-          { "type": "url_matches", "pattern": "/organization/people$" }
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people$"
+          }
         ]
       }
     }
   },
-
   "abstractTargets": {
     "first-name-input": {
-      "match": { "role": "textbox", "vuetify_label": ["first name"] },
-      "cachedSelector": null,
-      "cachedConfidence": 0.0,
-      "resolveHint": "Find .v-input whose .v-label text contains 'First name'. Get the input inside."
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "first name"
+        ]
+      },
+      "cachedSelector": "#input-v-10",
+      "cachedConfidence": 0.88,
+      "resolveHint": "Find .v-input whose .v-label text contains 'First name'. Get the input inside.",
+      "resolvedOn": "2026-03-31T00:11:57.745179+00:00",
+      "resolvedVia": "vuetify_label_match"
     },
     "last-name-input": {
-      "match": { "role": "textbox", "vuetify_label": ["last name"] },
-      "cachedSelector": null,
-      "cachedConfidence": 0.0,
-      "resolveHint": "Find .v-input whose .v-label text contains 'Last name'."
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "last name"
+        ]
+      },
+      "cachedSelector": "#input-v-12",
+      "cachedConfidence": 0.88,
+      "resolveHint": "Find .v-input whose .v-label text contains 'Last name'.",
+      "resolvedOn": "2026-03-31T00:11:57.745179+00:00",
+      "resolvedVia": "vuetify_label_match"
     },
     "company-email-input": {
-      "match": { "role": "textbox", "vuetify_label": ["company email"] },
-      "cachedSelector": null,
-      "cachedConfidence": 0.0,
-      "resolveHint": "Find .v-input whose .v-label text contains 'Company email'."
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "company email"
+        ]
+      },
+      "cachedSelector": "#input-v-14",
+      "cachedConfidence": 0.88,
+      "resolveHint": "Find .v-input whose .v-label text contains 'Company email'.",
+      "resolvedOn": "2026-03-31T00:11:57.745179+00:00",
+      "resolvedVia": "vuetify_label_match"
     },
     "personal-email-input": {
-      "match": { "role": "textbox", "vuetify_label": ["personal", "recovery"] },
-      "cachedSelector": null,
-      "cachedConfidence": 0.0,
-      "resolveHint": "Find .v-input whose .v-label text contains 'Personal' or 'recovery'."
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "personal",
+          "recovery"
+        ]
+      },
+      "cachedSelector": "#input-v-18",
+      "cachedConfidence": 0.88,
+      "resolveHint": "Find .v-input whose .v-label text contains 'Personal' or 'recovery'.",
+      "resolvedOn": "2026-03-31T00:11:57.745179+00:00",
+      "resolvedVia": "vuetify_label_match"
     },
     "create-onboard-button": {
-      "match": { "role": "button", "name_contains": ["create and onboard", "onboard person"] },
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "create and onboard",
+          "onboard person"
+        ]
+      },
       "cachedSelector": null,
-      "cachedConfidence": 0.0,
+      "cachedConfidence": 0.85,
       "fallbackSelectors": [
         "button.v-btn--variant-flat",
         "button:last-of-type"
-      ]
+      ],
+      "resolvedOn": "2026-03-31T00:11:57.745179+00:00",
+      "resolvedVia": "aria"
+    },
+    "start-date-picker": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "select start date",
+          "start date"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0,
+      "resolveHint": "Button with text \"Select start date\". Click opens preset picker with options: Immediately, ASAP, Monday morning, Pick date & time.",
+      "pickerOptions": [
+        "Immediately",
+        "ASAP",
+        "Monday morning",
+        "Pick date & time"
+      ],
+      "discoveredOn": "2026-03-31T00:11:57.745179+00:00"
     }
   },
-
   "chain": [
     {
       "stepId": "s1",
       "action": "assess_state",
-      "expect": { "state": "authenticated" },
+      "expect": {
+        "state": "authenticated"
+      },
       "onMismatch": "branch:not-authenticated"
     },
     {
       "stepId": "s2",
       "action": "navigate",
       "url": "{{base_url}}/organization/people/onboard",
-      "guard": { "target": "first-name-input", "state": { "visible": true }, "timeout": 6000 },
-      "expect": { "state": "onboard-form" }
+      "guard": {
+        "target": "first-name-input",
+        "state": {
+          "visible": true
+        },
+        "timeout": 6000
+      },
+      "expect": {
+        "state": "onboard-form"
+      }
+    },
+    {
+      "stepId": "s2b",
+      "action": "click_preset",
+      "target": "start-date-picker",
+      "preset": "{{start_date_preset}}",
+      "defaultPreset": "Immediately",
+      "note": "Required field. Click the start date button then select a preset. Defaults to Immediately."
     },
     {
       "stepId": "s3",
       "action": "type",
       "target": "first-name-input",
       "value": "{{first_name}}",
-      "guard": { "target": "first-name-input", "state": { "visible": true, "enabled": true } }
+      "guard": {
+        "target": "first-name-input",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      }
     },
     {
       "stepId": "s4",
       "action": "type",
       "target": "last-name-input",
       "value": "{{last_name}}",
-      "guard": { "target": "last-name-input", "state": { "visible": true, "enabled": true } }
+      "guard": {
+        "target": "last-name-input",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      }
     },
     {
       "stepId": "s5",
       "action": "type",
       "target": "company-email-input",
       "value": "{{company_email}}",
-      "guard": { "target": "company-email-input", "state": { "visible": true, "enabled": true } }
+      "guard": {
+        "target": "company-email-input",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      }
     },
     {
       "stepId": "s6",
@@ -120,19 +224,39 @@
       "target": "personal-email-input",
       "value": "{{personal_email}}",
       "condition": "{{personal_email}}",
-      "guard": { "target": "personal-email-input", "state": { "visible": true, "enabled": true } },
-      "note": "Optional step — only runs if personal_email param is provided."
+      "guard": {
+        "target": "personal-email-input",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      },
+      "note": "Optional step \u2014 only runs if personal_email param is provided."
     },
     {
       "stepId": "s7",
       "action": "click",
       "target": "create-onboard-button",
-      "guard": { "target": "create-onboard-button", "state": { "visible": true, "enabled": true } },
+      "guard": {
+        "target": "create-onboard-button",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      },
       "responseSignature": [
         {
           "any_of": [
-            { "type": "url_change", "matches": "/organization/people$", "timeout": 8000 },
-            { "type": "element_visible", "selector": ".v-snackbar--active", "timeout": 5000 }
+            {
+              "type": "url_change",
+              "matches": "/organization/people$",
+              "timeout": 8000
+            },
+            {
+              "type": "element_visible",
+              "selector": ".v-snackbar--active",
+              "timeout": 5000
+            }
           ]
         }
       ]
@@ -140,16 +264,18 @@
     {
       "stepId": "s8",
       "action": "read",
-      "candidates": [".v-snackbar--active .v-snackbar__content", ".v-snackbar .v-snackbar__content"],
+      "candidates": [
+        ".v-snackbar--active .v-snackbar__content",
+        ".v-snackbar .v-snackbar__content"
+      ],
       "store_as": "confirmation_message",
       "minLength": 1,
       "note": "Capture the success/error message from the snackbar."
     }
   ],
-
   "branches": {
     "not-authenticated": {
-      "description": "Not logged in — run login flow first.",
+      "description": "Not logged in \u2014 run login flow first.",
       "steps": [
         {
           "stepId": "b1",

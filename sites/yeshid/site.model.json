@@ -10,35 +10,58 @@
     "lastExplored": "2026-03-30",
     "exploredBy": "manual live session"
   },
-
   "stateGraph": {
     "nodes": {
       "unauthenticated": {
         "description": "User is not logged in. Redirected to login page.",
         "signals": [
-          { "type": "url_matches", "pattern": "/login|/auth|/signin" },
-          { "type": "element_visible", "selector": "input[type='email'], input[type='password']" }
+          {
+            "type": "url_matches",
+            "pattern": "/login|/auth|/signin"
+          },
+          {
+            "type": "element_visible",
+            "selector": "input[type='email'], input[type='password']"
+          }
         ]
       },
       "authenticated": {
         "description": "User is logged in. Navigation sidebar is visible.",
         "signals": [
-          { "type": "element_visible", "selector": ".v-navigation-drawer a[href='/overview']" },
-          { "type": "url_not_matches", "pattern": "/login|/auth|/signin" }
+          {
+            "type": "element_visible",
+            "selector": ".v-navigation-drawer a[href='/overview']"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin"
+          }
         ]
       },
       "dashboard": {
         "description": "Overview/dashboard page.",
         "signals": [
-          { "type": "url_matches", "pattern": "/overview$" },
-          { "type": "element_visible", "selector": "a[href='/organization/people/onboard']" }
+          {
+            "type": "url_matches",
+            "pattern": "/overview$"
+          },
+          {
+            "type": "element_visible",
+            "selector": "a[href='/organization/people/onboard']"
+          }
         ]
       },
       "people-list": {
         "description": "People management list page.",
         "signals": [
-          { "type": "url_matches", "pattern": "/organization/people$" },
-          { "type": "element_visible", "selector": "button, .v-data-table" }
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people$"
+          },
+          {
+            "type": "element_visible",
+            "selector": "button, .v-data-table"
+          }
         ],
         "knownElements": {
           "onboard-button": "The 'Onboard person' button at top of page",
@@ -49,8 +72,14 @@
       "onboard-form": {
         "description": "Add new person form.",
         "signals": [
-          { "type": "url_matches", "pattern": "/organization/people/onboard" },
-          { "type": "element_visible", "selector": "button" }
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/onboard"
+          },
+          {
+            "type": "element_visible",
+            "selector": "button"
+          }
         ],
         "knownElements": {
           "first-name-input": "First name text field",
@@ -63,14 +92,23 @@
       "person-detail": {
         "description": "Individual person profile/edit page.",
         "signals": [
-          { "type": "url_matches", "pattern": "/organization/people/[a-z0-9-]+" },
-          { "type": "url_not_matches", "pattern": "/onboard|/offboard" }
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/[a-z0-9-]+"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/onboard|/offboard"
+          }
         ]
       },
       "applications-list": {
         "description": "Application management list page.",
         "signals": [
-          { "type": "url_matches", "pattern": "/access/applications$" }
+          {
+            "type": "url_matches",
+            "pattern": "/access/applications$"
+          }
         ],
         "knownElements": {
           "add-application-button": "'Add application' button",
@@ -81,7 +119,10 @@
       "application-detail": {
         "description": "Application accounts/detail page.",
         "signals": [
-          { "type": "url_matches", "pattern": "/access/applications/[a-z0-9-]+/accounts" }
+          {
+            "type": "url_matches",
+            "pattern": "/access/applications/[a-z0-9-]+/accounts"
+          }
         ],
         "knownElements": {
           "manage-integration-button": "'Manage Integration' button",
@@ -91,7 +132,10 @@
       "integration-config": {
         "description": "Integration authentication configuration page.",
         "signals": [
-          { "type": "url_matches", "pattern": "/access/applications/[a-z0-9-]+/integration/authentication" }
+          {
+            "type": "url_matches",
+            "pattern": "/access/applications/[a-z0-9-]+/integration/authentication"
+          }
         ],
         "knownElements": {
           "scim-option": "SCIM radio option",
@@ -103,173 +147,373 @@
         }
       }
     },
-
     "transitions": [
-      { "from": "unauthenticated", "to": "authenticated", "via": "login-form-submit" },
-      { "from": "authenticated", "to": "dashboard", "via": "navigate /overview" },
-      { "from": "authenticated", "to": "people-list", "via": "navigate /organization/people" },
-      { "from": "people-list", "to": "onboard-form", "via": "click Onboard person OR navigate /organization/people/onboard" },
-      { "from": "people-list", "to": "person-detail", "via": "click person row" },
-      { "from": "onboard-form", "to": "people-list", "via": "Create and onboard person success" },
-      { "from": "authenticated", "to": "applications-list", "via": "navigate /access/applications" },
-      { "from": "applications-list", "to": "application-detail", "via": "click application row" },
-      { "from": "application-detail", "to": "integration-config", "via": "click Manage Integration" }
+      {
+        "from": "unauthenticated",
+        "to": "authenticated",
+        "via": "login-form-submit"
+      },
+      {
+        "from": "authenticated",
+        "to": "dashboard",
+        "via": "navigate /overview"
+      },
+      {
+        "from": "authenticated",
+        "to": "people-list",
+        "via": "navigate /organization/people"
+      },
+      {
+        "from": "people-list",
+        "to": "onboard-form",
+        "via": "click Onboard person OR navigate /organization/people/onboard"
+      },
+      {
+        "from": "people-list",
+        "to": "person-detail",
+        "via": "click person row"
+      },
+      {
+        "from": "onboard-form",
+        "to": "people-list",
+        "via": "Create and onboard person success"
+      },
+      {
+        "from": "authenticated",
+        "to": "applications-list",
+        "via": "navigate /access/applications"
+      },
+      {
+        "from": "applications-list",
+        "to": "application-detail",
+        "via": "click application row"
+      },
+      {
+        "from": "application-detail",
+        "to": "integration-config",
+        "via": "click Manage Integration"
+      }
     ]
   },
-
   "abstractTargets": {
     "nav-people": {
       "description": "People nav link in sidebar",
-      "match": { "role": "link", "name_contains": ["people"] },
+      "match": {
+        "role": "link",
+        "name_contains": [
+          "people"
+        ]
+      },
       "cachedSelector": ".v-navigation-drawer a[href='/organization/people']",
       "cachedConfidence": 0.99
     },
     "nav-applications": {
       "description": "Applications nav link in sidebar",
-      "match": { "role": "link", "name_contains": ["applications"] },
+      "match": {
+        "role": "link",
+        "name_contains": [
+          "applications"
+        ]
+      },
       "cachedSelector": ".v-navigation-drawer a[href='/access/applications']",
       "cachedConfidence": 0.99
     },
     "onboard-button": {
       "description": "Onboard person button on people list page",
-      "match": { "role": "button", "name_contains": ["onboard"] },
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "onboard"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
-      "fallbackSelectors": ["button"],
+      "fallbackSelectors": [
+        "button"
+      ],
       "resolveHint": "Find button with text 'Onboard person' on /organization/people page"
     },
     "search-input": {
       "description": "Search/filter input on list pages",
-      "match": { "role": "textbox", "name_contains": ["search"] },
-      "vuetify_label": ["search"],
+      "match": {
+        "role": "textbox",
+        "name_contains": [
+          "search"
+        ]
+      },
+      "vuetify_label": [
+        "search"
+      ],
       "cachedSelector": "input[placeholder='Search']",
-      "cachedConfidence": 0.90
+      "cachedConfidence": 0.9
     },
     "first-name-input": {
       "description": "First name text field on onboard form",
-      "match": { "role": "textbox", "vuetify_label": ["first name"] },
-      "cachedSelector": null,
-      "cachedConfidence": 0.0,
-      "resolveHint": "Vuetify input with label 'First name'. ID changes each session — resolve by label proximity."
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "first name"
+        ]
+      },
+      "cachedSelector": "#input-v-10",
+      "cachedConfidence": 0.88,
+      "resolveHint": "Vuetify input with label 'First name'. ID changes each session \u2014 resolve by label proximity.",
+      "resolvedOn": "2026-03-31T00:11:57.745179+00:00",
+      "resolvedVia": "vuetify_label_match"
     },
     "last-name-input": {
       "description": "Last name text field on onboard form",
-      "match": { "role": "textbox", "vuetify_label": ["last name"] },
-      "cachedSelector": null,
-      "cachedConfidence": 0.0,
-      "resolveHint": "Vuetify input with label 'Last name'."
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "last name"
+        ]
+      },
+      "cachedSelector": "#input-v-12",
+      "cachedConfidence": 0.88,
+      "resolveHint": "Vuetify input with label 'Last name'.",
+      "resolvedOn": "2026-03-31T00:11:57.745179+00:00",
+      "resolvedVia": "vuetify_label_match"
     },
     "company-email-input": {
       "description": "Company email address field on onboard form",
-      "match": { "role": "textbox", "vuetify_label": ["company email"] },
-      "cachedSelector": null,
-      "cachedConfidence": 0.0,
-      "resolveHint": "Vuetify input with label 'Company email address'."
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "company email"
+        ]
+      },
+      "cachedSelector": "#input-v-14",
+      "cachedConfidence": 0.88,
+      "resolveHint": "Vuetify input with label 'Company email address'.",
+      "resolvedOn": "2026-03-31T00:11:57.745179+00:00",
+      "resolvedVia": "vuetify_label_match"
     },
     "personal-email-input": {
       "description": "Personal/recovery email field on onboard form",
-      "match": { "role": "textbox", "vuetify_label": ["personal", "recovery"] },
-      "cachedSelector": null,
-      "cachedConfidence": 0.0,
-      "resolveHint": "Vuetify input with label 'Personal / recovery email address'."
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "personal",
+          "recovery"
+        ]
+      },
+      "cachedSelector": "#input-v-18",
+      "cachedConfidence": 0.88,
+      "resolveHint": "Vuetify input with label 'Personal / recovery email address'.",
+      "resolvedOn": "2026-03-31T00:11:57.745179+00:00",
+      "resolvedVia": "vuetify_label_match"
     },
     "create-onboard-button": {
       "description": "Submit button on onboard form",
-      "match": { "role": "button", "name_contains": ["create and onboard", "onboard person"] },
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "create and onboard",
+          "onboard person"
+        ]
+      },
       "cachedSelector": null,
-      "cachedConfidence": 0.0,
-      "fallbackSelectors": ["button.v-btn--variant-flat"]
+      "cachedConfidence": 0.85,
+      "fallbackSelectors": [
+        "button.v-btn--variant-flat"
+      ],
+      "resolvedOn": "2026-03-31T00:11:57.745179+00:00",
+      "resolvedVia": "aria"
     },
     "add-application-button": {
       "description": "Add application button on applications list page",
-      "match": { "role": "button", "name_contains": ["add application"] },
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "add application"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
       "resolveHint": "Button with text 'Add application' on /access/applications page."
     },
     "application-name-input": {
       "description": "Application name input in Add Application dialog",
-      "match": { "role": "textbox", "name_contains": ["application name"] },
+      "match": {
+        "role": "textbox",
+        "name_contains": [
+          "application name"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
-      "fallbackSelectors": [".v-overlay--active input[placeholder*='application name' i]"]
+      "fallbackSelectors": [
+        ".v-overlay--active input[placeholder*='application name' i]"
+      ]
     },
     "technical-owners-input": {
       "description": "Technical owners autocomplete in Add Application dialog",
-      "match": { "role": "textbox", "name_contains": ["technical owner", "owner"] },
+      "match": {
+        "role": "textbox",
+        "name_contains": [
+          "technical owner",
+          "owner"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
-      "fallbackSelectors": [".v-overlay--active input[placeholder*='owner' i]"]
+      "fallbackSelectors": [
+        ".v-overlay--active input[placeholder*='owner' i]"
+      ]
     },
     "dialog-add-button": {
       "description": "The 'Add' confirm button inside any dialog",
-      "match": { "role": "button", "name_contains": ["add", "create", "save", "confirm"] },
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "add",
+          "create",
+          "save",
+          "confirm"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
-      "fallbackSelectors": [".v-overlay--active .v-btn--variant-flat:last-child", ".v-overlay--active button:last-child"]
+      "fallbackSelectors": [
+        ".v-overlay--active .v-btn--variant-flat:last-child",
+        ".v-overlay--active button:last-child"
+      ]
     },
     "dialog-cancel-button": {
       "description": "Cancel button in any dialog",
-      "match": { "role": "button", "name_contains": ["cancel"] },
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "cancel"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
-      "fallbackSelectors": [".v-overlay--active button"]
+      "fallbackSelectors": [
+        ".v-overlay--active button"
+      ]
     },
     "manage-integration-button": {
       "description": "Manage Integration button on application detail page",
-      "match": { "role": "button", "name_contains": ["manage integration"] },
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "manage integration"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
       "resolveHint": "Button with text 'Manage Integration' on application detail page."
     },
     "base-url-input": {
       "description": "Base URL field on integration config page",
-      "match": { "role": "textbox", "vuetify_label": ["base url", "root api url"] },
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "base url",
+          "root api url"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0
     },
     "integration-save-button": {
       "description": "Save button on integration config page",
-      "match": { "role": "button", "name_contains": ["save"] },
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "save"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
-      "fallbackSelectors": ["button.v-btn--variant-flat"]
+      "fallbackSelectors": [
+        "button.v-btn--variant-flat"
+      ]
+    },
+    "start-date-picker": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "select start date",
+          "start date"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0,
+      "resolveHint": "Button with text \"Select start date\". Click opens preset picker with options: Immediately, ASAP, Monday morning, Pick date & time.",
+      "pickerOptions": [
+        "Immediately",
+        "ASAP",
+        "Monday morning",
+        "Pick date & time"
+      ],
+      "discoveredOn": "2026-03-31T00:11:57.745179+00:00"
     }
   },
-
   "observedResponseSignatures": {
     "onboard-person-success": {
       "description": "After clicking 'Create and onboard person', a success snackbar appears and URL returns to people list.",
       "signals": [
-        { "any_of": [
-          { "type": "url_change", "matches": "/organization/people$", "timeout": 5000 },
-          { "type": "element_visible", "selector": ".v-snackbar--active", "timeout": 5000 }
-        ]}
+        {
+          "any_of": [
+            {
+              "type": "url_change",
+              "matches": "/organization/people$",
+              "timeout": 5000
+            },
+            {
+              "type": "element_visible",
+              "selector": ".v-snackbar--active",
+              "timeout": 5000
+            }
+          ]
+        }
       ]
     },
     "dialog-opened": {
       "description": "A Vuetify dialog has opened.",
       "signals": [
-        { "type": "element_visible", "selector": ".v-overlay--active .v-overlay__content", "timeout": 2000 }
+        {
+          "type": "element_visible",
+          "selector": ".v-overlay--active .v-overlay__content",
+          "timeout": 2000
+        }
       ]
     },
     "dialog-closed": {
       "description": "A Vuetify dialog has closed.",
       "signals": [
-        { "type": "element_absent", "selector": ".v-overlay--active", "timeout": 3000 }
+        {
+          "type": "element_absent",
+          "selector": ".v-overlay--active",
+          "timeout": 3000
+        }
       ]
     },
     "integration-saved": {
       "description": "Integration config saved successfully.",
       "signals": [
-        { "any_of": [
-          { "type": "element_visible", "selector": ".v-snackbar--active", "timeout": 3000 },
-          { "type": "attribute_change", "selector": ".v-alert", "attribute": "class", "value": "success", "timeout": 3000 }
-        ]}
+        {
+          "any_of": [
+            {
+              "type": "element_visible",
+              "selector": ".v-snackbar--active",
+              "timeout": 3000
+            },
+            {
+              "type": "attribute_change",
+              "selector": ".v-alert",
+              "attribute": "class",
+              "value": "success",
+              "timeout": 3000
+            }
+          ]
+        }
       ]
     }
   },
-
   "urlPatterns": {
     "base": "https://app.yeshid.com",
     "login": "https://app.yeshid.com/login",
@@ -281,5 +525,14 @@
     "applications": "https://app.yeshid.com/access/applications",
     "applicationDetail": "https://app.yeshid.com/access/applications/{id}/accounts",
     "integrationConfig": "https://app.yeshid.com/access/applications/{id}/integration/authentication"
+  },
+  "observedSignatures": {
+    "user_created": {
+      "responses": [
+        "snackbar: Workflow created.",
+        "url_change: /workflows/"
+      ],
+      "lastObserved": "2026-03-31T00:11:57.745179+00:00"
+    }
   }
 }
