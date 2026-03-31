@@ -1,42 +1,46 @@
 # Yeshie Project State
-Updated: 2026-03-31T00:15:00Z
-Phase: Phase 2a — Target Resolution Unit Tests
-Last bead: Bead 1 — CDP Connection + First Payload Run — PASS
+Updated: 2026-03-31T12:00:00Z
+Phase: Phase 4 — WXT Extension (Bead 4)
+Last bead: Bead 3b PASS — all step types + 85/85 tests green
 
 ## Passing Tests
 - unit/schema: 7/7
+- unit/target-resolver: 27/27
+- unit/dry-run: 13/13
+- unit/step-executor: 38/38
+- TOTAL: 85/85
 
 ## Integration Tests
-- 01-user-add: PASS (manual run, user created, workflow launched)
-  - URL: https://app.yeshid.com/workflows/611c62d9-bf35-4b74-9084-a2a467116206
-  - Confirmation: "Workflow created."
+- 01-user-add: PASS (user created, "Workflow created." snackbar)
+- 02-user-delete: BLOCKED — page navigation destroys injected state
+- 03-user-modify: BLOCKED — same reason
+- 04-site-explore: NOT RUN
+- 05-integration-setup: NOT RUN
 
-## Architecture (confirmed working)
-- ClaudeInChrome: navigate, find, read_page, form_input
-- Debugger bridge: Input.insertText via CDP → trusted Vue 3 events ✅
-- Executor inject: single javascript_tool call runs full chain ✅
-- vuetify_label_match: mb-2 label strategy confirmed on this app ✅
-- Response signature watcher: MutationObserver armed before action ✅
-- Self-improvement merge: Python script writes back to payload + site model ✅
+## Architecture Truth
+- ClaudeInChrome: works for single-page intra-page ops only
+- Page navigation destroys window context → executor wiped
+- YeshID CSP blocks eval() → js action broken in injected executor
+- BOTH problems solved by a proper Chrome extension background worker
 
-## Key Learnings from Run 1
-- Vue 3 REQUIRES trusted events (isTrusted:true) — debugger bridge is mandatory
-- start-date-picker is required field — added to payload as s2b
-- Label DOM structure: div.mb-2 siblings (not .v-label in this Vuetify build)
-- click_preset action type needed for preset pickers
-- Generated IDs (input-v-10 etc) change on each page load — vuetify_label_match is correct approach
+## Proven Components (ready to wire into extension)
+- src/target-resolver.ts — 6-step resolution, vuetify_label_match
+- src/step-executor.ts — all 13 action types
+- src/dry-run.ts — pre-flight resolution
+- packages/debugger-bridge/ — chrome.debugger Input.insertText
+- sites/yeshid/tasks/ — 6 payloads with cached selectors
 
-## Resolved Targets (cached in payload)
-- first-name-input: #input-v-10, confidence 0.88, vuetify_label_match
-- last-name-input: #input-v-12, confidence 0.88, vuetify_label_match  
-- company-email-input: #input-v-14, confidence 0.88, vuetify_label_match
-- personal-email-input: #input-v-18, confidence 0.88, vuetify_label_match
-- create-onboard-button: aria, confidence 0.85
+## Next Bead: Bead 4 — WXT Extension
+Goal: Chrome MV3 extension that:
+1. Background worker holds chain state ACROSS page navigations
+2. Uses chrome.scripting.executeScript (pre-bundled, bypasses CSP)
+3. Integrates debugger-bridge natively
+4. Exposes skill_run via chrome.runtime.sendMessage
+5. When complete: 02-delete and 03-modify run end-to-end
 
-## Blockers
-- click_preset action not yet in executor (needs adding for next run)
-- Unit tests for resolution algorithm not yet written (Bead 2a)
-
-## Next Bead: Bead 2a — Target Resolution Unit Tests
-Goal: Jest unit tests for the 6-step resolution algorithm against Vuetify fixture HTML
-Key: test the mb-2 label strategy specifically (confirmed real-world pattern)
+## Key Learnings
+- vuetify_label_match uses div.mb-2 siblings (not .v-label in YeshID)
+- start-date-picker is required field, preset picker pattern
+- Debugger bridge works: Input.insertText → trusted Vue 3 events
+- Generated IDs (input-v-10) change per session → always use semantic resolution
+- eval() blocked by YeshID CSP → must use pre-bundled functions via executeScript
