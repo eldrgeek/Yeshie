@@ -2,11 +2,6 @@ export default defineContentScript({
   matches: ['<all_urls>'],
   runAt: 'document_idle',
   main() {
-    // Reload page when extension updates (dev hot-reload seamlessness)
-    chrome.runtime.connect({ name: 'keepalive' }).onDisconnect.addListener(() => {
-      window.location.reload();
-    });
-
     // Bridge: window.postMessage → chrome.runtime → background worker
     window.addEventListener('message', (event) => {
       if (event.source !== window || !event.data?.__yeshieExt) return;

@@ -19,6 +19,21 @@ export default defineBackground(() => {
   // ── Run state ────────────────────────────────────────────────────────────────
   const runs = new Map<string, any>();
 
+  // Keep-alive: prevent service worker suspension during active runs
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'yeshie-keepalive' && runs.size > 0) {
+      // Re-arm the alarm while runs are active
+      chrome.alarms.create('yeshie-keepalive', { delayInMinutes: 0.4 });
+    }
+  });
+
+  function startKeepalive() {
+    chrome.alarms.create('yeshie-keepalive', { delayInMinutes: 0.4 });
+  }
+  function stopKeepalive() {
+    chrome.alarms.clear('yeshie-keepalive');
+  }
+
   // ── Helpers ──────────────────────────────────────────────────────────────────
   function interpolate(str: string, params: Record<string, any>): string {
     if (typeof str !== 'string') return str;
@@ -374,8 +389,18 @@ export default defineBackground(() => {
       const runId = crypto.randomUUID();
       const tabId = msg.tabId || sender.tab?.id;
       if (!tabId) { sendResponse({ error: 'No tabId' }); return true; }
+      // Store lastRunId so page can recover it after navigation
+      chrome.storage.session.set({ __yeshieLastRunId: runId });
+      startKeepalive();
       startRun(runId, msg.payload, msg.params || {}, tabId);
       sendResponse({ runId, status: 'started' });
+      return true;
+    }
+    if (msg.type === 'get_active_runs') {
+      const active = Array.from(runs.entries()).map(([id, r]) => ({ runId: id, status: r.status, stepIndex: r.stepIndex, totalSteps: r.payload?.chain?.length || 0 }));
+      chrome.storage.session.get('__yeshieLastRunId').then(data => {
+        sendResponse({ active, lastRunId: data.__yeshieLastRunId || null });
+      });
       return true;
     }
     if (msg.type === 'get_status') {

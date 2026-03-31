@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "wxt dev",
+    "dev": "wxt",
     "build": "wxt build",
-    "zip": "wxt zip"
+    "zip": "wxt zip",
+    "start": "wxt dev"
   },
   "devDependencies": {
     "wxt": "latest"
