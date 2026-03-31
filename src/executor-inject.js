@@ -1,463 +1,350 @@
 /**
- * Yeshie Injected Executor v1
- * 
- * Drop this entire script into a single javascript_tool call.
- * It installs window.__yeshie on the page, then call:
- * 
- *   window.__yeshie.run(payload, params) -> Promise<ChainResult>
- * 
- * Active inference model:
- *   - Each step: predict expected outcome, act, observe divergence
- *   - MutationObserver armed BEFORE action fires
- *   - ChainResult returned when chain completes or divergence detected
- *   - No round trips during execution
+ * Yeshie Injected Executor v2
+ * Install: paste entire file into javascript_tool call
+ * Use:     window.__yeshie.run(chain, params, abstractTargets, stateGraph) -> Promise<ChainResult>
  */
-
 (function installYeshie() {
-  if (window.__yeshie) return; // idempotent
+  if (window.__yeshie?.version?.startsWith('2')) return;
 
-  // ─── UTILITIES ────────────────────────────────────────────────────────────
+  // ── Bridge API ────────────────────────────────────────────────────────────
+  let _bridgeAvail = false;
+  const _pending = new Map(); let _rc = 0;
+  window.addEventListener('message', ev => {
+    if (ev.source !== window) return;
+    const m = ev.data;
+    if (m?.__yeshieBridgeReady) { _bridgeAvail = true; return; }
+    if (m?.__yeshieBridgeResponse && _pending.has(m.requestId)) {
+      const { resolve, reject } = _pending.get(m.requestId);
+      _pending.delete(m.requestId);
+      if (m.error) reject(new Error(m.error)); else resolve(m.result);
+    }
+  });
+  // Probe bridge (content script fires ready on document_start, may have been missed)
+  window.postMessage({ __yeshieBridge: true, requestId: ++_rc, action: 'ping' }, '*');
+  _pending.set(_rc, {
+    resolve: () => { _bridgeAvail = true; },
+    reject: () => {}
+  });
+  setTimeout(() => _pending.delete(_rc), 2000);
 
-  function interpolate(str, params) {
-    if (typeof str !== 'string') return str;
-    return str.replace(/\{\{(\w+)\}\}/g, (_, k) => params[k] ?? '');
-  }
-
-  function wait(ms) {
-    return new Promise(r => setTimeout(r, ms));
-  }
-
-  // Wait for a condition function to return truthy, using MutationObserver
-  function waitFor(conditionFn, timeoutMs = 10000) {
+  function _callBridge(action, params) {
     return new Promise((resolve, reject) => {
-      if (conditionFn()) return resolve(true);
-      const timer = setTimeout(() => {
-        obs.disconnect();
-        reject(new Error(`waitFor timeout after ${timeoutMs}ms`));
-      }, timeoutMs);
-      const obs = new MutationObserver(() => {
-        if (conditionFn()) {
-          clearTimeout(timer);
-          obs.disconnect();
-          resolve(true);
-        }
-      });
-      obs.observe(document.body, { childList: true, subtree: true,
-        attributes: true, characterData: true });
+      const id = ++_rc;
+      _pending.set(id, { resolve, reject });
+      setTimeout(() => { if (_pending.has(id)) { _pending.delete(id); reject(new Error('bridge timeout')); } }, 6000);
+      window.postMessage({ __yeshieBridge: true, requestId: id, action, ...params }, '*');
     });
   }
 
-  // ─── STATE ASSESSOR ───────────────────────────────────────────────────────
+  // ── Utilities ─────────────────────────────────────────────────────────────
+  const I = (s, p) => typeof s !== 'string' ? s : s.replace(/\{\{(\w+)\}\}/g, (_, k) => p[k] ?? '');
 
-  function assessState(stateGraph) {
-    if (!stateGraph?.nodes) return 'unknown';
-    for (const [name, node] of Object.entries(stateGraph.nodes)) {
+  function wF(fn, t = 10000) {
+    return new Promise((res, rej) => {
+      if (fn()) return res(true);
+      const tm = setTimeout(() => { ob.disconnect(); rej(new Error('waitFor timeout after ' + t + 'ms')); }, t);
+      const ob = new MutationObserver(() => { if (fn()) { clearTimeout(tm); ob.disconnect(); res(true); } });
+      ob.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true });
+    });
+  }
+
+  // ── State assessor ────────────────────────────────────────────────────────
+  function aS(sg) {
+    if (!sg?.nodes) return 'unknown';
+    for (const [name, node] of Object.entries(sg.nodes)) {
       if (!node.signals?.length) continue;
-      const allMatch = node.signals.every(sig => {
-        if (sig.type === 'url_matches') {
-          return new RegExp(sig.pattern.replace('$','\\$')).test(window.location.pathname);
-        }
-        if (sig.type === 'element_visible') {
-          const el = document.querySelector(sig.selector);
-          return el && el.offsetParent !== null;
-        }
-        if (sig.type === 'element_text') {
-          const el = document.querySelector(sig.selector);
-          return el?.textContent?.includes(sig.text);
-        }
+      const ok = node.signals.every(s => {
+        if (s.type === 'url_matches') return new RegExp(s.pattern).test(window.location.pathname);
+        if (s.type === 'element_visible') { const e = document.querySelector(s.selector); return e && e.offsetParent !== null; }
+        if (s.type === 'element_text') { const e = document.querySelector(s.selector); return e?.textContent?.includes(s.text); }
         return false;
       });
-      if (allMatch) return name;
+      if (ok) return name;
     }
     return 'unknown';
   }
 
-  // ─── TARGET RESOLVER ─────────────────────────────────────────────────────
+  // ── Target resolver ───────────────────────────────────────────────────────
+  const GENID = /^(input-v-\d+|checkbox-v-\d+|_react_|react-\d+)$/;
+  const CACHE_TTL = 30 * 86400000;
 
-  function resolveTarget(abstractTarget, abstractTargets) {
-    const tgt = abstractTargets?.[abstractTarget];
-    if (!tgt) return null;
-
-    // Step 1: cached selector with confidence gate
-    if (tgt.cachedSelector && tgt.cachedConfidence >= 0.85) {
-      const el = document.querySelector(tgt.cachedSelector);
-      if (el) return { el, selector: tgt.cachedSelector, confidence: tgt.cachedConfidence,
-                       resolvedVia: 'cached' };
-    }
-
-    // Step 2: ARIA search via semanticKeys / vuetify_label
-    const labels = tgt.match?.vuetify_label || tgt.semanticKeys || [];
-    for (const labelText of labels) {
-      // Vuetify label match: find label-like text, get nearest input
-      const el = findInputByLabelText(labelText);
-      if (el) return { el, selector: '#' + el.id, confidence: 0.88,
-                       resolvedVia: 'vuetify_label_match' };
-    }
-
-    // Step 3: role + name_contains
-    if (tgt.match?.role === 'button' && tgt.match?.name_contains) {
-      for (const name of tgt.match.name_contains) {
-        const btn = Array.from(document.querySelectorAll('button'))
-          .find(b => b.textContent.trim().toLowerCase().includes(name.toLowerCase())
-                  && !b.disabled);
-        if (btn) return { el: btn, selector: null, confidence: 0.85,
-                          resolvedVia: 'aria' };
+  function fIL(t) {
+    const l = t.toLowerCase();
+    for (const lb of document.querySelectorAll('.v-label'))
+      if (lb.textContent?.trim().toLowerCase().includes(l)) { const i = lb.closest('.v-input')?.querySelector('input,textarea'); if (i) return i; }
+    for (const d of document.querySelectorAll('.mb-2,.text-body-2')) {
+      if (d.textContent?.trim().toLowerCase().includes(l) && !d.querySelector('input')) {
+        let s = d.nextElementSibling;
+        while (s) { const i = s.querySelector('input,textarea'); if (i) return i; s = s.nextElementSibling; }
+        const i = d.parentElement?.nextElementSibling?.querySelector('input,textarea'); if (i) return i;
+        const i2 = d.parentElement?.parentElement?.nextElementSibling?.querySelector('input,textarea'); if (i2) return i2;
       }
     }
+    return document.querySelector(`input[aria-label*="${t}" i],textarea[aria-label*="${t}" i],input[placeholder*="${t}" i]`);
+  }
 
-    // Step 4: fallback selectors
+  function rT(n, at) {
+    const tgt = at?.[n]; if (!tgt) return null;
+    // Step 1: cache
+    if (tgt.cachedSelector && (tgt.cachedConfidence ?? 0) >= 0.85 && tgt.resolvedOn &&
+        (Date.now() - new Date(tgt.resolvedOn).getTime()) < CACHE_TTL) {
+      const e = document.querySelector(tgt.cachedSelector);
+      if (e) return { el: e, selector: tgt.cachedSelector, confidence: tgt.cachedConfidence, resolvedVia: 'cached' };
+    }
+    // Step 2: aria
+    if (tgt.match?.name_contains) {
+      for (const nm of tgt.match.name_contains) {
+        const b = Array.from(document.querySelectorAll('button,[role="button"]'))
+          .find(b => b.textContent?.trim().toLowerCase().includes(nm.toLowerCase()) || b.getAttribute('aria-label')?.toLowerCase().includes(nm.toLowerCase()));
+        if (b) return { el: b, selector: null, confidence: 0.85, resolvedVia: 'aria' };
+      }
+    }
+    // Step 3: vuetify_label_match
+    for (const lbl of (tgt.match?.vuetify_label || tgt.semanticKeys || [])) {
+      const e = fIL(lbl);
+      if (e) { const sel = e.id && !GENID.test(e.id) ? '#' + e.id : null; return { el: e, selector: sel, confidence: 0.88, resolvedVia: 'vuetify_label_match' }; }
+    }
+    // Step 4: contenteditable
+    const ce = document.querySelector('[contenteditable="true"]');
+    if (ce) return { el: ce, selector: ce.id ? '#' + ce.id : null, confidence: 0.6, resolvedVia: 'contenteditable' };
+    // Step 5: fallback selectors
     for (const sel of (tgt.fallbackSelectors || [])) {
-      const el = document.querySelector(sel);
-      if (el) return { el, selector: sel, confidence: 0.6,
-                       resolvedVia: 'css_cascade' };
+      if (GENID.test(sel.replace('#', ''))) continue;
+      const e = document.querySelector(sel); if (e) return { el: e, selector: sel, confidence: 0.6, resolvedVia: 'css_cascade' };
     }
-
-    // Step 5: candidates array (used in read steps)
-    if (tgt.candidates) {
-      for (const sel of tgt.candidates) {
-        const el = document.querySelector(sel);
-        if (el) return { el, selector: sel, confidence: 0.7,
-                         resolvedVia: 'css_cascade' };
-      }
-    }
-
-    return null; // Step 6: escalate — caller handles
+    return null; // Step 6: escalate
   }
 
-  function findInputByLabelText(labelText) {
-    const lower = labelText.toLowerCase();
-
-    // Strategy A: .v-label sibling inside .v-input (classic Vuetify)
-    for (const label of document.querySelectorAll('.v-label')) {
-      if (label.textContent.trim().toLowerCase().includes(lower)) {
-        const inp = label.closest('.v-input')?.querySelector('input, textarea');
-        if (inp) return inp;
-      }
+  // ── Vue 3 / bridge-aware input setter ─────────────────────────────────────
+  async function sIV(selector, value) {
+    if (_bridgeAvail) {
+      try { await _callBridge('focusAndType', { selector, text: value }); return value; } catch (_) {}
     }
-
-    // Strategy B: div.mb-2 label above next .v-input (Vuetify no-label variant)
-    for (const div of document.querySelectorAll('.mb-2, .text-body-2')) {
-      if (div.textContent.trim().toLowerCase().includes(lower) &&
-          !div.querySelector('input')) {
-        // Walk siblings forward
-        let sib = div.nextElementSibling;
-        while (sib) {
-          const inp = sib.querySelector('input, textarea');
-          if (inp) return inp;
-          sib = sib.nextElementSibling;
-        }
-        // Walk parent's next sibling
-        const inp = div.parentElement?.nextElementSibling?.querySelector('input, textarea');
-        if (inp) return inp;
-      }
-    }
-
-    // Strategy C: aria-label or placeholder contains text
-    const byAttr = document.querySelector(
-      `input[aria-label*="${labelText}" i], input[placeholder*="${labelText}" i]`);
-    if (byAttr) return byAttr;
-
-    return null;
-  }
-
-  // ─── VUE 3 COMPATIBLE INPUT SETTER ───────────────────────────────────────
-
-  function setInputValue(el, value) {
-    el.focus();
-    el.click();
-
-    // Clear first
-    el.select();
+    const el = document.querySelector(selector); if (!el) return null;
+    el.focus(); el.click(); el.select();
     document.execCommand('selectAll', false, null);
     document.execCommand('delete', false, null);
-
-    // Type via execCommand — triggers Vue's beforeinput/input listeners
-    // Split into chunks to avoid any per-char limits
     document.execCommand('insertText', false, value);
-
-    // If execCommand didn't stick (some browsers), fall back to native setter
     if (el.value !== value) {
-      const nativeSetter = Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype, 'value').set;
-      nativeSetter.call(el, value);
-      el.dispatchEvent(new InputEvent('input', {
-        bubbles: true, cancelable: true,
-        inputType: 'insertText', data: value
-      }));
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, value);
+      el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: value }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
     }
-
-    el.blur();
-    return el.value;
+    el.blur(); return el.value;
   }
 
-  // ─── RESPONSE SIGNATURE WATCHER ──────────────────────────────────────────
-
-  function watchResponseSignature(signatures, timeoutMs = 8000) {
-    return new Promise((resolve) => {
-      const startUrl = window.location.href;
-      let resolved = false;
-
-      function check() {
-        if (resolved) return;
-        for (const sig of signatures) {
-          const candidates = Array.isArray(sig.any_of) ? sig.any_of : [sig];
-          for (const s of candidates) {
-            if (s.type === 'url_change') {
-              const pattern = s.matches || s.pattern;
-              if (window.location.href !== startUrl &&
-                  (!pattern || window.location.href.includes(pattern))) {
-                done({ type: 'url_change', url: window.location.href });
-                return;
-              }
-            }
-            if (s.type === 'element_visible') {
-              const el = document.querySelector(s.selector);
-              if (el && el.offsetParent !== null) {
-                done({ type: 'element_visible', selector: s.selector,
-                       text: el.textContent?.trim() });
-                return;
-              }
-            }
+  // ── Response signature watcher ────────────────────────────────────────────
+  function wRS(sigs, t = 8000) {
+    return new Promise(res => {
+      const su = window.location.href; let done = false;
+      function chk() {
+        if (done) return;
+        for (const sig of sigs) {
+          for (const s of (Array.isArray(sig.any_of) ? sig.any_of : [sig])) {
+            if (s.type === 'url_change' && window.location.href !== su) { fin({ type: 'url_change', url: window.location.href }); return; }
+            if (s.type === 'element_visible') { const e = document.querySelector(s.selector); if (e && e.offsetParent !== null) { fin({ type: 'element_visible', selector: s.selector, text: e.textContent?.trim() }); return; } }
           }
         }
       }
-
-      function done(result) {
-        resolved = true;
-        clearTimeout(timer);
-        obs.disconnect();
-        resolve({ matched: true, ...result });
-      }
-
-      const timer = setTimeout(() => {
-        resolved = true;
-        obs.disconnect();
-        // On timeout, snapshot current state
-        const snack = document.querySelector('.v-snackbar__content, [class*="snack__content"]');
-        const alert = document.querySelector('.v-alert');
-        resolve({
-          matched: false,
-          timeout: true,
-          snackbarText: snack?.textContent?.trim(),
-          alertText: alert?.textContent?.trim(),
-          urlNow: window.location.href
-        });
-      }, timeoutMs);
-
-      const obs = new MutationObserver(check);
-      obs.observe(document.body, { childList: true, subtree: true,
-        attributes: true, characterData: true });
-
-      check(); // check immediately in case already satisfied
+      function fin(r) { done = true; clearTimeout(tm); ob.disconnect(); res({ matched: true, ...r }); }
+      const tm = setTimeout(() => {
+        done = true; ob.disconnect();
+        const sn = document.querySelector('.v-snackbar__content'); const al = document.querySelector('.v-alert');
+        res({ matched: false, timeout: true, snackbarText: sn?.textContent?.trim(), alertText: al?.textContent?.trim(), urlNow: window.location.href });
+      }, t);
+      const ob = new MutationObserver(chk);
+      ob.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true });
+      chk();
     });
   }
 
-  // ─── STEP EXECUTOR ────────────────────────────────────────────────────────
-
-  async function executeStep(step, params, abstractTargets, buffer) {
-    const action = step.action;
-    const t0 = Date.now();
-
-    // Condition check
-    if (step.condition) {
-      const val = interpolate(step.condition, params);
-      if (!val || val === 'false' || val === '0' || val === 'undefined') {
-        return { stepId: step.stepId, action, status: 'skipped',
-                 reason: 'condition falsy', durationMs: Date.now() - t0 };
-      }
-    }
+  // ── Step executor ─────────────────────────────────────────────────────────
+  async function eS(step, params, at, buf) {
+    const t0 = Date.now(), a = step.action;
+    // Condition gate
+    if (step.condition) { const v = I(step.condition, params); if (!v || v === 'false' || v === '0' || v === 'undefined') return { stepId: step.stepId, action: a, status: 'skipped', reason: 'condition falsy', durationMs: 0 }; }
 
     try {
-      if (action === 'assess_state') {
-        const state = assessState(step.stateGraph ||
-          window.__yeshie._payload?.stateGraph);
-        const expectedState = step.expect?.state;
-        const matched = !expectedState || state === expectedState;
-        return { stepId: step.stepId, action, status: 'ok',
-                 state, matched, durationMs: Date.now() - t0 };
+      // ── assess_state ──────────────────────────────────────────────────────
+      if (a === 'assess_state') {
+        const state = aS(window.__yeshie._sg);
+        const matched = !step.expect?.state || state === step.expect.state;
+        return { stepId: step.stepId, action: a, status: 'ok', state, matched, durationMs: Date.now() - t0 };
       }
 
-      if (action === 'navigate') {
-        const url = interpolate(step.url, params);
+      // ── navigate ──────────────────────────────────────────────────────────
+      if (a === 'navigate') {
+        const url = I(step.url, params);
         window.location.href = url;
-        // Wait for URL to change
-        await waitFor(() => window.location.href.includes(
-          url.replace('https://app.yeshid.com', '')), 8000);
-        return { stepId: step.stepId, action, status: 'ok',
-                 url: window.location.href, durationMs: Date.now() - t0 };
+        const path = url.split('.com')[1] || url;
+        await wF(() => window.location.href.includes(path), 10000);
+        return { stepId: step.stepId, action: a, status: 'ok', url: window.location.href, durationMs: Date.now() - t0 };
       }
 
-      if (action === 'type') {
-        const value = interpolate(step.value, { ...params, ...buffer });
-        const res = resolveTarget(step.target, abstractTargets);
-        if (!res) throw new Error(`Could not resolve target: ${step.target}`);
-        const actual = setInputValue(res.el, value);
-        return { stepId: step.stepId, action, status: 'ok',
-                 target: step.target, value: actual,
-                 resolvedVia: res.resolvedVia, selector: res.selector,
-                 confidence: res.confidence, durationMs: Date.now() - t0 };
+      // ── type ──────────────────────────────────────────────────────────────
+      if (a === 'type') {
+        const value = I(step.value, { ...params, ...buf });
+        const res = rT(step.target, at);
+        if (!res) throw new Error('Cannot resolve target: ' + step.target);
+        const sel = res.selector || '#' + res.el.id;
+        const actual = await sIV(sel, value);
+        if (res.selector && at[step.target]) { at[step.target].cachedSelector = res.selector; at[step.target].cachedConfidence = res.confidence; at[step.target].resolvedOn = new Date().toISOString(); }
+        return { stepId: step.stepId, action: a, status: 'ok', target: step.target, value: actual, selector: res.selector, confidence: res.confidence, resolvedVia: res.resolvedVia, durationMs: Date.now() - t0 };
       }
 
-      if (action === 'click') {
-        const res = resolveTarget(step.target, abstractTargets);
-        if (!res) throw new Error(`Could not resolve target: ${step.target}`);
-
-        // Arm response signature watcher BEFORE clicking (active inference)
-        const sigPromise = step.responseSignature
-          ? watchResponseSignature(step.responseSignature)
-          : Promise.resolve({ matched: true, type: 'no_sig' });
-
+      // ── click ─────────────────────────────────────────────────────────────
+      if (a === 'click') {
+        const res = rT(step.target, at);
+        if (!res) throw new Error('Cannot resolve target: ' + step.target);
+        const sp = step.responseSignature ? wRS(step.responseSignature) : Promise.resolve({ matched: true, type: 'no_sig' });
         res.el.click();
-        const sigResult = await sigPromise;
-
-        return { stepId: step.stepId, action, status: 'ok',
-                 target: step.target, responseSignature: sigResult,
-                 resolvedVia: res.resolvedVia, confidence: res.confidence,
-                 durationMs: Date.now() - t0 };
+        const sr = await sp;
+        return { stepId: step.stepId, action: a, status: 'ok', target: step.target, responseSignature: sr, selector: res.selector, confidence: res.confidence, resolvedVia: res.resolvedVia, durationMs: Date.now() - t0 };
       }
 
-      if (action === 'wait_for') {
-        const sel = interpolate(step.selector || step.target, params);
-        const timeout = step.timeout || 8000;
-        await waitFor(() => {
-          const el = document.querySelector(sel);
-          return el && el.offsetParent !== null;
-        }, timeout);
-        return { stepId: step.stepId, action, status: 'ok',
-                 selector: sel, durationMs: Date.now() - t0 };
+      // ── click_preset ─────────────────────────────────────────────────────
+      // Opens a picker button, then clicks a preset option by text
+      if (a === 'click_preset') {
+        const res = rT(step.target, at);
+        if (!res) throw new Error('Cannot resolve target: ' + step.target);
+        res.el.click();
+        // Wait for overlay/picker to appear
+        await wF(() => !!document.querySelector('.v-overlay--active, [role="menu"], [role="listbox"]'), 3000).catch(() => {});
+        const preset = I(step.preset || step.defaultPreset || '', params) || step.defaultPreset || 'Immediately';
+        const option = Array.from(document.querySelectorAll('.v-overlay--active *, [role="option"], [role="menuitem"]'))
+          .find(el => el.textContent?.trim() === preset);
+        if (!option) throw new Error('Preset option not found: ' + preset);
+        option.click();
+        await wF(() => !document.querySelector('.v-overlay--active'), 3000).catch(() => {});
+        return { stepId: step.stepId, action: a, status: 'ok', target: step.target, preset, durationMs: Date.now() - t0 };
       }
 
-      if (action === 'read') {
-        const candidates = step.candidates ||
-          (step.selector ? [step.selector] : []);
+      // ── wait_for ──────────────────────────────────────────────────────────
+      if (a === 'wait_for') {
+        const sel = I(step.selector || step.target, { ...params, ...buf });
+        await wF(() => { const e = document.querySelector(sel); return e && e.offsetParent !== null; }, step.timeout || 8000);
+        return { stepId: step.stepId, action: a, status: 'ok', selector: sel, durationMs: Date.now() - t0 };
+      }
+
+      // ── read ──────────────────────────────────────────────────────────────
+      if (a === 'read') {
+        const candidates = step.candidates || (step.selector ? [step.selector] : []);
         let text = null;
-        for (const sel of candidates) {
-          const el = document.querySelector(sel);
-          if (el) { text = el.textContent?.trim(); break; }
-        }
-        if (step.store_as) buffer[step.store_as] = text;
-        return { stepId: step.stepId, action, status: 'ok',
-                 text, storedAs: step.store_as, durationMs: Date.now() - t0 };
+        for (const sel of candidates) { const e = document.querySelector(sel); if (e) { text = e.textContent?.trim(); break; } }
+        if (step.store_as) buf[step.store_as] = text;
+        return { stepId: step.stepId, action: a, status: 'ok', text, storedAs: step.store_as, durationMs: Date.now() - t0 };
       }
 
-      if (action === 'js') {
-        const code = interpolate(step.code, { ...params, ...buffer });
+      // ── hover ─────────────────────────────────────────────────────────────
+      if (a === 'hover') {
+        const res = rT(step.target, at) || { el: document.querySelector(I(step.selector, params)) };
+        if (!res?.el) throw new Error('Cannot resolve hover target');
+        res.el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+        res.el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+        if (step.duration_ms) await new Promise(r => setTimeout(r, step.duration_ms));
+        return { stepId: step.stepId, action: a, status: 'ok', durationMs: Date.now() - t0 };
+      }
+
+      // ── scroll ────────────────────────────────────────────────────────────
+      if (a === 'scroll') {
+        const sel = I(step.selector, params);
+        const el = document.querySelector(sel);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return { stepId: step.stepId, action: a, status: 'ok', selector: sel, durationMs: Date.now() - t0 };
+      }
+
+      // ── select ────────────────────────────────────────────────────────────
+      if (a === 'select') {
+        const res = rT(step.target, at) || { el: document.querySelector(I(step.selector, params)) };
+        if (!res?.el) throw new Error('Cannot resolve select target');
+        const el = res.el;
+        const value = I(step.value, { ...params, ...buf });
+        if (el.tagName === 'SELECT') {
+          el.value = value;
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        } else if (el.type === 'checkbox' || el.type === 'radio') {
+          el.checked = value === 'true' || value === true;
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        return { stepId: step.stepId, action: a, status: 'ok', value, durationMs: Date.now() - t0 };
+      }
+
+      // ── assert ────────────────────────────────────────────────────────────
+      if (a === 'assert') {
+        const sel = I(step.selector, params);
+        const expected = I(step.value, { ...params, ...buf });
+        const el = document.querySelector(sel);
+        const actual = el?.textContent?.trim();
+        if (!actual?.includes(expected)) throw new Error(`Assert failed: expected "${expected}" in "${actual}" (${sel})`);
+        return { stepId: step.stepId, action: a, status: 'ok', selector: sel, value: actual, durationMs: Date.now() - t0 };
+      }
+
+      // ── probe_affordances ─────────────────────────────────────────────────
+      if (a === 'probe_affordances') {
+        const container = document.querySelector(I(step.selector, params)) || document.body;
+        const buttons = Array.from(container.querySelectorAll('button,[role="button"],[class*="btn"]'));
+        const affordances = buttons.slice(0, 20).map(btn => ({
+          text: btn.textContent?.trim(),
+          ariaLabel: btn.getAttribute('aria-label'),
+          title: btn.getAttribute('title'),
+          selector: btn.id ? '#' + btn.id : btn.className.split(' ').filter(c => c && !c.match(/^v-/)).map(c => '.' + c).join('')
+        })).filter(a => a.text || a.ariaLabel);
+        if (step.store_as) buf[step.store_as] = affordances;
+        return { stepId: step.stepId, action: a, status: 'ok', affordances, storedAs: step.store_as, durationMs: Date.now() - t0 };
+      }
+
+      // ── js ────────────────────────────────────────────────────────────────
+      if (a === 'js') {
+        const code = I(step.code, { ...params, ...buf });
         // eslint-disable-next-line no-eval
         const result = eval(code);
-        if (step.store_as) buffer[step.store_as] = result;
-        return { stepId: step.stepId, action, status: 'ok',
-                 result, durationMs: Date.now() - t0 };
+        if (step.store_as) buf[step.store_as] = result;
+        return { stepId: step.stepId, action: a, status: 'ok', result, storedAs: step.store_as, durationMs: Date.now() - t0 };
       }
 
-      return { stepId: step.stepId, action, status: 'unsupported',
-               durationMs: Date.now() - t0 };
+      return { stepId: step.stepId, action: a, status: 'unsupported', durationMs: Date.now() - t0 };
 
     } catch (err) {
-      return { stepId: step.stepId, action, status: 'error',
-               error: err.message, durationMs: Date.now() - t0 };
+      return { stepId: step.stepId, action: a, status: 'error', error: err.message, durationMs: Date.now() - t0 };
     }
   }
 
-  // ─── MAIN RUN ─────────────────────────────────────────────────────────────
+  // ── Main run ──────────────────────────────────────────────────────────────
+  async function run(chain, params, at, sg) {
+    window.__yeshie._sg = sg;
+    const t0 = Date.now(), sr = [], rt = [], buf = {};
 
-  async function run(payload, params = {}) {
-    window.__yeshie._payload = payload;
-    const t0 = Date.now();
+    for (const step of chain) {
+      const res = await eS(step, params, at, buf);
+      sr.push(res);
 
-    // preRunChecklist guard
-    const checklist = payload.preRunChecklist;
-    if (checklist && !params.__skipChecklist) {
-      const items = Array.isArray(checklist) ? checklist : (checklist.steps || []);
-      return {
-        success: false, needsChecklist: true, checklistItems: items,
-        payloadName: payload._meta?.task, site: payload.site,
-        stepsExecuted: 0, stepResults: [], durationMs: Date.now() - t0,
-        modelUpdates: { resolvedTargets: [], statesObserved: [],
-                        newTargetsDiscovered: [], signaturesObserved: {} }
-      };
-    }
-
-    const stepResults = [];
-    const resolvedTargets = [];
-    const statesObserved = [];
-    const buffer = {};
-    const abstractTargets = payload.abstractTargets || {};
-
-    for (const step of (payload.chain || [])) {
-      const result = await executeStep(step, params, abstractTargets, buffer);
-      stepResults.push(result);
-
-      // Collect state observations
-      if (step.action === 'assess_state' && result.state) {
-        statesObserved.push(result.state);
+      if (res.action === 'assess_state' && res.state) {
+        if (!window.__yeshie._statesObserved) window.__yeshie._statesObserved = [];
+        window.__yeshie._statesObserved.push(res.state);
       }
 
-      // Collect resolved targets for self-improvement
-      if (result.selector && result.resolvedVia && result.target) {
-        resolvedTargets.push({
-          abstractName: result.target,
-          selector: result.selector,
-          confidence: result.confidence || 0,
-          resolvedVia: result.resolvedVia,
-          resolvedAt: new Date().toISOString()
-        });
-        // Update cache in-memory
-        if (abstractTargets[result.target]) {
-          abstractTargets[result.target].cachedSelector = result.selector;
-          abstractTargets[result.target].cachedConfidence = result.confidence;
-          abstractTargets[result.target].resolvedOn = new Date().toISOString();
+      if (res.selector && res.resolvedVia && res.target) {
+        rt.push({ abstractName: res.target, selector: res.selector, confidence: res.confidence || 0, resolvedVia: res.resolvedVia, resolvedAt: new Date().toISOString() });
+      }
+
+      // assess_state branching
+      if (res.action === 'assess_state' && !res.matched && step.onMismatch) {
+        const bn = step.onMismatch.replace('branch:', '');
+        const bs = window.__yeshie._payload?.branches?.[bn]?.steps || window.__yeshie._payload?.branches?.[bn] || [];
+        for (const bStep of bs) {
+          const br = await eS(bStep, params, at, buf);
+          sr.push(br);
+          if (br.status === 'error') return { success: false, stepsExecuted: sr.length, stepResults: sr, buffer: buf, error: br.error, durationMs: Date.now() - t0, modelUpdates: { resolvedTargets: rt, statesObserved: window.__yeshie._statesObserved || [], newTargetsDiscovered: [], signaturesObserved: {} } };
         }
       }
 
-      // Handle assess_state branching
-      if (step.action === 'assess_state' && !result.matched &&
-          step.onMismatch && payload.branches?.[step.onMismatch.replace('branch:', '')]) {
-        const branchName = step.onMismatch.replace('branch:', '');
-        const branchSteps = payload.branches[branchName].steps ||
-                            payload.branches[branchName];
-        for (const bStep of branchSteps) {
-          const bResult = await executeStep(bStep, params, abstractTargets, buffer);
-          stepResults.push(bResult);
-          if (bResult.status === 'error') {
-            return {
-              success: false, payloadName: payload._meta?.task,
-              site: payload.site, stepsExecuted: stepResults.length,
-              stepResults, buffer, durationMs: Date.now() - t0,
-              modelUpdates: { resolvedTargets, statesObserved,
-                              newTargetsDiscovered: [], signaturesObserved: {} }
-            };
-          }
-        }
-      }
-
-      // Stop chain on error
-      if (result.status === 'error') {
-        return {
-          success: false, payloadName: payload._meta?.task,
-          site: payload.site, stepsExecuted: stepResults.length,
-          stepResults, buffer, error: result.error,
-          durationMs: Date.now() - t0,
-          modelUpdates: { resolvedTargets, statesObserved,
-                          newTargetsDiscovered: [], signaturesObserved: {} }
-        };
-      }
+      if (res.status === 'error') return { success: false, stepsExecuted: sr.length, stepResults: sr, buffer: buf, error: res.error, durationMs: Date.now() - t0, modelUpdates: { resolvedTargets: rt, statesObserved: window.__yeshie._statesObserved || [], newTargetsDiscovered: [], signaturesObserved: {} } };
     }
 
-    return {
-      success: true, payloadName: payload._meta?.task,
-      site: payload.site, stepsExecuted: stepResults.length,
-      stepResults, buffer, durationMs: Date.now() - t0,
-      modelUpdates: {
-        resolvedTargets, statesObserved,
-        newTargetsDiscovered: [], signaturesObserved: {}
-      }
-    };
+    return { success: true, stepsExecuted: sr.length, stepResults: sr, buffer: buf, durationMs: Date.now() - t0, modelUpdates: { resolvedTargets: rt, statesObserved: window.__yeshie._statesObserved || [], newTargetsDiscovered: [], signaturesObserved: {} } };
   }
 
-  window.__yeshie = { run, assessState, resolveTarget, setInputValue,
-                      findInputByLabelText, waitFor, version: '1.0.0' };
-  console.log('[Yeshie] Executor v1.0.0 installed');
+  window.__yeshie = { run, aS, rT, fIL, sIV, wRS, eS, _sg: null, _payload: null, _statesObserved: [], version: '2.0.0' };
+  console.log('[Yeshie] Executor v2.0.0 installed');
 })();
-
-'__yeshie installed: ' + Object.keys(window.__yeshie).join(', ')
+'__yeshie v' + window.__yeshie.version
