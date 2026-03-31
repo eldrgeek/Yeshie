@@ -1,6 +1,7 @@
 import { defineConfig } from 'wxt';
 
 export default defineConfig({
+  srcDir: 'src',
   manifest: {
     name: 'Yeshie',
     version: '0.1.0',
