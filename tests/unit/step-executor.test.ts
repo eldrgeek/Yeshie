@@ -209,3 +209,125 @@ describe('read action', () => {
     expect(r.selector).toBe('.v-snackbar__content');
   });
 });
+
+// ── hover ─────────────────────────────────────────────────────────────────────
+describe('hover action', () => {
+  it('dispatches mouseover on element', () => {
+    const ex = makeExec();
+    let hovered = false;
+    document.querySelector('button.v-btn')?.addEventListener('mouseover', () => { hovered = true; });
+    const r = ex.execute({ stepId: 'h1', action: 'hover', target: 'create-onboard-button' });
+    expect(r.status).toBe('ok');
+    expect(hovered).toBe(true);
+  });
+
+  it('returns error when target not found', () => {
+    const ex = makeExec();
+    const r = ex.execute({ stepId: 'h1', action: 'hover', target: 'ghost' });
+    expect(r.status).toBe('error');
+  });
+});
+
+// ── scroll ────────────────────────────────────────────────────────────────────
+describe('scroll action', () => {
+  it('returns ok for existing selector', () => {
+    const ex = makeExec();
+    const r = ex.execute({ stepId: 'sc1', action: 'scroll', selector: '#input-v-10' });
+    expect(r.status).toBe('ok');
+  });
+
+  it('returns ok even when selector missing (no-op scroll)', () => {
+    const ex = makeExec();
+    const r = ex.execute({ stepId: 'sc1', action: 'scroll', selector: '' });
+    expect(r.status).toBe('ok');
+  });
+});
+
+// ── select ────────────────────────────────────────────────────────────────────
+describe('select action', () => {
+  it('sets checkbox value to true', () => {
+    document.body.innerHTML = fixtureHtml + '<input id="chk" type="checkbox" />';
+    const ex = new StepExecutor(document, {}, {}, {});
+    const r = ex.execute({ stepId: 'sel1', action: 'select', selector: '#chk', value: 'true' });
+    expect(r.status).toBe('ok');
+    expect((document.querySelector('#chk') as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('sets checkbox value to false', () => {
+    document.body.innerHTML = fixtureHtml + '<input id="chk2" type="checkbox" checked />';
+    const ex = new StepExecutor(document, {}, {}, {});
+    ex.execute({ stepId: 'sel1', action: 'select', selector: '#chk2', value: 'false' });
+    expect((document.querySelector('#chk2') as HTMLInputElement).checked).toBe(false);
+  });
+});
+
+// ── probe_affordances ─────────────────────────────────────────────────────────
+describe('probe_affordances action', () => {
+  it('returns list of affordances from container', () => {
+    const ex = makeExec();
+    const r = ex.execute({ stepId: 'pa1', action: 'probe_affordances', selector: 'body' });
+    expect(r.status).toBe('ok');
+    expect(Array.isArray((r as any).affordances)).toBe(true);
+  });
+
+  it('stores affordances to buffer via store_as', () => {
+    const buffer: Record<string, any> = {};
+    document.body.innerHTML = fixtureHtml;
+    const ex = new StepExecutor(document, {}, {}, buffer);
+    ex.execute({ stepId: 'pa1', action: 'probe_affordances', selector: 'body', store_as: 'aff' });
+    expect(Array.isArray(buffer['aff'])).toBe(true);
+  });
+});
+
+// ── click_preset ──────────────────────────────────────────────────────────────
+describe('click_preset action', () => {
+  it('clicks button and returns ok with preset', () => {
+    document.body.innerHTML = fixtureHtml + '<button id="preset-btn">Select start date</button><div class="v-overlay"><button>Immediately</button></div>';
+    const ex = new StepExecutor(document, {
+      'start-date-picker': { match: { name_contains: ['select start date'] }, cachedSelector: null, cachedConfidence: 0 }
+    }, {}, {});
+    const r = ex.execute({ stepId: 'cp1', action: 'click_preset', target: 'start-date-picker', preset: 'Immediately' });
+    expect(r.status).toBe('ok');
+    expect((r as any).preset).toBe('Immediately');
+  });
+});
+
+// ── assert ────────────────────────────────────────────────────────────────────
+describe('assert action', () => {
+  it('passes when element text matches expected', () => {
+    const ex = makeExec();
+    const r = ex.execute({ stepId: 'as1', action: 'assert', selector: '.v-snackbar__content', value: 'User added' });
+    expect(r.status).toBe('ok');
+  });
+
+  it('returns error when text does not match', () => {
+    const ex = makeExec();
+    const r = ex.execute({ stepId: 'as1', action: 'assert', selector: '.v-snackbar__content', value: 'Wrong text' });
+    expect(r.status).toBe('error');
+  });
+});
+
+// ── js action ─────────────────────────────────────────────────────────────────
+describe('js action', () => {
+  it('evaluates expression and returns result', () => {
+    const ex = makeExec();
+    const r = ex.execute({ stepId: 'js1', action: 'js', code: '1 + 1' });
+    expect(r.status).toBe('ok');
+    expect((r as any).result).toBe(2);
+  });
+
+  it('stores result to buffer via store_as', () => {
+    const buffer: Record<string, any> = {};
+    document.body.innerHTML = fixtureHtml;
+    const ex = new StepExecutor(document, {}, {}, buffer);
+    ex.execute({ stepId: 'js1', action: 'js', code: '42', store_as: 'answer' });
+    expect(buffer['answer']).toBe(42);
+  });
+
+  it('returns error on js exception', () => {
+    const ex = makeExec();
+    const r = ex.execute({ stepId: 'js1', action: 'js', code: 'throw new Error("boom")' });
+    expect(r.status).toBe('error');
+    expect(r.error).toContain('boom');
+  });
+});

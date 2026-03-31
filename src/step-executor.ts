@@ -12,6 +12,10 @@ export interface StepResult {
   action: StepAction | string;
   status: 'ok' | 'skipped' | 'error' | 'unsupported';
   durationMs: number;
+  affordances?: Array<{text:string|null, ariaLabel:string|null, title:string|null}>;
+  affordanceCount?: number;
+  preset?: string;
+  result?: unknown;
   // type-specific fields
   state?: string;
   matched?: boolean;
@@ -23,7 +27,6 @@ export interface StepResult {
   target?: string;
   url?: string;
   responseSignature?: ResponseSignatureResult;
-  result?: unknown;
   storedAs?: string;
   reason?: string;
   error?: string;
@@ -199,6 +202,75 @@ export class StepExecutor {
         const el = this.doc.querySelector(sel);
         if (!el) throw new Error('wait_for: element not found: ' + sel);
         return { stepId: step.stepId, action: a, status: 'ok', selector: sel, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'hover') {
+        const tgtDef = step.target ? (this.abstractTargets[step.target] ?? null) : null;
+        if (step.target && !this.abstractTargets[step.target]) throw new Error('Cannot resolve: ' + step.target);
+        const res = tgtDef ? this.resolver.resolve(tgtDef) : (step.selector ? { element: this.doc.querySelector(step.selector), selector: step.selector, confidence: 0.7, resolvedVia: 'css_cascade' as const } : null);
+        if (!res?.element) throw new Error('Cannot resolve: ' + (step.target ?? step.selector));
+        (res.element as HTMLElement).dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+        (res.element as HTMLElement).dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+        return { stepId: step.stepId, action: a, status: 'ok', selector: res.selector, resolvedVia: res.resolvedVia, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'scroll') {
+        const sel = this.I(step.selector ?? step.target ?? '');
+        const el = sel ? this.doc.querySelector(sel) : null;
+        if (el) (el as HTMLElement).scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+        return { stepId: step.stepId, action: a, status: 'ok', selector: sel || null, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'select') {
+        const tgtDef = step.target ? (this.abstractTargets[step.target] ?? null) : null;
+        if (step.target && !this.abstractTargets[step.target]) throw new Error('Cannot resolve: ' + step.target);
+        const res = tgtDef ? this.resolver.resolve(tgtDef) : (step.selector ? { element: this.doc.querySelector(step.selector), selector: step.selector, confidence: 0.7, resolvedVia: 'css_cascade' as const } : null);
+        if (!res?.element) throw new Error('Cannot resolve: ' + (step.target ?? step.selector));
+        const el = res.element as HTMLSelectElement | HTMLInputElement;
+        const value = this.I(step.value ?? '');
+        if ('options' in el) {
+          // <select> element — match by text or value
+          const opts = Array.from((el as HTMLSelectElement).options);
+          const opt = opts.find(o => o.value === value || o.text === value);
+          if (opt) (el as HTMLSelectElement).value = opt.value;
+        } else if (el.type === 'checkbox' || el.type === 'radio') {
+          (el as HTMLInputElement).checked = value === 'true' || value === '1';
+        } else {
+          el.value = value;
+        }
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        return { stepId: step.stepId, action: a, status: 'ok', value, selector: res.selector, resolvedVia: res.resolvedVia, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'click_preset') {
+        // Click a button to open a picker, then click the preset option text
+        const tgtDef = step.target ? (this.abstractTargets[step.target] ?? null) : null;
+        if (step.target && !this.abstractTargets[step.target]) throw new Error('Cannot resolve: ' + step.target);
+        const res = tgtDef ? this.resolver.resolve(tgtDef) : (step.selector ? { element: this.doc.querySelector(step.selector), selector: step.selector, confidence: 0.7, resolvedVia: 'css_cascade' as const } : null);
+        if (!res?.element) throw new Error('Cannot resolve: ' + (step.target ?? step.selector));
+        (res.element as HTMLElement).click();
+        const preset = this.I(step.preset ?? step.defaultPreset ?? 'Immediately');
+        // Find the option text in any newly visible overlay/list
+        const option = Array.from(this.doc.querySelectorAll('[class*="overlay"] *,[class*="menu"] *,[class*="list"] *,button'))
+          .find(el => el.textContent?.trim() === preset) as HTMLElement | undefined;
+        if (option) option.click();
+        return { stepId: step.stepId, action: a, status: 'ok', preset, selector: res.selector, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'probe_affordances') {
+        // Hover all buttons/icons in container, collect tooltip texts
+        const container = step.selector ? this.doc.querySelector(step.selector) : this.doc.body;
+        const btns = Array.from((container ?? this.doc.body).querySelectorAll('button,[role="button"],[class*="icon"]'));
+        const affordances = btns.map(btn => {
+          (btn as HTMLElement).dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+          return {
+            text: (btn as HTMLElement).textContent?.trim() || null,
+            ariaLabel: btn.getAttribute('aria-label'),
+            title: btn.getAttribute('title'),
+          };
+        }).filter(a => a.text || a.ariaLabel || a.title);
+        if (step.store_as) this.buffer[step.store_as] = affordances;
+        return { stepId: step.stepId, action: a, status: 'ok', affordances, storedAs: step.store_as, durationMs: Date.now() - t0 };
       }
 
             return { stepId: step.stepId, action: a, status: 'unsupported', durationMs: Date.now() - t0 };
