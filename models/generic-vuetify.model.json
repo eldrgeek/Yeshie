@@ -1,0 +1,109 @@
+{
+  "_meta": {
+    "layer": 2,
+    "name": "Generic Vuetify Interaction Patterns",
+    "description": "Framework-specific patterns for Vuetify 3 apps. CoWork uses this layer to generate correct payloads for any Vuetify app without site-specific knowledge. Self-improves as more Vuetify apps are encountered.",
+    "version": "0.1",
+    "detectionSignal": "document.querySelector('.v-application')",
+    "learnedFrom": ["app.yeshid.com"]
+  },
+
+  "inputResolution": {
+    "description": "Vuetify inputs rarely have ARIA labels. Resolution uses the v-label element inside the same v-input container.",
+    "strategy": "vuetify_label_match",
+    "labelSelector": ".v-input .v-label, .v-field .v-label, .v-field-label",
+    "inputSelector": ".v-input input, .v-field input, .v-text-field input",
+    "algorithm": "Walk up from input to nearest .v-input or .v-field ancestor. Find .v-label text within that ancestor. Score against name_contains.",
+    "jsResolution": "function resolveVuetifyInput(nameTerms) { return [...document.querySelectorAll('.v-input, .v-field')].map(container => { const label = container.querySelector('.v-label, .v-field-label'); const input = container.querySelector('input, textarea'); if (!label || !input) return null; const labelText = label.textContent.trim().toLowerCase(); const score = nameTerms.filter(t => labelText.includes(t.toLowerCase())).length * 30; return score > 0 ? { input, score, labelText } : null; }).filter(Boolean).sort((a,b) => b.score - a.score)[0]?.input ?? null; }"
+  },
+
+  "dialogPatterns": {
+    "openSignal": {
+      "description": "Vuetify dialogs use .v-overlay--active class when open.",
+      "selector": ".v-overlay--active .v-overlay__content",
+      "waitFor": { "type": "element_visible", "selector": ".v-overlay--active .v-overlay__content" }
+    },
+    "closeSignal": {
+      "description": "Dialog closes when .v-overlay--active disappears.",
+      "waitFor": { "type": "element_absent", "selector": ".v-overlay--active" }
+    },
+    "titleSelector": ".v-overlay--active .v-card-title, .v-overlay--active .v-toolbar-title",
+    "cancelButton": { "match": { "role": "button", "name_contains": ["cancel", "close"] }, "fallbackSelectors": [".v-overlay--active button:first-of-type"] },
+    "confirmButton": { "match": { "role": "button", "name_contains": ["save", "add", "create", "confirm", "ok", "submit"] }, "fallbackSelectors": [".v-overlay--active .v-btn--variant-flat:last-of-type"] }
+  },
+
+  "tablePatterns": {
+    "description": "Vuetify v-data-table patterns. Rows are <tr> elements; columns have <th> headers.",
+    "rowSelector": "table tbody tr, .v-data-table tbody tr",
+    "headerSelector": "table thead th, .v-data-table thead th",
+    "searchInput": {
+      "match": { "role": "textbox", "name_contains": ["search", "filter"] },
+      "fallbackSelectors": ["input[placeholder*='Search' i]", ".v-text-field input"]
+    },
+    "findRowByText": "function findRow(text) { return [...document.querySelectorAll('table tbody tr')].find(r => r.textContent.toLowerCase().includes(text.toLowerCase())); }",
+    "actionButtonsInRow": "function getRowActions(row) { return [...row.querySelectorAll('button, a[href]')].map(el => ({ text: el.textContent.trim(), ariaLabel: el.getAttribute('aria-label'), href: el.href })); }",
+    "paginationSelectors": {
+      "first": "[aria-label='First page']",
+      "previous": "[aria-label='Previous page']",
+      "next": "[aria-label='Next page']",
+      "last": "[aria-label='Last page']"
+    }
+  },
+
+  "navigationPatterns": {
+    "description": "Vuetify v-navigation-drawer. Links are <a> elements inside list items.",
+    "navSelector": ".v-navigation-drawer",
+    "linkSelector": ".v-navigation-drawer a[href]",
+    "activeClass": "v-list-item--active",
+    "findNavLink": "function findNavLink(text) { return [...document.querySelectorAll('.v-navigation-drawer a')].find(a => a.textContent.trim().toLowerCase().includes(text.toLowerCase())); }"
+  },
+
+  "snackbarPatterns": {
+    "description": "Vuetify snackbar appears after successful operations. Contains confirmation text.",
+    "selector": ".v-snackbar--active, .v-snackbar[style*='display: block']",
+    "successSignal": { "type": "element_visible", "selector": ".v-snackbar--active", "timeout": 3000 },
+    "readText": ".v-snackbar__content"
+  },
+
+  "formPatterns": {
+    "submitButton": {
+      "match": { "role": "button", "name_contains": ["save", "create", "add", "submit", "onboard", "update"] },
+      "fallbackSelectors": ["form button[type='submit']", ".v-form button.v-btn--variant-flat"]
+    },
+    "clearButton": {
+      "match": { "role": "button", "name_contains": ["clear", "reset"] },
+      "fallbackSelectors": ["button:contains('Clear')"]
+    },
+    "checkboxPattern": {
+      "description": "Vuetify checkboxes render as input[type=checkbox] inside .v-checkbox. Clicking the wrapper div is more reliable than clicking the input directly.",
+      "wrapperSelector": ".v-checkbox, .v-selection-control",
+      "inputSelector": "input[type='checkbox']"
+    }
+  },
+
+  "autocompletePatterns": {
+    "description": "Vuetify v-autocomplete / v-combobox. Type in the input, wait for dropdown, click option.",
+    "inputSelector": ".v-autocomplete input, .v-combobox input",
+    "dropdownSelector": ".v-overlay--active .v-list, .v-autocomplete__content .v-list",
+    "optionSelector": ".v-list-item",
+    "typeAndSelect": [
+      { "action": "type", "target": "autocomplete-input", "value": "{{search_term}}" },
+      { "action": "wait_for", "target": "dropdown-option", "state": { "visible": true }, "timeout": 2000 },
+      { "action": "click", "target": "matching-option" }
+    ]
+  },
+
+  "datePickerPatterns": {
+    "description": "Vuetify date pickers open as overlays when the date field is clicked.",
+    "triggerButton": "button:contains('Select'), .v-input--density-default button",
+    "openSignal": { "type": "element_visible", "selector": ".v-date-picker, .v-overlay--active .v-picker" },
+    "confirmSelector": ".v-date-picker .v-btn--variant-flat, .v-picker__actions button:last-child"
+  },
+
+  "knownLimitations": [
+    "Vuetify inputs use generated IDs (input-v-10) that change between sessions — never cache by ID",
+    "Most buttons have no aria-label — resolve by text content only",
+    "v-overlay z-index is 2000 — overlays can obscure page content during probe operations",
+    "Vuetify's v-tooltip uses .v-overlay not [role=tooltip] for rendering"
+  ]
+}

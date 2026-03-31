@@ -1,0 +1,251 @@
+{
+  "_meta": {
+    "task": "integration-setup",
+    "description": "Set up a SCIM or custom integration for a named SaaS service in YeshID. Can create the application if it doesn't exist yet, then configure authentication. The LLM is expected to look up the service's SCIM/API documentation and supply the correct auth values before running this payload.",
+    "params": ["service_name", "auth_type", "base_url", "bearer_token"],
+    "paramNotes": {
+      "service_name": "Display name of the SaaS service (e.g. 'GitHub', 'Slack', 'Okta')",
+      "integration_type": "scim | custom (default: scim)",
+      "auth_type": "Bearer | OAuth2 | Basic | Custom API key | None",
+      "base_url": "Root API URL for the integration (from service's SCIM docs)",
+      "bearer_token": "Bearer token if auth_type is Bearer (from service's API settings)",
+      "app_id": "Optional: existing YeshID application ID. If not provided, the app will be created first."
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "prerequisite": "00-login.payload.json",
+    "note": "Before running, CoWork should: (1) search docs.yeshid.com for integration instructions for the service, (2) look up the service's SCIM endpoint and token, (3) populate params accordingly."
+  },
+
+  "runId": "yeshid-integration-{{service_name}}-{{timestamp}}",
+  "mode": "verification",
+  "site": "app.yeshid.com",
+
+  "params": {
+    "service_name": "{{service_name}}",
+    "integration_type": "{{integration_type}}",
+    "auth_type": "{{auth_type}}",
+    "api_base_url": "{{base_url}}",
+    "bearer_token": "{{bearer_token}}",
+    "app_id": "{{app_id}}",
+    "base_url": "https://app.yeshid.com"
+  },
+
+  "stateGraph": {
+    "currentNode": "authenticated",
+    "nodes": {
+      "authenticated": {
+        "signals": [{ "type": "element_visible", "selector": ".v-navigation-drawer a[href='/overview']" }]
+      },
+      "applications-list": {
+        "signals": [{ "type": "url_matches", "pattern": "/access/applications$" }]
+      },
+      "application-detail": {
+        "signals": [{ "type": "url_matches", "pattern": "/access/applications/.+/accounts" }]
+      },
+      "integration-config": {
+        "signals": [{ "type": "url_matches", "pattern": "/access/applications/.+/integration/authentication" }]
+      }
+    }
+  },
+
+  "abstractTargets": {
+    "add-application-button": {
+      "match": { "role": "button", "name_contains": ["add application"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0,
+      "fallbackSelectors": ["button"]
+    },
+    "application-name-input": {
+      "match": { "role": "textbox", "name_contains": ["application name"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0,
+      "fallbackSelectors": [".v-overlay--active input[placeholder*='application' i]", ".v-overlay--active input"]
+    },
+    "technical-owners-input": {
+      "match": { "role": "textbox", "name_contains": ["technical owner", "owner"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0,
+      "fallbackSelectors": [".v-overlay--active input[placeholder*='owner' i]"]
+    },
+    "dialog-add-button": {
+      "match": { "role": "button", "name_contains": ["add", "create"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0,
+      "fallbackSelectors": [".v-overlay--active .v-btn--variant-flat:last-child"]
+    },
+    "manage-integration-button": {
+      "match": { "role": "button", "name_contains": ["manage integration", "connect"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0,
+      "fallbackSelectors": ["button"]
+    },
+    "scim-radio": {
+      "match": { "role": "radio", "name_contains": ["scim"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0,
+      "fallbackSelectors": [
+        "input[type='radio'][value*='scim' i]",
+        ".v-radio:has(label:contains('SCIM')) input"
+      ]
+    },
+    "auth-type-selector": {
+      "match": { "role": "combobox", "vuetify_label": ["authentication type"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0,
+      "fallbackSelectors": [".v-select input", "input[role='combobox']"]
+    },
+    "api-base-url-input": {
+      "match": { "role": "textbox", "vuetify_label": ["base url", "root api", "api url"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0,
+      "fallbackSelectors": ["input[placeholder*='https://example' i]", "input[placeholder*='URL' i]"]
+    },
+    "bearer-token-input": {
+      "match": { "role": "textbox", "vuetify_label": ["token", "bearer", "api key", "secret"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0,
+      "fallbackSelectors": ["input[type='password']", "input[placeholder*='token' i]"]
+    },
+    "save-button": {
+      "match": { "role": "button", "name_contains": ["save"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0,
+      "fallbackSelectors": ["button.v-btn--variant-flat"]
+    }
+  },
+
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "{{base_url}}/access/applications",
+      "guard": { "target": "add-application-button", "state": { "visible": true }, "timeout": 5000 },
+      "expect": { "state": "applications-list" }
+    },
+    {
+      "stepId": "s2",
+      "action": "js",
+      "code": "(function() { const appId = '{{app_id}}'; if (appId && appId !== '{{app_id}}') return { skip: true, reason: 'app_id provided, skipping creation' }; const rows = [...document.querySelectorAll('table tbody tr')]; const existing = rows.find(r => r.textContent.toLowerCase().includes('{{service_name}}'.toLowerCase())); if (existing) { const link = existing.querySelector('a[href]'); if (link) { link.click(); } else { existing.click(); } return { skip: true, foundExisting: true }; } return { skip: false }; })()",
+      "store_as": "app_check",
+      "note": "Check if app already exists. If yes, navigate to it directly. If no, proceed to create."
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "target": "add-application-button",
+      "condition": "!{{app_check.skip}}",
+      "guard": { "target": "add-application-button", "state": { "visible": true, "enabled": true } },
+      "responseSignature": [
+        { "type": "element_visible", "selector": ".v-overlay--active", "timeout": 2000 }
+      ]
+    },
+    {
+      "stepId": "s4",
+      "action": "type",
+      "target": "application-name-input",
+      "value": "{{service_name}}",
+      "condition": "!{{app_check.skip}}",
+      "guard": { "target": "application-name-input", "state": { "visible": true, "enabled": true } }
+    },
+    {
+      "stepId": "s5",
+      "action": "click",
+      "target": "dialog-add-button",
+      "condition": "!{{app_check.skip}}",
+      "guard": { "target": "dialog-add-button", "state": { "visible": true, "enabled": true } },
+      "responseSignature": [
+        {
+          "any_of": [
+            { "type": "element_absent", "selector": ".v-overlay--active", "timeout": 3000 },
+            { "type": "url_change", "matches": "/access/applications/.+/accounts", "timeout": 5000 }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "s6",
+      "action": "js",
+      "code": "(function() { const rows = [...document.querySelectorAll('table tbody tr')]; const appRow = rows.find(r => r.textContent.toLowerCase().includes('{{service_name}}'.toLowerCase())); if (!appRow) return { found: false, error: 'App row not found after creation' }; const link = appRow.querySelector('a[href]'); if (link) { link.click(); return { found: true, href: link.href }; } appRow.click(); return { found: true }; })()",
+      "store_as": "app_nav_result",
+      "condition": "!{{app_check.foundExisting}}"
+    },
+    {
+      "stepId": "s7",
+      "action": "wait_for",
+      "target": "manage-integration-button",
+      "state": { "visible": true },
+      "timeout": 5000,
+      "expect": { "state": "application-detail" }
+    },
+    {
+      "stepId": "s8",
+      "action": "click",
+      "target": "manage-integration-button",
+      "guard": { "target": "manage-integration-button", "state": { "visible": true, "enabled": true } },
+      "responseSignature": [
+        { "type": "url_change", "matches": "/integration/authentication", "timeout": 5000 }
+      ]
+    },
+    {
+      "stepId": "s9",
+      "action": "js",
+      "code": "(function() { const intType = '{{integration_type}}' || 'scim'; const radios = [...document.querySelectorAll('input[type=\"radio\"], .v-radio')]; const target = radios.find(r => r.textContent?.toLowerCase().includes(intType) || r.value?.toLowerCase().includes(intType)); if (target) { target.click(); return { selected: intType }; } return { notFound: true, available: radios.map(r => r.value || r.textContent?.trim()) }; })()",
+      "store_as": "integration_type_result",
+      "note": "Select SCIM or Build Your Own integration type."
+    },
+    {
+      "stepId": "s10",
+      "action": "js",
+      "code": "(function() { const authType = '{{auth_type}}'; const selects = [...document.querySelectorAll('.v-select, .v-autocomplete')]; const authSelect = selects.find(s => s.textContent.toLowerCase().includes('authentication type') || s.querySelector('.v-label')?.textContent.toLowerCase().includes('auth')); if (authSelect) { const input = authSelect.querySelector('input'); if (input) { input.click(); return { opened: true }; } } return { notFound: true }; })()",
+      "store_as": "auth_dropdown_result",
+      "note": "Open the authentication type dropdown."
+    },
+    {
+      "stepId": "s11",
+      "action": "js",
+      "code": "(async () => { await new Promise(r => setTimeout(r, 300)); const authType = '{{auth_type}}'; const options = [...document.querySelectorAll('.v-overlay--active .v-list-item, .v-list-item')]; const match = options.find(o => o.textContent.trim().toLowerCase() === authType.toLowerCase()); if (match) { match.click(); return { selected: authType }; } return { notFound: true, available: options.map(o => o.textContent.trim()) }; })()",
+      "store_as": "auth_type_result"
+    },
+    {
+      "stepId": "s12",
+      "action": "js",
+      "code": "(function() { function findVuetifyInput(labelTerms) { return [...document.querySelectorAll('.v-input, .v-field')].map(c => { const label = c.querySelector('.v-label, .v-field-label'); const input = c.querySelector('input, textarea'); if (!label || !input) return null; const t = label.textContent.trim().toLowerCase(); const score = labelTerms.filter(term => t.includes(term.toLowerCase())).length; return score > 0 ? { input, score } : null; }).filter(Boolean).sort((a,b) => b.score - a.score)[0]?.input; } function setNativeValue(el, val) { const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; setter.call(el, val); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); } const baseUrl = '{{api_base_url}}'; const token = '{{bearer_token}}'; const results = {}; if (baseUrl) { const el = findVuetifyInput(['base url', 'root api', 'api url']); if (el) { setNativeValue(el, baseUrl); results.baseUrl = true; } } if (token) { const el = findVuetifyInput(['token', 'bearer', 'api key', 'secret']) || document.querySelector('input[type=\"password\"]'); if (el) { setNativeValue(el, token); results.token = true; } } return results; })()",
+      "store_as": "credential_fill_result",
+      "note": "Fill Base URL and bearer token using Vuetify label resolution."
+    },
+    {
+      "stepId": "s13",
+      "action": "click",
+      "target": "save-button",
+      "guard": { "target": "save-button", "state": { "visible": true, "enabled": true } },
+      "responseSignature": [
+        {
+          "any_of": [
+            { "type": "element_visible", "selector": ".v-snackbar--active", "timeout": 5000 },
+            { "type": "element_visible", "selector": ".v-alert", "timeout": 5000 }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "s14",
+      "action": "read",
+      "candidates": [".v-snackbar--active .v-snackbar__content", ".v-alert .v-alert__content"],
+      "store_as": "save_result",
+      "minLength": 1
+    }
+  ],
+
+  "preRunChecklist": {
+    "description": "Steps CoWork should complete BEFORE generating this payload.",
+    "steps": [
+      "1. Search docs.yeshid.com for '{service_name} integration' to find YeshID-specific setup instructions",
+      "2. Search {service_name} documentation for 'SCIM provisioning endpoint' or 'SCIM base URL'",
+      "3. In {service_name}'s admin console, generate a SCIM token or API key",
+      "4. Confirm integration_type: most modern SaaS (Slack, GitHub, Okta, Notion, etc.) support SCIM 2.0",
+      "5. Populate params: service_name, auth_type='Bearer', base_url={scim_endpoint}, bearer_token={token}"
+    ]
+  }
+}

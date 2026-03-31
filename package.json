@@ -1,0 +1,19 @@
+{
+  "name": "yeshie-executor",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/.bin/jest --testPathIgnorePatterns=integration",
+    "test:integration": "node --experimental-vm-modules node_modules/.bin/jest --testPathPattern=integration"
+  },
+  "dependencies": {
+    "puppeteer-core": "^22.0.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.4.0"
+  }
+}

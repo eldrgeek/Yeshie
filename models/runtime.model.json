@@ -1,0 +1,197 @@
+{
+  "_meta": {
+    "layer": 1,
+    "name": "Yeshie Runtime ISA",
+    "description": "Machine-readable description of the Yeshie runtime instruction set. CoWork reads this to know what actions, signal types, and resolution strategies are available before generating any payload.",
+    "version": "0.2",
+    "specRef": "yeshie-runtime-spec.md"
+  },
+
+  "executionModes": {
+    "exploratory": {
+      "description": "Novel site or uncertain selectors. Every step reports back. Short chains (1–5 steps).",
+      "callbackTrigger": "every_step"
+    },
+    "verification": {
+      "description": "Known site, moderate confidence. Checkpoints at state transitions. Waits for resume signal after each boundary.",
+      "callbackTrigger": "state_transition"
+    },
+    "production": {
+      "description": "High-confidence, proven chain. Full local execution. Single round trip.",
+      "callbackTrigger": "completion_or_failure"
+    }
+  },
+
+  "actions": [
+    {
+      "name": "assess_state",
+      "description": "Check current page state against the state graph. Returns matched node name or triggers onMismatch branch.",
+      "fields": ["expect.state", "onMismatch"]
+    },
+    {
+      "name": "navigate",
+      "description": "Navigate to URL and wait for guard element to confirm arrival.",
+      "fields": ["url", "guard", "expect.state"]
+    },
+    {
+      "name": "click",
+      "description": "Click an element. Verifies guard before click, verifies responseSignature after.",
+      "fields": ["target", "guard", "responseSignature"]
+    },
+    {
+      "name": "type",
+      "description": "Type text into input/textarea/contenteditable. method=execCommand for contenteditable, set_value for native inputs.",
+      "fields": ["target", "value", "method", "guard", "responseSignature"],
+      "methods": ["auto", "execCommand", "set_value"]
+    },
+    {
+      "name": "wait_for",
+      "description": "Wait for element to reach a state (visible/enabled) or attribute value. Supports: state.visible, state.enabled, state.attribute[key]=value.",
+      "fields": ["target", "state", "timeout"]
+    },
+    {
+      "name": "read",
+      "description": "Read text from an element. Supports candidate waterfall — first selector with non-empty text wins.",
+      "fields": ["selector", "candidates", "store_as", "minLength"]
+    },
+    {
+      "name": "hover",
+      "description": "Hover over element. Used for tooltip harvesting and affordance testing.",
+      "fields": ["target", "durationMs"]
+    },
+    {
+      "name": "probe_affordances",
+      "description": "Parallel hover probe of all elements matching selector. Returns affordance map with tooltips and ARIA response.",
+      "fields": ["selector", "parallel", "timeout"]
+    },
+    {
+      "name": "scroll",
+      "description": "Scroll element into view.",
+      "fields": ["target"]
+    },
+    {
+      "name": "select",
+      "description": "Choose value in dropdown/radio/checkbox.",
+      "fields": ["target", "value"]
+    },
+    {
+      "name": "assert",
+      "description": "Assert element text matches expected value. Fails chain if not matched.",
+      "fields": ["target", "value"]
+    },
+    {
+      "name": "js",
+      "description": "Escape hatch: execute arbitrary JS. Returns result to feedback. Use sparingly.",
+      "fields": ["code"]
+    }
+  ],
+
+  "responseSignatureTypes": [
+    {
+      "type": "attribute_change",
+      "description": "An element's attribute changes to a specific value.",
+      "fields": ["selector", "attribute", "value", "timeout"]
+    },
+    {
+      "type": "attr_change",
+      "description": "An attribute transitions from one specific value to another. from is optional (matches any transition to 'to' if omitted).",
+      "fields": ["selector", "attr", "from", "to", "timeout"]
+    },
+    {
+      "type": "element_visible",
+      "description": "An element matching selector appears and is visible in the DOM.",
+      "fields": ["selector", "timeout"]
+    },
+    {
+      "type": "element_absent",
+      "description": "An element matching selector disappears from the DOM.",
+      "fields": ["selector", "timeout"]
+    },
+    {
+      "type": "url_change",
+      "description": "The page URL changes to match a regex pattern.",
+      "fields": ["matches", "timeout"]
+    },
+    {
+      "type": "state_reached",
+      "description": "The page state graph matches a named state node.",
+      "fields": ["state", "timeout"]
+    },
+    {
+      "type": "any_of",
+      "description": "OR group. Resolves when the first inner item matches. Used for cross-site or multi-pattern completion.",
+      "fields": ["any_of[]"]
+    }
+  ],
+
+  "abstractTargetResolution": {
+    "description": "Priority-ordered resolution of abstract target names to concrete DOM elements.",
+    "steps": [
+      {
+        "order": 1,
+        "method": "cached_selector",
+        "description": "Use cachedSelector if element is found in DOM. Fast path. Confidence inherits cachedConfidence.",
+        "confidenceRange": [0.7, 1.0]
+      },
+      {
+        "order": 2,
+        "method": "a11y_tree_match",
+        "description": "Score elements by role and name_contains. Highest-scoring visible/enabled element wins. Minimum score 30.",
+        "confidenceRange": [0.6, 0.95]
+      },
+      {
+        "order": 3,
+        "method": "vuetify_label_match",
+        "description": "For Vuetify apps: traverse up to .v-input container, find .v-label text, score against name_contains. Handles unlabelled Vuetify inputs.",
+        "confidenceRange": [0.5, 0.85],
+        "applicableWhen": "framework === 'vue' && target.match.vuetify_label !== undefined"
+      },
+      {
+        "order": 4,
+        "method": "contenteditable_area",
+        "description": "For contenteditable inputs with no ARIA label: select largest visible div[contenteditable] by bounding box area.",
+        "confidenceRange": [0.4, 0.6],
+        "applicableWhen": "target.match.contenteditable === true && a11y_score < 30"
+      },
+      {
+        "order": 5,
+        "method": "fallback_selectors",
+        "description": "Try fallbackSelectors array in order. First one found in DOM wins.",
+        "confidenceRange": [0.3, 0.7]
+      },
+      {
+        "order": 6,
+        "method": "llm_escalation",
+        "description": "Send readControls snapshot to CoWork. Slow path — only when all other methods fail.",
+        "confidenceRange": [0.0, 0.5]
+      }
+    ]
+  },
+
+  "selfImprovementProtocol": {
+    "description": "How scripts update their own cached selectors after successful runs.",
+    "trigger": "ChainResult.event === 'chain_complete' && goalReached === true",
+    "mechanism": "Merge ChainResult.modelUpdates.resolvedTargets back into the payload's abstractTargets registry. Update cachedSelector and cachedConfidence. Write updated payload back to disk.",
+    "mergeRules": {
+      "higherConfidenceWins": true,
+      "maxCachedAge": "30 days",
+      "onConflict": "keep_higher_confidence"
+    }
+  },
+
+  "frameworkDetection": {
+    "vue": "window.__vue__ || document.querySelector('[data-v-]') || document.querySelector('.v-application')",
+    "react": "document.querySelector('[data-reactroot]') || Object.keys(document).some(k => k.startsWith('__reactFiber'))",
+    "angular": "document.querySelector('[ng-version]') || window.ng",
+    "vanilla": "fallback"
+  },
+
+  "completionDetectionPriority": [
+    "morphing_button_returns_to_idle_label",
+    "feedback_buttons_appear (Copy, Regenerate, Retry, Like, Dislike)",
+    "stop_button_disappears",
+    "submit_button_reenables",
+    "aria_busy_false",
+    "url_change"
+  ]
+}

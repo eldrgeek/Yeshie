@@ -1,0 +1,113 @@
+{
+  "_meta": {
+    "task": "login",
+    "description": "Ensure the user is authenticated on app.yeshid.com. If already logged in, exits immediately. If not, fills login form and submits.",
+    "params": ["email", "password"],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null
+  },
+
+  "runId": "yeshid-login-{{timestamp}}",
+  "mode": "verification",
+  "site": "app.yeshid.com",
+
+  "params": {
+    "email": "{{email}}",
+    "password": "{{password}}",
+    "base_url": "https://app.yeshid.com"
+  },
+
+  "stateGraph": {
+    "currentNode": "unknown",
+    "nodes": {
+      "unauthenticated": {
+        "signals": [
+          { "type": "url_matches", "pattern": "/login|/auth|/signin" },
+          { "type": "element_visible", "selector": "input[type='email'], input[type='password']" }
+        ]
+      },
+      "authenticated": {
+        "signals": [
+          { "type": "element_visible", "selector": ".v-navigation-drawer a[href='/overview']" }
+        ]
+      }
+    }
+  },
+
+  "abstractTargets": {
+    "email-input": {
+      "match": { "role": "textbox", "vuetify_label": ["email", "username"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0,
+      "fallbackSelectors": ["input[type='email']", "input[name='email']", "input[placeholder*='email' i]"]
+    },
+    "password-input": {
+      "match": { "role": "textbox", "vuetify_label": ["password"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0,
+      "fallbackSelectors": ["input[type='password']", "input[name='password']"]
+    },
+    "login-button": {
+      "match": { "role": "button", "name_contains": ["login", "sign in", "log in", "continue"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0,
+      "fallbackSelectors": ["button[type='submit']", "form button"]
+    }
+  },
+
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "{{base_url}}",
+      "guard": { "target": "email-input", "state": { "visible": true }, "timeout": 5000 },
+      "note": "Navigate to base URL. If already authenticated, will redirect to /overview — guard will fail, triggering state check."
+    },
+    {
+      "stepId": "s2",
+      "action": "assess_state",
+      "expect": { "state": "unauthenticated" },
+      "onMismatch": "branch:already-authenticated"
+    },
+    {
+      "stepId": "s3",
+      "action": "type",
+      "target": "email-input",
+      "value": "{{email}}",
+      "guard": { "target": "email-input", "state": { "visible": true, "enabled": true } }
+    },
+    {
+      "stepId": "s4",
+      "action": "type",
+      "target": "password-input",
+      "value": "{{password}}",
+      "guard": { "target": "password-input", "state": { "visible": true, "enabled": true } }
+    },
+    {
+      "stepId": "s5",
+      "action": "click",
+      "target": "login-button",
+      "guard": { "target": "login-button", "state": { "visible": true, "enabled": true } },
+      "responseSignature": [
+        { "type": "state_reached", "state": "authenticated", "timeout": 10000 }
+      ]
+    }
+  ],
+
+  "branches": {
+    "already-authenticated": {
+      "description": "User is already logged in. Nothing to do.",
+      "steps": [
+        {
+          "stepId": "b1",
+          "action": "assert",
+          "target": "nav-people",
+          "value": "People",
+          "note": "Confirm we're in a known authenticated state by verifying sidebar is present."
+        }
+      ],
+      "onComplete": "exit_success"
+    }
+  }
+}

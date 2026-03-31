@@ -1,0 +1,134 @@
+{
+  "_meta": {
+    "task": "user-modify",
+    "description": "Modify an existing user's profile in YeshID. Searches for the user, opens their detail page, updates specified fields, and saves.",
+    "params": ["user_identifier", "fields"],
+    "paramNotes": {
+      "user_identifier": "Name or email to find the user",
+      "fields": "Object of field names to new values, e.g. { 'first_name': 'Jane', 'company_email': 'jane@example.com' }"
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "prerequisite": "00-login.payload.json"
+  },
+
+  "runId": "yeshid-user-modify-{{timestamp}}",
+  "mode": "verification",
+  "site": "app.yeshid.com",
+
+  "params": {
+    "user_identifier": "{{user_identifier}}",
+    "new_first_name": "{{new_first_name}}",
+    "new_last_name": "{{new_last_name}}",
+    "new_personal_email": "{{new_personal_email}}",
+    "base_url": "https://app.yeshid.com"
+  },
+
+  "stateGraph": {
+    "currentNode": "authenticated",
+    "nodes": {
+      "authenticated": {
+        "signals": [{ "type": "element_visible", "selector": ".v-navigation-drawer a[href='/overview']" }]
+      },
+      "people-list": {
+        "signals": [{ "type": "url_matches", "pattern": "/organization/people$" }]
+      },
+      "person-detail": {
+        "signals": [{ "type": "url_matches", "pattern": "/organization/people/[a-z0-9-]+" }]
+      }
+    }
+  },
+
+  "abstractTargets": {
+    "search-input": {
+      "match": { "role": "textbox", "name_contains": ["search"] },
+      "cachedSelector": "input[placeholder='Search']",
+      "cachedConfidence": 0.90
+    },
+    "save-button": {
+      "match": { "role": "button", "name_contains": ["save", "update"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0,
+      "fallbackSelectors": ["button.v-btn--variant-flat", "button[type='submit']"]
+    },
+    "edit-first-name": {
+      "match": { "role": "textbox", "vuetify_label": ["first name"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0
+    },
+    "edit-last-name": {
+      "match": { "role": "textbox", "vuetify_label": ["last name"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0
+    },
+    "edit-personal-email": {
+      "match": { "role": "textbox", "vuetify_label": ["personal", "recovery"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0
+    }
+  },
+
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people",
+      "guard": { "target": "search-input", "state": { "visible": true }, "timeout": 5000 },
+      "expect": { "state": "people-list" }
+    },
+    {
+      "stepId": "s2",
+      "action": "type",
+      "target": "search-input",
+      "value": "{{user_identifier}}",
+      "guard": { "target": "search-input", "state": { "visible": true, "enabled": true } },
+      "responseSignature": [
+        { "type": "element_visible", "selector": "table tbody tr", "timeout": 2000 }
+      ]
+    },
+    {
+      "stepId": "s3",
+      "action": "js",
+      "code": "(function() { const rows = [...document.querySelectorAll('table tbody tr')]; const match = rows.find(r => r.textContent.toLowerCase().includes('{{user_identifier}}'.toLowerCase())); if (!match) return { found: false, error: 'User not found' }; const link = match.querySelector('a[href]'); if (link) { link.click(); return { found: true, href: link.href }; } match.click(); return { found: true }; })()",
+      "store_as": "find_result",
+      "note": "Find and click into person detail page."
+    },
+    {
+      "stepId": "s4",
+      "action": "wait_for",
+      "target": "save-button",
+      "state": { "visible": true },
+      "timeout": 5000,
+      "expect": { "state": "person-detail" }
+    },
+    {
+      "stepId": "s5",
+      "action": "js",
+      "code": "(function() { function clearAndType(input, value) { input.focus(); input.select(); const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; nativeInputValueSetter.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true })); return true; } function findVuetifyInput(labelTerms) { return [...document.querySelectorAll('.v-input, .v-field')].map(c => { const label = c.querySelector('.v-label, .v-field-label'); const input = c.querySelector('input, textarea'); if (!label || !input) return null; const t = label.textContent.trim().toLowerCase(); const score = labelTerms.filter(term => t.includes(term.toLowerCase())).length; return score > 0 ? { input, score } : null; }).filter(Boolean).sort((a,b) => b.score - a.score)[0]?.input; } const updates = {}; const firstName = '{{new_first_name}}'; const lastName = '{{new_last_name}}'; const personalEmail = '{{new_personal_email}}'; if (firstName) { const el = findVuetifyInput(['first name']); if (el) { clearAndType(el, firstName); updates.first_name = true; } } if (lastName) { const el = findVuetifyInput(['last name']); if (el) { clearAndType(el, lastName); updates.last_name = true; } } if (personalEmail) { const el = findVuetifyInput(['personal', 'recovery']); if (el) { clearAndType(el, personalEmail); updates.personal_email = true; } } return updates; })()",
+      "store_as": "update_result",
+      "note": "Update all provided fields using Vuetify label-based resolution in a single JS step."
+    },
+    {
+      "stepId": "s6",
+      "action": "click",
+      "target": "save-button",
+      "guard": { "target": "save-button", "state": { "visible": true, "enabled": true } },
+      "responseSignature": [
+        {
+          "any_of": [
+            { "type": "element_visible", "selector": ".v-snackbar--active", "timeout": 5000 },
+            { "type": "element_visible", "selector": ".v-alert", "timeout": 5000 }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "s7",
+      "action": "read",
+      "candidates": [".v-snackbar--active .v-snackbar__content", ".v-alert .v-alert__content"],
+      "store_as": "confirmation_message",
+      "minLength": 1
+    }
+  ]
+}
