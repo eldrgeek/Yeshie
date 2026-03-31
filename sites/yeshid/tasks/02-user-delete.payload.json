@@ -2,53 +2,89 @@
   "_meta": {
     "task": "user-delete",
     "description": "Delete (offboard) a user from YeshID by name or email. Searches the people list, opens the person's profile, and triggers offboarding.",
-    "params": ["user_identifier"],
-    "paramNotes": { "user_identifier": "Name or email of the user to delete. Used to search the people table." },
+    "params": [
+      "user_identifier"
+    ],
+    "paramNotes": {
+      "user_identifier": "Name or email of the user to delete. Used to search the people table."
+    },
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
     "prerequisite": "00-login.payload.json",
     "warning": "Destructive action. Verify user_identifier before running in production mode."
   },
-
   "runId": "yeshid-user-delete-{{timestamp}}",
   "mode": "verification",
   "site": "app.yeshid.com",
-
   "params": {
     "user_identifier": "{{user_identifier}}",
     "base_url": "https://app.yeshid.com"
   },
-
   "stateGraph": {
     "currentNode": "authenticated",
     "nodes": {
       "authenticated": {
-        "signals": [{ "type": "element_visible", "selector": ".v-navigation-drawer a[href='/overview']" }]
+        "signals": [
+          {
+            "type": "element_visible",
+            "selector": ".v-navigation-drawer a[href='/overview']"
+          }
+        ]
       },
       "people-list": {
-        "signals": [{ "type": "url_matches", "pattern": "/organization/people$" }]
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people$"
+          }
+        ]
       },
       "person-detail": {
-        "signals": [{ "type": "url_matches", "pattern": "/organization/people/[a-z0-9-]+" }]
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/[a-z0-9-]+"
+          }
+        ]
       }
     }
   },
-
   "abstractTargets": {
     "search-input": {
-      "match": { "role": "textbox", "name_contains": ["search"] },
-      "cachedSelector": "input[placeholder='Search']",
-      "cachedConfidence": 0.90
+      "match": {
+        "vuetify_label": [
+          "search",
+          "filter",
+          "name"
+        ],
+        "name_contains": [
+          "search"
+        ]
+      },
+      "cachedSelector": "#input-v-26",
+      "cachedConfidence": 0.88,
+      "resolvedOn": "2026-03-31T00:00:00Z",
+      "description": "Search input on people list page"
     },
     "person-row": {
-      "match": { "role": "row", "name_contains": ["{{user_identifier}}"] },
+      "match": {
+        "role": "row",
+        "name_contains": [
+          "{{user_identifier}}"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
       "resolveHint": "Find <tr> in the people table whose text contains user_identifier. JS: findRow(user_identifier)."
     },
     "offboard-link": {
-      "match": { "role": "link", "name_contains": ["offboard"] },
+      "match": {
+        "role": "link",
+        "name_contains": [
+          "offboard"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
       "fallbackSelectors": [
@@ -57,29 +93,56 @@
       ]
     },
     "confirm-offboard-button": {
-      "match": { "role": "button", "name_contains": ["offboard", "confirm", "delete", "remove"] },
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "offboard",
+          "confirm",
+          "delete",
+          "remove"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
-      "fallbackSelectors": [".v-overlay--active .v-btn--variant-flat:last-child"]
+      "fallbackSelectors": [
+        ".v-overlay--active .v-btn--variant-flat:last-child"
+      ]
     }
   },
-
   "chain": [
     {
       "stepId": "s1",
       "action": "navigate",
       "url": "{{base_url}}/organization/people",
-      "guard": { "target": "search-input", "state": { "visible": true }, "timeout": 5000 },
-      "expect": { "state": "people-list" }
+      "guard": {
+        "target": "search-input",
+        "state": {
+          "visible": true
+        },
+        "timeout": 5000
+      },
+      "expect": {
+        "state": "people-list"
+      }
     },
     {
       "stepId": "s2",
       "action": "type",
       "target": "search-input",
       "value": "{{user_identifier}}",
-      "guard": { "target": "search-input", "state": { "visible": true, "enabled": true } },
+      "guard": {
+        "target": "search-input",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      },
       "responseSignature": [
-        { "type": "element_visible", "selector": "table tbody tr", "timeout": 2000 }
+        {
+          "type": "element_visible",
+          "selector": "table tbody tr",
+          "timeout": 2000
+        }
       ]
     },
     {
@@ -93,7 +156,9 @@
       "stepId": "s4",
       "action": "wait_for",
       "target": "offboard-link",
-      "state": { "visible": true },
+      "state": {
+        "visible": true
+      },
       "timeout": 5000,
       "note": "Wait for person detail page to load and offboard option to appear."
     },
@@ -101,7 +166,13 @@
       "stepId": "s5",
       "action": "navigate",
       "url": "{{base_url}}/organization/people/offboard",
-      "guard": { "target": "confirm-offboard-button", "state": { "visible": true }, "timeout": 6000 },
+      "guard": {
+        "target": "confirm-offboard-button",
+        "state": {
+          "visible": true
+        },
+        "timeout": 6000
+      },
       "note": "Navigate to offboard flow. The offboard page will have the user pre-selected from context, or require search."
     },
     {
@@ -115,12 +186,26 @@
       "stepId": "s7",
       "action": "click",
       "target": "confirm-offboard-button",
-      "guard": { "target": "confirm-offboard-button", "state": { "visible": true, "enabled": true } },
+      "guard": {
+        "target": "confirm-offboard-button",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      },
       "responseSignature": [
         {
           "any_of": [
-            { "type": "element_visible", "selector": ".v-snackbar--active", "timeout": 5000 },
-            { "type": "url_change", "matches": "/organization/people$", "timeout": 5000 }
+            {
+              "type": "element_visible",
+              "selector": ".v-snackbar--active",
+              "timeout": 5000
+            },
+            {
+              "type": "url_change",
+              "matches": "/organization/people$",
+              "timeout": 5000
+            }
           ]
         }
       ]
@@ -128,7 +213,9 @@
     {
       "stepId": "s8",
       "action": "read",
-      "candidates": [".v-snackbar--active .v-snackbar__content"],
+      "candidates": [
+        ".v-snackbar--active .v-snackbar__content"
+      ],
       "store_as": "confirmation_message",
       "minLength": 1
     }

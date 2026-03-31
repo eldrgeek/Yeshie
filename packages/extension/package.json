@@ -1,0 +1,13 @@
+{
+  "name": "yeshie-extension",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wxt dev",
+    "build": "wxt build",
+    "zip": "wxt zip"
+  },
+  "devDependencies": {
+    "wxt": "latest"
+  }
+}
