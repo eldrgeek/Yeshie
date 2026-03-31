@@ -1,0 +1,41 @@
+<!DOCTYPE html><html><body>
+<!-- mb-2 label pattern (confirmed on YeshID) -->
+<div class="v-col v-col-6">
+  <div class="mb-2"><div class="d-flex align-center"><span class="text-body-2">First name</span></div></div>
+  <div class="v-input v-text-field"><div class="v-field v-field--no-label"><div class="v-field__field">
+    <input id="input-v-10" type="text" class="v-field__input" />
+  </div></div></div>
+</div>
+<div class="v-col v-col-6">
+  <div class="mb-2"><div class="d-flex align-center"><span class="text-body-2">Last name</span></div></div>
+  <div class="v-input v-text-field"><div class="v-field v-field--no-label"><div class="v-field__field">
+    <input id="input-v-12" type="text" class="v-field__input" />
+  </div></div></div>
+</div>
+<div class="v-col v-col-6">
+  <div class="mb-2"><div class="d-flex align-center"><span class="text-body-2">Company email address</span></div></div>
+  <div class="v-input v-text-field"><div class="v-field"><div class="v-field__field">
+    <input id="input-v-14" type="text" placeholder="yeshie.test" class="v-field__input" />
+  </div><div class="v-field__append-inner"><span>@mike-wolf.com</span></div></div></div>
+</div>
+<div class="v-col v-col-6">
+  <div class="mb-2"><div class="d-flex align-center"><span class="text-body-2">Personal email address</span></div></div>
+  <div class="v-input v-text-field"><div class="v-field v-field--no-label"><div class="v-field__field">
+    <input id="input-v-18" type="text" class="v-field__input" />
+  </div></div></div>
+</div>
+<!-- Classic v-label pattern -->
+<div class="v-input v-text-field">
+  <label class="v-label">Username</label>
+  <div class="v-field__field"><input id="input-username" type="text" /></div>
+</div>
+<!-- Button -->
+<button class="v-btn v-btn--variant-flat" aria-label="Create and onboard person">Create and onboard person</button>
+<!-- Generated ID (should be skipped) -->
+<input id="input-v-999" type="text" aria-label="should-skip-generated" />
+<!-- Stable selectors -->
+<input id="testid-input" type="text" data-testid="submit-email" />
+<input id="aria-input" type="text" aria-label="Search query" />
+<!-- Contenteditable -->
+<div id="rich-editor" contenteditable="true" aria-label="Message body"></div>
+</body></html>
