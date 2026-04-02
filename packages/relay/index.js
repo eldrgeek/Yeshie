@@ -200,8 +200,9 @@ export function createRelay(port = 3333) {
     // --- Chat endpoints ---
 
     if (path === '/chat/status' && req.method === 'GET') {
-      // Grace period: listener is "connected" if actively polling OR was recently active (within 15s)
-      const isConnected = !!pendingListener || (Date.now() - lastListenerActiveAt < 15000);
+      // Grace period: listener is "connected" if actively polling OR was recently active (within 90s).
+      // 90s covers long payload runs where Claude is busy and not yet back in yeshie_listen.
+      const isConnected = !!pendingListener || (Date.now() - lastListenerActiveAt < 90000);
       jsonReply(res, 200, {
         listenerConnected: isConnected,
         queuedMessages: chatQueue.length + suggestionQueue.length,
@@ -268,6 +269,9 @@ export function createRelay(port = 3333) {
 
       // Log the incoming message
       logConversation({ event: 'user_message', chatId, message: body.message, currentUrl: body.currentUrl || null, tabId: body.tabId || null });
+
+      // Stamp activity — listener is "busy" from now until yeshie_respond arrives
+      lastListenerActiveAt = Date.now();
 
       if (!pendingListener) {
         logConversation({ event: 'no_listener', chatId });

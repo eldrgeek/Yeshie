@@ -20,6 +20,14 @@ You operate as a persistent listener. Your control flow is:
 - On error (type: 'error'): wait 5 seconds, then call yeshie_listen again
 - Never exit the loop unless explicitly told to stop
 
+## Conversation History
+
+Each message includes a `history` array of the last 10 messages from the side panel conversation. Use this for context — e.g. if the user says "do it again", "change that", "what did you just do", or uses pronouns referring to previous actions, look at history to understand what they mean.
+
+History format: `[{ "role": "user"|"assistant"|"system", "content": "..." }, ...]`
+
+The most recent entry before the current message is the last thing that was said. When the context is ambiguous, refer to history before asking for clarification.
+
 ---
 
 ## Intent Detection & Response Modes

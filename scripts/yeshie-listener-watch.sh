@@ -8,6 +8,7 @@
 # 2. Watches prompts/listener.md for changes (via fswatch or polling)
 # 3. When the file changes, kills the listener and restarts it
 # 4. If the listener exits unexpectedly, restarts after a short delay
+# 5. If the relay reports no active listener, restarts the listener process
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -15,6 +16,8 @@ cd "$(dirname "$0")/.."
 LISTENER_PID=""
 PROMPT_FILE="prompts/listener.md"
 PROMPT_HASH=""
+MISSED_HEALTHCHECKS=0
+MAX_MISSED_HEALTHCHECKS=24  # 24 * 5s = 120s before forced restart (covers long payloads)
 
 cleanup() {
   echo "[watcher] Shutting down..."
@@ -34,6 +37,7 @@ get_hash() {
 start_listener() {
   echo "[watcher] Starting Yeshie listener..."
   PROMPT_HASH=$(get_hash "$PROMPT_FILE")
+  MISSED_HEALTHCHECKS=0
 
   # Run listener in background
   ./scripts/yeshie-listen.sh &
@@ -49,6 +53,12 @@ restart_listener() {
   fi
   sleep 2
   start_listener
+}
+
+listener_connected() {
+  local status
+  status=$(curl -sf http://localhost:3333/chat/status 2>/dev/null || true)
+  echo "$status" | grep -q '"listenerConnected":true'
 }
 
 # Verify relay is running
@@ -82,5 +92,18 @@ while true; do
     echo "[watcher] Listener process exited unexpectedly"
     restart_listener "process exited"
     continue
+  fi
+
+  # Check if relay still sees an active listener long-poll.
+  # A stale Claude process can stay alive while no longer polling /chat/listen.
+  if listener_connected; then
+    MISSED_HEALTHCHECKS=0
+  else
+    MISSED_HEALTHCHECKS=$((MISSED_HEALTHCHECKS + 1))
+    echo "[watcher] Relay reports no active listener ($MISSED_HEALTHCHECKS/$MAX_MISSED_HEALTHCHECKS)"
+    if [ "$MISSED_HEALTHCHECKS" -ge "$MAX_MISSED_HEALTHCHECKS" ]; then
+      restart_listener "relay reports listener offline"
+      continue
+    fi
   fi
 done

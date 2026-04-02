@@ -177,11 +177,14 @@ async function sendMessage() {
 
   try {
     const { url: activeTabUrl, tabId: activeTabId } = await getActiveTabInfo();
+    // Send last 10 messages as history so listener has conversation context
+    const history = messages.slice(-10).map(m => ({ role: m.role, content: m.content }));
     const resp = await chrome.runtime.sendMessage({
       type: 'chat_message',
       message: text,
       currentUrl: activeTabUrl,
-      tabId: activeTabId
+      tabId: activeTabId,
+      history
     });
     hideTyping();
     // Extract chatId from response for feedback tracking
