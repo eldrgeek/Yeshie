@@ -79,6 +79,10 @@ export default defineBackground(() => {
     }
   });
 
+  // Register side panel behavior
+  chrome.sidePanel.setOptions({ enabled: true });
+  chrome.sidePanel.setPanelBehavior?.({ openPanelOnActionClick: true }).catch(() => {});
+
   function startKeepalive() { /* no-op: always-on keepalive handles this */ }
   function stopKeepalive() { /* no-op: keep alive even when idle for relay connection */ }
 
@@ -869,6 +873,34 @@ export default defineBackground(() => {
         socket.emit('user_suggestion', { runId: msg.runId, suggestion: msg.suggestion });
       }
       sendResponse({ received: true });
+      return true;
+    }
+    if (msg.type === 'chat_message') {
+      const { message, currentUrl, tabId } = msg;
+      (async () => {
+        try {
+          const resp = await fetch('http://localhost:3333/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message, mode: 'answer', currentUrl, tabId, history: [] })
+          });
+          const data = await resp.json();
+          sendResponse(data);
+        } catch (e: any) {
+          sendResponse({ type: 'error', error: e.message });
+        }
+      })();
+      return true;
+    }
+    if (msg.type === 'chat_status') {
+      (async () => {
+        try {
+          const resp = await fetch('http://localhost:3333/chat/status');
+          sendResponse(await resp.json());
+        } catch (e: any) {
+          sendResponse({ listenerConnected: false, error: e.message });
+        }
+      })();
       return true;
     }
     if (msg.type === 'content_ready') return false;
