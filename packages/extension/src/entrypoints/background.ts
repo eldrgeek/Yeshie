@@ -1010,6 +1010,24 @@ export default defineBackground(() => {
 
   // ── Chain runner ──────────────────────────────────────────────────────────────
   async function startRun(runId: string, payload: any, params: Record<string, any>, tabId: number) {
+    // Auto-discover active tab if none provided
+    if (!tabId) {
+      const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      if (tabs[0]?.id) {
+        tabId = tabs[0].id;
+        console.log('[Yeshie] Auto-discovered active tab:', tabId, tabs[0].url);
+      } else {
+        // Fallback: find any tab with the base_url or any http tab
+        const baseUrl = params?.base_url;
+        const allTabs = await chrome.tabs.query({ url: baseUrl ? `${baseUrl}/*` : 'https://*/*' });
+        if (allTabs[0]?.id) {
+          tabId = allTabs[0].id;
+          console.log('[Yeshie] Found matching tab:', tabId, allTabs[0].url);
+        } else {
+          throw new Error('No active tab found. Open a browser tab first.');
+        }
+      }
+    }
     const chain = payload.chain || [];
     const abstractTargets = JSON.parse(JSON.stringify(payload.abstractTargets || {}));
     const run = { runId, payload, params, tabId, abstractTargets, buffer: {} as any, stepIndex: 0, status: 'running', result: null as any, stepResults: [] as any[], resolvedTargets: [] as any[] };
