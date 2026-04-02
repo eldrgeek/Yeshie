@@ -210,6 +210,28 @@ export default defineBackground(() => {
       }
     }
 
+    // Step 3b: table-row label pattern (YeshID edit form uses <td> labels next to inputs)
+    for (const labelText of allKeys) {
+      const l = labelText.toLowerCase();
+      for (const row of document.querySelectorAll('tr, [role="row"]')) {
+        const cells = row.querySelectorAll('td, th, [role="cell"]');
+        for (let ci = 0; ci < cells.length; ci++) {
+          if (cells[ci].textContent?.trim().toLowerCase().includes(l) && !cells[ci].querySelector('input')) {
+            // Check subsequent cells in this row for an input
+            for (let cj = ci + 1; cj < cells.length; cj++) {
+              const inp = cells[cj].querySelector('input,textarea') as HTMLInputElement | null;
+              if (inp) {
+                const sel = stableSelector(inp);
+                if (sel) return { selector: sel, confidence: 0.82, resolvedVia: 'table_row_label', found: true };
+                // If no stable selector, use the generated ID as last resort
+                if (inp.id) return { selector: '#' + inp.id, confidence: 0.70, resolvedVia: 'table_row_label_id', found: true };
+              }
+            }
+          }
+        }
+      }
+    }
+
     // Step 4: clickable targets by text/aria (buttons, links, menu items)
     for (const nm of nameKeys) {
       const btn = Array.from(document.querySelectorAll('a[href],[role="button"],button,[role="menuitem"]')).find((b: any) =>
@@ -342,6 +364,24 @@ export default defineBackground(() => {
       return { clicked: true, text: googleBtn.textContent?.trim() };
     }
     return { clicked: false, available: btns.map(b => b.textContent?.trim()).filter(Boolean).slice(0, 10) };
+  }
+
+  function PRE_CLICK_GOOGLE_ACCOUNT(email: string) {
+    // On the Google account chooser (accounts.google.com), click the account matching email
+    // Google uses data-identifier attribute on account rows, or we can match by email text
+    const byIdentifier = document.querySelector(`[data-identifier="${email}"]`) as HTMLElement | null;
+    if (byIdentifier) {
+      byIdentifier.click();
+      return { clicked: true, method: 'data-identifier', email };
+    }
+    // Fallback: find by visible email text in list items
+    const items = Array.from(document.querySelectorAll('li, div[role="link"], div[data-email]'));
+    const match = items.find(el => el.textContent?.includes(email)) as HTMLElement | undefined;
+    if (match) {
+      match.click();
+      return { clicked: true, method: 'text-match', email };
+    }
+    return { clicked: false, available: items.map(el => el.textContent?.trim()).filter(Boolean).slice(0, 10) };
   }
 
   function PRE_ASSESS_STATE(stateGraph: any) {
@@ -525,6 +565,56 @@ export default defineBackground(() => {
         return { found: true, clicked: true };
       }
       
+      // Field modification pattern (clearAndType, findVuetifyInput, nativeInputValueSetter)
+      if (code.includes('clearAndType') || code.includes('findVuetifyInput') || code.includes('nativeInputValueSetter')) {
+        // Inline field modification — can't call external functions from executeScript context
+        function _findInput(labelTerms: string[]): HTMLInputElement | null {
+          for (const c of Array.from(document.querySelectorAll('.v-input, .v-field'))) {
+            const l = c.querySelector('.v-label, .v-field-label');
+            const inp = c.querySelector('input, textarea') as HTMLInputElement | null;
+            if (!l || !inp) continue;
+            const t = l.textContent?.trim().toLowerCase() || '';
+            if (labelTerms.some(term => t.includes(term.toLowerCase()))) return inp;
+          }
+          for (const div of Array.from(document.querySelectorAll('.mb-2, .text-body-2'))) {
+            const t = div.textContent?.trim().toLowerCase() || '';
+            if (!labelTerms.some(term => t.includes(term.toLowerCase()))) continue;
+            let sib = div.nextElementSibling;
+            while (sib) {
+              const inp = sib.querySelector('input, textarea') as HTMLInputElement | null;
+              if (inp) return inp;
+              sib = sib.nextElementSibling;
+            }
+          }
+          return null;
+        }
+        function _setVal(input: HTMLInputElement, value: string) {
+          input.focus();
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+          if (setter) setter.call(input, value); else input.value = value;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        const updates: Record<string, boolean> = {};
+        const fieldMap: [string, string[]][] = [
+          ['new_first_name', ['first name']],
+          ['new_last_name', ['last name']],
+          ['new_personal_email', ['personal', 'recovery']],
+          ['new_company_email', ['company email']],
+          ['new_phone', ['phone']],
+          ['new_title', ['title', 'job title']],
+          ['new_department', ['department']],
+        ];
+        for (const [paramKey, labels] of fieldMap) {
+          const value = params[paramKey];
+          if (!value) continue;
+          const input = _findInput(labels);
+          if (input) { _setVal(input, value); updates[paramKey] = true; }
+          else { updates[paramKey + '_not_found'] = true; }
+        }
+        return { updated: updates, fieldsModified: Object.keys(updates).filter(k => !k.includes('_not_found')).length };
+      }
+
       return { __error: 'No matching pattern for js step' };
     } catch(e: any) {
       return { __error: e.message };
@@ -817,7 +907,7 @@ export default defineBackground(() => {
   }
 
   // ── Auth recovery ─────────────────────────────────────────────────────────────
-  // Pauses chain execution, shows overlay, clicks SSO, waits for user to complete OAuth
+  // Pauses chain execution, clicks SSO, selects Google account, waits for redirect back
   async function waitForAuth(tabId: number, runId: string, authTimeoutMs: number = 120000): Promise<{ authenticated: boolean; waitMs: number }> {
     console.log('[Yeshie] Auth required — entering auth wait flow');
 
@@ -825,41 +915,82 @@ export default defineBackground(() => {
     sendOverlay(tabId, {
       type: 'overlay_show',
       runId,
-      taskName: '🔐 Session expired — please log in',
+      taskName: '🔐 Session expired — logging in…',
       steps: [
         { stepId: 'auth-detect', label: 'Session expired detected', status: 'ok' },
-        { stepId: 'auth-sso', label: 'Opening Google SSO…', status: 'running' },
-        { stepId: 'auth-wait', label: 'Waiting for you to complete login…', status: 'pending' }
+        { stepId: 'auth-sso', label: 'Clicking Sign in with Google…', status: 'running' },
+        { stepId: 'auth-account', label: 'Selecting Google account…', status: 'pending' },
+        { stepId: 'auth-wait', label: 'Waiting for redirect back…', status: 'pending' }
       ]
     });
 
-    // Check if we're on the login page; if not, navigate there
+    // Step 1: Get to the YeshID login page and click Google SSO
     const authCheck = await execInTab(tabId, PRE_CHECK_AUTH, []);
-    if (authCheck?.onLoginPage) {
-      // Try clicking the Google SSO button
-      const ssoResult = await execInTab(tabId, PRE_CLICK_SSO_BUTTON, []);
-      console.log('[Yeshie] SSO click result:', ssoResult);
-    } else {
-      // Navigate to the login page first
+    if (!authCheck?.onLoginPage) {
       await navigateAndWait(tabId, 'https://app.yeshid.com/login');
       await new Promise(r => setTimeout(r, 1000));
-      const ssoResult = await execInTab(tabId, PRE_CLICK_SSO_BUTTON, []);
-      console.log('[Yeshie] SSO click result:', ssoResult);
+    }
+    const ssoResult = await execInTab(tabId, PRE_CLICK_SSO_BUTTON, []);
+    console.log('[Yeshie] SSO click result:', ssoResult);
+    sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-sso', status: 'ok' });
+
+    // Step 2: Wait for Google account chooser page to load, then click the right account
+    sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-account', status: 'running' });
+    const t0 = Date.now();
+    let googleAccountClicked = false;
+
+    // Poll for Google OAuth page — SSO button click redirects the tab to accounts.google.com
+    while (Date.now() - t0 < 15000 && !googleAccountClicked) {
+      await new Promise(r => setTimeout(r, 1000));
+      try {
+        // Check current tab URL via chrome.tabs API
+        const tab = await chrome.tabs.get(tabId);
+        const tabUrl = tab?.url || '';
+        console.log('[Yeshie] Auth polling, tab URL:', tabUrl);
+
+        if (tabUrl.includes('accounts.google.com')) {
+          // We're on the Google account chooser — click the primary account
+          // The ssoEmail param comes from the site model or defaults to the first workspace account
+          await new Promise(r => setTimeout(r, 1500)); // let the page render
+          const clickResult = await execInTab(tabId, PRE_CLICK_GOOGLE_ACCOUNT, ['mw@mike-wolf.com']);
+          console.log('[Yeshie] Google account click result:', clickResult);
+          googleAccountClicked = clickResult?.clicked || false;
+          if (googleAccountClicked) {
+            sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-account', status: 'ok' });
+          }
+        } else if (tabUrl.includes('app.yeshid.com') && !tabUrl.includes('/login')) {
+          // Already redirected back — SSO was auto-completed (cached session)
+          googleAccountClicked = true;
+          sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-account', status: 'ok', detail: 'Auto-login' });
+        }
+      } catch (e: any) {
+        console.log('[Yeshie] Auth poll error:', e.message);
+      }
     }
 
-    sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-sso', status: 'ok' });
-    sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-wait', status: 'running' });
+    if (!googleAccountClicked) {
+      console.log('[Yeshie] Could not click Google account — waiting for manual login');
+    }
 
-    // Poll for auth completion — user completes OAuth in the Google popup
-    const t0 = Date.now();
+    // Step 3: Wait for the tab to return to YeshID authenticated
+    sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-wait', status: 'running' });
     while (Date.now() - t0 < authTimeoutMs) {
-      const check = await execInTab(tabId, PRE_CHECK_AUTH, []);
-      if (check?.authenticated) {
-        console.log('[Yeshie] Auth recovered after', Date.now() - t0, 'ms');
-        sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-wait', status: 'ok' });
-        // Brief pause to let the page settle after login redirect
-        await new Promise(r => setTimeout(r, 1500));
-        return { authenticated: true, waitMs: Date.now() - t0 };
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        const tabUrl = tab?.url || '';
+        // Check if we're back on YeshID (not login page)
+        if (tabUrl.includes('app.yeshid.com') && !tabUrl.includes('/login')) {
+          // Verify DOM is ready with nav drawer
+          const check = await execInTab(tabId, PRE_CHECK_AUTH, []);
+          if (check?.authenticated) {
+            console.log('[Yeshie] Auth recovered after', Date.now() - t0, 'ms');
+            sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-wait', status: 'ok' });
+            await new Promise(r => setTimeout(r, 1500));
+            return { authenticated: true, waitMs: Date.now() - t0 };
+          }
+        }
+      } catch (e: any) {
+        console.log('[Yeshie] Auth wait poll error:', e.message);
       }
       await new Promise(r => setTimeout(r, 2000));
     }

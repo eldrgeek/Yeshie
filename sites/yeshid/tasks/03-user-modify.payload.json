@@ -2,10 +2,12 @@
   "_meta": {
     "task": "user-modify",
     "description": "Modify an existing user's profile in YeshID. Searches for the user, opens their detail page, updates specified fields, and saves.",
-    "params": ["user_identifier", "fields"],
+    "params": ["user_identifier", "new_first_name", "new_last_name", "new_personal_email"],
     "paramNotes": {
       "user_identifier": "Name or email to find the user",
-      "fields": "Object of field names to new values, e.g. { 'first_name': 'Jane', 'company_email': 'jane@example.com' }"
+      "new_first_name": "New first name (optional, leave empty to skip)",
+      "new_last_name": "New last name (optional, leave empty to skip)",
+      "new_personal_email": "New personal email (optional, leave empty to skip)"
     },
     "selfImproving": true,
     "runCount": 0,
@@ -47,10 +49,10 @@
       "cachedConfidence": 0.90
     },
     "save-button": {
-      "match": { "role": "button", "name_contains": ["save", "update"] },
+      "match": { "role": "button", "name_contains": ["confirm", "save", "update"] },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
-      "fallbackSelectors": ["button.v-btn--variant-flat", "button[type='submit']"]
+      "fallbackSelectors": ["button.bg-primary", "button.v-btn--variant-flat", "button[type='submit']"]
     },
     "edit-first-name": {
       "match": { "role": "textbox", "vuetify_label": ["first name"] },
@@ -74,61 +76,97 @@
       "stepId": "s1",
       "action": "navigate",
       "url": "{{base_url}}/organization/people",
-      "guard": { "target": "search-input", "state": { "visible": true }, "timeout": 5000 },
-      "expect": { "state": "people-list" }
+      "note": "Go to the people list"
     },
     {
       "stepId": "s2",
-      "action": "type",
-      "target": "search-input",
-      "value": "{{user_identifier}}",
-      "guard": { "target": "search-input", "state": { "visible": true, "enabled": true } },
-      "responseSignature": [
-        { "type": "element_visible", "selector": "table tbody tr", "timeout": 2000 }
-      ]
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for page to fully render"
     },
     {
       "stepId": "s3",
-      "action": "js",
-      "code": "(function() { const rows = [...document.querySelectorAll('table tbody tr')]; const match = rows.find(r => r.textContent.toLowerCase().includes('{{user_identifier}}'.toLowerCase())); if (!match) return { found: false, error: 'User not found' }; const link = match.querySelector('a[href]'); if (link) { link.click(); return { found: true, href: link.href }; } match.click(); return { found: true }; })()",
-      "store_as": "find_result",
-      "note": "Find and click into person detail page."
+      "action": "type",
+      "target": "search-input",
+      "value": "{{user_identifier}}",
+      "responseSignature": [
+        { "type": "element_visible", "selector": "table tbody tr", "timeout": 2000 }
+      ],
+      "note": "Search for the user"
     },
     {
       "stepId": "s4",
-      "action": "wait_for",
-      "target": "save-button",
-      "state": { "visible": true },
-      "timeout": 5000,
-      "expect": { "state": "person-detail" }
+      "action": "find_row",
+      "identifier": "{{user_identifier}}",
+      "note": "Click into the user's detail page"
     },
     {
       "stepId": "s5",
-      "action": "js",
-      "code": "(function() { function clearAndType(input, value) { input.focus(); input.select(); const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; nativeInputValueSetter.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true })); return true; } function findVuetifyInput(labelTerms) { return [...document.querySelectorAll('.v-input, .v-field')].map(c => { const label = c.querySelector('.v-label, .v-field-label'); const input = c.querySelector('input, textarea'); if (!label || !input) return null; const t = label.textContent.trim().toLowerCase(); const score = labelTerms.filter(term => t.includes(term.toLowerCase())).length; return score > 0 ? { input, score } : null; }).filter(Boolean).sort((a,b) => b.score - a.score)[0]?.input; } const updates = {}; const firstName = '{{new_first_name}}'; const lastName = '{{new_last_name}}'; const personalEmail = '{{new_personal_email}}'; if (firstName) { const el = findVuetifyInput(['first name']); if (el) { clearAndType(el, firstName); updates.first_name = true; } } if (lastName) { const el = findVuetifyInput(['last name']); if (el) { clearAndType(el, lastName); updates.last_name = true; } } if (personalEmail) { const el = findVuetifyInput(['personal', 'recovery']); if (el) { clearAndType(el, personalEmail); updates.personal_email = true; } } return updates; })()",
-      "store_as": "update_result",
-      "note": "Update all provided fields using Vuetify label-based resolution in a single JS step."
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for detail page to load"
     },
     {
       "stepId": "s6",
-      "action": "click",
-      "target": "save-button",
-      "guard": { "target": "save-button", "state": { "visible": true, "enabled": true } },
-      "responseSignature": [
-        {
-          "any_of": [
-            { "type": "element_visible", "selector": ".v-snackbar--active", "timeout": 5000 },
-            { "type": "element_visible", "selector": ".v-alert", "timeout": 5000 }
-          ]
-        }
-      ]
+      "action": "click_text",
+      "text": "Edit",
+      "note": "Click Edit to switch from view mode to edit mode"
+    },
+    {
+      "stepId": "s6b",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for edit form to render"
+    },
+    {
+      "stepId": "s6c",
+      "action": "read",
+      "candidates": [],
+      "store_as": "edit_form_snapshot",
+      "note": "Snapshot the edit form to verify inputs are available"
     },
     {
       "stepId": "s7",
+      "action": "type",
+      "target": "edit-first-name",
+      "value": "{{new_first_name}}",
+      "condition": "{{new_first_name}}",
+      "note": "Update first name if provided"
+    },
+    {
+      "stepId": "s8",
+      "action": "type",
+      "target": "edit-last-name",
+      "value": "{{new_last_name}}",
+      "condition": "{{new_last_name}}",
+      "note": "Update last name if provided"
+    },
+    {
+      "stepId": "s9",
+      "action": "type",
+      "target": "edit-personal-email",
+      "value": "{{new_personal_email}}",
+      "condition": "{{new_personal_email}}",
+      "note": "Update personal email if provided"
+    },
+    {
+      "stepId": "s10",
+      "action": "click",
+      "target": "save-button",
+      "note": "Click Save/Update to persist changes"
+    },
+    {
+      "stepId": "s11",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for save confirmation"
+    },
+    {
+      "stepId": "s12",
       "action": "read",
-      "candidates": [".v-snackbar--active .v-snackbar__content", ".v-alert .v-alert__content"],
+      "candidates": [".v-snackbar--active .v-snackbar__content", ".v-alert .v-alert__content", ".v-snackbar .v-snackbar__content"],
       "store_as": "confirmation_message",
-      "minLength": 1
+      "note": "Read the save confirmation message"
     }
   ]
 }

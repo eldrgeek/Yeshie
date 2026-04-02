@@ -1,7 +1,7 @@
 {
   "_meta": {
     "task": "user-delete",
-    "description": "Delete (offboard) a user from YeshID by name or email. Searches the people list, opens the person's profile, and triggers offboarding.",
+    "description": "Delete (offboard) a user from YeshID by name or email. Searches the people list, opens the person's profile, clicks Manage → Offboard, and confirms.",
     "params": [
       "user_identifier"
     ],
@@ -9,8 +9,8 @@
       "user_identifier": "Name or email of the user to delete. Used to search the people table."
     },
     "selfImproving": true,
-    "runCount": 0,
-    "lastSuccess": null,
+    "runCount": 1,
+    "lastSuccess": "2026-04-01T21:46:34.307Z",
     "prerequisite": "00-login.payload.json",
     "warning": "Destructive action. Verify user_identifier before running in production mode."
   },
@@ -44,7 +44,7 @@
         "signals": [
           {
             "type": "url_matches",
-            "pattern": "/organization/people/[a-z0-9-]+"
+            "pattern": "/organization/people/[a-z0-9-]+/details"
           }
         ]
       }
@@ -75,22 +75,39 @@
         ]
       },
       "cachedSelector": null,
-      "cachedConfidence": 0.0,
-      "resolveHint": "Find <tr> in the people table whose text contains user_identifier. JS: findRow(user_identifier)."
+      "cachedConfidence": 0,
+      "resolveHint": "Find <tr> in the people table whose text contains user_identifier."
     },
-    "offboard-link": {
+    "manage-button": {
       "match": {
-        "role": "link",
+        "role": "button",
+        "name_contains": [
+          "manage"
+        ]
+      },
+      "cachedSelector": "button[aria-haspopup='menu'].bg-primary",
+      "cachedConfidence": 0.9,
+      "resolvedOn": "2026-04-01T00:00:00Z",
+      "fallbackSelectors": [
+        "button[aria-haspopup='menu'].bg-primary",
+        "main button.bg-primary"
+      ],
+      "description": "Green 'Manage' dropdown button on person detail page (top-right). Must be scoped to main to avoid sidebar nav group."
+    },
+    "offboard-menu-item": {
+      "match": {
+        "role": "menuitem",
         "name_contains": [
           "offboard"
         ]
       },
       "cachedSelector": null,
-      "cachedConfidence": 0.0,
+      "cachedConfidence": 0,
       "fallbackSelectors": [
-        "a[href*='offboard']",
-        ".v-navigation-drawer a[href='/organization/people/offboard']"
-      ]
+        ".v-overlay--active .v-list-item",
+        ".v-menu__content .v-list-item"
+      ],
+      "description": "Offboard option in the Manage dropdown menu"
     },
     "confirm-offboard-button": {
       "match": {
@@ -98,15 +115,16 @@
         "name_contains": [
           "offboard",
           "confirm",
-          "delete",
-          "remove"
+          "yes"
         ]
       },
       "cachedSelector": null,
-      "cachedConfidence": 0.0,
+      "cachedConfidence": 0,
       "fallbackSelectors": [
-        ".v-overlay--active .v-btn--variant-flat:last-child"
-      ]
+        ".v-overlay--active .v-btn--variant-flat:last-child",
+        ".v-dialog .v-btn.bg-primary"
+      ],
+      "description": "Confirm button on the offboard page or dialog"
     }
   },
   "chain": [
@@ -114,16 +132,16 @@
       "stepId": "s1",
       "action": "navigate",
       "url": "{{base_url}}/organization/people",
-      "guard": {
-        "target": "search-input",
-        "state": {
-          "visible": true
-        },
-        "timeout": 5000
-      },
       "expect": {
         "state": "people-list"
       }
+    },
+    {
+      "stepId": "s1b",
+      "action": "wait_for",
+      "selector": "input[placeholder*='Search' i], input[placeholder*='search' i]",
+      "timeout": 5000,
+      "note": "Wait for Vue app to render the search input after page navigation."
     },
     {
       "stepId": "s2",
@@ -146,78 +164,99 @@
       ]
     },
     {
+      "stepId": "s2b",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for Vue search debounce to filter the table."
+    },
+    {
       "stepId": "s3",
-      "action": "js",
-      "code": "(function() { const rows = [...document.querySelectorAll('table tbody tr')]; const match = rows.find(r => r.textContent.toLowerCase().includes('{{user_identifier}}'.toLowerCase())); if (!match) return { found: false, error: 'User not found: {{user_identifier}}' }; const link = match.querySelector('a[href]'); if (link) { link.click(); return { found: true, href: link.href }; } match.click(); return { found: true, clickedRow: true }; })()",
+      "action": "find_row",
+      "identifier": "{{user_identifier}}",
       "store_as": "find_result",
-      "note": "Find the matching row and click into the person detail page."
+      "note": "Find the matching row and click the name link to navigate to person detail page."
     },
     {
       "stepId": "s4",
       "action": "wait_for",
-      "target": "offboard-link",
-      "state": {
-        "visible": true
-      },
-      "timeout": 5000,
-      "note": "Wait for person detail page to load and offboard option to appear."
+      "url_pattern": "/organization/people/[a-z0-9-]+/details",
+      "timeout": 8000,
+      "note": "Wait for Vue router to navigate to the person detail page."
     },
     {
       "stepId": "s5",
-      "action": "navigate",
-      "url": "{{base_url}}/organization/people/offboard",
-      "guard": {
-        "target": "confirm-offboard-button",
-        "state": {
-          "visible": true
-        },
-        "timeout": 6000
-      },
-      "note": "Navigate to offboard flow. The offboard page will have the user pre-selected from context, or require search."
+      "action": "click",
+      "selector": "button[aria-haspopup='menu']",
+      "note": "Click the Manage dropdown button to reveal offboard option."
     },
     {
       "stepId": "s6",
-      "action": "js",
-      "code": "(function() { const rows = [...document.querySelectorAll('table tbody tr, [class*=\"row\"]')]; const match = rows.find(r => r.textContent.toLowerCase().includes('{{user_identifier}}'.toLowerCase())); if (!match) return { found: false }; const cb = match.querySelector('input[type=\"checkbox\"]'); if (cb) { cb.click(); return { found: true, selectedCheckbox: true }; } match.click(); return { found: true, clickedRow: true }; })()",
-      "store_as": "select_result",
-      "note": "Select the user in the offboard form."
+      "action": "click_text",
+      "text": "Offboard",
+      "note": "Click 'Offboard' from the Manage dropdown menu."
     },
     {
       "stepId": "s7",
-      "action": "click",
-      "target": "confirm-offboard-button",
-      "guard": {
-        "target": "confirm-offboard-button",
-        "state": {
-          "visible": true,
-          "enabled": true
-        }
-      },
-      "responseSignature": [
-        {
-          "any_of": [
-            {
-              "type": "element_visible",
-              "selector": ".v-snackbar--active",
-              "timeout": 5000
-            },
-            {
-              "type": "url_change",
-              "matches": "/organization/people$",
-              "timeout": 5000
-            }
-          ]
-        }
-      ]
+      "action": "wait_for",
+      "url_pattern": "/offboard/",
+      "timeout": 5000,
+      "note": "Wait for navigation to the offboard page."
     },
     {
       "stepId": "s8",
-      "action": "read",
-      "candidates": [
-        ".v-snackbar--active .v-snackbar__content"
-      ],
-      "store_as": "confirmation_message",
-      "minLength": 1
+      "action": "click_text",
+      "text": "Select offboarding date",
+      "note": "Open the date picker dropdown."
+    },
+    {
+      "stepId": "s9",
+      "action": "click_text",
+      "text": "Immediately",
+      "note": "Select 'Immediately' from the date options."
+    },
+    {
+      "stepId": "s10",
+      "action": "click_text",
+      "text": "Offboard person",
+      "note": "Confirm offboarding."
+    },
+    {
+      "stepId": "s11",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for offboard API call to complete."
+    },
+    {
+      "stepId": "s12",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people",
+      "note": "Navigate back to people list to verify offboard succeeded."
+    },
+    {
+      "stepId": "s12b",
+      "action": "wait_for",
+      "selector": "input[placeholder*='Search' i], input[placeholder*='search' i]",
+      "timeout": 5000,
+      "note": "Wait for people list to render."
+    },
+    {
+      "stepId": "s13",
+      "action": "type",
+      "target": "search-input",
+      "value": "{{user_identifier}}",
+      "note": "Search for the user again to verify status."
+    },
+    {
+      "stepId": "s13b",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for Vue search debounce."
+    },
+    {
+      "stepId": "s14",
+      "action": "perceive",
+      "store_as": "result_state",
+      "note": "Capture final state — expect user row showing 'Deactivated' status."
     }
   ]
 }
