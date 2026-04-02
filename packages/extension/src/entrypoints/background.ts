@@ -1260,32 +1260,40 @@ export default defineBackground(() => {
       })();
       return true;
     }
-    if (msg.type === 'teach_start' && msg.steps) {
-      // Forward teach steps to the active tab's content script
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0]?.id) {
-          chrome.tabs.sendMessage(tabs[0].id, { type: 'teach_start', steps: msg.steps });
+    if (msg.type === 'teach_start' || msg.type === 'teach_goto' || msg.type === 'teach_end') {
+      // Forward teach messages to the best available tab
+      // Try multiple strategies since the sidepanel's "currentWindow" may not match
+      (async () => {
+        let targetTabId: number | undefined;
+        // Strategy 1: active tab in last-focused window
+        const focused = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        const realTab = focused.find(t => t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('chrome-extension://'));
+        if (realTab?.id) {
+          targetTabId = realTab.id;
+        } else {
+          // Strategy 2: any YeshID tab
+          const yeshidTabs = await chrome.tabs.query({ url: 'https://app.yeshid.com/*' });
+          if (yeshidTabs[0]?.id) targetTabId = yeshidTabs[0].id;
+          else {
+            // Strategy 3: any https tab
+            const allTabs = await chrome.tabs.query({ url: 'https://*/*' });
+            if (allTabs[0]?.id) targetTabId = allTabs[0].id;
+          }
         }
-      });
-      sendResponse({ ok: true });
-      return true;
-    }
-    if (msg.type === 'teach_goto') {
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0]?.id) {
-          chrome.tabs.sendMessage(tabs[0].id, { type: 'teach_goto', stepIndex: msg.stepIndex });
+        if (targetTabId) {
+          const teachMsg: any = { type: msg.type };
+          if (msg.type === 'teach_start') teachMsg.steps = msg.steps;
+          if (msg.type === 'teach_goto') teachMsg.stepIndex = msg.stepIndex;
+          try {
+            await chrome.tabs.sendMessage(targetTabId, teachMsg);
+          } catch (e: any) {
+            console.warn('[Yeshie] Failed to send teach message to tab', targetTabId, e.message);
+          }
+        } else {
+          console.warn('[Yeshie] No suitable tab found for teach message');
         }
-      });
-      sendResponse({ ok: true });
-      return true;
-    }
-    if (msg.type === 'teach_end') {
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0]?.id) {
-          chrome.tabs.sendMessage(tabs[0].id, { type: 'teach_end' });
-        }
-      });
-      sendResponse({ ok: true });
+        sendResponse({ ok: true, tabId: targetTabId || null });
+      })();
       return true;
     }
     if (msg.type === 'content_ready') return false;

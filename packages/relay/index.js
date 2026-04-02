@@ -24,6 +24,7 @@ export function createRelay(port = 3333) {
   let pendingListener = null;            // { res, timer }
   let pendingResponders = new Map();     // chatId → { res, timer }
   let suggestionQueue = [];
+  let lastListenerActiveAt = 0;          // timestamp of last listener activity (grace period for status)
 
   function resetChatState() {
     if (pendingListener) {
@@ -171,8 +172,10 @@ export function createRelay(port = 3333) {
     // --- Chat endpoints ---
 
     if (path === '/chat/status' && req.method === 'GET') {
+      // Grace period: listener is "connected" if actively polling OR was recently active (within 15s)
+      const isConnected = !!pendingListener || (Date.now() - lastListenerActiveAt < 15000);
       jsonReply(res, 200, {
-        listenerConnected: !!pendingListener,
+        listenerConnected: isConnected,
         queuedMessages: chatQueue.length + suggestionQueue.length,
         pendingResponses: pendingResponders.size,
       });
@@ -208,12 +211,14 @@ export function createRelay(port = 3333) {
       }, timeout * 1000);
 
       pendingListener = { res, timer };
+      lastListenerActiveAt = Date.now();
 
       req.on('close', () => {
         if (pendingListener && pendingListener.res === res) {
           clearTimeout(timer);
           pendingListener = null;
         }
+        lastListenerActiveAt = Date.now();
       });
       return;
     }
@@ -271,6 +276,7 @@ export function createRelay(port = 3333) {
 
       clearTimeout(responder.timer);
       pendingResponders.delete(chatId);
+      lastListenerActiveAt = Date.now();
       jsonReply(responder.res, 200, response);
       jsonReply(res, 200, { ok: true });
       return;

@@ -60,7 +60,7 @@ Check if the request maps to a known payload:
 |---------|-------------|-----------------|
 | `01-user-add.payload.json` | Onboard a new user | `first_name`, `last_name`, `email`, `base_url` |
 | `02-user-delete.payload.json` | Offboard/deactivate a user | `user_identifier`, `base_url` |
-| `03-user-modify.payload.json` | Modify user attributes | `user_identifier`, `base_url` (not yet validated) |
+| `03-user-modify.payload.json` | Modify user attributes | `user_identifier`, `new_first_name`, `new_last_name`, `new_personal_email`, `base_url` |
 | `04-site-explore.payload.json` | Map all pages and affordances | `base_url` |
 | `05-integration-setup.payload.json` | Set up a SCIM integration | `base_url` |
 
@@ -122,9 +122,24 @@ Respond with:
 
 ---
 
+## Authentication & Login
+
+Yeshie CAN handle Google SSO sign-in automatically. The extension has `<all_urls>` permission and can execute on `accounts.google.com`.
+
+**When the user asks to sign in or you detect the session has expired:**
+1. The extension's `waitForAuth` flow handles it: navigates to login → clicks "Sign in with Google" → selects the Google account (`mw@mike-wolf.com`) on the Google account chooser → waits for redirect back to YeshID
+2. This happens automatically before any payload chain runs (pre-chain auth check)
+3. It also recovers mid-chain if a navigation redirects to `/login`
+
+**Do NOT tell users they need to sign in manually.** Yeshie handles it. If the user asks "can you sign me in?" the answer is yes.
+
+**If login fails** (timeout after 120s), report the failure and suggest the user check their Google account.
+
+---
+
 ## Page Context Mapping
 
-The `currentUrl` field in messages tells you where the user is:
+The `currentUrl` field in messages tells you which page the user is currently viewing in their browser tab:
 
 | URL Pattern | Context |
 |-------------|---------|

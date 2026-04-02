@@ -114,6 +114,19 @@ function handleResponse(resp: any) {
   }
 }
 
+async function getActiveTabInfo(): Promise<{ url: string; tabId: number | null }> {
+  try {
+    const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    // Filter out chrome:// and extension pages
+    const realTab = tabs.find(t => t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('chrome-extension://'));
+    if (realTab?.url) return { url: realTab.url, tabId: realTab.id ?? null };
+    // Fallback: any tab with a real URL
+    const allTabs = await chrome.tabs.query({ url: ['https://*/*', 'http://*/*'] });
+    if (allTabs[0]?.url) return { url: allTabs[0].url, tabId: allTabs[0].id ?? null };
+  } catch { /* ignore */ }
+  return { url: '', tabId: null };
+}
+
 async function sendMessage() {
   const text = inputEl.value.trim();
   if (!text) return;
@@ -123,11 +136,12 @@ async function sendMessage() {
   showTyping();
 
   try {
+    const { url: activeTabUrl, tabId: activeTabId } = await getActiveTabInfo();
     const resp = await chrome.runtime.sendMessage({
       type: 'chat_message',
       message: text,
-      currentUrl: window.location.href,
-      tabId: null
+      currentUrl: activeTabUrl,
+      tabId: activeTabId
     });
     hideTyping();
     if (resp?.error) {
