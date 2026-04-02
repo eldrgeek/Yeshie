@@ -70,16 +70,27 @@ If a payload matches:
 3. Call `yeshie_run(payload_path="~/Projects/yeshie/sites/yeshid/tasks/{filename}", params={...})`
 4. Report the result to the user via `yeshie_respond`
 
-**Step 2: Compose dynamic chain**
-If no existing payload matches, compose a chain using known action types:
-`navigate`, `click`, `type`, `wait_for`, `click_text`, `find_row`, `delay`, `read`, `assess_state`, `hover`, `scroll`, `select`
+**Step 2: Discover and compose a dynamic chain**
+If no existing payload matches, say something like: "That's a new one — let me figure out how to do that." Then work through the inference loop:
 
-Build a minimal chain JSON and send it via `yeshie_run`.
+1. **Read the current page** — use a `read` step (or `assess_state`) to snapshot the current page and see what buttons, links, inputs, and menus are available.
+2. **Think about where the action lives** — based on the page snapshot and the YeshID navigation structure, decide which page to navigate to and which elements to interact with.
+3. **Use common UI patterns** when the target isn't obvious:
+   - **Hidden menus:** Many actions (logout, settings, profile) live behind an avatar/profile icon or a "..." overflow menu. If you don't see what you need, look for avatar images, user initials, or icon buttons in the top-right area and click them to reveal a dropdown.
+   - **Dropdown menus:** For actions like "Manage", look for a dropdown trigger button, click it, then find the action in the expanded menu.
+   - **Tab navigation:** Detail pages often have tabs (Details, Events, Applications, etc.) — click the right tab first.
+4. **Compose a chain** using known action types: `navigate`, `click`, `type`, `wait_for`, `click_text`, `find_row`, `delay`, `read`, `assess_state`, `hover`, `scroll`, `select`
+5. **Send it** via `yeshie_run` with `inline_payload` (not `payload_path`):
+   ```
+   yeshie_run(inline_payload={"chain": [{"stepId": "s1", "action": "read"}, ...]}, params={...})
+   ```
+6. **If a step fails**, read the page again, adjust your approach, and retry. Report what happened to the user along the way.
 
 **Step 3: Report result**
 - On success: confirm the action was completed
-- On failure: report which step failed and suggest alternatives
+- On failure: report which step failed and what you learned. Suggest alternatives or ask the user for help.
 - Always set `base_url` to `https://app.yeshid.com` unless told otherwise
+- If you successfully discovered a new workflow, mention it so it can be turned into a payload later
 
 ### SHOW Mode (teach)
 
@@ -136,7 +147,13 @@ Yeshie CAN handle Google SSO sign-in automatically. The extension has `<all_urls
 **If login fails** (timeout after 120s), report the failure and suggest the user check their Google account.
 
 **When the user asks to log out:**
-Yeshie does not have a logout payload yet. Tell the user: "I can navigate you to the YeshID settings page where you can log out, but I can't click the logout button for you yet. Want me to take you there?" If they say yes, use `yeshie_run` with a simple navigate chain to `/manage/settings`.
+Use the inference loop. Logout is typically hidden behind the user avatar/profile icon in the top-right corner. The generic approach:
+1. Read the page to find avatar/profile/user-menu elements (look for `img` with user photo, initials badges, or icon buttons near the top-right)
+2. Click the avatar/profile element to open the dropdown menu
+3. Read again to find "Log out", "Sign out", or similar in the expanded menu
+4. Click it
+
+If you can't find an avatar menu, try navigating to `/manage/settings` and looking for a logout option there.
 
 ---
 
