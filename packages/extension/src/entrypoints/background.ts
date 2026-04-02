@@ -1249,6 +1249,21 @@ export default defineBackground(() => {
       })();
       return true;
     }
+    if (msg.type === 'chat_feedback') {
+      (async () => {
+        try {
+          const resp = await fetch('http://localhost:3333/chat/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chatId: msg.chatId, rating: msg.rating, comment: msg.comment })
+          });
+          sendResponse(await resp.json());
+        } catch (e: any) {
+          sendResponse({ error: e.message });
+        }
+      })();
+      return true;
+    }
     if (msg.type === 'chat_status') {
       (async () => {
         try {

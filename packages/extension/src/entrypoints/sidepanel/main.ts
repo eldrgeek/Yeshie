@@ -15,13 +15,20 @@ function renderMarkdown(text: string): string {
     .replace(/^(.+)$/, '<p>$1</p>');
 }
 
-export function renderMessage(msg: { role: 'user' | 'assistant' | 'error' | 'system'; content: string }): string {
+export function renderMessage(msg: { role: 'user' | 'assistant' | 'error' | 'system'; content: string }, chatId?: string): string {
   const cls = msg.role === 'user' ? 'user-message'
     : msg.role === 'error' ? 'message error-message'
     : msg.role === 'system' ? 'message system-message'
     : 'assistant-message';
   const html = (msg.role === 'assistant' || msg.role === 'system') ? renderMarkdown(msg.content) : escapeHtml(msg.content);
-  return `<div class="message ${cls}">${html}</div>`;
+  // Add feedback buttons to assistant messages
+  const feedbackHtml = (msg.role === 'assistant' && chatId)
+    ? `<div class="feedback-row" data-chat-id="${chatId}">
+        <button class="fb-btn fb-up" title="Helpful">&#x1F44D;</button>
+        <button class="fb-btn fb-down" title="Not helpful">&#x1F44E;</button>
+       </div>`
+    : '';
+  return `<div class="message ${cls}">${html}${feedbackHtml}</div>`;
 }
 
 function escapeHtml(text: string): string {
@@ -34,11 +41,44 @@ const statusEl = document.getElementById('status')!;
 const inputEl = document.getElementById('chat-input') as HTMLInputElement;
 const sendBtn = document.getElementById('send-btn') as HTMLButtonElement;
 
-function addMessage(role: 'user' | 'assistant' | 'error' | 'system', content: string) {
+// Track the current chatId for feedback
+let lastChatId: string | null = null;
+
+function addMessage(role: 'user' | 'assistant' | 'error' | 'system', content: string, chatId?: string) {
   messages.push({ role, content });
-  messagesEl.innerHTML += renderMessage({ role, content });
+  messagesEl.innerHTML += renderMessage({ role, content }, chatId);
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
+
+// Handle feedback button clicks (event delegation)
+messagesEl.addEventListener('click', async (e) => {
+  const btn = (e.target as HTMLElement).closest('.fb-btn') as HTMLElement | null;
+  if (!btn) return;
+  const row = btn.closest('.feedback-row') as HTMLElement | null;
+  if (!row) return;
+  const chatId = row.dataset.chatId;
+  const rating = btn.classList.contains('fb-up') ? 'positive' : 'negative';
+
+  // Visual feedback
+  row.querySelectorAll('.fb-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+
+  // If negative, prompt for optional comment
+  let comment: string | null = null;
+  if (rating === 'negative') {
+    comment = prompt('What could be better? (optional)');
+  }
+
+  // Send feedback to relay
+  try {
+    await chrome.runtime.sendMessage({
+      type: 'chat_feedback',
+      chatId,
+      rating,
+      comment
+    });
+  } catch { /* ignore */ }
+});
 
 function showTyping() {
   const el = document.createElement('div');
@@ -84,14 +124,14 @@ function extractResponseText(resp: any): string | null {
 }
 
 // Handle the three response types from the listener
-function handleResponse(resp: any) {
+function handleResponse(resp: any, chatId?: string) {
   const r = resp?.response || resp;
   const rtype = r?.type;
 
   if (rtype === 'teach_steps' && Array.isArray(r.steps) && r.steps.length > 0) {
     // SHOW MODE: forward teach steps to content script via background
     const intro = r.text || r.content || `Let me walk you through this (${r.steps.length} steps).`;
-    addMessage('assistant', intro);
+    addMessage('assistant', intro, chatId);
     addMessage('system', `\u{1F393} Starting guided walkthrough\u2026`);
     // Send teach_start to background, which forwards to the active tab's content script
     chrome.runtime.sendMessage({ type: 'teach_start', steps: r.steps });
@@ -101,16 +141,16 @@ function handleResponse(resp: any) {
   if (rtype === 'do_result') {
     // DO MODE: payload was executed, show result
     const text = r.text || r.content || (r.success ? 'Done!' : `Failed: ${r.error || 'unknown error'}`);
-    addMessage('assistant', text);
+    addMessage('assistant', text, chatId);
     return;
   }
 
   // EXPLAIN MODE (answer) or any other text response
   const text = extractResponseText(resp);
   if (text) {
-    addMessage('assistant', text);
+    addMessage('assistant', text, chatId);
   } else {
-    addMessage('assistant', JSON.stringify(resp, null, 2));
+    addMessage('assistant', JSON.stringify(resp, null, 2), chatId);
   }
 }
 
@@ -144,12 +184,16 @@ async function sendMessage() {
       tabId: activeTabId
     });
     hideTyping();
+    // Extract chatId from response for feedback tracking
+    const chatId = resp?.chatId || resp?.id || lastChatId;
+    if (chatId) lastChatId = chatId;
+
     if (resp?.error) {
       addMessage('error', resp.error);
     } else if (resp?.type === 'timeout') {
       addMessage('error', 'No response \u2014 is a Claude listener running?');
     } else {
-      handleResponse(resp);
+      handleResponse(resp, chatId);
     }
   } catch (err: any) {
     hideTyping();

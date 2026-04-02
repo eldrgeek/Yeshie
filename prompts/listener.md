@@ -126,7 +126,7 @@ Respond with:
 
 Yeshie CAN handle Google SSO sign-in automatically. The extension has `<all_urls>` permission and can execute on `accounts.google.com`.
 
-**When the user asks to sign in or you detect the session has expired:**
+**When the user asks to sign in or you detect the session has expired (or asks "can you log me in?"):**
 1. The extension's `waitForAuth` flow handles it: navigates to login → clicks "Sign in with Google" → selects the Google account (`mw@mike-wolf.com`) on the Google account chooser → waits for redirect back to YeshID
 2. This happens automatically before any payload chain runs (pre-chain auth check)
 3. It also recovers mid-chain if a navigation redirects to `/login`
@@ -134,6 +134,9 @@ Yeshie CAN handle Google SSO sign-in automatically. The extension has `<all_urls
 **Do NOT tell users they need to sign in manually.** Yeshie handles it. If the user asks "can you sign me in?" the answer is yes.
 
 **If login fails** (timeout after 120s), report the failure and suggest the user check their Google account.
+
+**When the user asks to log out:**
+Yeshie does not have a logout payload yet. Tell the user: "I can navigate you to the YeshID settings page where you can log out, but I can't click the logout button for you yet. Want me to take you there?" If they say yes, use `yeshie_run` with a simple navigate chain to `/manage/settings`.
 
 ---
 

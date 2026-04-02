@@ -4,6 +4,34 @@
 
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import { appendFileSync, mkdirSync, existsSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+// ====================== Conversation Logger ======================
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const LOGS_DIR = join(__dirname, '..', '..', 'logs', 'conversations');
+
+function ensureLogsDir() {
+  if (!existsSync(LOGS_DIR)) mkdirSync(LOGS_DIR, { recursive: true });
+}
+
+function getSessionLogPath() {
+  // One file per day, append all conversations
+  const date = new Date().toISOString().slice(0, 10);
+  return join(LOGS_DIR, `${date}.jsonl`);
+}
+
+function logConversation(entry) {
+  try {
+    ensureLogsDir();
+    const line = JSON.stringify({ ...entry, ts: new Date().toISOString() }) + '\n';
+    appendFileSync(getSessionLogPath(), line);
+  } catch (e) {
+    console.warn('[relay] Failed to log conversation:', e.message);
+  }
+}
 
 // ====================== Server factory ======================
 
@@ -238,7 +266,11 @@ export function createRelay(port = 3333) {
         history: body.history || [],
       };
 
+      // Log the incoming message
+      logConversation({ event: 'user_message', chatId, message: body.message, currentUrl: body.currentUrl || null, tabId: body.tabId || null });
+
       if (!pendingListener) {
+        logConversation({ event: 'no_listener', chatId });
         jsonReply(res, 503, { type: 'no_listener', message: 'Yeshie is offline' });
         return;
       }
@@ -277,7 +309,10 @@ export function createRelay(port = 3333) {
       clearTimeout(responder.timer);
       pendingResponders.delete(chatId);
       lastListenerActiveAt = Date.now();
-      jsonReply(responder.res, 200, response);
+      // Log the response
+      logConversation({ event: 'yeshie_response', chatId, response });
+      // Include chatId so sidepanel can associate feedback
+      jsonReply(responder.res, 200, { ...response, chatId });
       jsonReply(res, 200, { ok: true });
       return;
     }
@@ -300,6 +335,37 @@ export function createRelay(port = 3333) {
       }
 
       jsonReply(res, 200, { ok: true });
+      return;
+    }
+
+    if (path === '/chat/feedback' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      logConversation({ event: 'user_feedback', chatId: body.chatId || null, rating: body.rating, comment: body.comment || null });
+      jsonReply(res, 200, { ok: true });
+      return;
+    }
+
+    if (path === '/chat/logs' && req.method === 'GET') {
+      // Return recent conversation logs for review
+      try {
+        const { readFileSync, readdirSync } = await import('fs');
+        ensureLogsDir();
+        const files = readdirSync(LOGS_DIR).filter(f => f.endsWith('.jsonl')).sort().reverse();
+        const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+        const lines = [];
+        for (const f of files) {
+          const content = readFileSync(join(LOGS_DIR, f), 'utf-8').trim().split('\n');
+          for (const line of content.reverse()) {
+            lines.push(JSON.parse(line));
+            if (lines.length >= limit) break;
+          }
+          if (lines.length >= limit) break;
+        }
+        jsonReply(res, 200, { logs: lines });
+      } catch (e) {
+        jsonReply(res, 500, { error: e.message });
+      }
       return;
     }
 
