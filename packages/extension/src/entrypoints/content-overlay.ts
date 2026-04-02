@@ -1,11 +1,23 @@
 import { createProgressPanel } from '../overlay/progress-panel.js';
 import type { StepStatus } from '../overlay/progress-panel.js';
+import { createTeachTooltip } from '../overlay/teach-tooltip.js';
 
 export default defineContentScript({
   matches: ['https://app.yeshid.com/*'],
   runAt: 'document_idle',
   main() {
     const panel = createProgressPanel(document.body);
+    const teach = createTeachTooltip(document.body);
+
+    teach.onStepComplete((stepIndex) => {
+      chrome.runtime.sendMessage({ type: 'teach_step_complete', stepIndex });
+    });
+    teach.onSkip(() => {
+      chrome.runtime.sendMessage({ type: 'teach_skip' });
+    });
+    teach.onExit(() => {
+      chrome.runtime.sendMessage({ type: 'teach_exit' });
+    });
 
     chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (msg.type === 'overlay_show') {
@@ -19,6 +31,15 @@ export default defineContentScript({
         sendResponse({ ok: true });
       } else if (msg.type === 'overlay_hide') {
         setTimeout(() => panel.hide(), 3000);
+        sendResponse({ ok: true });
+      } else if (msg.type === 'teach_start') {
+        teach.startTeach(msg.steps);
+        sendResponse({ ok: true });
+      } else if (msg.type === 'teach_goto') {
+        teach.gotoStep(msg.stepIndex);
+        sendResponse({ ok: true });
+      } else if (msg.type === 'teach_end') {
+        teach.endTeach();
         sendResponse({ ok: true });
       }
     });
