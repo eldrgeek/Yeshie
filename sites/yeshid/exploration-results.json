@@ -1,0 +1,6778 @@
+{
+  "exploredAt": "2026-04-02T20:30:00Z",
+  "pagesExplored": 19,
+  "durationMs": 46651,
+  "pages": {
+    "page_overview": {
+      "buttons": [
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/organization/people/onboard",
+          "tag": "A",
+          "text": "Onboard people"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/organization/people/offboard",
+          "tag": "A",
+          "text": "Offboard people"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/access/audits/create",
+          "tag": "A",
+          "text": "New Audit"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "href": "https://join.slack.com/t/yeshid-community/shared_invite/zt-23j3mkjc6-Ic562ZO~9EGNP79EGBSM3Q",
+          "tag": "A",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/organization/people?filters=status=ACTIVE",
+          "tag": "A",
+          "text": "View all"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/manage/settings/administrators",
+          "tag": "A",
+          "text": "View all"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/organization/applications",
+          "tag": "A",
+          "text": "Add more apps"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/security/identities/applications",
+          "tag": "A",
+          "text": "Review"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--block v-theme--light text-primary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "View all"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light bg-primary v-btn--density-default elevation-1",
+          "href": "/access/applications",
+          "tag": "A",
+          "text": "Applications"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/policies",
+          "tag": "A",
+          "text": "Policies"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--flat v-theme--light v-btn--density-compact v-btn--size-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Staged"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn y-toggle-btn-child-selected v-btn--active v-btn--flat v-theme--light",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "In Progress"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--flat v-theme--light v-btn--density-compact v-btn--size-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Pending"
+        }
+      ],
+      "headings": [],
+      "inputs": [],
+      "links": [
+        {
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        },
+        {
+          "href": "/organization/people/onboard",
+          "text": "Onboard people"
+        },
+        {
+          "href": "/organization/people/offboard",
+          "text": "Offboard people"
+        },
+        {
+          "href": "/access/audits/create",
+          "text": "New Audit"
+        },
+        {
+          "href": "/organization/people?filters=status=ACTIVE",
+          "text": "View all"
+        },
+        {
+          "href": "/manage/settings/administrators",
+          "text": "View all"
+        },
+        {
+          "href": "/organization/applications",
+          "text": "Add more apps"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Review"
+        }
+      ],
+      "navLinks": [
+        {
+          "active": true,
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "active": false,
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "active": false,
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "active": false,
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "active": false,
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "active": false,
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "active": false,
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "active": false,
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "active": false,
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "active": false,
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "active": false,
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "active": false,
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "active": false,
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "active": false,
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "active": false,
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "active": false,
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "active": false,
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "active": false,
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "active": false,
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "active": false,
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "active": false,
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        }
+      ],
+      "pageUrl": "/overview",
+      "tables": []
+    },
+    "page_people-list": {
+      "buttons": [
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light bg-primary v-btn--density-default elevation-1",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Onboard person"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "href": "https://join.slack.com/t/yeshid-community/shared_invite/zt-23j3mkjc6-Ic562ZO~9EGNP79EGBSM3Q",
+          "tag": "A",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-tab-item--selected v-tab--selected v-theme--light v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "People"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light v-btn--density-default v-btn--size-default v-btn--variant-text",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Settings"
+        }
+      ],
+      "headings": [],
+      "inputs": [
+        {
+          "ariaLabel": null,
+          "id": "",
+          "label": null,
+          "placeholder": "Search",
+          "tag": "INPUT",
+          "type": "text"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-23",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-34",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-38",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-42",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-46",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-50",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-54",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-58",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-62",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-66",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-70",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": "Open",
+          "id": "input-v-26",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "text"
+        }
+      ],
+      "links": [
+        {
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        },
+        {
+          "href": "https://logo.dev",
+          "text": "Logos provided by Logo.dev"
+        },
+        {
+          "href": "https://yeshid.com/privacy-policy/",
+          "text": "Privacy Policy"
+        },
+        {
+          "href": "https://yeshid.com/terms-and-conditions/",
+          "text": "Terms of Service"
+        }
+      ],
+      "navLinks": [
+        {
+          "active": false,
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "active": false,
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "active": false,
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "active": false,
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "active": true,
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "active": false,
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "active": false,
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "active": false,
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "active": false,
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "active": false,
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "active": false,
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "active": false,
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "active": false,
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "active": false,
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "active": false,
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "active": false,
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "active": false,
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "active": false,
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "active": false,
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "active": false,
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "active": false,
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        }
+      ],
+      "pageUrl": "/organization/people",
+      "tables": [
+        {
+          "headers": [
+            "",
+            "YeshID account owner",
+            "Primary email",
+            "Directory synced",
+            "YeshID status",
+            "# of applications",
+            ""
+          ],
+          "rowCount": 10,
+          "sampleRows": [
+            [
+              "",
+              "BABuddy AI",
+              "buddy@mike-wolf.com",
+              "",
+              "Active",
+              "1",
+              ""
+            ],
+            [
+              "",
+              "CTCawfee Tawk",
+              "cawfeetawk@mike-wolf.com",
+              "",
+              "Active",
+              "0",
+              ""
+            ],
+            [
+              "",
+              "CAClaude AI",
+              "claude@mike-wolf.com",
+              "",
+              "Active",
+              "0",
+              ""
+            ]
+          ]
+        },
+        {
+          "headers": [
+            "",
+            "YeshID account owner",
+            "Primary email",
+            "Directory synced",
+            "YeshID status",
+            "# of applications",
+            ""
+          ],
+          "rowCount": 10,
+          "sampleRows": [
+            [
+              "",
+              "BABuddy AI",
+              "buddy@mike-wolf.com",
+              "",
+              "Active",
+              "1",
+              ""
+            ],
+            [
+              "",
+              "CTCawfee Tawk",
+              "cawfeetawk@mike-wolf.com",
+              "",
+              "Active",
+              "0",
+              ""
+            ],
+            [
+              "",
+              "CAClaude AI",
+              "claude@mike-wolf.com",
+              "",
+              "Active",
+              "0",
+              ""
+            ]
+          ]
+        }
+      ]
+    },
+    "page_onboard-form": {
+      "buttons": [
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "href": "https://join.slack.com/t/yeshid-community/shared_invite/zt-23j3mkjc6-Ic562ZO~9EGNP79EGBSM3Q",
+          "tag": "A",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--block v-theme--light text-text-primary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Select start date"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--block v-theme--light text-text-primary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Select end date"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--disabled v-theme--light text-primary v-btn--density-default",
+          "disabled": true,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Save Changes"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "d-flex align-center parameter-chip text-caption pl-2",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Initial directory"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "d-flex align-center parameter-chip text-caption pl-2",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Domain: mike-wolf.com"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "d-flex align-center parameter-chip text-caption pl-2",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Day(s) before start date"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "d-flex align-center parameter-chip text-caption pl-2",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Start date"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Add task"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light bg-primary v-btn--density-default elevation-1",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Create and onboard person"
+        }
+      ],
+      "headings": [],
+      "inputs": [
+        {
+          "ariaLabel": null,
+          "id": "input-v-10",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "text"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-12",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "text"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-14",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "text"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-18",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "text"
+        },
+        {
+          "ariaLabel": null,
+          "id": "checkbox-v-20",
+          "label": "Schedule this person to be onboarded",
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": "Open",
+          "id": "input-v-28",
+          "label": "Select template",
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "text"
+        },
+        {
+          "ariaLabel": null,
+          "id": "",
+          "label": null,
+          "placeholder": "Enter days",
+          "tag": "INPUT",
+          "type": "number"
+        }
+      ],
+      "links": [
+        {
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        },
+        {
+          "href": "https://logo.dev",
+          "text": "Logos provided by Logo.dev"
+        },
+        {
+          "href": "https://yeshid.com/privacy-policy/",
+          "text": "Privacy Policy"
+        },
+        {
+          "href": "https://yeshid.com/terms-and-conditions/",
+          "text": "Terms of Service"
+        }
+      ],
+      "navLinks": [
+        {
+          "active": false,
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "active": false,
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "active": false,
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "active": false,
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "active": true,
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "active": false,
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "active": false,
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "active": false,
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "active": false,
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "active": false,
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "active": false,
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "active": false,
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "active": false,
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "active": false,
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "active": false,
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "active": false,
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "active": false,
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "active": false,
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "active": false,
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "active": false,
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "active": false,
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        }
+      ],
+      "pageUrl": "/organization/people/onboard",
+      "tables": [
+        {
+          "headers": [
+            "Task",
+            "Assignee",
+            "Due date",
+            ""
+          ],
+          "rowCount": 2,
+          "sampleRows": [
+            [
+              "Create userInitial directoryDomain: mike-wolf.com",
+              "",
+              "Day(s) before start date",
+              ""
+            ],
+            [
+              "Send access email to userInitial directory",
+              "",
+              "Start date",
+              ""
+            ]
+          ]
+        }
+      ]
+    },
+    "page_directories": {
+      "buttons": [
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-text-secondary v-btn--density-default elevation-0",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Sync directory"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light bg-primary v-btn--density-default elevation-1",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Add Directory"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "href": "https://join.slack.com/t/yeshid-community/shared_invite/zt-23j3mkjc6-Ic562ZO~9EGNP79EGBSM3Q",
+          "tag": "A",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/organization/directories/4d6b5221-cf2d-4c71-a242-6233db36a3bb?filters=directoryIdentityStatus=ACTIVE",
+          "tag": "A",
+          "text": "Filter active identities"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/organization/directories/4d6b5221-cf2d-4c71-a242-6233db36a3bb?filters=directoryIdentityStatus=SUSPENDED",
+          "tag": "A",
+          "text": "Filter suspended identities"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/organization/directories/4d6b5221-cf2d-4c71-a242-6233db36a3bb?filters=directoryIdentityRole=Google Super Admin",
+          "tag": "A",
+          "text": "Filter super admins"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/organization/directories/4d6b5221-cf2d-4c71-a242-6233db36a3bb?filters=directoryIdentityMfa=false",
+          "tag": "A",
+          "text": "Filter identities without MFA"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-tab-item--selected v-tab--selected v-theme--light v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Identities (25)"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light v-btn--density-default v-btn--size-default v-btn--variant-text",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Groups (2)"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light v-btn--density-default v-btn--size-default v-btn--variant-text",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Organizational units (6)"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light v-btn--density-default v-btn--size-default v-btn--variant-text",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Settings"
+        }
+      ],
+      "headings": [],
+      "inputs": [
+        {
+          "ariaLabel": null,
+          "id": "",
+          "label": null,
+          "placeholder": "Search",
+          "tag": "INPUT",
+          "type": "text"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-33",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-48",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-53",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-58",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-63",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-68",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-73",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-78",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-83",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-88",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-93",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": "Open",
+          "id": "input-v-34",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "text"
+        }
+      ],
+      "links": [
+        {
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        },
+        {
+          "href": "/organization/directories/4d6b5221-cf2d-4c71-a242-6233db36a3bb?filters=directoryIdentityStatus=ACTIVE",
+          "text": "Filter active identities"
+        },
+        {
+          "href": "/organization/directories/4d6b5221-cf2d-4c71-a242-6233db36a3bb?filters=directoryIdentityStatus=SUSPENDED",
+          "text": "Filter suspended identities"
+        },
+        {
+          "href": "/organization/directories/4d6b5221-cf2d-4c71-a242-6233db36a3bb?filters=directoryIdentityRole=Google Super Admin",
+          "text": "Filter super admins"
+        },
+        {
+          "href": "/organization/directories/4d6b5221-cf2d-4c71-a242-6233db36a3bb?filters=directoryIdentityMfa=false",
+          "text": "Filter identities without MFA"
+        },
+        {
+          "href": "https://logo.dev",
+          "text": "Logos provided by Logo.dev"
+        },
+        {
+          "href": "https://yeshid.com/privacy-policy/",
+          "text": "Privacy Policy"
+        },
+        {
+          "href": "https://yeshid.com/terms-and-conditions/",
+          "text": "Terms of Service"
+        }
+      ],
+      "navLinks": [
+        {
+          "active": false,
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "active": false,
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "active": false,
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "active": false,
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "active": false,
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "active": true,
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "active": false,
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "active": false,
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "active": false,
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "active": false,
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "active": false,
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "active": false,
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "active": false,
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "active": false,
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "active": false,
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "active": false,
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "active": false,
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "active": false,
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "active": false,
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "active": false,
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "active": false,
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        }
+      ],
+      "pageUrl": "/organization/directories/4d6b5221-cf2d-4c71-a242-6233db36a3bb",
+      "tables": [
+        {
+          "headers": [
+            "",
+            "Identity name",
+            "YeshID account owner",
+            "Primary email",
+            "Status",
+            "MFA enabled",
+            "Last login",
+            "Role",
+            "Actions"
+          ],
+          "rowCount": 10,
+          "sampleRows": [
+            [
+              "",
+              "TW TestUser Wolf",
+              "TWTestUser Wolf",
+              "testuser@mike-wolf.com",
+              "Active",
+              "No",
+              "2023-01-30T20:55:18Z",
+              "User",
+              ""
+            ],
+            [
+              "",
+              "YT Yeshie Test",
+              "YTYeshie Test",
+              "yeshie-test-001@mike-wolf.com",
+              "Active",
+              "No",
+              "",
+              "User",
+              ""
+            ],
+            [
+              "",
+              "YA Yeshie2 AutoTest",
+              "YAYeshie2 AutoTest",
+              "yeshie-test-002@mike-wolf.com",
+              "Active",
+              "No",
+              "",
+              "User",
+              ""
+            ]
+          ]
+        },
+        {
+          "headers": [
+            "",
+            "Identity name",
+            "YeshID account owner",
+            "Primary email",
+            "Status",
+            "MFA enabled",
+            "Last login",
+            "Role",
+            "Actions"
+          ],
+          "rowCount": 10,
+          "sampleRows": [
+            [
+              "",
+              "TW TestUser Wolf",
+              "TWTestUser Wolf",
+              "testuser@mike-wolf.com",
+              "Active",
+              "No",
+              "2023-01-30T20:55:18Z",
+              "User",
+              ""
+            ],
+            [
+              "",
+              "YT Yeshie Test",
+              "YTYeshie Test",
+              "yeshie-test-001@mike-wolf.com",
+              "Active",
+              "No",
+              "",
+              "User",
+              ""
+            ],
+            [
+              "",
+              "YA Yeshie2 AutoTest",
+              "YAYeshie2 AutoTest",
+              "yeshie-test-002@mike-wolf.com",
+              "Active",
+              "No",
+              "",
+              "User",
+              ""
+            ]
+          ]
+        }
+      ]
+    },
+    "page_groups": {
+      "buttons": [
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--disabled v-theme--light bg-primary v-btn--density-default",
+          "disabled": true,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "New Group"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "href": "https://join.slack.com/t/yeshid-community/shared_invite/zt-23j3mkjc6-Ic562ZO~9EGNP79EGBSM3Q",
+          "tag": "A",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/manage/settings/billing?purchasePlan=business_yearly_v2",
+          "tag": "A",
+          "text": "Upgrade Now"
+        }
+      ],
+      "headings": [],
+      "inputs": [
+        {
+          "ariaLabel": null,
+          "id": "",
+          "label": null,
+          "placeholder": "Search",
+          "tag": "INPUT",
+          "type": "text"
+        },
+        {
+          "ariaLabel": "Open",
+          "id": "input-v-21",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "text"
+        }
+      ],
+      "links": [
+        {
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        },
+        {
+          "href": "/manage/settings/billing?purchasePlan=business_yearly_v2",
+          "text": "Upgrade Now"
+        },
+        {
+          "href": "https://logo.dev",
+          "text": "Logos provided by Logo.dev"
+        },
+        {
+          "href": "https://yeshid.com/privacy-policy/",
+          "text": "Privacy Policy"
+        },
+        {
+          "href": "https://yeshid.com/terms-and-conditions/",
+          "text": "Terms of Service"
+        }
+      ],
+      "navLinks": [
+        {
+          "active": false,
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "active": false,
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "active": false,
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "active": false,
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "active": false,
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "active": false,
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "active": true,
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "active": false,
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "active": false,
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "active": false,
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "active": false,
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "active": false,
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "active": false,
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "active": false,
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "active": false,
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "active": false,
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "active": false,
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "active": false,
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "active": false,
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "active": false,
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "active": false,
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        }
+      ],
+      "pageUrl": "/organization/groups",
+      "tables": [
+        {
+          "headers": [
+            "Group name",
+            "Type",
+            "Description",
+            "Owners",
+            "Actions"
+          ],
+          "rowCount": 1,
+          "sampleRows": [
+            [
+              "No data available"
+            ]
+          ]
+        },
+        {
+          "headers": [
+            "Group name",
+            "Type",
+            "Description",
+            "Owners",
+            "Actions"
+          ],
+          "rowCount": 1,
+          "sampleRows": [
+            [
+              "No data available"
+            ]
+          ]
+        }
+      ]
+    },
+    "page_applications-list": {
+      "buttons": [
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-text-secondary v-btn--density-default elevation-0",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Import application list"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light bg-primary v-btn--density-default elevation-1",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Add application"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "href": "https://join.slack.com/t/yeshid-community/shared_invite/zt-23j3mkjc6-Ic562ZO~9EGNP79EGBSM3Q",
+          "tag": "A",
+          "text": ""
+        }
+      ],
+      "headings": [],
+      "inputs": [
+        {
+          "ariaLabel": null,
+          "id": "",
+          "label": null,
+          "placeholder": "Search",
+          "tag": "INPUT",
+          "type": "text"
+        },
+        {
+          "ariaLabel": "Open",
+          "id": "input-v-25",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "text"
+        }
+      ],
+      "links": [
+        {
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        },
+        {
+          "href": "https://logo.dev",
+          "text": "Logos provided by Logo.dev"
+        },
+        {
+          "href": "https://yeshid.com/privacy-policy/",
+          "text": "Privacy Policy"
+        },
+        {
+          "href": "https://yeshid.com/terms-and-conditions/",
+          "text": "Terms of Service"
+        }
+      ],
+      "navLinks": [
+        {
+          "active": false,
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "active": false,
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "active": false,
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "active": false,
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "active": false,
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "active": false,
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "active": false,
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "active": true,
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "active": false,
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "active": false,
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "active": false,
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "active": false,
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "active": false,
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "active": false,
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "active": false,
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "active": false,
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "active": false,
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "active": false,
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "active": false,
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "active": false,
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "active": false,
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        }
+      ],
+      "pageUrl": "/access/applications",
+      "tables": [
+        {
+          "headers": [
+            "Application",
+            "Status",
+            "Available Integrations",
+            "Accounts",
+            "Technical Owners",
+            "Actions"
+          ],
+          "rowCount": 2,
+          "sampleRows": [
+            [
+              "Descript",
+              "",
+              "",
+              "0",
+              "MWMike Wolf",
+              ""
+            ],
+            [
+              "SSample Dashboard App",
+              "",
+              "",
+              "1",
+              "MWMike Wolf",
+              ""
+            ]
+          ]
+        },
+        {
+          "headers": [
+            "Application",
+            "Status",
+            "Available Integrations",
+            "Accounts",
+            "Technical Owners",
+            "Actions"
+          ],
+          "rowCount": 2,
+          "sampleRows": [
+            [
+              "Descript",
+              "",
+              "",
+              "0",
+              "MWMike Wolf",
+              ""
+            ],
+            [
+              "SSample Dashboard App",
+              "",
+              "",
+              "1",
+              "MWMike Wolf",
+              ""
+            ]
+          ]
+        }
+      ]
+    },
+    "page_access-grid": {
+      "buttons": [
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-text-secondary v-btn--density-default elevation-0",
+          "href": "/access/audits/create",
+          "tag": "A",
+          "text": "Start an audit"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "href": "https://join.slack.com/t/yeshid-community/shared_invite/zt-23j3mkjc6-Ic562ZO~9EGNP79EGBSM3Q",
+          "tag": "A",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Clear all"
+        },
+        {
+          "ariaLabel": "Page 1, Current page",
+          "classes": "v-btn v-btn--disabled v-btn--icon v-theme--light v-btn--density-default",
+          "disabled": true,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "1"
+        }
+      ],
+      "headings": [],
+      "inputs": [
+        {
+          "ariaLabel": null,
+          "id": "",
+          "label": null,
+          "placeholder": "Add another filter...",
+          "tag": "INPUT",
+          "type": "text"
+        }
+      ],
+      "links": [
+        {
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        },
+        {
+          "href": "/access/audits/create",
+          "text": "Start an audit"
+        },
+        {
+          "href": "https://logo.dev",
+          "text": "Logos provided by Logo.dev"
+        },
+        {
+          "href": "https://yeshid.com/privacy-policy/",
+          "text": "Privacy Policy"
+        },
+        {
+          "href": "https://yeshid.com/terms-and-conditions/",
+          "text": "Terms of Service"
+        }
+      ],
+      "navLinks": [
+        {
+          "active": false,
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "active": false,
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "active": false,
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "active": false,
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "active": false,
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "active": false,
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "active": false,
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "active": false,
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "active": true,
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "active": false,
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "active": false,
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "active": false,
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "active": false,
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "active": false,
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "active": false,
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "active": false,
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "active": false,
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "active": false,
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "active": false,
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "active": false,
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "active": false,
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        }
+      ],
+      "pageUrl": "/access/grid",
+      "tables": [
+        {
+          "headers": [
+            "User name",
+            "Descript",
+            "SSample Dashboard App"
+          ],
+          "rowCount": 22,
+          "sampleRows": [
+            [
+              "BABuddy AI",
+              "",
+              ""
+            ],
+            [
+              "CTCawfee Tawk",
+              "",
+              ""
+            ],
+            [
+              "CAClaude AI",
+              "",
+              ""
+            ]
+          ]
+        }
+      ]
+    },
+    "page_rbac": {
+      "buttons": [
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--disabled v-theme--light bg-primary v-btn--density-default",
+          "disabled": true,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "New RBAC Policy"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "href": "https://join.slack.com/t/yeshid-community/shared_invite/zt-23j3mkjc6-Ic562ZO~9EGNP79EGBSM3Q",
+          "tag": "A",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/manage/settings/billing?purchasePlan=business_yearly_v2",
+          "tag": "A",
+          "text": "Upgrade Now"
+        }
+      ],
+      "headings": [],
+      "inputs": [
+        {
+          "ariaLabel": null,
+          "id": "",
+          "label": null,
+          "placeholder": "Search",
+          "tag": "INPUT",
+          "type": "text"
+        },
+        {
+          "ariaLabel": "Open",
+          "id": "input-v-21",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "text"
+        }
+      ],
+      "links": [
+        {
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        },
+        {
+          "href": "/manage/settings/billing?purchasePlan=business_yearly_v2",
+          "text": "Upgrade Now"
+        },
+        {
+          "href": "https://logo.dev",
+          "text": "Logos provided by Logo.dev"
+        },
+        {
+          "href": "https://yeshid.com/privacy-policy/",
+          "text": "Privacy Policy"
+        },
+        {
+          "href": "https://yeshid.com/terms-and-conditions/",
+          "text": "Terms of Service"
+        }
+      ],
+      "navLinks": [
+        {
+          "active": false,
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "active": false,
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "active": false,
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "active": false,
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "active": false,
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "active": false,
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "active": false,
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "active": false,
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "active": false,
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "active": true,
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "active": false,
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "active": false,
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "active": false,
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "active": false,
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "active": false,
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "active": false,
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "active": false,
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "active": false,
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "active": false,
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "active": false,
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "active": false,
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        }
+      ],
+      "pageUrl": "/access/rbac",
+      "tables": [
+        {
+          "headers": [
+            "Activate",
+            "Name",
+            "Description",
+            "Owners",
+            "Actions"
+          ],
+          "rowCount": 1,
+          "sampleRows": [
+            [
+              "No data available"
+            ]
+          ]
+        },
+        {
+          "headers": [
+            "Activate",
+            "Name",
+            "Description",
+            "Owners",
+            "Actions"
+          ],
+          "rowCount": 1,
+          "sampleRows": [
+            [
+              "No data available"
+            ]
+          ]
+        }
+      ]
+    },
+    "page_access-requests": {
+      "buttons": [
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-text-secondary v-btn--density-default elevation-0",
+          "href": "/access/audits/create",
+          "tag": "A",
+          "text": "Start an audit"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "href": "https://join.slack.com/t/yeshid-community/shared_invite/zt-23j3mkjc6-Ic562ZO~9EGNP79EGBSM3Q",
+          "tag": "A",
+          "text": ""
+        }
+      ],
+      "headings": [],
+      "inputs": [
+        {
+          "ariaLabel": null,
+          "id": "",
+          "label": null,
+          "placeholder": "Search",
+          "tag": "INPUT",
+          "type": "text"
+        },
+        {
+          "ariaLabel": "Open",
+          "id": "input-v-20",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "text"
+        }
+      ],
+      "links": [
+        {
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        },
+        {
+          "href": "/access/audits/create",
+          "text": "Start an audit"
+        },
+        {
+          "href": "https://logo.dev",
+          "text": "Logos provided by Logo.dev"
+        },
+        {
+          "href": "https://yeshid.com/privacy-policy/",
+          "text": "Privacy Policy"
+        },
+        {
+          "href": "https://yeshid.com/terms-and-conditions/",
+          "text": "Terms of Service"
+        }
+      ],
+      "navLinks": [
+        {
+          "active": false,
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "active": false,
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "active": false,
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "active": false,
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "active": false,
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "active": false,
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "active": false,
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "active": false,
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "active": false,
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "active": false,
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "active": true,
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "active": false,
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "active": false,
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "active": false,
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "active": false,
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "active": false,
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "active": false,
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "active": false,
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "active": false,
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "active": false,
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "active": false,
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        }
+      ],
+      "pageUrl": "/access/requests",
+      "tables": [
+        {
+          "headers": [
+            "Type",
+            "Request Date",
+            "Requester",
+            "Requester Note",
+            "Subject",
+            "Application",
+            "Role",
+            "Approvers",
+            "Response Date",
+            "Responder",
+            "Responder Note",
+            "Response to Request",
+            ""
+          ],
+          "rowCount": 1,
+          "sampleRows": [
+            [
+              "Loading items..."
+            ]
+          ]
+        },
+        {
+          "headers": [
+            "Type",
+            "Request Date",
+            "Requester",
+            "Requester Note",
+            "Subject",
+            "Application",
+            "Role",
+            "Approvers",
+            "Response Date",
+            "Responder",
+            "Responder Note",
+            "Response to Request",
+            ""
+          ],
+          "rowCount": 1,
+          "sampleRows": [
+            [
+              "Loading items..."
+            ]
+          ]
+        }
+      ]
+    },
+    "page_audit-reports": {
+      "buttons": [
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "href": "https://join.slack.com/t/yeshid-community/shared_invite/zt-23j3mkjc6-Ic562ZO~9EGNP79EGBSM3Q",
+          "tag": "A",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light bg-primary v-btn--density-default elevation-1",
+          "href": "/access/audits/create",
+          "tag": "A",
+          "text": "Start new audit"
+        }
+      ],
+      "headings": [],
+      "inputs": [],
+      "links": [
+        {
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        },
+        {
+          "href": "/access/audits/create",
+          "text": "Start new audit"
+        },
+        {
+          "href": "https://logo.dev",
+          "text": "Logos provided by Logo.dev"
+        },
+        {
+          "href": "https://yeshid.com/privacy-policy/",
+          "text": "Privacy Policy"
+        },
+        {
+          "href": "https://yeshid.com/terms-and-conditions/",
+          "text": "Terms of Service"
+        }
+      ],
+      "navLinks": [
+        {
+          "active": false,
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "active": false,
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "active": false,
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "active": false,
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "active": false,
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "active": false,
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "active": false,
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "active": false,
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "active": false,
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "active": false,
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "active": false,
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "active": true,
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "active": false,
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "active": false,
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "active": false,
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "active": false,
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "active": false,
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "active": false,
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "active": false,
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "active": false,
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "active": false,
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        }
+      ],
+      "pageUrl": "/access/audits",
+      "tables": []
+    },
+    "page_shadow-applications": {
+      "buttons": [
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "href": "https://join.slack.com/t/yeshid-community/shared_invite/zt-23j3mkjc6-Ic562ZO~9EGNP79EGBSM3Q",
+          "tag": "A",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn y-toggle-btn-child-selected v-btn--active v-btn--flat v-theme--light",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "All"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--flat v-theme--light v-btn--density-default v-btn--size-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Neutral"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--flat v-theme--light v-btn--density-default v-btn--size-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Sensitive"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--flat v-theme--light v-btn--density-default v-btn--size-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Restricted"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Add as managed application"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-error v-btn--density-default elevation-0",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Revoke access"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-tab-item--selected v-tab--selected v-theme--light v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Users"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light v-btn--density-default v-btn--size-default v-btn--variant-text",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Scopes"
+        }
+      ],
+      "headings": [],
+      "inputs": [
+        {
+          "ariaLabel": null,
+          "id": "",
+          "label": null,
+          "placeholder": "Search by applications and scopes",
+          "tag": "INPUT",
+          "type": "text"
+        },
+        {
+          "ariaLabel": "Open",
+          "id": "input-v-31",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "text"
+        }
+      ],
+      "links": [
+        {
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        },
+        {
+          "href": "https://logo.dev",
+          "text": "Logos provided by Logo.dev"
+        },
+        {
+          "href": "https://yeshid.com/privacy-policy/",
+          "text": "Privacy Policy"
+        },
+        {
+          "href": "https://yeshid.com/terms-and-conditions/",
+          "text": "Terms of Service"
+        }
+      ],
+      "navLinks": [
+        {
+          "active": false,
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "active": false,
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "active": false,
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "active": false,
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "active": false,
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "active": false,
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "active": false,
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "active": false,
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "active": false,
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "active": false,
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "active": false,
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "active": false,
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "active": true,
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "active": false,
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "active": false,
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "active": false,
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "active": false,
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "active": false,
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "active": false,
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "active": false,
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "active": false,
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        }
+      ],
+      "pageUrl": "/security/shadow/applications",
+      "tables": [
+        {
+          "headers": [
+            "Application",
+            "Users",
+            "Scopes",
+            "Managed"
+          ],
+          "rowCount": 10,
+          "sampleRows": [
+            [
+              "AACE Studio",
+              "1",
+              "userinfo.emailuserinfo.profile +1",
+              "No"
+            ],
+            [
+              "AAI Chat Prod",
+              "1",
+              "userinfo.emailuserinfo.profile +1",
+              "No"
+            ],
+            [
+              "AAiralo",
+              "1",
+              "userinfo.emailuserinfo.profile +1",
+              "No"
+            ]
+          ]
+        },
+        {
+          "headers": [
+            "Application",
+            "Users",
+            "Scopes",
+            "Managed"
+          ],
+          "rowCount": 10,
+          "sampleRows": [
+            [
+              "AACE Studio",
+              "1",
+              "userinfo.emailuserinfo.profile +1",
+              "No"
+            ],
+            [
+              "AAI Chat Prod",
+              "1",
+              "userinfo.emailuserinfo.profile +1",
+              "No"
+            ],
+            [
+              "AAiralo",
+              "1",
+              "userinfo.emailuserinfo.profile +1",
+              "No"
+            ]
+          ]
+        },
+        {
+          "headers": [],
+          "rowCount": 3,
+          "sampleRows": [
+            [
+              "Description",
+              "\u2013"
+            ],
+            [
+              "Website",
+              "\u2013"
+            ],
+            [
+              "Labels",
+              "\u2013"
+            ]
+          ]
+        }
+      ]
+    },
+    "page_identities": {
+      "buttons": [
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "href": "https://join.slack.com/t/yeshid-community/shared_invite/zt-23j3mkjc6-Ic562ZO~9EGNP79EGBSM3Q",
+          "tag": "A",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Add users"
+        }
+      ],
+      "headings": [],
+      "inputs": [],
+      "links": [
+        {
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        },
+        {
+          "href": "https://logo.dev",
+          "text": "Logos provided by Logo.dev"
+        },
+        {
+          "href": "https://yeshid.com/privacy-policy/",
+          "text": "Privacy Policy"
+        },
+        {
+          "href": "https://yeshid.com/terms-and-conditions/",
+          "text": "Terms of Service"
+        }
+      ],
+      "navLinks": [
+        {
+          "active": false,
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "active": false,
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "active": false,
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "active": false,
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "active": false,
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "active": false,
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "active": false,
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "active": false,
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "active": false,
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "active": false,
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "active": false,
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "active": false,
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "active": false,
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "active": true,
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "active": false,
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "active": false,
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "active": false,
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "active": false,
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "active": false,
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "active": false,
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "active": false,
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "active": false,
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        }
+      ],
+      "pageUrl": "/security/identities/applications",
+      "tables": []
+    },
+    "page_access-drift": {
+      "buttons": [
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "href": "https://join.slack.com/t/yeshid-community/shared_invite/zt-23j3mkjc6-Ic562ZO~9EGNP79EGBSM3Q",
+          "tag": "A",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/manage/settings/billing?purchasePlan=business_yearly_v2",
+          "tag": "A",
+          "text": "Upgrade Now"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Add users"
+        }
+      ],
+      "headings": [],
+      "inputs": [],
+      "links": [
+        {
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        },
+        {
+          "href": "/manage/settings/billing?purchasePlan=business_yearly_v2",
+          "text": "Upgrade Now"
+        },
+        {
+          "href": "https://logo.dev",
+          "text": "Logos provided by Logo.dev"
+        },
+        {
+          "href": "https://yeshid.com/privacy-policy/",
+          "text": "Privacy Policy"
+        },
+        {
+          "href": "https://yeshid.com/terms-and-conditions/",
+          "text": "Terms of Service"
+        }
+      ],
+      "navLinks": [
+        {
+          "active": false,
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "active": false,
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "active": false,
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "active": false,
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "active": false,
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "active": false,
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "active": false,
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "active": false,
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "active": false,
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "active": false,
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "active": false,
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "active": false,
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "active": false,
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "active": true,
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "active": false,
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "active": false,
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "active": false,
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "active": false,
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "active": false,
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "active": false,
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "active": false,
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        }
+      ],
+      "pageUrl": "/security/access-drift",
+      "tables": [
+        {
+          "headers": [
+            "Application",
+            "Access Drift",
+            "Non-human",
+            "Unmapped",
+            "Num of Accounts"
+          ],
+          "rowCount": 1,
+          "sampleRows": [
+            [
+              "No data available"
+            ]
+          ]
+        },
+        {
+          "headers": [
+            "Application",
+            "Access Drift",
+            "Non-human",
+            "Unmapped",
+            "Num of Accounts"
+          ],
+          "rowCount": 1,
+          "sampleRows": [
+            [
+              "No data available"
+            ]
+          ]
+        }
+      ]
+    },
+    "page_risk-assessment": {
+      "buttons": [
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "href": "https://join.slack.com/t/yeshid-community/shared_invite/zt-23j3mkjc6-Ic562ZO~9EGNP79EGBSM3Q",
+          "tag": "A",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light bg-primary v-btn--density-default elevation-1",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Resync"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Super Admin Account Recovery1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "User Account Recovery1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Password Management1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Session Control1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Less Secure Apps1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Login Challenges1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Advanced Protection Program Enrollment1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Confidential Mode1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "S/MIME Encryption1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Enhanced Pre-Delivery Message Scanning1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Spoofing and Authentication1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Links and External Images1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Email Attachment Safety1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "External Sharing Options1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "General Access Default"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Shared Drive Creation1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Security Update for Files1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Enable Drive for Desktop1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Chat History Retention"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Chat File Sharing1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Conversation history settings for spaces1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "External Chat Settings"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Chat Apps Access1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Site Creation and Editing1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Group Sharing Settings1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Meet Video Recording1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Meet Safety: Domain Access1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Meet Safety: Access1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Meet Safety: Host Management1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Meet Safety: External Participants Warning1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Classroom Teacher Permissions1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Classroom Guardian Access1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Classroom Class Membership1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Classroom API Data Access1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Classroom Originality Reports1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Classroom Student Unenrollment1"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-expansion-panel-title px-6 py-2 text-semi-bold",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Classroom Roster Import1"
+        }
+      ],
+      "headings": [],
+      "inputs": [],
+      "links": [
+        {
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        },
+        {
+          "href": "https://logo.dev",
+          "text": "Logos provided by Logo.dev"
+        },
+        {
+          "href": "https://yeshid.com/privacy-policy/",
+          "text": "Privacy Policy"
+        },
+        {
+          "href": "https://yeshid.com/terms-and-conditions/",
+          "text": "Terms of Service"
+        }
+      ],
+      "navLinks": [
+        {
+          "active": false,
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "active": false,
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "active": false,
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "active": false,
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "active": false,
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "active": false,
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "active": false,
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "active": false,
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "active": false,
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "active": false,
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "active": false,
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "active": false,
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "active": false,
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "active": false,
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "active": true,
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "active": false,
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "active": false,
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "active": false,
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "active": false,
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "active": false,
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "active": false,
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        }
+      ],
+      "pageUrl": "/security/risk-assessment",
+      "tables": []
+    },
+    "page_triggers": {
+      "buttons": [
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "href": "https://join.slack.com/t/yeshid-community/shared_invite/zt-23j3mkjc6-Ic562ZO~9EGNP79EGBSM3Q",
+          "tag": "A",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/manage/settings/billing?purchasePlan=business_yearly_v2",
+          "tag": "A",
+          "text": "Upgrade Now"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light bg-primary v-btn--density-default elevation-1",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "New Trigger"
+        }
+      ],
+      "headings": [],
+      "inputs": [
+        {
+          "ariaLabel": null,
+          "id": "",
+          "label": null,
+          "placeholder": "Search",
+          "tag": "INPUT",
+          "type": "text"
+        },
+        {
+          "ariaLabel": "Open",
+          "id": "input-v-14",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "text"
+        }
+      ],
+      "links": [
+        {
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        },
+        {
+          "href": "/manage/settings/billing?purchasePlan=business_yearly_v2",
+          "text": "Upgrade Now"
+        },
+        {
+          "href": "https://logo.dev",
+          "text": "Logos provided by Logo.dev"
+        },
+        {
+          "href": "https://yeshid.com/privacy-policy/",
+          "text": "Privacy Policy"
+        },
+        {
+          "href": "https://yeshid.com/terms-and-conditions/",
+          "text": "Terms of Service"
+        }
+      ],
+      "navLinks": [
+        {
+          "active": false,
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "active": false,
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "active": false,
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "active": false,
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "active": false,
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "active": false,
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "active": false,
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "active": false,
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "active": false,
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "active": false,
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "active": false,
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "active": false,
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "active": false,
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "active": false,
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "active": false,
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "active": true,
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "active": false,
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "active": false,
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "active": false,
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "active": false,
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "active": false,
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        }
+      ],
+      "pageUrl": "/manage/triggers",
+      "tables": [
+        {
+          "headers": [
+            "Active",
+            "Type",
+            "Name",
+            "Conditions",
+            "State",
+            "Actions",
+            ""
+          ],
+          "rowCount": 1,
+          "sampleRows": [
+            [
+              "No data available"
+            ]
+          ]
+        },
+        {
+          "headers": [
+            "Active",
+            "Type",
+            "Name",
+            "Conditions",
+            "State",
+            "Actions",
+            ""
+          ],
+          "rowCount": 1,
+          "sampleRows": [
+            [
+              "No data available"
+            ]
+          ]
+        }
+      ]
+    },
+    "page_workflow-templates": {
+      "buttons": [
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light bg-primary v-btn--density-default elevation-1",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "New Template"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "href": "https://join.slack.com/t/yeshid-community/shared_invite/zt-23j3mkjc6-Ic562ZO~9EGNP79EGBSM3Q",
+          "tag": "A",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn y-toggle-btn-child-selected v-btn--active v-btn--flat v-theme--light",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "All templates"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--flat v-theme--light v-btn--density-default v-btn--size-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Onboarding"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--flat v-theme--light v-btn--density-default v-btn--size-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Offboarding"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--flat v-theme--light v-btn--density-default v-btn--size-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Audit"
+        }
+      ],
+      "headings": [],
+      "inputs": [
+        {
+          "ariaLabel": "Open",
+          "id": "input-v-22",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "text"
+        }
+      ],
+      "links": [
+        {
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        },
+        {
+          "href": "https://logo.dev",
+          "text": "Logos provided by Logo.dev"
+        },
+        {
+          "href": "https://yeshid.com/privacy-policy/",
+          "text": "Privacy Policy"
+        },
+        {
+          "href": "https://yeshid.com/terms-and-conditions/",
+          "text": "Terms of Service"
+        }
+      ],
+      "navLinks": [
+        {
+          "active": false,
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "active": false,
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "active": false,
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "active": false,
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "active": false,
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "active": false,
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "active": false,
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "active": false,
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "active": false,
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "active": false,
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "active": false,
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "active": false,
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "active": false,
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "active": false,
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "active": false,
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "active": false,
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "active": true,
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "active": false,
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "active": false,
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "active": false,
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "active": false,
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        }
+      ],
+      "pageUrl": "/workflow-templates",
+      "tables": [
+        {
+          "headers": [
+            "Template",
+            "Created By",
+            "Last modified/created",
+            "Tasks",
+            "Actions"
+          ],
+          "rowCount": 3,
+          "sampleRows": [
+            [
+              "Onboarding",
+              "",
+              "",
+              "4",
+              ""
+            ],
+            [
+              "Offboarding",
+              "",
+              "",
+              "4",
+              ""
+            ],
+            [
+              "Audit",
+              "",
+              "",
+              "All apps",
+              ""
+            ]
+          ]
+        },
+        {
+          "headers": [
+            "Template",
+            "Created By",
+            "Last modified/created",
+            "Tasks",
+            "Actions"
+          ],
+          "rowCount": 3,
+          "sampleRows": [
+            [
+              "Onboarding",
+              "",
+              "",
+              "4",
+              ""
+            ],
+            [
+              "Offboarding",
+              "",
+              "",
+              "4",
+              ""
+            ],
+            [
+              "Audit",
+              "",
+              "",
+              "All apps",
+              ""
+            ]
+          ]
+        }
+      ]
+    },
+    "page_policies": {
+      "buttons": [
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light bg-primary v-btn--density-default elevation-1",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Create Policy"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "href": "https://join.slack.com/t/yeshid-community/shared_invite/zt-23j3mkjc6-Ic562ZO~9EGNP79EGBSM3Q",
+          "tag": "A",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "form-switch__toggle",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "ONOFF"
+        }
+      ],
+      "headings": [],
+      "inputs": [],
+      "links": [
+        {
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        },
+        {
+          "href": "https://logo.dev",
+          "text": "Logos provided by Logo.dev"
+        },
+        {
+          "href": "https://yeshid.com/privacy-policy/",
+          "text": "Privacy Policy"
+        },
+        {
+          "href": "https://yeshid.com/terms-and-conditions/",
+          "text": "Terms of Service"
+        }
+      ],
+      "navLinks": [
+        {
+          "active": false,
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "active": false,
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "active": false,
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "active": false,
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "active": false,
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "active": false,
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "active": false,
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "active": false,
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "active": false,
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "active": false,
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "active": false,
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "active": false,
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "active": false,
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "active": false,
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "active": false,
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "active": false,
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "active": false,
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "active": true,
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "active": false,
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "active": false,
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "active": false,
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        }
+      ],
+      "pageUrl": "/policies",
+      "tables": [
+        {
+          "headers": [],
+          "rowCount": 2,
+          "sampleRows": [
+            [
+              "Total events",
+              "Active",
+              "Resolved",
+              "Muted"
+            ],
+            [
+              "0",
+              "0",
+              "0",
+              "0"
+            ]
+          ]
+        },
+        {
+          "headers": [],
+          "rowCount": 2,
+          "sampleRows": [
+            [
+              "Total events",
+              "Active",
+              "Resolved",
+              "Muted"
+            ],
+            [
+              "0",
+              "0",
+              "0",
+              "0"
+            ]
+          ]
+        }
+      ]
+    },
+    "page_events": {
+      "buttons": [
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "href": "https://join.slack.com/t/yeshid-community/shared_invite/zt-23j3mkjc6-Ic562ZO~9EGNP79EGBSM3Q",
+          "tag": "A",
+          "text": ""
+        }
+      ],
+      "headings": [],
+      "inputs": [
+        {
+          "ariaLabel": null,
+          "id": "",
+          "label": null,
+          "placeholder": "Search",
+          "tag": "INPUT",
+          "type": "text"
+        },
+        {
+          "ariaLabel": "Open",
+          "id": "input-v-19",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "text"
+        }
+      ],
+      "links": [
+        {
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        },
+        {
+          "href": "https://logo.dev",
+          "text": "Logos provided by Logo.dev"
+        },
+        {
+          "href": "https://yeshid.com/privacy-policy/",
+          "text": "Privacy Policy"
+        },
+        {
+          "href": "https://yeshid.com/terms-and-conditions/",
+          "text": "Terms of Service"
+        }
+      ],
+      "navLinks": [
+        {
+          "active": false,
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "active": false,
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "active": false,
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "active": false,
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "active": false,
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "active": false,
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "active": false,
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "active": false,
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "active": false,
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "active": false,
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "active": false,
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "active": false,
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "active": false,
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "active": false,
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "active": false,
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "active": false,
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "active": false,
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "active": false,
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "active": true,
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "active": false,
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "active": false,
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        }
+      ],
+      "pageUrl": "/events",
+      "tables": [
+        {
+          "headers": [
+            "Event Time",
+            "Actor",
+            "Event Type",
+            "Target",
+            "Severity",
+            ""
+          ],
+          "rowCount": 10,
+          "sampleRows": [
+            [
+              "4/2/2026, 7:00:10 AM",
+              "mw@mike-wolf.com (User)",
+              "User login (Success)",
+              "N/A",
+              "INFO",
+              ""
+            ],
+            [
+              "4/1/2026, 8:28:42 PM",
+              "mw@mike-wolf.com (User)",
+              "User login (Success)",
+              "N/A",
+              "INFO",
+              ""
+            ],
+            [
+              "4/1/2026, 3:49:55 PM",
+              "mw@mike-wolf.com (User)",
+              "User logout (Success)",
+              "N/A",
+              "INFO",
+              ""
+            ]
+          ]
+        },
+        {
+          "headers": [
+            "Event Time",
+            "Actor",
+            "Event Type",
+            "Target",
+            "Severity",
+            ""
+          ],
+          "rowCount": 10,
+          "sampleRows": [
+            [
+              "4/2/2026, 7:00:10 AM",
+              "mw@mike-wolf.com (User)",
+              "User login (Success)",
+              "N/A",
+              "INFO",
+              ""
+            ],
+            [
+              "4/1/2026, 8:28:42 PM",
+              "mw@mike-wolf.com (User)",
+              "User login (Success)",
+              "N/A",
+              "INFO",
+              ""
+            ],
+            [
+              "4/1/2026, 3:49:55 PM",
+              "mw@mike-wolf.com (User)",
+              "User logout (Success)",
+              "N/A",
+              "INFO",
+              ""
+            ]
+          ]
+        }
+      ]
+    },
+    "page_settings": {
+      "buttons": [
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "href": "https://join.slack.com/t/yeshid-community/shared_invite/zt-23j3mkjc6-Ic562ZO~9EGNP79EGBSM3Q",
+          "tag": "A",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-tab-item--selected v-tab--selected v-theme--light v-btn--density-default",
+          "href": "/manage/settings/general",
+          "tag": "A",
+          "text": "General"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light v-btn--density-default v-btn--size-default v-btn--variant-text",
+          "href": "/manage/settings/notifications",
+          "tag": "A",
+          "text": "Notifications"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light v-btn--density-default v-btn--size-default v-btn--variant-text",
+          "href": "/manage/settings/customize",
+          "tag": "A",
+          "text": "Customize"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light v-btn--density-default v-btn--size-default v-btn--variant-text",
+          "href": "/manage/settings/billing",
+          "tag": "A",
+          "text": "Billing"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light v-btn--density-default v-btn--size-default v-btn--variant-text",
+          "href": "/manage/settings/administrators",
+          "tag": "A",
+          "text": "Administrators"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/manage/settings/billing?purchasePlan=business_yearly_v2",
+          "tag": "A",
+          "text": "Upgrade Now"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light bg-error-icon v-btn--density-default elevation-1",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Delete account"
+        }
+      ],
+      "headings": [],
+      "inputs": [
+        {
+          "ariaLabel": null,
+          "id": "input-v-15",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "text"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-17",
+          "label": null,
+          "placeholder": "Search by name or email...",
+          "tag": "INPUT",
+          "type": "text"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-20",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "text"
+        },
+        {
+          "ariaLabel": "Open",
+          "id": "input-v-25",
+          "label": null,
+          "placeholder": "No preference (default)",
+          "tag": "INPUT",
+          "type": "text"
+        }
+      ],
+      "links": [
+        {
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        },
+        {
+          "href": "/manage/settings/general",
+          "text": "General"
+        },
+        {
+          "href": "/manage/settings/notifications",
+          "text": "Notifications"
+        },
+        {
+          "href": "/manage/settings/customize",
+          "text": "Customize"
+        },
+        {
+          "href": "/manage/settings/billing",
+          "text": "Billing"
+        },
+        {
+          "href": "/manage/settings/administrators",
+          "text": "Administrators"
+        },
+        {
+          "href": "/manage/settings/billing?purchasePlan=business_yearly_v2",
+          "text": "Upgrade Now"
+        },
+        {
+          "href": "https://logo.dev",
+          "text": "Logos provided by Logo.dev"
+        }
+      ],
+      "navLinks": [
+        {
+          "active": false,
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "active": false,
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "active": false,
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "active": false,
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "active": false,
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "active": false,
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "active": false,
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "active": false,
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "active": false,
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "active": false,
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "active": false,
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "active": false,
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "active": false,
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "active": false,
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "active": false,
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "active": false,
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "active": false,
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "active": false,
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "active": false,
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "active": true,
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "active": false,
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        }
+      ],
+      "pageUrl": "/manage/settings/general",
+      "tables": []
+    }
+  }
+}

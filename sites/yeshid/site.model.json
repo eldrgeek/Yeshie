@@ -7,8 +7,8 @@
     "site": "app.yeshid.com",
     "framework": "vue",
     "frameworkDetail": "Vuetify 3 (v-application detected). No ARIA labels on form inputs. Use vuetify_label_match resolution.",
-    "lastExplored": "2026-03-30",
-    "exploredBy": "manual live session"
+    "lastExplored": "2026-04-02",
+    "exploredBy": "yeshie-04-site-explore automated crawl"
   },
   "stateGraph": {
     "nodes": {
@@ -533,6 +533,928 @@
         "url_change: /workflows/"
       ],
       "lastObserved": "2026-03-31T00:11:57.745179+00:00"
+    }
+  },
+  "pages": {
+    "page_overview": {
+      "url": "/overview",
+      "buttons": [
+        "Onboard people",
+        "Offboard people",
+        "New Audit",
+        "View all",
+        "View all",
+        "Add more apps",
+        "Review",
+        "View all",
+        "Applications",
+        "Policies",
+        "Staged",
+        "In Progress",
+        "Pending"
+      ],
+      "inputs": [],
+      "tables": [],
+      "linkCount": 30
+    },
+    "page_people-list": {
+      "url": "/organization/people",
+      "buttons": [
+        "Onboard person",
+        "People",
+        "Settings"
+      ],
+      "inputs": [
+        "Search",
+        "Open"
+      ],
+      "tables": [
+        {
+          "headers": [
+            "YeshID account owner",
+            "Primary email",
+            "Directory synced",
+            "YeshID status",
+            "# of applications"
+          ],
+          "rowCount": 10
+        },
+        {
+          "headers": [
+            "YeshID account owner",
+            "Primary email",
+            "Directory synced",
+            "YeshID status",
+            "# of applications"
+          ],
+          "rowCount": 10
+        }
+      ],
+      "linkCount": 26
+    },
+    "page_onboard-form": {
+      "url": "/organization/people/onboard",
+      "buttons": [
+        "Select start date",
+        "Select end date",
+        "Save Changes",
+        "Initial directory",
+        "Domain: mike-wolf.com",
+        "Day(s) before start date",
+        "Start date",
+        "Add task",
+        "Create and onboard person"
+      ],
+      "inputs": [
+        "Schedule this person to be onboarded",
+        "Select template",
+        "Enter days"
+      ],
+      "tables": [
+        {
+          "headers": [
+            "Task",
+            "Assignee",
+            "Due date"
+          ],
+          "rowCount": 2
+        }
+      ],
+      "linkCount": 26
+    },
+    "page_directories": {
+      "url": "/organization/directories/4d6b5221-cf2d-4c71-a242-6233db36a3bb",
+      "buttons": [
+        "Sync directory",
+        "Add Directory",
+        "Filter active identities",
+        "Filter suspended identities",
+        "Filter super admins",
+        "Filter identities without MFA",
+        "Identities (25)",
+        "Groups (2)",
+        "Organizational units (6)",
+        "Settings"
+      ],
+      "inputs": [
+        "Search",
+        "Open"
+      ],
+      "tables": [
+        {
+          "headers": [
+            "Identity name",
+            "YeshID account owner",
+            "Primary email",
+            "Status",
+            "MFA enabled",
+            "Last login",
+            "Role",
+            "Actions"
+          ],
+          "rowCount": 10
+        },
+        {
+          "headers": [
+            "Identity name",
+            "YeshID account owner",
+            "Primary email",
+            "Status",
+            "MFA enabled",
+            "Last login",
+            "Role",
+            "Actions"
+          ],
+          "rowCount": 10
+        }
+      ],
+      "linkCount": 30
+    },
+    "page_groups": {
+      "url": "/organization/groups",
+      "buttons": [
+        "New Group",
+        "Upgrade Now"
+      ],
+      "inputs": [
+        "Search",
+        "Open"
+      ],
+      "tables": [
+        {
+          "headers": [
+            "Group name",
+            "Type",
+            "Description",
+            "Owners",
+            "Actions"
+          ],
+          "rowCount": 1
+        },
+        {
+          "headers": [
+            "Group name",
+            "Type",
+            "Description",
+            "Owners",
+            "Actions"
+          ],
+          "rowCount": 1
+        }
+      ],
+      "linkCount": 27
+    },
+    "page_applications-list": {
+      "url": "/access/applications",
+      "buttons": [
+        "Import application list",
+        "Add application"
+      ],
+      "inputs": [
+        "Search",
+        "Open"
+      ],
+      "tables": [
+        {
+          "headers": [
+            "Application",
+            "Status",
+            "Available Integrations",
+            "Accounts",
+            "Technical Owners",
+            "Actions"
+          ],
+          "rowCount": 2
+        },
+        {
+          "headers": [
+            "Application",
+            "Status",
+            "Available Integrations",
+            "Accounts",
+            "Technical Owners",
+            "Actions"
+          ],
+          "rowCount": 2
+        }
+      ],
+      "linkCount": 26
+    },
+    "page_access-grid": {
+      "url": "/access/grid",
+      "buttons": [
+        "Start an audit",
+        "Clear all"
+      ],
+      "inputs": [
+        "Add another filter..."
+      ],
+      "tables": [
+        {
+          "headers": [
+            "User name",
+            "Descript",
+            "SSample Dashboard App"
+          ],
+          "rowCount": 22
+        }
+      ],
+      "linkCount": 27
+    },
+    "page_rbac": {
+      "url": "/access/rbac",
+      "buttons": [
+        "New RBAC Policy",
+        "Upgrade Now"
+      ],
+      "inputs": [
+        "Search",
+        "Open"
+      ],
+      "tables": [
+        {
+          "headers": [
+            "Activate",
+            "Name",
+            "Description",
+            "Owners",
+            "Actions"
+          ],
+          "rowCount": 1
+        },
+        {
+          "headers": [
+            "Activate",
+            "Name",
+            "Description",
+            "Owners",
+            "Actions"
+          ],
+          "rowCount": 1
+        }
+      ],
+      "linkCount": 27
+    },
+    "page_access-requests": {
+      "url": "/access/requests",
+      "buttons": [
+        "Start an audit"
+      ],
+      "inputs": [
+        "Search",
+        "Open"
+      ],
+      "tables": [
+        {
+          "headers": [
+            "Type",
+            "Request Date",
+            "Requester",
+            "Requester Note",
+            "Subject",
+            "Application",
+            "Role",
+            "Approvers",
+            "Response Date",
+            "Responder",
+            "Responder Note",
+            "Response to Request"
+          ],
+          "rowCount": 1
+        },
+        {
+          "headers": [
+            "Type",
+            "Request Date",
+            "Requester",
+            "Requester Note",
+            "Subject",
+            "Application",
+            "Role",
+            "Approvers",
+            "Response Date",
+            "Responder",
+            "Responder Note",
+            "Response to Request"
+          ],
+          "rowCount": 1
+        }
+      ],
+      "linkCount": 27
+    },
+    "page_audit-reports": {
+      "url": "/access/audits",
+      "buttons": [
+        "Start new audit"
+      ],
+      "inputs": [],
+      "tables": [],
+      "linkCount": 27
+    },
+    "page_shadow-applications": {
+      "url": "/security/shadow/applications",
+      "buttons": [
+        "All",
+        "Neutral",
+        "Sensitive",
+        "Restricted",
+        "Add as managed application",
+        "Revoke access",
+        "Users",
+        "Scopes"
+      ],
+      "inputs": [
+        "Search by applications and scopes",
+        "Open"
+      ],
+      "tables": [
+        {
+          "headers": [
+            "Application",
+            "Users",
+            "Scopes",
+            "Managed"
+          ],
+          "rowCount": 10
+        },
+        {
+          "headers": [
+            "Application",
+            "Users",
+            "Scopes",
+            "Managed"
+          ],
+          "rowCount": 10
+        }
+      ],
+      "linkCount": 26
+    },
+    "page_identities": {
+      "url": "/security/identities/applications",
+      "buttons": [
+        "Add users"
+      ],
+      "inputs": [],
+      "tables": [],
+      "linkCount": 26
+    },
+    "page_access-drift": {
+      "url": "/security/access-drift",
+      "buttons": [
+        "Upgrade Now",
+        "Add users"
+      ],
+      "inputs": [],
+      "tables": [
+        {
+          "headers": [
+            "Application",
+            "Access Drift",
+            "Non-human",
+            "Unmapped",
+            "Num of Accounts"
+          ],
+          "rowCount": 1
+        },
+        {
+          "headers": [
+            "Application",
+            "Access Drift",
+            "Non-human",
+            "Unmapped",
+            "Num of Accounts"
+          ],
+          "rowCount": 1
+        }
+      ],
+      "linkCount": 27
+    },
+    "page_risk-assessment": {
+      "url": "/security/risk-assessment",
+      "buttons": [
+        "Resync",
+        "Super Admin Account Recovery1",
+        "User Account Recovery1",
+        "Password Management1",
+        "Session Control1",
+        "Less Secure Apps1",
+        "Login Challenges1",
+        "Advanced Protection Program Enrollment1",
+        "Confidential Mode1",
+        "S/MIME Encryption1",
+        "Enhanced Pre-Delivery Message Scanning1",
+        "Spoofing and Authentication1",
+        "Links and External Images1",
+        "Email Attachment Safety1",
+        "External Sharing Options1",
+        "General Access Default",
+        "Shared Drive Creation1",
+        "Security Update for Files1",
+        "Enable Drive for Desktop1",
+        "Chat History Retention",
+        "Chat File Sharing1",
+        "Conversation history settings for spaces1",
+        "External Chat Settings",
+        "Chat Apps Access1",
+        "Site Creation and Editing1",
+        "Group Sharing Settings1",
+        "Meet Video Recording1",
+        "Meet Safety: Domain Access1",
+        "Meet Safety: Access1",
+        "Meet Safety: Host Management1",
+        "Meet Safety: External Participants Warning1",
+        "Classroom Teacher Permissions1",
+        "Classroom Guardian Access1",
+        "Classroom Class Membership1",
+        "Classroom API Data Access1",
+        "Classroom Originality Reports1",
+        "Classroom Student Unenrollment1",
+        "Classroom Roster Import1"
+      ],
+      "inputs": [],
+      "tables": [],
+      "linkCount": 26
+    },
+    "page_triggers": {
+      "url": "/manage/triggers",
+      "buttons": [
+        "Upgrade Now",
+        "New Trigger"
+      ],
+      "inputs": [
+        "Search",
+        "Open"
+      ],
+      "tables": [
+        {
+          "headers": [
+            "Active",
+            "Type",
+            "Name",
+            "Conditions",
+            "State",
+            "Actions"
+          ],
+          "rowCount": 1
+        },
+        {
+          "headers": [
+            "Active",
+            "Type",
+            "Name",
+            "Conditions",
+            "State",
+            "Actions"
+          ],
+          "rowCount": 1
+        }
+      ],
+      "linkCount": 27
+    },
+    "page_workflow-templates": {
+      "url": "/workflow-templates",
+      "buttons": [
+        "New Template",
+        "All templates",
+        "Onboarding",
+        "Offboarding",
+        "Audit"
+      ],
+      "inputs": [
+        "Open"
+      ],
+      "tables": [
+        {
+          "headers": [
+            "Template",
+            "Created By",
+            "Last modified/created",
+            "Tasks",
+            "Actions"
+          ],
+          "rowCount": 3
+        },
+        {
+          "headers": [
+            "Template",
+            "Created By",
+            "Last modified/created",
+            "Tasks",
+            "Actions"
+          ],
+          "rowCount": 3
+        }
+      ],
+      "linkCount": 26
+    },
+    "page_policies": {
+      "url": "/policies",
+      "buttons": [
+        "Create Policy",
+        "ONOFF"
+      ],
+      "inputs": [],
+      "tables": [],
+      "linkCount": 26
+    },
+    "page_events": {
+      "url": "/events",
+      "buttons": [],
+      "inputs": [
+        "Search",
+        "Open"
+      ],
+      "tables": [
+        {
+          "headers": [
+            "Event Time",
+            "Actor",
+            "Event Type",
+            "Target",
+            "Severity"
+          ],
+          "rowCount": 10
+        },
+        {
+          "headers": [
+            "Event Time",
+            "Actor",
+            "Event Type",
+            "Target",
+            "Severity"
+          ],
+          "rowCount": 10
+        }
+      ],
+      "linkCount": 26
+    },
+    "page_settings": {
+      "url": "/manage/settings/general",
+      "buttons": [
+        "General",
+        "Notifications",
+        "Customize",
+        "Billing",
+        "Administrators",
+        "Upgrade Now",
+        "Delete account"
+      ],
+      "inputs": [
+        "Search by name or email...",
+        "No preference (default)"
+      ],
+      "tables": [],
+      "linkCount": 30
+    }
+  },
+  "navigation": [
+    {
+      "text": "Home",
+      "href": "/overview"
+    },
+    {
+      "text": "Workflows",
+      "href": "/workflows"
+    },
+    {
+      "text": "My Apps",
+      "href": "/my-applications"
+    },
+    {
+      "text": "Requested Apps",
+      "href": "/requested-applications"
+    },
+    {
+      "text": "People",
+      "href": "/organization/people"
+    },
+    {
+      "text": "Directories",
+      "href": "/organization/directories"
+    },
+    {
+      "text": "Groups",
+      "href": "/organization/groups"
+    },
+    {
+      "text": "Applications",
+      "href": "/access/applications"
+    },
+    {
+      "text": "Access Grid",
+      "href": "/access/grid"
+    },
+    {
+      "text": "RBAC BETA",
+      "href": "/access/rbac"
+    },
+    {
+      "text": "Access Requests",
+      "href": "/access/requests"
+    },
+    {
+      "text": "Audit Reports",
+      "href": "/access/audits"
+    },
+    {
+      "text": "Shadow applications",
+      "href": "/security/shadow"
+    },
+    {
+      "text": "Identities",
+      "href": "/security/identities/applications"
+    },
+    {
+      "text": "Access Drift",
+      "href": "/security/access-drift"
+    },
+    {
+      "text": "Non-human IDs BETA",
+      "href": "/security/identities/nhi"
+    },
+    {
+      "text": "Risk Assessment",
+      "href": "/security/risk-assessment"
+    },
+    {
+      "text": "Triggers",
+      "href": "/manage/triggers"
+    },
+    {
+      "text": "Workflow Templates",
+      "href": "/workflow-templates"
+    },
+    {
+      "text": "Policies BETA",
+      "href": "/policies"
+    },
+    {
+      "text": "Events",
+      "href": "/events"
+    },
+    {
+      "text": "Settings",
+      "href": "/manage/settings"
+    },
+    {
+      "text": "Docs",
+      "href": "https://docs.yeshid.com/"
+    }
+  ],
+  "capabilities": {
+    "page_overview": {
+      "url": "/overview",
+      "actions": [
+        "click: Onboard people",
+        "click: Offboard people",
+        "click: New Audit",
+        "click: View all",
+        "click: View all",
+        "click: Add more apps",
+        "click: Review",
+        "click: View all",
+        "click: Applications",
+        "click: Policies",
+        "click: Staged",
+        "click: In Progress",
+        "click: Pending"
+      ]
+    },
+    "page_people-list": {
+      "url": "/organization/people",
+      "actions": [
+        "click: Onboard person",
+        "click: People",
+        "click: Settings",
+        "type into: Search",
+        "type into: Open",
+        "table: YeshID account owner, Primary email, Directory synced, YeshID status, # of applications (10 rows)",
+        "table: YeshID account owner, Primary email, Directory synced, YeshID status, # of applications (10 rows)"
+      ]
+    },
+    "page_onboard-form": {
+      "url": "/organization/people/onboard",
+      "actions": [
+        "click: Select start date",
+        "click: Select end date",
+        "click: Save Changes",
+        "click: Initial directory",
+        "click: Domain: mike-wolf.com",
+        "click: Day(s) before start date",
+        "click: Start date",
+        "click: Add task",
+        "click: Create and onboard person",
+        "type into: Schedule this person to be onboarded",
+        "type into: Select template",
+        "type into: Enter days",
+        "table: Task, Assignee, Due date (2 rows)"
+      ]
+    },
+    "page_directories": {
+      "url": "/organization/directories/4d6b5221-cf2d-4c71-a242-6233db36a3bb",
+      "actions": [
+        "click: Sync directory",
+        "click: Add Directory",
+        "click: Filter active identities",
+        "click: Filter suspended identities",
+        "click: Filter super admins",
+        "click: Filter identities without MFA",
+        "click: Identities (25)",
+        "click: Groups (2)",
+        "click: Organizational units (6)",
+        "click: Settings",
+        "type into: Search",
+        "type into: Open",
+        "table: Identity name, YeshID account owner, Primary email, Status, MFA enabled (10 rows)",
+        "table: Identity name, YeshID account owner, Primary email, Status, MFA enabled (10 rows)"
+      ]
+    },
+    "page_groups": {
+      "url": "/organization/groups",
+      "actions": [
+        "click: New Group",
+        "click: Upgrade Now",
+        "type into: Search",
+        "type into: Open",
+        "table: Group name, Type, Description, Owners, Actions (1 rows)",
+        "table: Group name, Type, Description, Owners, Actions (1 rows)"
+      ]
+    },
+    "page_applications-list": {
+      "url": "/access/applications",
+      "actions": [
+        "click: Import application list",
+        "click: Add application",
+        "type into: Search",
+        "type into: Open",
+        "table: Application, Status, Available Integrations, Accounts, Technical Owners (2 rows)",
+        "table: Application, Status, Available Integrations, Accounts, Technical Owners (2 rows)"
+      ]
+    },
+    "page_access-grid": {
+      "url": "/access/grid",
+      "actions": [
+        "click: Start an audit",
+        "click: Clear all",
+        "type into: Add another filter...",
+        "table: User name, Descript, SSample Dashboard App (22 rows)"
+      ]
+    },
+    "page_rbac": {
+      "url": "/access/rbac",
+      "actions": [
+        "click: New RBAC Policy",
+        "click: Upgrade Now",
+        "type into: Search",
+        "type into: Open",
+        "table: Activate, Name, Description, Owners, Actions (1 rows)",
+        "table: Activate, Name, Description, Owners, Actions (1 rows)"
+      ]
+    },
+    "page_access-requests": {
+      "url": "/access/requests",
+      "actions": [
+        "click: Start an audit",
+        "type into: Search",
+        "type into: Open",
+        "table: Type, Request Date, Requester, Requester Note, Subject (1 rows)",
+        "table: Type, Request Date, Requester, Requester Note, Subject (1 rows)"
+      ]
+    },
+    "page_audit-reports": {
+      "url": "/access/audits",
+      "actions": [
+        "click: Start new audit"
+      ]
+    },
+    "page_shadow-applications": {
+      "url": "/security/shadow/applications",
+      "actions": [
+        "click: All",
+        "click: Neutral",
+        "click: Sensitive",
+        "click: Restricted",
+        "click: Add as managed application",
+        "click: Revoke access",
+        "click: Users",
+        "click: Scopes",
+        "type into: Search by applications and scopes",
+        "type into: Open",
+        "table: Application, Users, Scopes, Managed (10 rows)",
+        "table: Application, Users, Scopes, Managed (10 rows)"
+      ]
+    },
+    "page_identities": {
+      "url": "/security/identities/applications",
+      "actions": [
+        "click: Add users"
+      ]
+    },
+    "page_access-drift": {
+      "url": "/security/access-drift",
+      "actions": [
+        "click: Upgrade Now",
+        "click: Add users",
+        "table: Application, Access Drift, Non-human, Unmapped, Num of Accounts (1 rows)",
+        "table: Application, Access Drift, Non-human, Unmapped, Num of Accounts (1 rows)"
+      ]
+    },
+    "page_risk-assessment": {
+      "url": "/security/risk-assessment",
+      "actions": [
+        "click: Resync",
+        "click: Super Admin Account Recovery1",
+        "click: User Account Recovery1",
+        "click: Password Management1",
+        "click: Session Control1",
+        "click: Less Secure Apps1",
+        "click: Login Challenges1",
+        "click: Advanced Protection Program Enrollment1",
+        "click: Confidential Mode1",
+        "click: S/MIME Encryption1",
+        "click: Enhanced Pre-Delivery Message Scanning1",
+        "click: Spoofing and Authentication1",
+        "click: Links and External Images1",
+        "click: Email Attachment Safety1",
+        "click: External Sharing Options1",
+        "click: General Access Default",
+        "click: Shared Drive Creation1",
+        "click: Security Update for Files1",
+        "click: Enable Drive for Desktop1",
+        "click: Chat History Retention",
+        "click: Chat File Sharing1",
+        "click: Conversation history settings for spaces1",
+        "click: External Chat Settings",
+        "click: Chat Apps Access1",
+        "click: Site Creation and Editing1",
+        "click: Group Sharing Settings1",
+        "click: Meet Video Recording1",
+        "click: Meet Safety: Domain Access1",
+        "click: Meet Safety: Access1",
+        "click: Meet Safety: Host Management1",
+        "click: Meet Safety: External Participants Warning1",
+        "click: Classroom Teacher Permissions1",
+        "click: Classroom Guardian Access1",
+        "click: Classroom Class Membership1",
+        "click: Classroom API Data Access1",
+        "click: Classroom Originality Reports1",
+        "click: Classroom Student Unenrollment1",
+        "click: Classroom Roster Import1"
+      ]
+    },
+    "page_triggers": {
+      "url": "/manage/triggers",
+      "actions": [
+        "click: Upgrade Now",
+        "click: New Trigger",
+        "type into: Search",
+        "type into: Open",
+        "table: Active, Type, Name, Conditions, State (1 rows)",
+        "table: Active, Type, Name, Conditions, State (1 rows)"
+      ]
+    },
+    "page_workflow-templates": {
+      "url": "/workflow-templates",
+      "actions": [
+        "click: New Template",
+        "click: All templates",
+        "click: Onboarding",
+        "click: Offboarding",
+        "click: Audit",
+        "type into: Open",
+        "table: Template, Created By, Last modified/created, Tasks, Actions (3 rows)",
+        "table: Template, Created By, Last modified/created, Tasks, Actions (3 rows)"
+      ]
+    },
+    "page_policies": {
+      "url": "/policies",
+      "actions": [
+        "click: Create Policy",
+        "click: ONOFF"
+      ]
+    },
+    "page_events": {
+      "url": "/events",
+      "actions": [
+        "type into: Search",
+        "type into: Open",
+        "table: Event Time, Actor, Event Type, Target, Severity (10 rows)",
+        "table: Event Time, Actor, Event Type, Target, Severity (10 rows)"
+      ]
+    },
+    "page_settings": {
+      "url": "/manage/settings/general",
+      "actions": [
+        "click: General",
+        "click: Notifications",
+        "click: Customize",
+        "click: Billing",
+        "click: Administrators",
+        "click: Upgrade Now",
+        "click: Delete account",
+        "type into: Search by name or email...",
+        "type into: No preference (default)"
+      ]
     }
   }
 }

@@ -1,76 +1,378 @@
 {
   "_meta": {
     "task": "site-explore",
-    "description": "Systematic exploration of the entire YeshID site. Visits every known page, collects the a11y snapshot (all interactive elements, labels, roles), and returns a structured site map. Output is used to update site.model.json with verified selectors and to give an LLM enough context to act on any instruction.",
-    "params": [],
+    "description": "Systematic exploration of all YeshID pages. Visits each page and snapshots all interactive elements.",
+    "params": [
+      "base_url"
+    ],
     "selfImproving": true,
     "outputFile": "sites/yeshid/exploration-results.json",
     "runCount": 0,
-    "lastSuccess": null,
-    "note": "Run this payload whenever the YeshID UI may have changed, or when an LLM needs to act on an instruction it has never seen before."
+    "lastSuccess": null
   },
-
-  "runId": "yeshid-explore-{{timestamp}}",
-  "mode": "exploratory",
-  "site": "app.yeshid.com",
-
   "params": {
     "base_url": "https://app.yeshid.com"
   },
-
-  "pages": [
-    { "name": "overview", "url": "/overview" },
-    { "name": "people-list", "url": "/organization/people" },
-    { "name": "onboard-form", "url": "/organization/people/onboard" },
-    { "name": "directories", "url": "/organization/directories" },
-    { "name": "groups", "url": "/organization/groups" },
-    { "name": "applications-list", "url": "/access/applications" },
-    { "name": "access-grid", "url": "/access/grid" },
-    { "name": "rbac", "url": "/access/rbac" },
-    { "name": "access-requests", "url": "/access/requests" },
-    { "name": "audit-reports", "url": "/access/audits" },
-    { "name": "shadow-applications", "url": "/security/shadow" },
-    { "name": "identities", "url": "/security/identities/applications" },
-    { "name": "access-drift", "url": "/security/access-drift" },
-    { "name": "risk-assessment", "url": "/security/risk-assessment" },
-    { "name": "triggers", "url": "/manage/triggers" },
-    { "name": "workflow-templates", "url": "/workflow-templates" },
-    { "name": "policies", "url": "/policies" },
-    { "name": "events", "url": "/events" },
-    { "name": "settings", "url": "/manage/settings" }
-  ],
-
-  "explorationScript": "// This JS payload is sent once per page. It collects a structured snapshot of all interactive elements, headings, and table data. Results accumulate into site-map output.\n(async () => {\n  const pageUrl = window.location.pathname;\n  \n  // 1. Collect navigation structure\n  const navLinks = [...document.querySelectorAll('.v-navigation-drawer a[href]')]\n    .map(a => ({ text: a.textContent.trim(), href: a.getAttribute('href'), active: a.classList.contains('v-list-item--active') }));\n  \n  // 2. Collect page headings\n  const headings = [...document.querySelectorAll('main h1, main h2, main h3, .v-toolbar-title')]\n    .map(h => ({ level: h.tagName, text: h.textContent.trim() }));\n  \n  // 3. Collect all interactive elements with Vuetify label resolution\n  function getVuetifyLabel(input) {\n    const container = input.closest('.v-input, .v-field, .v-text-field');\n    if (!container) return null;\n    const label = container.querySelector('.v-label, .v-field-label');\n    return label?.textContent.trim() ?? null;\n  }\n  \n  const inputs = [...document.querySelectorAll('input, textarea, select')]\n    .filter(el => el.offsetParent !== null)\n    .map(el => ({\n      tag: el.tagName, type: el.type, id: el.id,\n      placeholder: el.placeholder,\n      vuetifyLabel: getVuetifyLabel(el),\n      ariaLabel: el.getAttribute('aria-label'),\n      value: el.type !== 'password' ? el.value : '[REDACTED]'\n    }));\n  \n  const buttons = [...document.querySelectorAll('button, a[href]')]\n    .filter(el => el.offsetParent !== null && el.textContent.trim())\n    .map(el => ({\n      tag: el.tagName, text: el.textContent.trim().slice(0, 60),\n      ariaLabel: el.getAttribute('aria-label'),\n      href: el.href || null,\n      disabled: el.disabled\n    }))\n    .filter((b, i, arr) => arr.findIndex(x => x.text === b.text && x.href === b.href) === i)\n    .slice(0, 30);\n  \n  // 4. Collect table data (first 5 rows)\n  const tables = [...document.querySelectorAll('table')].map(table => ({\n    headers: [...table.querySelectorAll('thead th')].map(th => th.textContent.trim()),\n    rows: [...table.querySelectorAll('tbody tr')].slice(0, 5).map(tr =>\n      [...tr.querySelectorAll('td')].map(td => td.textContent.trim().slice(0, 80))\n    )\n  }));\n  \n  // 5. Probe all visible buttons for hover responses (affordance map)\n  const affordanceTargets = [...document.querySelectorAll('button')]\n    .filter(el => el.offsetParent !== null && !el.textContent.trim())\n    .slice(0, 20);\n  const affordances = await Promise.all(affordanceTargets.map(async el => {\n    el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));\n    await new Promise(r => setTimeout(r, 200));\n    const tooltip = document.querySelector('.v-overlay--active[role=\"tooltip\"], [role=\"tooltip\"]:not([style*=\"display: none\"])');\n    const tooltipText = tooltip?.textContent.trim();\n    el.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));\n    const rect = el.getBoundingClientRect();\n    return { selector: el.className?.slice(0,40), x: Math.round(rect.x), y: Math.round(rect.y), tooltip: tooltipText };\n  }));\n  \n  return { pageUrl, navLinks, headings, inputs, buttons, tables, affordances: affordances.filter(a => a.tooltip) };\n})()",
-
   "chain": [
     {
       "stepId": "s1",
       "action": "assess_state",
-      "expect": { "state": "authenticated" },
-      "onMismatch": "exit_with_error:not-authenticated"
+      "expect": {
+        "state": "authenticated"
+      },
+      "onMismatch": "exit_with_error:not-authenticated",
+      "note": "Verify we're logged in before exploring"
     },
     {
       "stepId": "s2",
-      "action": "js",
-      "code": "// Iterate all known pages and collect snapshots. In production runtime this would be a loop action; here it's a multi-navigate chain.\n(async () => { const results = {}; const pages = {{pages}}; for (const page of pages) { try { window.location.href = '{{base_url}}' + page.url; await new Promise(r => setTimeout(r, 1200)); // Run exploration script per page const pageData = await ({{explorationScript}}); results[page.name] = pageData; } catch(e) { results[page.name] = { error: e.message }; } } return results; })()",
-      "store_as": "site_map",
-      "note": "Full site exploration — collects interactive element snapshots from all known pages."
+      "action": "navigate",
+      "url": "{{base_url}}/overview",
+      "note": "Navigate to overview"
     },
     {
       "stepId": "s3",
-      "action": "js",
-      "code": "// Return summary statistics\n(function() { const map = window.__yeshie_explore_results__ || {}; return { pagesExplored: Object.keys(map).length, summary: Object.entries(map).map(([name, data]) => ({ page: name, inputCount: data.inputs?.length || 0, buttonCount: data.buttons?.length || 0, tableCount: data.tables?.length || 0, affordancesFound: data.affordances?.length || 0 })) }; })()",
-      "store_as": "exploration_summary"
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for overview to render"
+    },
+    {
+      "stepId": "s4",
+      "action": "read",
+      "store_as": "page_overview",
+      "note": "Snapshot overview page affordances"
+    },
+    {
+      "stepId": "s5",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people",
+      "note": "Navigate to people-list"
+    },
+    {
+      "stepId": "s6",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for people-list to render"
+    },
+    {
+      "stepId": "s7",
+      "action": "read",
+      "store_as": "page_people-list",
+      "note": "Snapshot people-list page affordances"
+    },
+    {
+      "stepId": "s8",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people/onboard",
+      "note": "Navigate to onboard-form"
+    },
+    {
+      "stepId": "s9",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for onboard-form to render"
+    },
+    {
+      "stepId": "s10",
+      "action": "read",
+      "store_as": "page_onboard-form",
+      "note": "Snapshot onboard-form page affordances"
+    },
+    {
+      "stepId": "s11",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/directories",
+      "note": "Navigate to directories"
+    },
+    {
+      "stepId": "s12",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for directories to render"
+    },
+    {
+      "stepId": "s13",
+      "action": "read",
+      "store_as": "page_directories",
+      "note": "Snapshot directories page affordances"
+    },
+    {
+      "stepId": "s14",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/groups",
+      "note": "Navigate to groups"
+    },
+    {
+      "stepId": "s15",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for groups to render"
+    },
+    {
+      "stepId": "s16",
+      "action": "read",
+      "store_as": "page_groups",
+      "note": "Snapshot groups page affordances"
+    },
+    {
+      "stepId": "s17",
+      "action": "navigate",
+      "url": "{{base_url}}/access/applications",
+      "note": "Navigate to applications-list"
+    },
+    {
+      "stepId": "s18",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for applications-list to render"
+    },
+    {
+      "stepId": "s19",
+      "action": "read",
+      "store_as": "page_applications-list",
+      "note": "Snapshot applications-list page affordances"
+    },
+    {
+      "stepId": "s20",
+      "action": "navigate",
+      "url": "{{base_url}}/access/grid",
+      "note": "Navigate to access-grid"
+    },
+    {
+      "stepId": "s21",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for access-grid to render"
+    },
+    {
+      "stepId": "s22",
+      "action": "read",
+      "store_as": "page_access-grid",
+      "note": "Snapshot access-grid page affordances"
+    },
+    {
+      "stepId": "s23",
+      "action": "navigate",
+      "url": "{{base_url}}/access/rbac",
+      "note": "Navigate to rbac"
+    },
+    {
+      "stepId": "s24",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for rbac to render"
+    },
+    {
+      "stepId": "s25",
+      "action": "read",
+      "store_as": "page_rbac",
+      "note": "Snapshot rbac page affordances"
+    },
+    {
+      "stepId": "s26",
+      "action": "navigate",
+      "url": "{{base_url}}/access/requests",
+      "note": "Navigate to access-requests"
+    },
+    {
+      "stepId": "s27",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for access-requests to render"
+    },
+    {
+      "stepId": "s28",
+      "action": "read",
+      "store_as": "page_access-requests",
+      "note": "Snapshot access-requests page affordances"
+    },
+    {
+      "stepId": "s29",
+      "action": "navigate",
+      "url": "{{base_url}}/access/audits",
+      "note": "Navigate to audit-reports"
+    },
+    {
+      "stepId": "s30",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for audit-reports to render"
+    },
+    {
+      "stepId": "s31",
+      "action": "read",
+      "store_as": "page_audit-reports",
+      "note": "Snapshot audit-reports page affordances"
+    },
+    {
+      "stepId": "s32",
+      "action": "navigate",
+      "url": "{{base_url}}/security/shadow",
+      "note": "Navigate to shadow-applications"
+    },
+    {
+      "stepId": "s33",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for shadow-applications to render"
+    },
+    {
+      "stepId": "s34",
+      "action": "read",
+      "store_as": "page_shadow-applications",
+      "note": "Snapshot shadow-applications page affordances"
+    },
+    {
+      "stepId": "s35",
+      "action": "navigate",
+      "url": "{{base_url}}/security/identities/applications",
+      "note": "Navigate to identities"
+    },
+    {
+      "stepId": "s36",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for identities to render"
+    },
+    {
+      "stepId": "s37",
+      "action": "read",
+      "store_as": "page_identities",
+      "note": "Snapshot identities page affordances"
+    },
+    {
+      "stepId": "s38",
+      "action": "navigate",
+      "url": "{{base_url}}/security/access-drift",
+      "note": "Navigate to access-drift"
+    },
+    {
+      "stepId": "s39",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for access-drift to render"
+    },
+    {
+      "stepId": "s40",
+      "action": "read",
+      "store_as": "page_access-drift",
+      "note": "Snapshot access-drift page affordances"
+    },
+    {
+      "stepId": "s41",
+      "action": "navigate",
+      "url": "{{base_url}}/security/risk-assessment",
+      "note": "Navigate to risk-assessment"
+    },
+    {
+      "stepId": "s42",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for risk-assessment to render"
+    },
+    {
+      "stepId": "s43",
+      "action": "read",
+      "store_as": "page_risk-assessment",
+      "note": "Snapshot risk-assessment page affordances"
+    },
+    {
+      "stepId": "s44",
+      "action": "navigate",
+      "url": "{{base_url}}/manage/triggers",
+      "note": "Navigate to triggers"
+    },
+    {
+      "stepId": "s45",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for triggers to render"
+    },
+    {
+      "stepId": "s46",
+      "action": "read",
+      "store_as": "page_triggers",
+      "note": "Snapshot triggers page affordances"
+    },
+    {
+      "stepId": "s47",
+      "action": "navigate",
+      "url": "{{base_url}}/workflow-templates",
+      "note": "Navigate to workflow-templates"
+    },
+    {
+      "stepId": "s48",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for workflow-templates to render"
+    },
+    {
+      "stepId": "s49",
+      "action": "read",
+      "store_as": "page_workflow-templates",
+      "note": "Snapshot workflow-templates page affordances"
+    },
+    {
+      "stepId": "s50",
+      "action": "navigate",
+      "url": "{{base_url}}/policies",
+      "note": "Navigate to policies"
+    },
+    {
+      "stepId": "s51",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for policies to render"
+    },
+    {
+      "stepId": "s52",
+      "action": "read",
+      "store_as": "page_policies",
+      "note": "Snapshot policies page affordances"
+    },
+    {
+      "stepId": "s53",
+      "action": "navigate",
+      "url": "{{base_url}}/events",
+      "note": "Navigate to events"
+    },
+    {
+      "stepId": "s54",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for events to render"
+    },
+    {
+      "stepId": "s55",
+      "action": "read",
+      "store_as": "page_events",
+      "note": "Snapshot events page affordances"
+    },
+    {
+      "stepId": "s56",
+      "action": "navigate",
+      "url": "{{base_url}}/manage/settings",
+      "note": "Navigate to settings"
+    },
+    {
+      "stepId": "s57",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for settings to render"
+    },
+    {
+      "stepId": "s58",
+      "action": "read",
+      "store_as": "page_settings",
+      "note": "Snapshot settings page affordances"
+    },
+    {
+      "stepId": "s59",
+      "action": "navigate",
+      "url": "{{base_url}}/overview",
+      "note": "Return to dashboard"
     }
   ],
-
-  "outputFormat": {
-    "description": "The site_map result from s2 should be written to sites/yeshid/exploration-results.json. Each page entry contains: navLinks, headings, inputs (with vuetifyLabel), buttons, tables (with headers and sample rows), affordances (icon buttons with discovered tooltips).",
-    "useFor": [
-      "Populating site.model.json abstractTargets with verified cachedSelectors",
-      "Answering ad-hoc LLM queries about what's on a given page",
-      "Detecting UI changes between exploration runs (diff exploration-results.json versions)",
-      "Building CoWork's prompt context for free-form instructions like 'add the GitHub integration'"
-    ]
-  }
+  "runId": "yeshid-explore-{{timestamp}}",
+  "site": "app.yeshid.com",
+  "mode": "exploratory"
 }

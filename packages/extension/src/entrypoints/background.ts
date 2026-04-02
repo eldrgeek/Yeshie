@@ -259,6 +259,47 @@ export default defineBackground(() => {
     return { text: null, found: false };
   }
 
+  function PRE_PAGE_SNAPSHOT() {
+    const pageUrl = window.location.pathname;
+    function getLabel(input: Element) {
+      const c = input.closest('.v-input, .v-field, .v-text-field');
+      if (!c) return null;
+      const l = c.querySelector('.v-label, .v-field-label');
+      if (l) return l.textContent?.trim() || null;
+      const prev = c.previousElementSibling;
+      if (prev && prev.classList.contains('mb-2')) return prev.textContent?.trim() || null;
+      return null;
+    }
+    const headings = [...document.querySelectorAll('main h1, main h2, main h3, .v-toolbar-title')]
+      .map(h => ({ level: h.tagName, text: h.textContent?.trim() }));
+    const inputs = [...document.querySelectorAll('input, textarea, select')]
+      .filter(el => (el as HTMLElement).offsetParent !== null)
+      .map(el => {
+        const inp = el as HTMLInputElement;
+        return { tag: el.tagName, type: inp.type, id: inp.id, placeholder: inp.placeholder, label: getLabel(el), ariaLabel: el.getAttribute('aria-label') };
+      });
+    const buttons = [...document.querySelectorAll('button, [role=button], a.v-btn')]
+      .filter(el => (el as HTMLElement).offsetParent !== null)
+      .map(el => ({ tag: el.tagName, text: (el.textContent || '').trim().slice(0, 60), ariaLabel: el.getAttribute('aria-label'), href: el.getAttribute('href'), disabled: (el as HTMLButtonElement).disabled, classes: [...el.classList].slice(0, 5).join(' ') }))
+      .filter((b, i, arr) => arr.findIndex(x => x.text === b.text && x.href === b.href) === i)
+      .slice(0, 50);
+    const links = [...document.querySelectorAll('a[href]')]
+      .filter(el => (el as HTMLElement).offsetParent !== null && el.textContent?.trim())
+      .map(el => ({ text: el.textContent?.trim()?.slice(0, 60), href: el.getAttribute('href') }))
+      .filter((l, i, arr) => arr.findIndex(x => x.text === l.text && x.href === l.href) === i)
+      .slice(0, 30);
+    const tables = [...document.querySelectorAll('table, .v-data-table')].map(table => ({
+      headers: [...table.querySelectorAll('thead th')].map(th => th.textContent?.trim()),
+      rowCount: table.querySelectorAll('tbody tr').length,
+      sampleRows: [...table.querySelectorAll('tbody tr')].slice(0, 3).map(tr =>
+        [...tr.querySelectorAll('td')].map(td => td.textContent?.trim()?.slice(0, 50))
+      )
+    }));
+    const navLinks = [...document.querySelectorAll('.v-navigation-drawer a[href]')]
+      .map(a => ({ text: a.textContent?.trim(), href: a.getAttribute('href'), active: a.classList.contains('v-list-item--active') }));
+    return { pageUrl, headings, inputs, buttons, links, tables, navLinks };
+  }
+
   function PRE_ASSESS_STATE(stateGraph: any) {
     if (!stateGraph?.nodes) return { state: 'unknown' };
     for (const [name, node] of Object.entries(stateGraph.nodes) as any) {
@@ -643,6 +684,12 @@ export default defineBackground(() => {
 
       if (a === 'read') {
         const candidates = step.candidates || (step.selector ? [step.selector] : []);
+        if (candidates.length === 0) {
+          // No selectors — do a full page snapshot
+          const snapshot = await execInTab(tabId, PRE_PAGE_SNAPSHOT, []);
+          if (step.store_as) buffer[step.store_as] = snapshot;
+          return { stepId: step.stepId, action: a, status: 'ok', text: JSON.stringify(snapshot), snapshot, durationMs: Date.now() - t0 };
+        }
         const r = await execInTab(tabId, PRE_GUARDED_READ, [candidates]);
         if (step.store_as) buffer[step.store_as] = r?.text || null;
         return { stepId: step.stepId, action: a, status: 'ok', text: r?.text || null, selector: r?.selector, durationMs: Date.now() - t0 };
