@@ -1,0 +1,513 @@
+{
+  "extractedAt": "2026-04-02T02:13:05.338Z",
+  "articleCount": 36,
+  "articles": [
+    {
+      "id": "2150190602",
+      "title": "Zoom - Add Onboarding User as Alternate Host for Meeting",
+      "collection": "Connect & Integrate",
+      "url": "https://docs.yeshid.com/articles/2150190602-zoom-add-onboarding-user-as-alternate-host-for-meeting",
+      "lastUpdated": "April 30, 2025",
+      "content": "IntroductionZoom API Reference: https://developers.zoom.us/docs/api/rest/reference/zoom-api/methods/#operation/meetingUpdateLearn how to add alternate hosts to existing meetings using YeshID's custom provisioner for Onboarding Tasklists and Zoom's API.Note: Zoom's API uses a patch operation which will overwrite any existing alternate hosts with the user that you're running the task with. (Any existing alternate hosts will be lost).Pre-requisitesYou already have a Zoom application created for the connection with YeshID. Connect & Integrate ZoomYou are the Zoom administrator that created the application.You have the meeting ID you'd like to set an alternate host for.You have the email address of the alternate host(s) you'd like to add (and they are active Zoom users)StepsSet additional scopes on the Zoom application used for integration with YeshIDNavigate to marketplace.zoom.usFind your applicationAdd additional scopes:meeting:update:meeting:adminSave the scopes.Add a custom action in ZoomIn YeshID, navigate to the Zoom app (Applications > Zoom)Add an additional action \"Add as Alternate Host\"Set the following options:Method: PATCHEndpoint URL: https://api.zoom.us/v2/meetings/<your-meeting-id>Body:{ \"settings\":\n { \"alternative_hosts\":\"{{.User.Email}}\" } // You can set multiple admins as\n // comma separated values\n}Save the changesAdd to existing on-boarding template (new users) OR create a new Onboarding Task-List that makes use of the Custom ActionAdd task /Run a user defined provisioner actionChoose Application ZoomChoose Action that you created Add as Alternate HostExecute the onboarding template with the Add an Alternate Host task on the specified user.When this task completes, your meeting's alternative host will be changed.FAQ"
+    },
+    {
+      "id": "4212716734",
+      "title": "Connect & Integrate Zoom",
+      "collection": "Connect & Integrate",
+      "url": "https://docs.yeshid.com/articles/4212716734-how-to-connect-integrate-zoom",
+      "lastUpdated": "April 25, 2025",
+      "content": "IntroductionConnecting and Integrating Zoom with YeshID will enable the following:Read Integration - Will keep your users in sync.Write Integration - Will allow you to add and remove users.Pre-RequisitesYou have an account on YeshIDYou are the administrator on your Zoom account.Write Integrations - You have the right subscription. (TODO)StepsRead IntegrationIf you've already added Zoom, you can simply click into the Zoom application in YeshID and click \"Connect and Integrate\"In YeshID, navigate to your ApplicationsClick \"Add Application\"In a new tab, navigate to the Zoom Marketplace and sign-in.Click \"Develop\" and \"Build App\"Select \"Server to Server OAuth App\"Name your app something descriptive:Copy and paste the following items from Zoom to YeshIDZoomYeshIDAccount IDReplace {{.accountId}} with your Zoom Account ID.i.ebecomes https://zoom.us/oauth/token?grant_type=account_credentials&account_id=XXXXXXXXXClient IDPaste into Client IDClient SecretPaste into Client SecretIn Zoom, hit \"Continue\" to enter into InformationFill out the Integration details and hit Continue to FeatureThis won't actually be used anywhere because this app will not be published in the MarketplaceHit continue to continue to ScopesIn Scopes (Zoom), add the required scopes from YeshIDCopy the Scopes from YeshIDClick \"Add Scopes\" in ZoomPaste the ScopesSelect checkbox for the user:read:list_users:admin scopeHit DoneHit ContinueHit Activate your appActivate Your AppConfirm ActivatedIn YeshID, hit Connect and AddClick into ZoomYou should see the Application state go from Syncing to ConnectedWrite IntegrationComing Soon!",
+      "relatedArticles": [
+        "Connect & Integrate Cloudflare",
+        "Connect & Integrate Asana",
+        "Connect & Integrate Slack",
+        "Template Variables"
+      ]
+    },
+    {
+      "id": "2463292740",
+      "title": "Connect & Integrate OpenAI",
+      "collection": "Connect & Integrate",
+      "url": "https://docs.yeshid.com/articles/2463292740-how-to-connect-integrate-openai",
+      "lastUpdated": "April 25, 2025",
+      "content": "IntroductionThis guide goes over how to connect and integrate with the broader OpenAI platform which is different from ChatGPT. At time of writing, ChatGPT does not currently have an API to integrate with YeshID.This guide explains how to connect to OpenAI. Follow these steps to:Synchronize user listsManage user creation and deletion with onboarding/offboarding tasksSteps1. Create an Admin Key in OpenAINavigate to https://platform.openai.com/settings/organization/admin-keysCreate a new Admin Key and assign it all permissions OR ensure it has the relevant permissions for the Management API ScopeRead for List UsersWrite for Create and Delete Users2. Use the API key when adding OpenAI as a new application3. If OpenAI already exists, add it in the Connect and Integrate pageFAQThe most common issue is if YeshID admins try to use a personal key instead of an admin key. Admin keys must be created from https://platform.openai.com/settings/organization/admin-keys",
+      "relatedArticles": [
+        "Connect & Integrate Cloudflare",
+        "Connect & Integrate Asana",
+        "Connect & Integrate Slack",
+        "Template Variables"
+      ]
+    },
+    {
+      "id": "3044949128",
+      "title": "Connect & Integrate Asana",
+      "collection": "Connect & Integrate",
+      "url": "https://docs.yeshid.com/articles/3044949128-how-to-connect-integrate-asana",
+      "lastUpdated": "June 26, 2025",
+      "content": "IntroductionConnecting with Asana at this time will allow YeshID administrators to automatically keep their users in sync.StepsSCIM IntegrationThe SCIM integration requires the Enterprise plan at time of writing (26 June 2025)1. Create a Service Account Follow the documentation here: https://help.asana.com/s/article/service-accounts?language=en_US Make sure you add the following scopes:Copy the Service Access Token (SAT)2. Connect & Integrate in YeshIDIn Asana, click \"Connect & Integrate\"Use Integration type SCIMAdd your Asana Service Account TokenClick Parameters and add the following EndpointCheck off Import Users and click Test RequestAPI Integration1. Create an API key in Asana By navigating to https://app.asana.com/0/my-apps2. Note your Asana Workspace IDYou can find your Asana workspace iD by navigating to your Asana home page3. Include the API Key and Asana Workspace ID when creating a new Application4. If Asana already exists, add the API key and Workspace ID in the Connect tabFAQ",
+      "relatedArticles": [
+        "Connect & Integrate Cloudflare",
+        "Connect & Integrate Slack",
+        "Template Variables"
+      ]
+    },
+    {
+      "id": "3982147426",
+      "title": "Connect & Integrate Slack",
+      "collection": "Connect & Integrate",
+      "url": "https://docs.yeshid.com/articles/3982147426-connect-integrate-slack",
+      "lastUpdated": "March 2, 2026",
+      "content": "IntroductionThis document goes over how to:Connect Slack from YeshID; andAdd the Invite LinkAfter following these steps you will be able to:Automatically keep your Slack users in sync with YeshIDAllow your new employees to add themselves to Slack as part of an onboarding with an invite link.Connect Slack1. Navigate to your Applications page2. Click on Slack3. Click on Connect4. Click on Authenticate5. Pick the correct Slack workspaceIf you use this browser profile or account to log into multiple workspaces, the authentication flow may default to a different workspace.6. Click on your Slack workspacePick the correct workspace you want notifications to pipe into.7. Click on Allow8. Enable the Import Users operation to sync users9. Click on Integration Once an Integration is connected, your apps will usually sync once every 24 hours.10. The successful sync will now automatically import your users.Cautionary NotesEnsure you have the necessary permissions to add applications in Yesh ID.Double-check that you are selecting the correct workspace to avoid syncing issues.Using Slack's Invite LinkTo get started with helping automate Slack actions right away, you can add your workspace's Invite Link so that new users can add themselves during an on-boarding.1. Get your Slack Workspace invite linkNavigate to your Slack workspace settings.Copy this Invite Link2. Update your Slack application settings in YeshIDHead to Applications > Slack in YeshIDClick \"Edit\", add the invite link and hit \"Confirm\"Now when doing an Onboarding with /Add User to Application for Slack, a user will receive an email from Slack to add themselves into your organization.",
+      "relatedArticles": [
+        "Connect & Integrate Cloudflare",
+        "Connect & Integrate Asana",
+        "Template Variables"
+      ]
+    },
+    {
+      "id": "7043649690",
+      "title": "Connect & Integrate Atlassian",
+      "collection": "Connect & Integrate",
+      "url": "https://docs.yeshid.com/articles/7043649690-connect-integrate-atlassian",
+      "lastUpdated": "May 21, 2025",
+      "content": "IntroductionThis guide goes over using YeshID's catalog integration to connect with Atlassian. Connecting with Atlassian at time of writing allows you to import users and keep them up to date automatically.StepsLog into https://admin.atlassian.com/Navigate to Settings > API Keys and Create an API KeyCreate API key of type API Key without scopesCopy the Organization ID and API KeyHit Connect and AddFAQ",
+      "relatedArticles": [
+        "Connect & Integrate Cloudflare",
+        "Connect & Integrate Asana",
+        "Connect & Integrate Slack",
+        "Template Variables"
+      ]
+    },
+    {
+      "id": "6836040066",
+      "title": "Template Variables",
+      "collection": "Connect & Integrate",
+      "url": "https://docs.yeshid.com/articles/6836040066-template-variables",
+      "lastUpdated": "May 29, 2025",
+      "content": "IntroductionYeshID provides access to the Account and User objects for use in certain parts of the app (i.e. Custom Actions, or Email Tasks). This is the full listCommonly Used VariablesFrom our experiences with customers, these are the most commonly used variables for most API integrations:{{.User.Email}} - The user's employee email address{{.Account.ExternalID}} - The user's ID within an applicationIf performing actions on external applications (i.e. on a DELETE endpoint, you will probably need to use {{.Account.ExternalID}} i.e. DELETE https://mycoolapp.com/api/user/{{.Account.ExternalID}}User ObjectThe User Object describes a Person within YeshID that is usually used in the context of an action (i.e. Onboarding / Offboarding / Access Request)VariableTypeDescriptionRemarks / Values.User.IDStringUnique ID within YeshID.User.OrgIDStringUnique OrgID within YeshID.User.NameStringFirst Name.User.LastNameStringLast Name.User.FullNameStringFirst Name and Last Name.User.EmailStringYeshID Email address (a.k.a employee email address).User.CreatedAtStringUser's creation time in RFC-3339 formatExample 2024-01-23T19:53:20.253714Z.User.UpdatedAtStringUser's last updated time in YeshID in RFC-3339 formatExample 2024-01-23T19:53:20.253714Z.User.TypeStringWhether the user is a YeshID admin or not.USERADMIN.User.RecoveryEmailStringPersonal email address provided for onboarding.User.StatusStringsUser's account status within YeshIDACTIVESUSPENDEDDEACTIVATED.User.RolesTBDTBDTBD.User.CustomFieldsNot implemented yetTBD.User.ExternalBooleanIndicates whether a user is an external user or not (i.e. contractor)TRUEFALSEAccount ObjectThe Account Object represents the user's account within the application.VariableTypeDescriptionRemarks / Values.Account.IdStringUser's ID within YeshID application.Account.OrgIdStringUser's OrgID within an application.Account.OrgApplicationIDStringThe unique ID of the application.Account.ExternalIDStringThe user's ID in the application.Account.userIDStringThe YeshID user ID (the same as the .User.Id if they are mapped).Account.AccountType (changing soon)StringUser's role within the applicationUSERADMIN.Account.ProvisioningStatusStringUser's current provisioning status within the application (In YeshID's POV)TO_BE_PROVISIONEDTO_BE_DEPROVISIONEDACTIVEDEACTIVATED.Account.LastAccessGivenAtStringWhen the user was last provided access (via Access Grid or Task) in RFC-3339 formatExample 2024-01-23T19:53:20.253714Z.Account.LastAccessRemovedAtStringWhen the user was last removed access (via Access Grid or Task) in RFC-3339 formatExample 2024-01-23T19:53:20.253714Z.Account.License (If supported by application)StringWhatever license is specified within the application.Account.LoginType (If supported by application)StringPASSWORDMFASSOFAQ",
+      "relatedArticles": [
+        "Connect & Integrate Cloudflare",
+        "Connect & Integrate Asana",
+        "Connect & Integrate Slack"
+      ]
+    },
+    {
+      "id": "6256021680",
+      "title": "Connect & Integrate Cloudflare",
+      "collection": "Connect & Integrate",
+      "url": "https://docs.yeshid.com/articles/6256021680-connect-integrate-cloudflare",
+      "lastUpdated": "June 27, 2025",
+      "content": "At time of writing, this integration is in the process of being added to the YeshID integration catalog. Once the integration is in there, you will be able to select catalog and will only need to provide your API token, and Account ID.StepsAdd Cloudflare as an application in YeshID. See:Create an API token by following: https://developers.cloudflare.com/fundamentals/api/get-started/create-token/Ensure that Account.Account Settings scopes are granted:Get your Account IDIn YeshID, head to your Cloudflare app and click \"Connect & Integrate\"Select integration type Custom APIInclude your API TOKEN created in the previous stepImport UsersEndpoint URL: https://api.cloudflare.com/client/v4/accounts/<your_account_id>/membersCreate UsersNote that the role in this screenshot is corresponds to the Minimal Access RoleMethod POSTEndpoint URL: https://api.cloudflare.com/client/v4/accounts/<your_account_id>/members Body:{\n \"email\":{{.User.Email}},\n \"roles\": [\n \"5c35d2bf3a545e6b7560b826c0d23c39\"\n ]\n}ID Path.result.idDelete UsersMethod DELETEEndpoint URL: https://api.cloudflare.com/client/v4/accounts/<your_account_id>/members",
+      "relatedArticles": [
+        "Connect & Integrate Asana",
+        "Connect & Integrate Slack",
+        "Template Variables"
+      ]
+    },
+    {
+      "id": "9233827133",
+      "title": "Connect & Integrate With Ramp",
+      "collection": "Connect & Integrate",
+      "url": "https://docs.yeshid.com/articles/9233827133-connect-integrate-with-ramp",
+      "lastUpdated": "March 7, 2026",
+      "content": "1 Get auth details (Client ID / Client Secret → Bearer token)A. Create an app + credentials in RampIn your Ramp dashboard (admin access required): Settings → Developer → Create New App, add the Client Credentials grant type, and enable the scopes you need (for users, typically users:read and/or users:write)B. Generate an access token (Client Credentials flow)Use Basic auth with base64(client_id:client_secret) to call the token endpoint:Sandbox base URL: https://demo-api.ramp.comProduction base URL: https://api.ramp.com2. List Users",
+      "relatedArticles": [
+        "Connect & Integrate Cloudflare",
+        "Connect & Integrate Asana",
+        "Connect & Integrate Slack",
+        "Template Variables"
+      ]
+    },
+    {
+      "id": "6884574227",
+      "title": "Sign-Up for YeshID",
+      "collection": "Getting Started Guides",
+      "url": "https://docs.yeshid.com/articles/6884574227-sign-up-for-yeshid",
+      "lastUpdated": "May 30, 2025",
+      "content": "IntroductionThe first step of getting started with YeshID is signing-up! When you sign-up with YeshID your directory (Google Workspace) will be synced up and able to log in to the app.Sign-Up With GoogleGo to app.yeshid.com/loginClick \"Create Account\"Follow the onboarding processDone!Sign-Up With MicrosoftVideo coming soon!Go to app.yeshid.com/loginClick \"Create Account\"Follow the onboarding procesFAQ1. What scopes are required to sign-up for YeshID?GoogleoAuth ScopeDescriptionWhat it's used forhttps://www.googleapis.com/auth/userinfo.emailView the email address associated with your account- Identify users by email in apps using Google Sign-Inhttps://www.googleapis.com/auth/admin.directory.userView and manage the provisioning of users on your domain- Create, update, and delete users in Google Workspace (for on/offboarding)https://www.googleapis.com/auth/admin.directory.user.securityManage security settings of users on your domain- Update user recovery info, 2SV settings, or password policies (for on/offboarding)https://www.googleapis.com/auth/admin.directory.orgunit.readonlyView organization units of your domain- Read-only access to org unit structure for grouping users or applying policieshttps://www.googleapis.com/auth/admin.directory.groupView and manage Google Groups on your domain- Create, modify, or delete Google Groups; manage group memberships (for on/offboarding)https://www.googleapis.com/auth/admin.datatransferView and manage data transfers between users in your organization- Transfer ownership of Google Drive or other app data when offboarding users (for offboarding)MicrosoftScopes coming soon!",
+      "relatedArticles": [
+        "Connecting Your Applications",
+        "How-To Add Applications to YeshID",
+        "Getting your Source of Truth into YeshID",
+        "Set-up YeshID notifications in Slack"
+      ]
+    },
+    {
+      "id": "6404388260",
+      "title": "How-To Add Applications to YeshID",
+      "collection": "Getting Started Guides",
+      "url": "https://docs.yeshid.com/articles/6404388260-adding-applications-to-yeshid",
+      "lastUpdated": "March 2, 2026",
+      "content": "This guide explains how to add Applications to YeshID through multiple methods:Adding Applications IndividuallyBulk Upload Apps by using AI PasteBulk Upload Apps by CSVAdding Applications from Shadow AppsAdding Applications Individually This approach is useful if:You'd like to have full control over adding your apps 1 by 11. Log into YeshID2. Navigate to your Applications page3. Click on Add application4. Choose the Application you'd like to addThis list contains all applications that are currently known to YeshID. If there's one that doesn't exist, or even a custom/internal/hombrew one - you can add it in by typing the name of your app and hitting enter.5. Select (or specify) the application that you'd like to add6. Pick your Technical Owners (TO's)Technical Owners (TO's) are the users that will be notified any time there is an action pertinent to that application (i.e. such as an Onboarding, Offboarding or Access Request)7. Select your Technical Owner8. Click on Add9. Review your Application10. Click on Settings to view your Technical OwnersBulk Upload Apps by using AI Paste This approach is useful if:You have a text list of applications somewhere.11. Click \"Import Applications\" The YeshID AI helper will look for:Data in the format of: Application Name, Login URL, Administrators (separated by semicolon) \\nBut only the Application Name is required . If you are able to provide more information, it will help the AI helper add in Login URL's and Administrators.(It uses the same format as the template provided in Bulk Import by CSV below)ExampleLinear https://linear.com charli.xcx@tstangerines.net\nAttio https://app.attio.com admin@tstangerines.net; ted.techguy@tstangerines.net\nPylon https://app.pylon.com admin@tstangerines.net\nZenDesk admin@tstangerines.net\nHappyFox admin@tstangerines.net12. Paste in your list of Applications13. Click on Import application list14. Your applications will be Upserted!YeshID will take the safe action of UPSERTING (Updating or Inserting) your applicationsAny new information for existing applications will be UPDATED;All new applications will be INSERTEDBulk Upload Apps By CSV This approach is useful if:You already have your applications in a spreadsheet (i.e. if you've just done an audit within your organization)15. Go to Access Accounts | YeshID16. Click on Import application list17. Click on Upload CSV18. Click on Download CSV template19. Open the template in your CSV editorYou can use your tool of choice (i.e. Excel, Numbers), we're using Google Sheets as an example. At minimum, YeshID only requires your Application Names.LoginURL's and Owners can be left blank, which will just lead to the Owners defaulting to the user that uploads the list.20. Fill out the details of your ApplicationsLoginURL will be the link that backs the \"tiles\" in your users \"My Apps\" screen.Owners refer to the Technical Owners (TO's) for your apps. These are the people that will be notified whenever there's a pertinent action (i.e. Onboarding, Offboarding, or Access Request)21. Export the List as a CSV22. Click on Drag and drop a CSV or click to upload23. Click on Import application list24. Your applications have now been Upserted!When uploading an Application List via CSV, your data will be UPSERTED (Updated or Inserted). That means YeshID will:Update any existing applications with new information; andInsert new applications if they are on your list.Adding applications from Shadow Apps This approach is useful if:You want to look at applications that are already being logged into by Users.25. Go to Access Accounts | YeshID26. Click on Shadow applications27. Click on HubSpot28. Click on Add as managed application29. Click on highlight30. Click on Users31. Click on Celestine Turner32. Click on Add33. Click on Applications34. Click on HubSpot",
+      "relatedArticles": [
+        "Connecting Your Applications",
+        "Sign-Up for YeshID",
+        "Getting your Source of Truth into YeshID",
+        "Set-up YeshID notifications in Slack"
+      ]
+    },
+    {
+      "id": "5908897211",
+      "title": "Set-up YeshID notifications in Slack",
+      "collection": "Getting Started Guides",
+      "url": "https://docs.yeshid.com/articles/5908897211-enabling-yeshid-notifications-in-slack",
+      "lastUpdated": "March 2, 2026",
+      "content": "With YeshID, you can enable notifications in Slack so that you and your users are notified of pertinent tasks from the same place they're already working out of (Slack).Pre-Requisite: Ensure that Slack is Connected Connect & Integrate SlackAdd Slack as a Notifications Destination1. Click on Settings2. Click on Notifications3. Click on Add to Slack4. Pick the correct Slack workspace5. Select your Slack workspace6. Click on Allow7. Your channel is now connected! YeshID will now:DM task assignees when there's a relevant notification for them (i.e. task as part of a workflow)Allow users to submit and respond to Access RequestsAdd a shared Notifications channel8. In Slack: Add @yeshid bot to your desired channel(s).YeshID bot must be added to the channels you'd like to have notification sin.9. Click \"Add to Channel\"10. Confirm addition of YeshID bot11. Pick your newly added channel12. Click on onboarding-offboarding-notifications13. Congratulations, your Slack channel is now added to YeshID!",
+      "relatedArticles": [
+        "Connecting Your Applications",
+        "How-To Add Applications to YeshID",
+        "Sign-Up for YeshID",
+        "Getting your Source of Truth into YeshID"
+      ]
+    },
+    {
+      "id": "5158113359",
+      "title": "Getting your Source of Truth into YeshID",
+      "collection": "Getting Started Guides",
+      "url": "https://docs.yeshid.com/articles/5158113359-getting-your-source-of-truth-into-yeshid",
+      "lastUpdated": "March 2, 2026",
+      "content": "OverviewWhen you're getting started with YeshID, the first thing you should do is get your Source of Truth (list of access of who has access to what, today) into YeshID. To help: There are 3 ways to import the current state of application access into YeshIDImport Users via App ConnectionImport Users via CSVImport Users via ScreenshotImport Users via App Connection Use this approach if:Your application is in our app catalogue, and if the application makes it easy to connect.Try this approach first, and if that fails - move to the manual mechanisms below..For this example we're going to pick Slack .1. Go to Applications2. Click on Add application The pills indicate functionalityUser Access indicates the ability to provide access to users via Invite link.SCIM indicates the ability to set-up SCIM user management*3. Click on highlight Don't see your application on this list?Follow this guide on how connect to your Application via REST API, SCIM or code backed integration.4. Type in highlight5. Click on Slack6. Pick a Technical Owner (TO)7. Click on Add8. Click on Slack9. Click on Connect10. Click on AuthenticateKeep Slack set to integration type Prebuilt . This indicates that YeshID is able to connect to this app easily.11. Click on YeshID Community12. Click on T's Tangerines13. Click on Allow14. Click on ON15. Click on Integration16. Congratulations, your users are not kept in sync automatically.Import Users via CSV Use this approach if:Your SaaS Application provides an easy way to export a CSV or list of users. YeshID really only needs access to a column containing emails17. Download the list of users from your Application's users page.Most applications will have an \"Export\" or \"Download\" button18. Go to Access Accounts | YeshID19. Click on Import Users20. Click on or drag and drop21. Click on Import22. Click on Confirm changes23. Congratulations, your users are now imported for this app.Import Users via Screenshot Use this approach if:Your application doesn't have an easy to export a list or CSV of users; BUT does provide a screenshot with email addresses.24. Take a screenshot containing a list of users (with email addresses) from your application.25. Click into your Application26. Click on Manage27. Click on Import Users28. Drop your screenshot into the file picker.29. Click on Import30. Click on Confirm changes31. Congratulations, your users should now be imported by screenshot.",
+      "relatedArticles": [
+        "Connecting Your Applications",
+        "How-To Add Applications to YeshID",
+        "Sign-Up for YeshID",
+        "Set-up YeshID notifications in Slack"
+      ]
+    },
+    {
+      "id": "9279585234",
+      "title": "Connecting Your Applications",
+      "collection": "Getting Started Guides",
+      "url": "https://docs.yeshid.com/articles/9279585234-connecting-your-applications",
+      "lastUpdated": "March 9, 2026",
+      "content": "If your application has a REST API & if you have the right subscription, YeshID can connect with your applications to help you orchestrate lifecycle actions Connecting your applications enables YeshID to help with orchestrating and managing your IAM related operations.For example: Enabling Import Users keeps your Access Grid up to date, which is also what enables the (1) /remove user from all applications task during off-boarding workflows and (2) easily presents you an up-to-date snapshot of application users during an Application Audit. For a full mapping of how Integration Actions enable YeshID operations, see the Integration Actions & Enablement Table below.Integration Actions & Enablement TableActionWhat It's Used ForWhat It EnablesImport UsersPeriodically syncing with your users.Keeps your Access Grid up to dateIs what's utilized when /remove user from all application task is executed during an offboarding workflow to check what access needs to be removed for a terminating/ed user.Allows easy capture of users during an Application Audits.Create UserCreating a user account within an application.Automating the /Create user in application workflow task. (Technical Owners will only need to \"check\" the task to approve it, and YeshID will take care of the rest with the integration).Activate UserActivating an existing account in an application.Allows staggered / precise control over onboarding flows (i.e. Create the user account but don't activate until a specific time).Delete UserRemoving an account in an applicationAutomates the /Remove user from application (triggered as part of /Remove user from all applications) workflow task. Automating the /Create user in application workflow task. (Technical Owners will only need to \"check\" the task to approve it, and YeshID will take care of the rest with the integration).Deactivate UserDeactivating an existing account in an application.Deactivating a user instead of deleting them (if accounts need to be preserved for archiving or business purposes)There are 4 steps to integrating or Connecting your ApplicationsChoosing your Integration TypeConfiguring AuthenticationConfiguring (and enabling) your Actions1. Choosing your Integration TypeIn YeshID, there are 3 ways to to integrate or connect with your applications.1. Prebuilt IntegrationsPrebuilt integrations are integrations that are have been researched and created by YeshID. Because these integrations have been validated by YeshID, you only need to specify (1) the authentication details and (2) enable the actions that are known to be supported by this Application at time of development.Notice an error or something out of date with a prebuilt integration? Please reach out to us at support@yeshid.com 2. SCIM IntegrationsSCIM (System for Cross-domain Identity Management) integrations that follow RFC7644 with standardized endpoints, attributes and operations. The benefit of SCIM is standardization where (all basic operations(CRUD) are supported and use the same naming and endpoint structure):Therefore, you only need to configure:Your app/tenant's specific SCIM Endpoint URLWhich actions you'd like to enable.These types of integrations sometimes require that you have the right plan and package within your apps. For example, at time of writing, Slack requires the Enterprise Grid plan to use SCIM.See: ssotax.yeshid.com for more information.3. Build Your Own IntegrationsThis is the fall-back option to support applications that may not be known to YeshID, and may not support SCIM. Use this when:You know what authentication mechanism is required for your appYou know the endpoints required to perform required operations (CRUD).2. Setting up your Authentication SettingsAuthentication (AuthN) is how YeshID will communicate your app to execute the required actions. Once Authentication is set-up, that mechanism (token) is used for every subsequent action (i.e. List Users, Create User, Delete User).YeshID currenly supports 5 Authentication Types:BearerOAuthBasicCustom API KeyNone2.1 Bearer AuthenticationBearer authentication (often called Bearer token auth) is a common way to secure APIs using a token instead of a username/password. The client sends a token in the HTTP Authorization header, and the server trusts the request if the token is valid.Use this method of your API documentation specifies adding in a \"Bearer\" token, similar to:curl https://api.example.com/v1/users \\\n -H \"Authorization: Bearer YOUR_ACCESS_TOKEN\" \\\n -H \"Content-Type: application/json\"Whatever is added into \"Token\" will be inserted into YOUR_ACCESS_TOKEN2.2 OAuth2 AuthenticationOAuth 2.0 is an authorization framework that allows an application to obtain limited access to a user's resources on another service without sharing the user's password.There are 3 sub-types that may be utilized for OAuth2:MechanismInputsExplanationClient Credentials Grant (Most Common)Client ID, Client SecretUsed for machine-to-machine authentication where no user is involved. The client authenticates directly with the authorization server using its credentials and receives an access token representing the application itself. Common for backend services or internal APIs.Authorization Code GrantClient ID, Client Secret (for confidential clients), Redirect URI, Authorization CodeUsed when a user logs in through a browser (typical web apps). The user authenticates with the authorization server, which returns an authorization code. The client exchanges this code for an access token. More secure than implicit flow because the token is obtained server-to-server. Often used with PKCE for public clients (mobile/SPAs).Refresh TokenClient ID, Client Secret (sometimes optional), Refresh TokenUsed to obtain a new access token after the old one expires without requiring the user to log in again. The client sends the refresh token to the authorization server and receives a new access token (and sometimes a new refresh token). Helps maintain long-lived sessions securely.2.2.1 Authorization Code Grant2.2.2 Client Credentials2.2.3 Refresh Token2.2.4 Scopes & Optional FieldsSometimes, your application may require that scopes are explicitly specified during authentication (i.e. specifying users.read). This can be added in under ScopesSome Applications may use non-standard header keys and value prefixes (i.e. use Auth: AuthBearer YOUR_ACCESS_TOKEN instead of Authorization: Bearer YOUR_ACCESS_TOKEN )2.3 Basic AuthenticationBasic Authentication is an API authentication method where a client sends a Base64-encoded username:password in the HTTP Authorization header with each request.Use this mechanism if your Application expects basic username+password authentication.2.4 Custom API KeyCustom API Key's are used if your application expects authentication details into non-standard headers (i.e. requires x-api-key instead of Authorization bearer )Authorization Params can be added to the Header or included as Query Parameters.In the case of Pagerduty:PagerDuty expects auth in the header in a non standard format of Authorization: Token token=<your_token>To handle this we set:Location Type: HeaderHeader Name: AuthorizationHeader Value: Token token = {{.Key}} where the key is set inToken2.5 NoneIn the highly unlikely state that your applications don't require any Authentication, you can use this option.3. Configure the Integration ActionsIn YeshID, the main operations that are focused on are (CRUD):Create - Create UserRetrieve - Import UsersUpdate (Not used)Delete - Delete or Deactivate UserActivate - Used by some applications that initially create users in a non-active state (i.e. \"Invited), and requires a subsequent \"Activate\" action to transition them to \"Active\").Don't see some / any of these actions? Your Authentication settings must be configured first; andIf using a Prebuilt integration, YeshID will only display the actions that are known to be supported.4. Enable the Integration ActionsActions are what enables the basic operations that YeshID requires to work with your applications. See the Integration Actions & Enablement Table above.4.1 UI Managed IntegrationsMost integrations will be detailed in your application's documentation, and usually consist of:And endpoint URLAn HTTP method (i.e. GET for list users, POST for creating a user)A payload (usualy only required creating users)4.1.1 Example - Importing Users Click into the Action (Import Users)Enter in the details from your ApplicationClick \"Test\"Examine the response that is returned from the API. Most API's will return all users in JavaScript Object Notation (JSON)Map the fields to your users with Agent YeshClick \"Generate Config\"Confirm the mappings below. If they are incorrect, see below for how to Map the fields to users ManuallyMap the fields by clicking \"Save\"Map the fields to your users (MANUALLY)You can manually specify the mappings using jq the \"Map account information\" field.Default values required to map to a user are: ID - this is also referred as the \"ExternalID\" (this is what's used in future operations for updates, deletes etc) Email - This is the field that's used to link with YeshID people. NameExample:Records Path: .usersID: .id Or empty: In JQ, we use //\"\" to substitute a \"\" as a default value if the field is empty.Email: .email // \"\"Name: .name // \"\"Click Test to see the mappings and flip to Preview to validate.Map the fields by clicking \"Save\"Enable the ActionThis will trigger an immediate sync with your application.Congratulations! Your users are now synced with your Application. Clicking into your Application and clicking on \"Accounts\" will show all your users, automatically kept in sync.4.1.1 Example - Creating UsersClick into the ActionSet the MethodSet the Endpoint URLClick Advanced to add the Payload BodyRefer to your application's documentations to determine what information must be provided in the payload. For example, for Pagerduty Create UserRequired JSON PayloadNote that only required fields are:{\n \"user\": {\n \"name\": \"\",\n \"email\": \"\"\n }\n}Construct the JSON payload.Enter in the required template variablesWhat values can I enter here? Refer to our Template Variables document.Confirm the payload (preview uses the currently logged in user)Click \"Save\"Enable the IntegrationTest the Create user actionClick \"Manage\" > Add UserPick an Existing User and click \"Add 1 person to <app>\"You should see \"A workflow has been created to add 1 person to PagerDuty\"Congratulations! You can now automate the provisioning of applications via YeshID Application Integration Actions.4.2 Code Backed IntegrationsSee https://docs.yeshid.com/articles/5428059420-code-backed-integrations-script-editor5. Add Custom Actions There may be certain times that custom actions are required. i.e. If using an I.T. Asset management application, you may want to automate to trigger an Order Asset endpoint. By using a Custom Action, you can execute custom actions as part of YeshID workflows.This requires a YeshID Business plan.In your application, \"Add a custom action\"Configure your Custom Action (same as above)Enable ActionIn your YeshID Workflow, click /Run provisioner action for userExpand task and (1) select application and (2) the custom action you createdCongratulations! You can now trigger custom actions as part of YeshID workflows.Frequently Asked Questions1. Why does setting up a SCIM integration show me 0 users on sync? (SCIM Takeover)ReasonSome SCIM apps will show 0 users if the users prior to the enabling of SCIM were not added through SCIMSolutionRe-add the users from YeshID using SCIM. Sane Default: As long as no role information is provided, the user is simply linked. Provisions a new or existing user in Figma. For existing users, this will bind your identity provider with a username that was created within Figma. The parameters provided are applied to the Figma user whose email matches the userName parameter. - Figma SCIM DocumentationStepsExport current list of users from application.Re-add them from YeshID (either one-by-one, or import by CSV) - only include username or ID.As long as no role information is included, most apps SHOULD simply link / activate these users as SCIM users so that they show up in the SCIM list users operation.",
+      "relatedArticles": [
+        "How-To Add Applications to YeshID",
+        "Sign-Up for YeshID",
+        "Getting your Source of Truth into YeshID",
+        "Set-up YeshID notifications in Slack"
+      ]
+    },
+    {
+      "id": "7441803498",
+      "title": "Custom Actions",
+      "collection": "",
+      "url": "https://docs.yeshid.com/articles/7441803498-custom-actions",
+      "lastUpdated": "April 30, 2025",
+      "content": "IntroductionYou can enable custom workflows with your apps that support API integrations by using custom actions.For example: Zoom - Add Onboarding User as Alternate Host for MeetingStepsNavigate to the desired Application in YeshID (Applications > Application Name)Click the \"Connect & Integrate\" tabScroll down and click \"Add ActionName the action whatever you'd likeConfigure the Action with parameters:Method:Optional Configuration:URL Parameters (Key, Value)Headers (Key, Value)Body: JSON that supports template variables. (See below)Note that it's necessary to surround variables of type string with quotes (i.e. \"{{.User.Email}}\"Supported Template Variables Template Variables",
+      "relatedArticles": [
+        "Connect & Integrate Freshdesk",
+        "Error 400: admin_policy_enforced when signing-up for YeshID",
+        "Policies in YeshID [BETA]",
+        "Pausing the YeshID POC",
+        "Connect & Integrate Slack [SCIM]"
+      ]
+    },
+    {
+      "id": "7873060408",
+      "title": "Connect & Integrate Freshdesk",
+      "collection": "",
+      "url": "https://docs.yeshid.com/articles/7873060408-connect-integrate-freshdesk",
+      "lastUpdated": "May 27, 2025",
+      "content": "IntroductionConnecting with Freshdsek at this time will allow YeshID administrators to automatically keep their users in sync.StepsGet your Freshdesk API Key from logging into your Freshdesk account, clicking your Profile > Profile Settings > View API KeyIn YeshID, add your API key as the username, and X as the passwordReference: https://developers.freshdesk.com/api/In Parameters, add your Helpdesk domain as seen in the login URL for your Freshdesk instance:Click Test Request FAQ",
+      "relatedArticles": [
+        "Custom Actions",
+        "Error 400: admin_policy_enforced when signing-up for YeshID",
+        "Policies in YeshID [BETA]",
+        "Pausing the YeshID POC",
+        "Connect & Integrate Slack [SCIM]"
+      ]
+    },
+    {
+      "id": "8039253410",
+      "title": "Error 400: admin_policy_enforced when signing-up for YeshID",
+      "collection": "",
+      "url": "https://docs.yeshid.com/articles/8039253410-error-400-admin-policy-enforced-when-signing-up-for-yeshid",
+      "lastUpdated": "August 6, 2025",
+      "content": "If you receive the following authorization error when connecting Google Workspace, this is because access to your account data is restricted by policies within your organization.Error 400: admin_policy_enforcedWe see this error occur with folks that have a Legacy Google Workspace Account (these were typically what used to be called “Google for domains” and are grandfathered into free plans named ‘GSuite legacy’ or ‘Google Workspace Business Starter (free edition)).Add YeshID as a Trusted AppAdd YeshID as a Trusted App. Note: “Trusted App” is Google Terminology. YeshID has already gone through the OAuth app verification process and we have been reviewed and approved by Google.From Google Admin, navigate to Security > Access and data control > API Controls > Manage Third Party App AccessSelect Add app and select Oauth app name or client IDSearch for YeshIDSelect the applicationAnd then on the next screen select the check mark with the OAuth Client ID. Press the SELECT button.Give permissions to your full domain (all users). Press CONTINUE.Select Trusted. Press CONTINUE.Press FINISH.Go back to YeshID and login to the application again, and restart the onboarding process by visiting https://app.yeshid.com/signup",
+      "relatedArticles": [
+        "Custom Actions",
+        "Connect & Integrate Freshdesk",
+        "Policies in YeshID [BETA]",
+        "Pausing the YeshID POC",
+        "Connect & Integrate Slack [SCIM]"
+      ]
+    },
+    {
+      "id": "8826256686",
+      "title": "Policies in YeshID [BETA]",
+      "collection": "",
+      "url": "https://docs.yeshid.com/articles/8826256686-policies-in-yeshid-beta",
+      "lastUpdated": "June 12, 2025",
+      "content": "This feature is currently in BETA which means there may be some errors from time to time. Please let us know if you run into anything via our Community Slack (Or in comments below!)IntroductionWith YeshID, you can create policies to help take action when a specific CEL (Common Expression Language) expression is evaluated as true. Currently, the actions that are supported are the ability to send a Slack notification via the YeshID bot. Policies are evaluated periodically on every directory sync (Approximately once very 24 hours).Think about the policies being the this inIf this (YeshID Policy), then that (Log an event, notify in Slack)ComponentsPoliciesA policy in YeshID is an object that's defined by CEL that when evaluated (every directory) as true, will create an event. These events can then be viewed, or set to send a Slack notificationCommon Expression Language (CEL)Policies are written in written in Google's Common Expression Language and the beauty of using it with YeshID comes from being able to query your IAM resources. Do I need to know how to write CEL? Nope! With YeshID, you can use the prompt bar which will generate the CEL expressions under the hood.ResourcesYou can use Yesh to create expressions with CEL to query your resources. Resources are what appears in this panel in YeshID. The resources currently supported are as follows.A more detailed list (along with CEL schema) is provided below in ResourcesNotificationsYou can set-up your policies to notify a Slack channel when they are evaluated as true. See below.StepsCreating a PolicyNavigate to Policies and click \"Create\"Type in your expressionClick \"Create Policy\"Set up Slack Notifications (OPTIONAL)This requires that you have (1) connected the Slack application, and (2) that you have set up the YeshID Bot from Settings > Notifications.A channel must have the YeshID bot invited to it before it can have slack notifications routed to it.What can I query?You can query any of the fields that show up for a resourceFor example, the oAuth Applications resource returns the following:Based on this you can craft a query for anything that shows up in this table. For example:show me all applications that are associated with account_name carl@tstangerines.netshow me all the users associated with each applicationYou can also cross reference between resource typesResourcesResourceField NameDescriptionPossible Values / TypeExample CEL Matchcurrent_time(string)The current time in RFC3339 formate.g. \"2024-06-11T12:34:56Z\"current_time > \"2024-01-01T00:00:00Z\"peopleidUser IDUUID stringp.id == \"user-uuid\"emailUser email addressstringp.email.endsWith(\"@example.com\")first_nameUser's first namestringp.first_name == \"Alice\"last_nameUser's last namestringp.last_name == \"Smith\"is_adminWhether user is an adminboolp.is_admin == truestatusUser statusstring (e.g. \"active\")p.status == \"active\"application_countNumber of provisioned applications for userintp.application_count > 2google_usersidDirectory identity IDUUID stringg.id == \"dir-uuid\"first_nameFirst namestringg.first_name == \"Bob\"last_nameLast namestringg.last_name == \"Lee\"emailPrimary emailstringg.email.endsWith(\"@company.com\")last_loginLast login timestamp (string)string (RFC3339)g.last_login < \"2024-01-01T00:00:00Z\"mfa_enabledMFA enabledboolg.mfa_enabled == falseis_mappedLinked to a userboolg.is_mapped == falseuser_idLinked user IDUUID string or nullg.user_id == nullis_super_adminIs Google Super Adminboolg.is_super_admin == truestatusDirectory identity statusstringg.status == \"active\"org_unitOrganizational unitstringg.org_unit == \"/Engineering\"okta_usersidDirectory identity IDUUID stringo.id == \"dir-uuid\"first_nameFirst namestringo.first_name == \"Bob\"last_nameLast namestringo.last_name == \"Lee\"emailPrimary emailstringo.email.endsWith(\"@company.com\")last_loginLast login timestamp (string)string (RFC3339)o.last_login < \"2024-01-01T00:00:00Z\"is_mappedLinked to a userboolo.is_mapped == falseuser_idLinked user IDUUID string or nullo.user_id == nullstatusDirectory identity statusstringo.status == \"active\"applicationsidApplication IDUUID stringa.id == \"app-uuid\"nameApplication namestringa.name == \"Salesforce\"hide_from_usersHidden from usersboola.hide_from_users == falseis_integratedHas active provisioning configboola.is_integrated == truehas_integration_errorProvisioning config has errorboola.has_integration_error == falseoauth_applicationsidOAuth token IDUUID stringoa.id == \"oauth-uuid\"display_textDisplay textstringoa.display_text == \"Google Drive\"client_idOAuth client IDstringoa.client_id == \"abc123\"identity_emailLinked identity emailstringoa.identity_email.endsWith(\"@company.com\")identity_statusLinked identity statusstringoa.identity_status == \"active\"first_seenFirst seen timestamp (string)string (RFC3339)oa.first_seen > \"2024-01-01T00:00:00Z\"is_forbiddenIs forbidden OAuth grantbooloa.is_forbidden == truescopesList of scopeslist of strings'drive' in oa.scopesapplication_accountsidAccount IDUUID stringaa.id == \"account-uuid\"application_nameApplication namestringaa.application_name == \"Salesforce\"account_nameAccount namestringaa.account_name == \"jsmith\"external_idExternal account IDstringaa.external_id == \"ext-123\"user_emailLinked user emailstringaa.user_email == \"jsmith@example.com\"user_statusLinked user statusstringaa.user_status == \"active\"licenseLicense typestringaa.license == \"enterprise\"account_typeAccount typestringaa.account_type == \"admin\"RecipesEvaluate for:People with more than 3 apps:people.exists(p, p.application_count > 3)Google users without MFA:google_users.exists(g, !g.mfa_enabled)Applications with integration errors:applications.exists(a, a.has_integration_error)OAuth apps with forbidden grants:oauth_applications.exists(oa, oa.is_forbidden)Provisioned accounts for a specific app:application_accounts.exists(aa, aa.application_name == \"Salesforce\")",
+      "relatedArticles": [
+        "Custom Actions",
+        "Connect & Integrate Freshdesk",
+        "Error 400: admin_policy_enforced when signing-up for YeshID",
+        "Pausing the YeshID POC",
+        "Connect & Integrate Slack [SCIM]"
+      ]
+    },
+    {
+      "id": "8758330980",
+      "title": "Pausing the YeshID POC",
+      "collection": "",
+      "url": "https://docs.yeshid.com/articles/8758330980-pausing-the-yeshid-poc",
+      "lastUpdated": "June 12, 2025",
+      "content": "IntroductionThere may be times during a Proof of Concept (POC) that you may need to pause the connection to YeshID. By following these steps, you can disconnect YeshID from your Google Workspace for any future syncs while still allowing you to preserve any work completed on the POC.Steps:Navigate to https://admin.google.com/ac/owl/list?tab=configuredApps and click \"View List\" under XX Access AppsFind YeshID from your list and click \"Change Access\"Choose All UsersSet access to Blocked and hit NextClick \"Change Access\"Validate by trying to sync in YeshID. You will now see an error proving that YeshID can no longer sync with your GWSI'm ready to resume my POCResuming the connection with YeshID is as simple as clicking 'Reconnect'",
+      "relatedArticles": [
+        "Custom Actions",
+        "Connect & Integrate Freshdesk",
+        "Error 400: admin_policy_enforced when signing-up for YeshID",
+        "Policies in YeshID [BETA]",
+        "Connect & Integrate Slack [SCIM]"
+      ]
+    },
+    {
+      "id": "1786475032",
+      "title": "Connect & Integrate Slack [SCIM]",
+      "collection": "",
+      "url": "https://docs.yeshid.com/articles/1786475032-connect-integrate-slack-scim",
+      "lastUpdated": "August 20, 2025",
+      "content": "At time of writing, connecting to Slack with SCIM requires the Business+ or Enterprise Grid plans in Slack. See https://ssotax.yeshid.com/?q=Slack+TechnologiesKnown Limitation of Google SSO: At this time if a Slack workspace is set to use Google SSO, it is not possible to create an invite link. If using SCIM - use the provided user creation features.IntroductionThis guide covers how you can connect YeshID to Slack with SCIM to enable automated:List Users (Auto sync)Create Users (Auto provisioning)Delete Users (Auto deprovisioning)Steps1. Create a New Application2. Enter in App Details (App name, Description)3. Add Relevant ScopesNavigate to oAuth PermissionsAdd the following scopesusers:readusers:write adminAdd the following redirect URL: https://app.yeshid.com/api/v1/applications/oauth/responseIf you're using Enterprise Grid, you must:Acknowledge you've removed hardcoded information; andEnable public distribution4. Connect in SlackIntegration type: SCIMClientID: From aboveClient Secret: From above5. AuthorizeIf you're using Enterprise GridPick the Organization from the dropdown.For Business+, pick the workspace in the selector on the top right.6. Test Import UsersEnable the button for \"Import Users\"Click \"Test Request\" for Import Users.If you see users populating, this has suceeded 7. Enable the remaining actions and Save",
+      "relatedArticles": [
+        "Custom Actions",
+        "Connect & Integrate Freshdesk",
+        "Error 400: admin_policy_enforced when signing-up for YeshID",
+        "Policies in YeshID [BETA]",
+        "Pausing the YeshID POC"
+      ]
+    },
+    {
+      "id": "5181326860",
+      "title": "Setting up HRIS Integration - Rippling [Alpha]",
+      "collection": "",
+      "url": "https://docs.yeshid.com/articles/5181326860-setting-up-hris-integration-rippling-alpha",
+      "lastUpdated": "July 2, 2025",
+      "content": "Pre-RequisitesConfirm that YeshID has enabled your Feature Flag.You can confirm it's enabled by looking for the Onboard/Offboard People tabStepsSet-up your authentication mechanism:Bearer Token: Get your Bearer token by visiting https://app.rippling.com/api-tokens/tokensIf you get this error, this indicates that you do not have permissions. Please consult your Rippling admin.OAuth Token:",
+      "relatedArticles": [
+        "Custom Actions",
+        "Connect & Integrate Freshdesk",
+        "Error 400: admin_policy_enforced when signing-up for YeshID",
+        "Policies in YeshID [BETA]",
+        "Pausing the YeshID POC"
+      ]
+    },
+    {
+      "id": "5336805103",
+      "title": "Connect & Integrate Zoom using Scim [BETA]",
+      "collection": "",
+      "url": "https://docs.yeshid.com/articles/5336805103-connect-integrate-zoom-using-scim-beta",
+      "lastUpdated": "July 2, 2025",
+      "content": "IntroductionConnecting YeshID with Zoom using SCIM will allow you to automate certain actions such as Importing, Creating, Deleting and Activating users automatically.StepsPre-Requisites:See: https://developers.zoom.us/docs/api/rest/reference/scim-api/methods/#overviewZoom Owner or Admin privileges.Business or Education account with approved Vanity URL.Single Sign-On enabled.1. Create a Marketplace Application in ZoomNavigate to https://marketplace.zoom.us and click Build appClick \"Server to Server OAuth App\"Name it something descriptive (i.e. YeshID Integration)Store the Client ID and Client Secret somewhere safeAdd in Basic InformationLeave the Feature screen as defaultAdd relevant Scopesscim2Activate your App2. Add Zoom as an Application in YeshID3. Click Connect & IntegrateChoose Integration Type: SCIMAuthentication Type: oAuth2Grant Type: Client CredentialsClient ID: From aboveClient Secret: From above4. Check off the relevant Actions5. Save",
+      "relatedArticles": [
+        "Custom Actions",
+        "Connect & Integrate Freshdesk",
+        "Error 400: admin_policy_enforced when signing-up for YeshID",
+        "Policies in YeshID [BETA]",
+        "Pausing the YeshID POC"
+      ]
+    },
+    {
+      "id": "5409985769",
+      "title": "How-To Enable Auto-Provisioning for Google Workspace Licenses",
+      "collection": "",
+      "url": "https://docs.yeshid.com/articles/5409985769-how-to-enable-auto-provisioning-for-google-workspace-licenses",
+      "lastUpdated": "July 29, 2025",
+      "content": "SymptomsYeshID executes an Onboarding Task List but users are not able to sign-in and require the manual assignment of a license in Google Workspace to gain required functionality.Emails are bouncedUsers are unable to sign-inCauseGoogle Workspace settings are configured to auto assign an insufficient license type (i.e. Google Cloud Identity Free)The following steps require being an Admin in Google Workspace.ResolutionSign into Google Workspace and navigate to the License Settings under Billing https://admin.google.com/ac/billing/licensesettings?hl=enFor your base level subscription (i.e. Google Workspace Business Starter ), hover and click the pencil icon.Ensure that this is set to ONClick SAVENote that even after assignment, this may take up to 24 hours to propagate to all users.",
+      "relatedArticles": [
+        "Custom Actions",
+        "Connect & Integrate Freshdesk",
+        "Error 400: admin_policy_enforced when signing-up for YeshID",
+        "Policies in YeshID [BETA]",
+        "Pausing the YeshID POC"
+      ]
+    },
+    {
+      "id": "6512297814",
+      "title": "Installing the YeshID app on Microsoft Teams",
+      "collection": "",
+      "url": "https://docs.yeshid.com/articles/6512297814-installing-the-yeshid-app-on-microsoft-teams",
+      "lastUpdated": "July 30, 2025",
+      "content": "IntroductionBy following this guide you will be able to add the YeshID app to Microsoft Teams allowing you to:Get YeshID related notifications in MS Teams, as:DM's from YeshID for any task assigneesSend & Action Access Requests from MS TeamsThe YeshID Microsoft Teams application is still under active development. As a result, it is still in the process of being added to the Microsoft Teams Apps directory, and so you will need to (1) download a custom Teams app package and (2) upload it to your MS Teams Admin dashboard for now.Pre-requisitesYou will need to ensure you have the Feature Flag enabled by a YeshID team memberStepsNavigate to the Settings Page -> Notifications: https://app.yeshid.com/manage/settings/notificationsIf you do not see this panel, that means you probably do not have the feature flag enabled yet.Download the Microsoft Teams app package.Upload as a Custom AppIf this is your first time trying to upload an app, you may need to wait 30 minutes:Click the link to go to the management interfaceCopy the App IDClick Add to TeamsAccept the required permissionsEnable the app for the organizationYou should now see YeshID in MS TeamsYou can now choose which channel(s) receive all notifications from YeshIDAt this time, only public channels are supported.FAQIf you get error Could not connect Microsoft Teams: Missing role permissions on the request. Try it again.",
+      "relatedArticles": [
+        "Custom Actions",
+        "Connect & Integrate Freshdesk",
+        "Error 400: admin_policy_enforced when signing-up for YeshID",
+        "Policies in YeshID [BETA]",
+        "Pausing the YeshID POC"
+      ]
+    },
+    {
+      "id": "1556924452",
+      "title": "Connecting & Integrating with Datadog [REST API]",
+      "collection": "",
+      "url": "https://docs.yeshid.com/articles/1556924452-connecting-integrating-with-datadog-rest-api",
+      "lastUpdated": "August 22, 2025",
+      "content": "IntroductionBelow are the steps for connecting YeshID with Datadog for integration via REST API for CREATE and DELETE operations.Steps:Create an API Key in Datadog https://app.datadoghq.com/organization-settings/api-keysCreate an Application Key in Datadog: https://app.datadoghq.com/organization-settings/application-keysScopes: \"User Access Management\" should be checked off.Note: The Application keys inherit the permissions of the person creating it and can only be scoped down.In YeshID, add application Datadog (if it doesn't already exist) and head to Integration ManagementClick \"Authentication\" and add the following:DD-API-KEY is the API key you created.For Import and Mapping, set the following values:Set Endpoint URL to be https://api.datadoghq.com/api/v2/usersSet Header DD-APPLICATION-KEY to be your Application Key.Click TestYou should now see your users being retrievedCreate Users (Invites)Click the Pencil Icon for Create UsersAdd the header for DD-APPLICATION-KEY with your Application key (see above)Set Method: POST and Endpoint URL: https://api.datadoghq.com/api/v2/usersSet Payload Body:{\n \"data\": {\n \"type\": \"users\",\n \"attributes\": {\n \"name\": \"{{.User.FullName}}\",\n \"email\": \"{{.User.Email}}\"\n }\n }\n}Delete Users (Disable)Click the Pencil Icon for Create UsersAdd the header for DD-APPLICATION-KEY with your Application key (see above)Set Method: DELETE and Endpoint URL: https://api.datadoghq.com/api/v2/users/{user_id}",
+      "relatedArticles": [
+        "Custom Actions",
+        "Connect & Integrate Freshdesk",
+        "Error 400: admin_policy_enforced when signing-up for YeshID",
+        "Policies in YeshID [BETA]",
+        "Pausing the YeshID POC"
+      ]
+    },
+    {
+      "id": "5270530208",
+      "title": "Connect & Integrate Grammarly [SCIM]",
+      "collection": "",
+      "url": "https://docs.yeshid.com/articles/5270530208-connect-integrate-grammarly-scim",
+      "lastUpdated": "October 21, 2025",
+      "content": "IntroductionThis guide covers how to connect and integrate with Grammarly. NOTE there are 2 steps (outlined in yellow) that could lead to an interruption in access to current users. Please reach out to support@yeshid.com if you run into any issues.Pre-RequisitesEnable SSO in Grammarly with your Google Workspace https://support.grammarly.com/hc/en-us/articles/360051598552-Set-up-SSO-with-GoogleNote - Grammarly docs state to do the following which will prevent users from logging in. (If you are okay with everyone in your organization logging into Grammarly, keep it on Turn ON for everyone)In the User access tab, click OFF for everyone. Here, you can grant access to different user groups or organizational units in your company. First, for the successful SSO setup, we recommend assigning the user access to the specific Group within the organization that includes the administrator account. After the SSO is successfully activated in the Grammarly interface, you can switch this setting to Turn ON for everyone or keep using the user groups. For more information on user groups, please see this guide from Google.This WILL block access to everyone minus the users that you pickSteps1. Obtain the SCIM tokenLog into Grammarly > Admin PanelClick into Provisioning in the side barClick Activate SCIMGenerate the SCIM token by clicking \"Create Token\"Copy (and store) the token in a secure place.Check \"Enable Provisioning Features\" boxClick \"Configure API Integration\"Click \"Enable API integration\"Enter the API token Click \"Test API Credentails\"Click Save2. Set up the integration in YeshIDNote: If you already have users provisioned in Grammarly, you will need to re-provision them as per the grammarly docs:If you already have team members in your Grammarly subscription and you turn on provisioning, a reconciliation process needs to happen. As part of this process, your identity provider will notify Grammarly of all assigned users. Grammarly will reconcile users already invited via a provisioning request from the identity provider and their status will be reflected on the Members page. To determine users who haven’t been reconciled with the identity provider, access the Provisioning page. If there are users who haven’t yet been provisioned by the identity provider, the Provisioning page will show a warning banner. Click the Download report link to download a CSV file containing the list of members that haven’t yet been provisioned. This report can be used to bulk delete outstanding users, if appropriate, or for manual processing.This means that:Once SSO is enabled (and only turned on for the users you specify), only those users will be provisioned.You will need to \"reconcile\" by pulling a list of users that had access BEFORE switching to SSO/Provisioning on and adding them to the application in YeshIDChange integration type to SCIMClick Authentication and add in your SCIM tokenClick Global Parameters and add in the endpoint https://sso.grammarly.com/scim/v2Click \"Import & Mapping\" Hit \"Save\" Click \"Manage > Sync\" - this may fail.Re-provision all the existing users by checking off \"Create\"Click \"Manage\" > \"Add User\" and add all of your existing users (To resume access).",
+      "relatedArticles": [
+        "Custom Actions",
+        "Connect & Integrate Freshdesk",
+        "Error 400: admin_policy_enforced when signing-up for YeshID",
+        "Policies in YeshID [BETA]",
+        "Pausing the YeshID POC"
+      ]
+    },
+    {
+      "id": "4750456854",
+      "title": "Enable Slack Notifications from YeshID Policies [BETA]",
+      "collection": "",
+      "url": "https://docs.yeshid.com/articles/4750456854-enable-slack-notifications-from-yeshid-policies-beta",
+      "lastUpdated": "October 27, 2025",
+      "content": "IntroductionThis document goes over how to route notifications from policies into SlackSteps1. Connect SlackIn Applications, add Application: SlackClick \"Conect and Add\"Choose your correct workspace and click allow2. Add the YeshID bot to your Slack workspaceGo to Settings > Notifications and click \"Add to Slack\"Choose your correct Slack Workspace and hit \"Allow\"Isn't this the same thing we did earlier?Nope! Previous was the connection to sync users with YeshID (for Access Grid updates etc), this is the connection to enable notifications and posting to channels.3. Add the YeshID bot to your desired channelGo into your desired channelType @YeshID and hit add4. Enable notifications from PoliciesNavigate to https://app.yeshid.com/policies and enable the policyClick \"Slack Notifications\"Choose the channel you added in Step 3.FAQ",
+      "relatedArticles": [
+        "Custom Actions",
+        "Connect & Integrate Freshdesk",
+        "Error 400: admin_policy_enforced when signing-up for YeshID",
+        "Policies in YeshID [BETA]",
+        "Pausing the YeshID POC"
+      ]
+    },
+    {
+      "id": "2768112674",
+      "title": "Setting up Token Based Authentication in NetSuite",
+      "collection": "",
+      "url": "https://docs.yeshid.com/articles/2768112674-setting-up-token-based-authentication-in-netsuite",
+      "lastUpdated": "November 10, 2025",
+      "content": "How to Generate a NetSuite Token for the IntegrationFollow these steps in NetSuite and then prepare the four resulting values (Consumer Key, Consumer Secret, Token ID, Token Secret) to use in authentication with Net Suite. You must have a NetSuite role with permissions to manage integrations and tokens (typically an Administrator or a role with the Access Token Management / User Access Tokens permissions).Oracle Documentation+1Step 1 – Log in to the correct NetSuite accountLog in to NetSuite in your browser.Make sure you’re in the correct account (Production vs Sandbox) that you want the integration to use.Note: Tokens are per account (production tokens don’t carry over to sandbox and vice versa).Oracle Documentation+1Step 2 – Ensure Token-based Authentication is enabled (one-time setup)If this was already done for other integrations, you can skip this step.Go to:Setup → Company → Enable Features.Open the SuiteCloud tab.In the Manage Authentication section, make sure Token-based Authentication is checked.Click Save if you changed anything.Oracle Documentation+1Step 3 – Create / identify the Integration record (Consumer Key & Secret)If you already have an Integration record for this integration, you can reuse it. Otherwise, create a new one.Go to:Setup → Integration → Manage Integrations → New.Oracle DocumentationEnter a Name (for example: Employee API Integration or our product name).Make sure State is Enabled.On the Authentication section/tab, ensure Token-based Authentication is checked.Save the record.After saving, NetSuite will show you:Consumer KeyConsumer Secret Important: These two values are shown only once.Please copy and store them immediately (e.g. in a password manager) and then share them with us securely.Oracle Documentation+1Step 4 – Make sure your role has token permissionsThe role you’ll use to generate the token must:Have token permissions (e.g. User Access Tokens or Access Token Management).Oracle Documentation+1Have the necessary access to the data we need (e.g. Employees list permission if we’re reading employees).If you’re unsure how to do this, an Administrator can:Go to Setup → Users/Roles → User Management → Manage Roles.Edit the role you use.On Permissions → Setup, add:User Access Tokens (for creating tokens for yourself), and/orAccess Token Management (for managing tokens for others).Oracle Documentation+1On Permissions → Lists, ensure you have the required record permissions (e.g. Employees).Step 5 – Create the Access Token (Token ID & Token Secret)Now you’ll create the actual token tied to:the Integration record (Step 3),your User, andyour Role.You can do this two ways; either is fine.Option A – Using “Manage Access Tokens” (common for non-admins)Log in as the user/role that will own the token.In your Home dashboard, find the Settings portlet.Click Manage Access Tokens.Oracle Documentation+1Click New My Access Token.On the Access Token page:Application Name: select the Integration you created in Step 3.The Token Name will auto-fill; you may rename it if you want.Click Save.Option B – Using the Setup menu (for admins)Go to:Setup → Users/Roles → Access Tokens → New.Oracle Documentation+1On the Access Token page, select:Application Name: your Integration record from Step 3.User: the user who will “own” the token.Role: the role you prepared in Step 4.Click Save.After saving, NetSuite will display:Token IDToken Secret Important: These two values are also shown only once.Copy them right away and store them securely.Oracle Documentation+1Step 6 – Store the following values for use with YeshIDOnce you’re done, you should have:Consumer KeyConsumer SecretToken IDToken SecretContact us when you have these details to move forward.",
+      "relatedArticles": [
+        "Custom Actions",
+        "Connect & Integrate Freshdesk",
+        "Error 400: admin_policy_enforced when signing-up for YeshID",
+        "Policies in YeshID [BETA]",
+        "Pausing the YeshID POC"
+      ]
+    },
+    {
+      "id": "5836576305",
+      "title": "Connecting & Integrating with OAuth Applications in YeshID",
+      "collection": "",
+      "url": "https://docs.yeshid.com/articles/5836576305-connecting-integrating-with-oauth-applications-in-yeshid",
+      "lastUpdated": "November 24, 2025",
+      "content": "Introduction TODOStepsThere are 3 ways to authenticate with OAuthAuthorization Code GrantAuthorization URLAccess Token URLAll of these at minimum require an Authorization URL which will be provided by the app.Most of these apps will require a \"callback URL\", which is https://app.yeshid.com/api/v1/applications/oauth/response",
+      "relatedArticles": [
+        "Custom Actions",
+        "Connect & Integrate Freshdesk",
+        "Error 400: admin_policy_enforced when signing-up for YeshID",
+        "Policies in YeshID [BETA]",
+        "Pausing the YeshID POC"
+      ]
+    },
+    {
+      "id": "1853879346",
+      "title": "Submitting Access Requests in YeshID",
+      "collection": "Access",
+      "url": "https://docs.yeshid.com/articles/1853879346-access-request-how-to-submit-in-yeshid",
+      "lastUpdated": "December 8, 2025",
+      "content": "IntroductionThis guide explains how to submit access requests in YeshID through both Slack and the YeshID platform. It covers how to select custom roles, time-based access, and complete custom fields within a request, in addition to how the submitted role information is tracked for auditing.Submitting an Access Request YeshIDStepsLog into https://app.yeshid.com/and navigate to the \"My Apps\" page from the left hand menu.Click on either tile titled \"Request an application.\" Select the Application you are requestingPlease Note: You may request an application that is not listed by simply typing in the field and selecting \"Add new app ______\"Within this window, you can complete your access request by:Selecting your Role Including a reason for your requestSelecting a start date/time, if immediate access is not requiredPlease Note: Depending on your organization’s settings, the application you are requesting may or may not require additional fields and a specified time duration to complete.Once all required fields are complete, select  “Submit request”If there are additional comments or questions, you will receive a slack notification and see a bubble indicating comments within Slack.You can respond to the approver within YeshID by clicking on the application iconYou will receive a notification that your access request is either approved or denied via Slack.The application will now be available in your “My Apps” section of YeshID",
+      "relatedArticles": [
+        "How to action a submitted Access Request",
+        "Submitting Access Requests via Slack"
+      ]
+    },
+    {
+      "id": "3129950004",
+      "title": "Submitting Access Requests via Slack",
+      "collection": "Access",
+      "url": "https://docs.yeshid.com/articles/3129950004-submitting-access-requests-via-slack",
+      "lastUpdated": "December 8, 2025",
+      "content": "While in Slack, type “/request” and hit “Enter” on your keyboardSelect the application, role (if applicable), and any additional details in the reason for your request, and hit sendYou’ll receive the confirmation message that your request has been submitted.If the approver has additional comments or questions, you’ll be notified via SlackOnce approved, you will receive the following Slack notificationThe application will now be available in your “My Apps” section of YeshID",
+      "relatedArticles": [
+        "How to action a submitted Access Request",
+        "Submitting Access Requests in YeshID"
+      ]
+    },
+    {
+      "id": "2795269558",
+      "title": "How to action a submitted Access Request",
+      "collection": "Access",
+      "url": "https://docs.yeshid.com/articles/2795269558-how-to-action-a-submitted-access-request",
+      "lastUpdated": "December 8, 2025",
+      "content": "SlackYou will receive a notification via the YeshID App in SlackYou can complete or reject the task within SlackIf there is additional work to be done, you can click the direct link to the workflow if desired.YeshIDFind the access request workflow by either: Clicking the workflows link from the Slack requestClicking into the workflows tab on the left side menuIf there are approval groups, they will appear under the Approval List. Approvers can click into this task to open the window for further communication with the requester.If no further communication is needed, the Approver can select the “approve” button within the Approvals list This will kick off the application workflow to add the user to the application",
+      "relatedArticles": [
+        "Submitting Access Requests via Slack",
+        "Submitting Access Requests in YeshID"
+      ]
+    },
+    {
+      "id": "6868599852",
+      "title": "Connect and Integrate with Tailscale",
+      "collection": "",
+      "url": "https://docs.yeshid.com/articles/6868599852-connect-and-integrate-with-tailscale",
+      "lastUpdated": "December 17, 2025",
+      "content": "1. Introduction to Tailscale Integration 0:00Overview of the integration process with Tailscale.Mention of the typical Tailscale user interface with machines and users. 2. Adding Tailscale as an Application in Yesh ID 0:08Navigate to Yesh ID.Add a new application and name it 'Tailscale'.Specify an administrative user (e.g., Bart Smith).Do not click 'connect now' to avoid issues with SCIM support. 3. Setting Up API Integration 0:46Go to Tailscale and access integration management.Select 'custom API' and proceed to configuration.Choose 'bearer' for the token type. 4. Generating Access Token in Tailscale 1:05Navigate to Tailscale settings and generate an access token.Name the token (e.g., 'YesID integration') and set its expiration (90 days).Copy the generated token. 5. Configuring Yesh ID with Tailscale Token 1:11Return to Yesh ID and paste the access token.Hit 'save' to complete the token setup. 6. Importing and Mapping Users 1:18Initiate user import and mapping in Yesh ID.Refer to Tailscale documentation for the command to list users.Input the endpoint URL in Yesh ID and include your Tail net ID. 7. Testing the Endpoint Connection 1:53Test the connection to ensure it matches with Tailscale.Generate configuration to map fields automatically. 8. Enabling User Syncing 2:11Ensure syncing is enabled to update users every 24 hours. 9. Creating Users in Tailscale 2:22Discuss the ability to create users via the API.Note that user approval is required by default in Tailscale. 10. Disabling User Approval for Quick Onboarding 2:40Temporarily disable user approval in Tailscale for demonstration purposes. 11. Onboarding a New User 2:47Use the API documentation to create user invites.Copy the endpoint for creating user invites and set it up in Yesh ID. 12. Configuring User Creation Parameters 3:07Change the request method to POST and input the necessary parameters.Specify the user role (e.g., member) and include the user's email. 13. Saving User Creation Configuration 3:41Save the user creation setup in Yesh ID. 14. Adding a New User 4:01Add the new user (e.g., Childish Gambino) in Yesh ID. 15. Verifying User Addition in Tailscale 4:15Check Tailscale user management to confirm the new user has been invited. 16. Syncing Applications and Final Notes 4:37Sync applications to ensure everything is up to date.Mention the ability to set up deletions and manage onboarding/offboarding. 17. Conclusion and Support Information 4:51Encourage viewers to reach out with questions via Slack or email support.",
+      "relatedArticles": [
+        "Custom Actions",
+        "Connect & Integrate Freshdesk",
+        "Error 400: admin_policy_enforced when signing-up for YeshID",
+        "Policies in YeshID [BETA]",
+        "Pausing the YeshID POC"
+      ]
+    },
+    {
+      "id": "2596673532",
+      "title": "Connect & Integrate with Salesforce via SCIM",
+      "collection": "",
+      "url": "https://docs.yeshid.com/articles/2596673532-connect-integrate-with-salesforce-via-scim",
+      "lastUpdated": "December 19, 2025",
+      "content": "This page is under constructionStepsIn SalesforceFor Salesforce SCIM on the Salesforce side:Create Salesforce User with an assigned license that allows for App PermissionsCreate and/or assign a profile or permission set that includes at least the following permissions:API EnabledManage UsersManage Internal Users (if present)View Setup and ConfigurationExpand external client apps settings and confirmed that Allow creation of connected apps is checked off. Setup → Apps → App Manager → New External Client AppUnder API (Enable OAuth Settings):Make sure Enable OAuth Settings is onMake sure Enable Client Credentials Flow is checkedIn Selected OAuth Scopes, add “Manage user data via APIs (api)” (sometimes shown as “Access and manage your data (api)”) Best practice for this flow: keep scopes minimal (often API-only)Manage Connected Apps → Edit Created AppCheck box for Enable User ProvisioningAdd created user from step 1 to the Run As under Client Credentials FlowObtain the OAuth Client ID and SecretNavigate to App ManagerFind the app that you createdClick \"Choose view\" -> Manage consumer detailsIn YeshIDUnder Construction",
+      "relatedArticles": [
+        "Custom Actions",
+        "Connect & Integrate Freshdesk",
+        "Error 400: admin_policy_enforced when signing-up for YeshID",
+        "Policies in YeshID [BETA]",
+        "Pausing the YeshID POC"
+      ]
+    },
+    {
+      "id": "7366791247",
+      "title": "YeshID Groups API [ALPHA]",
+      "collection": "",
+      "url": "https://docs.yeshid.com/articles/7366791247-yeshid-groups-api-alpha",
+      "lastUpdated": "December 22, 2025",
+      "content": "This functionality of the YeshID API is under very early ALPHA. Please check in with your YeshID CSM or SE before proceeding with this API.Group Management API DocumentationThis document covers all the API endpoints for managing groups and group membership in YeshID. All endpoints require admin privileges and appropriate API key scopes (`group` for write operations, group or group.readonly for read operations).Group CRUD OperationsList GroupsGET /api/v1/groupsLists all groups for the authenticated user's organization with optional filtering and pagination.Query Parameters:filter (optional): Filter expression for groupslimit (optional): Maximum number of groups to returnoffset (optional): Number of groups to skip for paginationResponse:{\n\n \"groups\": [\n\n {\n\n \"id\": \"uuid\",\n\n \"orgId\": \"uuid\",\n\n \"name\": \"string\",\n\n \"description\": \"string\",\n\n \"type\": \"STATIC|DYNAMIC\",\n\n \"owners\": [/* User objects */],\n\n \"filter\": {/* Trigger object for dynamic groups */},\n\n \"isDeleted\": false,\n\n \"createdAt\": \"timestamp\",\n\n \"updatedAt\": \"timestamp\",\n\n \"createdById\": \"uuid\",\n\n \"createdBy\": {/* User object */},\n\n \"updatedById\": \"uuid\"\n\n }\n\n ],\n\n \"total\": 0\n\n} Get GroupGET /api/v1/group/:idRetrieves a specific group by ID.Path Parameters:id: Group UUIDResponse:{\n\n \"group\": {\n\n \"id\": \"uuid\",\n\n \"orgId\": \"uuid\",\n\n \"name\": \"string\",\n\n \"description\": \"string\",\n\n \"type\": \"STATIC|DYNAMIC\",\n\n \"owners\": [/* User objects */],\n\n \"filter\": {/* Trigger object for dynamic groups */},\n\n \"isDeleted\": false,\n\n \"createdAt\": \"timestamp\",\n\n \"updatedAt\": \"timestamp\",\n\n \"createdById\": \"uuid\",\n\n \"createdBy\": {/* User object */},\n\n \"updatedById\": \"uuid\"\n\n }\n\n} Create GroupPOST /api/v1/groupsCreates a new group.Request Body:{\n\n \"name\": \"string\",\n\n \"description\": \"string\",\n\n \"filter\": {/* Trigger object - for dynamic groups */},\n\n \"type\": \"STATIC|DYNAMIC\",\n\n \"owners\": [\"uuid\", \"uuid\"]\n\n}Response:{\n\n \"group\": {\n\n \"id\": \"uuid\",\n\n \"orgId\": \"uuid\",\n\n \"name\": \"string\",\n\n \"description\": \"string\",\n\n \"type\": \"STATIC|DYNAMIC\",\n\n \"owners\": [/* User objects */],\n\n \"filter\": {/* Trigger object for dynamic groups */},\n\n \"isDeleted\": false,\n\n \"createdAt\": \"timestamp\",\n\n \"updatedAt\": \"timestamp\",\n\n \"createdById\": \"uuid\",\n\n \"createdBy\": {/* User object */},\n\n \"updatedById\": \"uuid\"\n\n }\n\n} Update GroupPUT /api/v1/group/:idUpdates an existing group.Path Parameters: id: Group UUIDRequest Body:{\n\n \"name\": \"string\",\n\n \"owners\": [\"uuid\", \"uuid\"],\n\n \"description\": \"string\",\n\n \"filter\": {/* Trigger object - for dynamic groups */}\n\n}Response:{\n\n \"group\": {\n\n \"id\": \"uuid\",\n\n \"orgId\": \"uuid\",\n\n \"name\": \"string\",\n\n \"description\": \"string\",\n\n \"type\": \"STATIC|DYNAMIC\",\n\n \"owners\": [/* User objects */],\n\n \"filter\": {/* Trigger object for dynamic groups */},\n\n \"isDeleted\": false,\n\n \"createdAt\": \"timestamp\",\n\n \"updatedAt\": \"timestamp\",\n\n \"createdById\": \"uuid\",\n\n \"createdBy\": {/* User object */},\n\n \"updatedById\": \"uuid\"\n\n }\n\n}Delete GroupDELETE /api/v1/group/:idDeletes a group.Path Parameters: id: Group UUIDResponse:{} Group Member ManagementList Group MembersGET /api/v1/group/:id/membersLists all members of a specific group.Path Parameters:id: Group UUIDResponse:{\n\n \"members\": [\n\n {\n\n \"id\": \"uuid\",\n\n \"groupId\": \"uuid\",\n\n \"userId\": \"uuid\",\n\n \"user\": {/* User object */}\n\n }\n\n ]\n\n}Add Group MembersPOST /api/v1/group/:id/membersAdds users to a group.Path Parameters:id: Group UUIDRequest Body:{\n\n \"additions\": [\"user-uuid\", \"user-uuid\"]\n\n}Response:{} Remove Group MembersDELETE /api/v1/group/:id/membersRemoves users from a group.Path Parameters: id: Group UUIDRequest Body:{\n\n \"removals\": [\"user-uuid\", \"user-uuid\"]\n\n}\nResponse:{}Utility OperationsList User GroupsGET /api/v1/user/:id/groupsLists all groups that a specific user belongs to.Path Parameters:id: User UUIDResponse:{\n\n \"groups\": [\n\n {\n\n \"id\": \"uuid\",\n\n \"orgId\": \"uuid\",\n\n \"name\": \"string\",\n\n \"description\": \"string\",\n\n \"type\": \"STATIC|DYNAMIC\",\n\n \"owners\": [/* User objects */],\n\n \"filter\": {/* Trigger object for dynamic groups */},\n\n \"isDeleted\": false,\n\n \"createdAt\": \"timestamp\",\n\n \"updatedAt\": \"timestamp\",\n\n \"createdById\": \"uuid\",\n\n \"createdBy\": {/* User object */},\n\n \"updatedById\": \"uuid\"\n\n }\n\n ]\n\n}Evaluate Group FilterPOST /api/v1/groups/evaluate-filterEvaluates a dynamic group filter to see which users would be included, useful for testing dynamic group rules before creating the group.Request Body:{\n\n \"filter\": {/* Trigger object representing the filter logic */}\n\n}Response:{\n\n \"users\": [\n\n {\n\n /* UserInfo objects for users that match the filter */\n\n }\n\n ]\n\n}NotesAll routes require admin privileges within the organizationGroup types can be either STATIC (manually managed membership) or DYNAMIC (membership determined by filter rules)Dynamic groups use a filter field containing trigger logic to automatically determine membershipStatic groups require manual addition/removal of members via the member management endpointsGroup owners have administrative rights over the groupAll UUIDs in path parameters and request/response bodies are standard UUID formatAPI key scopes: Use group for write operations, group or group.readonly for read operations",
+      "relatedArticles": [
+        "Custom Actions",
+        "Connect & Integrate Freshdesk",
+        "Error 400: admin_policy_enforced when signing-up for YeshID",
+        "Policies in YeshID [BETA]",
+        "Pausing the YeshID POC"
+      ]
+    },
+    {
+      "id": "6265337236",
+      "title": "Script / Code Backed Integrations [BETA]",
+      "collection": "",
+      "url": "https://docs.yeshid.com/articles/6265337236-script-code-backed-integrations",
+      "lastUpdated": "February 19, 2026",
+      "content": "This feature and documents are in BETA, please reach out to support@yeshid.com if you run into any issues.What you’re writingYou’re writing a single JavaScript function named run(context).run(context) must return true for the run to be considered successful.The script runs in a safe, limited JavaScript environment (ES5.1 only).Minimum required script function run(context) { \n console.log(\"Starting script\"); \n return true; \n } \n———1) Runtime rules (important)ES5.1 only: no let, const, arrow functions, classes, async/await, template literals.run(context) is required.Return true to pass. Anything else fails the run.———2) Available globalsYou can use these without importing anything:consoleconsole.log(...)console.warn(...)console.error(...)These show up in the Console tab after a test run.fetch(url, options)Synchronous HTTP request (not async).Returns an object with:status (number)ok (boolean)text() → stringjson() → parsed JSON objectheaders.get(name)headers.has(name)headers.keys()headers.entries()Example: function run(context) { \n var auth = context.get(\"auth\") || {}; \n var url = auth.baseUrl + \"/users\"; \n var resp = fetch(url, { \n method: \"GET\", \n headers: { \n \"Authorization\": auth.tokenType + \" \" + auth.token \n } \n }); \n\n if (!resp.ok) { \n console.error(\"Request failed:\", resp.status, resp.text()); \n return false; \n } \n \n var data = resp.json(); \n console.log(\"Fetched\", data.length, \"users\"); \n return true; \n } \n———3) Context data you can accessUse context.get(key) to read injected values.Common keysauth → provisioning auth info (token, baseUrl, api key, etc).input → the current account/user data (for user actions).properties → any key/values you defined in the Properties tab.Access examples function run(context) { \n var auth = context.get(\"auth\"); \n var input = context.get(\"input\"); \n var props = context.get(\"properties\"); \n \n console.log(\"Base URL:\", auth && auth.baseUrl); \n console.log(\"Account email:\", input && input.account && input.account.user && input.account.user.email); \n console.log(\"Custom property:\", props && props.region); \n return true; \n } \nFor Script Engine scripts, context.get('auth') can include these properties:baseUrltokentokenTypeheaderKeyheaderValuePrefixapiKeyapiKeyNameapiKeyLocationusernamepasswordBy auth type:OAuth2: token, optional tokenType, headerKey, headerValuePrefixBearer: token, tokenType = \"bearer\"API key: apiKey, apiKeyName, apiKeyLocationBasic: username, passwordIf nothing is configured, context.get('auth') may be absent.4) Using script actionsActions are helper functions that the platform exposes (like importUsers).See the Library tab for actions, parameters, and return types.Click Insert to drop a snippet into your script.Use autocomplete by typing the action name.Example: function run(context) { \n importUsers([ \n { \n externalId: \"123\", \n email: \"user@example.com\", \n displayName: \"Example User\" \n } \n ]); \n return true; \n } \n———5) Testing your scriptClick Test to run in test mode:Actions are validated but not executed.Network requests are executed.Output appears in Console, Network, and Actions tabs.If a line number appears in logs, click it to jump to the code line.———6) PublishingYou must pass a test run before you can publish.Publish makes the script active and versioned.———7) VersioningEvery publish creates a version.Use Versions tab to revert.———8) Properties (key/value)Use Properties to store configuration values for the script:They are accessible via context.get(\"properties\").You can mark a property as Encrypted (stored as a secret).Example: function run(context) { \n var props = context.get(\"properties\") || {}; \n var apiKey = props.apiKey; // encrypted values are returned decrypted here \n console.log(\"Has API key:\", !!apiKey); \n return true; \n } \n———9) Common errors“run(context) must return true” → return true explicitly.Parse error → ES5.1 only (no modern JS syntax).Publish disabled → run Test successfully first.",
+      "relatedArticles": [
+        "Custom Actions",
+        "Connect & Integrate Freshdesk",
+        "Error 400: admin_policy_enforced when signing-up for YeshID",
+        "Policies in YeshID [BETA]",
+        "Pausing the YeshID POC"
+      ]
+    }
+  ]
+}
