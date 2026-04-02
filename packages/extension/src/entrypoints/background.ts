@@ -882,7 +882,7 @@ export default defineBackground(() => {
           const resp = await fetch('http://localhost:3333/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message, mode: 'answer', currentUrl, tabId, history: [] })
+            body: JSON.stringify({ message, currentUrl, tabId, history: [] })
           });
           const data = await resp.json();
           sendResponse(data);
@@ -901,6 +901,34 @@ export default defineBackground(() => {
           sendResponse({ listenerConnected: false, error: e.message });
         }
       })();
+      return true;
+    }
+    if (msg.type === 'teach_start' && msg.steps) {
+      // Forward teach steps to the active tab's content script
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]?.id) {
+          chrome.tabs.sendMessage(tabs[0].id, { type: 'teach_start', steps: msg.steps });
+        }
+      });
+      sendResponse({ ok: true });
+      return true;
+    }
+    if (msg.type === 'teach_goto') {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]?.id) {
+          chrome.tabs.sendMessage(tabs[0].id, { type: 'teach_goto', stepIndex: msg.stepIndex });
+        }
+      });
+      sendResponse({ ok: true });
+      return true;
+    }
+    if (msg.type === 'teach_end') {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]?.id) {
+          chrome.tabs.sendMessage(tabs[0].id, { type: 'teach_end' });
+        }
+      });
+      sendResponse({ ok: true });
       return true;
     }
     if (msg.type === 'content_ready') return false;

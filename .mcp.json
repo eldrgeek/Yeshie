@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "cc-bridge-mcp": {
+      "command": "node",
+      "args": ["/Users/mikewolf/Projects/cc-bridge-mcp/server.js"]
+    }
+  }
+}
