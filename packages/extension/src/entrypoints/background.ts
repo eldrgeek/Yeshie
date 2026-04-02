@@ -300,6 +300,50 @@ export default defineBackground(() => {
     return { pageUrl, headings, inputs, buttons, links, tables, navLinks };
   }
 
+  // ── Auth detection functions ─────────────────────────────────────────────────
+
+  function PRE_CHECK_AUTH() {
+    // Quick check: is the user authenticated?
+    // YeshID shows /login when unauthenticated, and a navigation drawer when authenticated
+    const onLoginPage = /\/login/.test(window.location.pathname);
+    const hasNavDrawer = !!document.querySelector('.v-navigation-drawer a[href="/overview"]');
+    return {
+      authenticated: !onLoginPage && hasNavDrawer,
+      onLoginPage,
+      hasNavDrawer,
+      currentUrl: window.location.href
+    };
+  }
+
+  async function PRE_WAIT_FOR_AUTH(timeoutMs: number = 120000) {
+    // Poll for authentication — waits for the nav drawer to appear
+    // Returns when authenticated or when timeout expires
+    const t0 = Date.now();
+    while (Date.now() - t0 < timeoutMs) {
+      const onLogin = /\/login/.test(window.location.pathname);
+      const hasNav = !!document.querySelector('.v-navigation-drawer a[href="/overview"]');
+      if (!onLogin && hasNav) {
+        return { authenticated: true, waitMs: Date.now() - t0 };
+      }
+      await new Promise(r => setTimeout(r, 2000));
+    }
+    return { authenticated: false, waitMs: Date.now() - t0, timedOut: true };
+  }
+
+  function PRE_CLICK_SSO_BUTTON() {
+    // Click "Sign in with Google" on the YeshID login page
+    const btns = Array.from(document.querySelectorAll('button, a, [role="button"]'));
+    const googleBtn = btns.find(b =>
+      b.textContent?.toLowerCase().includes('sign in with google') ||
+      b.textContent?.toLowerCase().includes('google')
+    ) as HTMLElement | undefined;
+    if (googleBtn) {
+      googleBtn.click();
+      return { clicked: true, text: googleBtn.textContent?.trim() };
+    }
+    return { clicked: false, available: btns.map(b => b.textContent?.trim()).filter(Boolean).slice(0, 10) };
+  }
+
   function PRE_ASSESS_STATE(stateGraph: any) {
     if (!stateGraph?.nodes) return { state: 'unknown' };
     for (const [name, node] of Object.entries(stateGraph.nodes) as any) {
@@ -594,6 +638,12 @@ export default defineBackground(() => {
       if (a === 'navigate') {
         const url = interpolate(step.url, { ...params, ...buffer });
         const r = await navigateAndWait(tabId, url);
+        // Mid-chain auth detection: check if navigate landed on /login
+        const currentUrl = await execInTab(tabId, () => window.location.href, []);
+        if (currentUrl && isLoginUrl(currentUrl) && !isLoginUrl(url)) {
+          // We asked for a real page but got redirected to login — session expired
+          return { stepId: step.stepId, action: a, status: 'auth_required', url: currentUrl, requestedUrl: url, durationMs: Date.now() - t0 };
+        }
         return { stepId: step.stepId, action: a, status: 'ok', url: r.url, durationMs: Date.now() - t0 };
       }
 
@@ -766,6 +816,67 @@ export default defineBackground(() => {
     try { chrome.tabs.sendMessage(tabId, msg); } catch (_) {}
   }
 
+  // ── Auth recovery ─────────────────────────────────────────────────────────────
+  // Pauses chain execution, shows overlay, clicks SSO, waits for user to complete OAuth
+  async function waitForAuth(tabId: number, runId: string, authTimeoutMs: number = 120000): Promise<{ authenticated: boolean; waitMs: number }> {
+    console.log('[Yeshie] Auth required — entering auth wait flow');
+
+    // Show overlay to user
+    sendOverlay(tabId, {
+      type: 'overlay_show',
+      runId,
+      taskName: '🔐 Session expired — please log in',
+      steps: [
+        { stepId: 'auth-detect', label: 'Session expired detected', status: 'ok' },
+        { stepId: 'auth-sso', label: 'Opening Google SSO…', status: 'running' },
+        { stepId: 'auth-wait', label: 'Waiting for you to complete login…', status: 'pending' }
+      ]
+    });
+
+    // Check if we're on the login page; if not, navigate there
+    const authCheck = await execInTab(tabId, PRE_CHECK_AUTH, []);
+    if (authCheck?.onLoginPage) {
+      // Try clicking the Google SSO button
+      const ssoResult = await execInTab(tabId, PRE_CLICK_SSO_BUTTON, []);
+      console.log('[Yeshie] SSO click result:', ssoResult);
+    } else {
+      // Navigate to the login page first
+      await navigateAndWait(tabId, 'https://app.yeshid.com/login');
+      await new Promise(r => setTimeout(r, 1000));
+      const ssoResult = await execInTab(tabId, PRE_CLICK_SSO_BUTTON, []);
+      console.log('[Yeshie] SSO click result:', ssoResult);
+    }
+
+    sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-sso', status: 'ok' });
+    sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-wait', status: 'running' });
+
+    // Poll for auth completion — user completes OAuth in the Google popup
+    const t0 = Date.now();
+    while (Date.now() - t0 < authTimeoutMs) {
+      const check = await execInTab(tabId, PRE_CHECK_AUTH, []);
+      if (check?.authenticated) {
+        console.log('[Yeshie] Auth recovered after', Date.now() - t0, 'ms');
+        sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-wait', status: 'ok' });
+        // Brief pause to let the page settle after login redirect
+        await new Promise(r => setTimeout(r, 1500));
+        return { authenticated: true, waitMs: Date.now() - t0 };
+      }
+      await new Promise(r => setTimeout(r, 2000));
+    }
+
+    console.log('[Yeshie] Auth timeout after', authTimeoutMs, 'ms');
+    sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-wait', status: 'error', detail: 'Login timed out' });
+    return { authenticated: false, waitMs: Date.now() - t0 };
+  }
+
+  // Check if a URL indicates the user has been redirected to login
+  function isLoginUrl(url: string): boolean {
+    try {
+      const u = new URL(url);
+      return u.pathname === '/login' || u.pathname === '/login/';
+    } catch { return false; }
+  }
+
   // ── Chain runner ──────────────────────────────────────────────────────────────
   async function startRun(runId: string, payload: any, params: Record<string, any>, tabId: number) {
     const chain = payload.chain || [];
@@ -774,6 +885,25 @@ export default defineBackground(() => {
     runs.set(runId, run);
     abortFlags.set(runId, false);
     const t0 = Date.now();
+
+    // ── Pre-chain auth check ──────────────────────────────────────────────────
+    // Before executing any steps, verify the user is authenticated.
+    // Skip this check if the first step is already an assess_state (payload handles it).
+    const firstStepIsAssess = chain[0]?.action === 'assess_state';
+    if (!firstStepIsAssess) {
+      const preAuth = await execInTab(tabId, PRE_CHECK_AUTH, []);
+      if (preAuth && !preAuth.authenticated) {
+        const authResult = await waitForAuth(tabId, runId);
+        if (!authResult.authenticated) {
+          run.status = 'failed';
+          run.result = { success: false, error: 'Authentication failed — user did not complete login within timeout', stepsExecuted: 0, stepResults: [], buffer: run.buffer, durationMs: Date.now() - t0, resolvedTargets: [] };
+          await chrome.storage.session.set({ [runId]: run.result });
+          return;
+        }
+        // After auth recovery, we may need to navigate back to the right page
+        // The first navigate step in the chain will handle this
+      }
+    }
 
     // Send overlay_show with step list
     sendOverlay(tabId, {
@@ -807,7 +937,38 @@ export default defineBackground(() => {
         // Overlay: step running
         sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: step.stepId, status: 'running' });
 
-        const res = await executeStep(step, run);
+        let res = await executeStep(step, run);
+
+        // Mid-chain auth recovery: if a step reports auth_required, pause, recover, and retry
+        if (res.status === 'auth_required') {
+          run.stepResults.push({ ...res, note: 'auth_recovery_triggered' });
+          sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: step.stepId, status: 'running', detail: 'Session expired — waiting for login…' });
+
+          const authResult = await waitForAuth(tabId, runId);
+          if (!authResult.authenticated) {
+            run.status = 'failed';
+            run.result = { success: false, error: 'Authentication failed mid-chain — login timed out', stepsExecuted: run.stepResults.length, stepResults: run.stepResults, buffer: run.buffer, durationMs: Date.now() - t0, resolvedTargets: run.resolvedTargets };
+            await chrome.storage.session.set({ [runId]: run.result });
+            sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: step.stepId, status: 'error', detail: 'Login timed out' });
+            return;
+          }
+
+          // Re-show the task overlay (auth overlay replaced it)
+          sendOverlay(tabId, {
+            type: 'overlay_show',
+            runId,
+            taskName: (payload._meta?.description || 'Running task') + ' (resumed)',
+            steps: chain.map((s: any, idx: number) => ({
+              stepId: s.stepId,
+              label: s.note || s.action + ' ' + (s.target || s.selector || s.text || ''),
+              status: idx < i ? 'ok' : idx === i ? 'running' : 'pending'
+            }))
+          });
+
+          // Retry the step after auth recovery
+          res = await executeStep(step, run);
+        }
+
         run.stepResults.push(res);
 
         // Overlay: step result
