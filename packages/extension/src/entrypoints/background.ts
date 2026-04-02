@@ -1,38 +1,86 @@
+import { io } from 'socket.io-client';
+
 export default defineBackground(() => {
   console.log('[Yeshie] Background worker started');
 
-  // ── Dev: reload active tabs when extension updates ─────────────────────────
-  // WXT handles HMR for the extension itself; this reloads the active page
-  // so the new content script is injected automatically
-  chrome.runtime.onInstalled.addListener((details) => {
-    if (details.reason === 'update' || details.reason === 'install') {
-      chrome.tabs.query({ active: true }, (tabs) => {
-        tabs.forEach(tab => {
-          if (tab.id && tab.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://')) {
-            chrome.tabs.reload(tab.id);
-          }
-        });
+  // ── Relay socket connection ──────────────────────────────────────────────────
+  const RELAY_URL = 'http://localhost:3333';
+  // Delay initial connection slightly — after a hot-reload, the relay needs
+  // a moment to clean up the previous socket before accepting a new one.
+  // Without this, the first connect attempt fails with a WebSocket error
+  // (Chrome logs it even though Socket.IO auto-retries and succeeds).
+  let socket: ReturnType<typeof io>;
+  setTimeout(() => {
+    socket = io(RELAY_URL, {
+      auth: { role: 'extension' },
+      transports: ['websocket'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+    });
+
+    socket.on('connect', () => {
+      console.log('[Yeshie] Connected to relay', socket.id);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('[Yeshie] Disconnected from relay');
+    });
+
+    // Relay sends skill_run commands
+    socket.on('skill_run', ({ commandId, payload, params, tabId }: any) => {
+      console.log('[Yeshie] skill_run from relay', commandId);
+      const runId = crypto.randomUUID();
+      chrome.storage.session.set({ __yeshieLastRunId: runId });
+      startRun(runId, payload, params || {}, tabId).then(() => {
+        const run = runs.get(runId);
+        const result = run?.result;
+        // Always send full result (includes stepResults for diagnostics)
+        socket.emit('chain_result', { commandId, result: result || { success: false, error: 'no result' } });
+      }).catch((err: any) => {
+        socket.emit('chain_error', { commandId, error: err.message });
       });
-    }
-  });
+    });
+  }, 800);
+
+
+
+  // ── Hot reload: poll watcher server, reload extension when build changes ──────
+  let _lastBuild = -1;
+  async function checkForReload() {
+    try {
+      const r = await fetch('http://localhost:27182/');
+      const { build, ready } = await r.json();
+      if (_lastBuild === -1) { _lastBuild = build; return; }
+      // Only reload when build number changed AND watcher confirms build is complete
+      if (build !== _lastBuild && ready) {
+        _lastBuild = build;
+        console.log('[Yeshie] New build detected (ready), reloading extension...');
+        chrome.runtime.reload();
+      }
+    } catch (_) {}
+  }
+  setInterval(checkForReload, 2000);
+
+
+  // onInstalled: no tab reload (kills sessions). Content scripts inject naturally on next page load.
 
   // ── Run state ────────────────────────────────────────────────────────────────
   const runs = new Map<string, any>();
+  const abortFlags = new Map<string, boolean>();
 
-  // Keep-alive: prevent service worker suspension during active runs
+  // Keep-alive: prevent service worker suspension ALWAYS (relay needs persistent connection)
+  // MV3 workers sleep after ~30s idle — the alarm fires every 24s to keep the worker alive
+  chrome.alarms.create('yeshie-keepalive', { periodInMinutes: 0.4 });
   chrome.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === 'yeshie-keepalive' && runs.size > 0) {
-      // Re-arm the alarm while runs are active
-      chrome.alarms.create('yeshie-keepalive', { delayInMinutes: 0.4 });
+    if (alarm.name === 'yeshie-keepalive') {
+      // Accessing any chrome API keeps the service worker awake
+      chrome.storage.session.get('__yeshiePing');
     }
   });
 
-  function startKeepalive() {
-    chrome.alarms.create('yeshie-keepalive', { delayInMinutes: 0.4 });
-  }
-  function stopKeepalive() {
-    chrome.alarms.clear('yeshie-keepalive');
-  }
+  function startKeepalive() { /* no-op: always-on keepalive handles this */ }
+  function stopKeepalive() { /* no-op: keep alive even when idle for relay connection */ }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
   function interpolate(str: string, params: Record<string, any>): string {
@@ -70,6 +118,24 @@ export default defineBackground(() => {
 
   function PRE_RESOLVE_TARGET(abstractTarget: any) {
     const CACHE_MS = 30 * 24 * 60 * 60 * 1000;
+
+    // Produce a reload-stable selector — prefers a11y attributes over generated IDs
+    function stableSelector(el: Element): string | null {
+      const tag = el.tagName.toLowerCase();
+      const ariaLabel = el.getAttribute('aria-label');
+      if (ariaLabel) return `[aria-label="${ariaLabel}"]`;
+      const placeholder = (el as HTMLInputElement).placeholder;
+      if (placeholder) return `${tag}[placeholder="${placeholder}"]`;
+      const name = el.getAttribute('name');
+      if (name) return `${tag}[name="${name}"]`;
+      const testid = el.getAttribute('data-testid');
+      if (testid) return `[data-testid="${testid}"]`;
+      // Only use ID if it looks stable (not a generated Vuetify/React ID)
+      if (el.id && !/^(input-v-|_react_|:r)/.test(el.id)) return '#' + el.id;
+      return null;
+    }
+
+    // Step 1: cached selector (verify still valid in DOM)
     if (abstractTarget.cachedSelector && (abstractTarget.cachedConfidence || 0) >= 0.85 && abstractTarget.resolvedOn) {
       const age = Date.now() - new Date(abstractTarget.resolvedOn).getTime();
       if (age < CACHE_MS) {
@@ -77,13 +143,55 @@ export default defineBackground(() => {
         if (el) return { selector: abstractTarget.cachedSelector, confidence: abstractTarget.cachedConfidence, resolvedVia: 'cached', found: true };
       }
     }
-    const labels: string[] = abstractTarget.match?.vuetify_label || abstractTarget.semanticKeys || [];
-    for (const labelText of labels) {
+
+    const labelKeys: string[] = abstractTarget.match?.vuetify_label || abstractTarget.semanticKeys || [];
+    const nameKeys: string[] = abstractTarget.match?.name_contains || [];
+    const allKeys = [...new Set([...labelKeys, ...nameKeys])];
+
+    // Step 2: A11y tree resolution — framework-agnostic, stable across page reloads
+    // Resolution order mirrors how browsers compute accessible names (ARIA spec)
+    for (const key of allKeys) {
+      const k = key.toLowerCase();
+      // 2a: aria-label attribute
+      const byAria = document.querySelector(`[aria-label*="${key}" i]`) as HTMLElement | null;
+      if (byAria) {
+        const sel = stableSelector(byAria) || `[aria-label*="${key}" i]`;
+        return { selector: sel, confidence: 0.92, resolvedVia: 'a11y_aria_label', found: true };
+      }
+      // 2b: aria-labelledby → follow reference to label text
+      for (const el of Array.from(document.querySelectorAll('[aria-labelledby]'))) {
+        const labelId = el.getAttribute('aria-labelledby')!;
+        const label = document.getElementById(labelId);
+        if (label?.textContent?.toLowerCase().includes(k)) {
+          const sel = stableSelector(el) || `[aria-labelledby="${labelId}"]`;
+          return { selector: sel, confidence: 0.92, resolvedVia: 'a11y_labelledby', found: true };
+        }
+      }
+      // 2c: <label for="X"> text contains key → resolve to target input
+      for (const label of Array.from(document.querySelectorAll('label[for]'))) {
+        if (label.textContent?.toLowerCase().includes(k)) {
+          const target = document.getElementById((label as HTMLLabelElement).htmlFor);
+          if (target) {
+            const sel = stableSelector(target) || `#${(label as HTMLLabelElement).htmlFor}`;
+            return { selector: sel, confidence: 0.90, resolvedVia: 'a11y_label_for', found: true };
+          }
+        }
+      }
+      // 2d: placeholder text
+      const byPlaceholder = document.querySelector(`[placeholder*="${key}" i]`) as HTMLElement | null;
+      if (byPlaceholder) {
+        const sel = stableSelector(byPlaceholder) || `[placeholder*="${key}" i]`;
+        return { selector: sel, confidence: 0.88, resolvedVia: 'a11y_placeholder', found: true };
+      }
+    }
+
+    // Step 3: Vuetify-specific patterns (framework fallback — uses stableSelector now)
+    for (const labelText of labelKeys) {
       const l = labelText.toLowerCase();
       for (const lb of document.querySelectorAll('.v-label')) {
         if (lb.textContent?.trim().toLowerCase().includes(l)) {
           const inp = lb.closest('.v-input')?.querySelector('input,textarea') as HTMLInputElement | null;
-          if (inp) return { selector: inp.id ? '#' + inp.id : null, confidence: 0.88, resolvedVia: 'vuetify_label_match', found: true, elementId: inp.id };
+          if (inp) { const sel = stableSelector(inp); if (sel) return { selector: sel, confidence: 0.85, resolvedVia: 'vuetify_label_match', found: true }; }
         }
       }
       for (const div of document.querySelectorAll('.mb-2,.text-body-2')) {
@@ -91,37 +199,52 @@ export default defineBackground(() => {
           let sib = div.nextElementSibling;
           while (sib) {
             const inp = sib.querySelector('input,textarea') as HTMLInputElement | null;
-            if (inp) return { selector: inp.id ? '#' + inp.id : null, confidence: 0.88, resolvedVia: 'vuetify_label_match', found: true, elementId: inp.id };
+            if (inp) { const sel = stableSelector(inp); if (sel) return { selector: sel, confidence: 0.85, resolvedVia: 'vuetify_label_match', found: true }; }
             sib = sib.nextElementSibling;
           }
-          const inp = div.parentElement?.nextElementSibling?.querySelector('input,textarea') as HTMLInputElement | null;
-          if (inp) return { selector: inp.id ? '#' + inp.id : null, confidence: 0.88, resolvedVia: 'vuetify_label_match', found: true, elementId: inp.id };
         }
       }
     }
-    if (abstractTarget.match?.name_contains) {
-      for (const nm of abstractTarget.match.name_contains) {
-        const btn = Array.from(document.querySelectorAll('button,[role="button"]'))
-          .find((b: any) => b.textContent?.trim().toLowerCase().includes(nm.toLowerCase()) || b.getAttribute('aria-label')?.toLowerCase().includes(nm.toLowerCase())) as HTMLElement | undefined;
-        if (btn) return { selector: (btn as HTMLElement).id ? '#' + (btn as HTMLElement).id : null, confidence: 0.85, resolvedVia: 'aria', found: true, buttonText: btn.textContent?.trim() };
+
+    // Step 4: clickable targets by text/aria (buttons, links, menu items)
+    for (const nm of nameKeys) {
+      const btn = Array.from(document.querySelectorAll('a[href],[role="button"],button,[role="menuitem"]')).find((b: any) =>
+        b.textContent?.trim().toLowerCase().includes(nm.toLowerCase()) ||
+        b.getAttribute('aria-label')?.toLowerCase().includes(nm.toLowerCase())
+      ) as HTMLElement | undefined;
+      if (btn) {
+        const sel = stableSelector(btn) || null;
+        return { selector: sel, confidence: 0.85, resolvedVia: 'text_match', found: true, buttonText: btn.textContent?.trim() };
       }
     }
+
+    // Step 5: explicit fallback CSS selectors (last resort)
     for (const sel of (abstractTarget.fallbackSelectors || [])) {
       const el = document.querySelector(sel);
       if (el) return { selector: sel, confidence: 0.6, resolvedVia: 'css_cascade', found: true };
     }
+
     return { found: false, selector: null, confidence: 0, resolvedVia: 'escalate' };
   }
 
   function PRE_GUARDED_CLICK(selector: string | null, buttonText: string | null) {
     let el: Element | null = selector ? document.querySelector(selector) : null;
     if (!el && buttonText) {
-      el = Array.from(document.querySelectorAll('button,[role="button"],a'))
+      el = Array.from(document.querySelectorAll('button,[role="button"],a,[role="menuitem"]'))
         .find((b: any) => b.textContent?.trim().toLowerCase().includes(buttonText.toLowerCase())) || null;
     }
     if (!el) return { ok: false, error: 'Not found: ' + (selector || buttonText) };
-    (el as HTMLElement).click();
-    return { ok: true, tag: el.tagName };
+    // Dispatch full pointer/mouse event sequence (Vuetify menus need this, not just .click())
+    const rect = (el as HTMLElement).getBoundingClientRect();
+    const cx = rect.x + rect.width / 2;
+    const cy = rect.y + rect.height / 2;
+    const eventInit = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy, screenX: cx, screenY: cy };
+    el.dispatchEvent(new PointerEvent('pointerdown', { ...eventInit, pointerId: 1, pointerType: 'mouse' }));
+    el.dispatchEvent(new MouseEvent('mousedown', eventInit));
+    el.dispatchEvent(new PointerEvent('pointerup', { ...eventInit, pointerId: 1, pointerType: 'mouse' }));
+    el.dispatchEvent(new MouseEvent('mouseup', eventInit));
+    el.dispatchEvent(new MouseEvent('click', eventInit));
+    return { ok: true, tag: el.tagName, text: (el as HTMLElement).textContent?.trim() };
   }
 
   function PRE_GUARDED_READ(candidates: string[]) {
@@ -151,41 +274,236 @@ export default defineBackground(() => {
     const rows = Array.from(document.querySelectorAll('.v-data-table__tr,tbody tr'));
     const match = rows.find(r => r.textContent?.toLowerCase().includes(identifier.toLowerCase()));
     if (!match) return { found: false, rowCount: rows.length };
+    // Try link with href first, then any <a> tag (Vue/SPA apps use <a> without href)
     const link = match.querySelector('a[href]') as HTMLAnchorElement | null;
     if (link) { link.click(); return { found: true, href: link.href }; }
+    const anyLink = match.querySelector('a') as HTMLAnchorElement | null;
+    if (anyLink) { anyLink.click(); return { found: true, clickedLink: true, text: anyLink.textContent?.trim() }; }
     (match as HTMLElement).click();
     return { found: true, clicked: true };
   }
 
-  function PRE_FIND_AND_CLICK_TEXT(text: string) {
-    const els = Array.from(document.querySelectorAll('a,button,[role="button"],[role="menuitem"]'));
-    const match = els.find((e: any) => e.textContent?.trim().toLowerCase().includes(text.toLowerCase())) as HTMLElement | undefined;
-    if (!match) return { found: false };
-    match.click();
-    return { found: true, tag: match.tagName, text: match.textContent?.trim() };
+  async function PRE_FIND_AND_CLICK_TEXT(text: string, timeoutMs: number = 1500) {
+    const lower = text.toLowerCase();
+    const sel = 'a,button,[role="button"],[role="menuitem"],.v-list-item,[role="option"],[role="link"]';
+    const t0 = Date.now();
+    while (Date.now() - t0 < timeoutMs) {
+      const els = Array.from(document.querySelectorAll(sel));
+      const match = els.find((e: any) => e.offsetParent !== null && e.textContent?.trim().toLowerCase().includes(lower)) as HTMLElement | undefined;
+      if (match) {
+        const rect = match.getBoundingClientRect();
+        const cx = rect.x + rect.width / 2;
+        const cy = rect.y + rect.height / 2;
+        const eventInit = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy, screenX: cx, screenY: cy };
+        match.dispatchEvent(new PointerEvent('pointerdown', { ...eventInit, pointerId: 1, pointerType: 'mouse' }));
+        match.dispatchEvent(new MouseEvent('mousedown', eventInit));
+        match.dispatchEvent(new PointerEvent('pointerup', { ...eventInit, pointerId: 1, pointerType: 'mouse' }));
+        match.dispatchEvent(new MouseEvent('mouseup', eventInit));
+        match.dispatchEvent(new MouseEvent('click', eventInit));
+        return { found: true, tag: match.tagName, text: match.textContent?.trim(), waitMs: Date.now() - t0 };
+      }
+      await new Promise(r => setTimeout(r, 100));
+    }
+    return { found: false, waitMs: Date.now() - t0 };
   }
+
+  function PRE_PAGE_RECON() {
+    // Perceive the current page: collect navigation, affordances, inputs, tables, actions
+    const seen: Record<string, boolean> = {};
+
+    // Navigation links from sidebar/nav
+    const navEls = document.querySelectorAll('nav a[href], [role="navigation"] a[href], .v-navigation-drawer a[href], aside a[href]');
+    const navLinks: any[] = [];
+    for (let i = 0; i < navEls.length && i < 30; i++) {
+      const a = navEls[i] as HTMLAnchorElement;
+      const text = a.textContent?.trim().split('\n')[0]?.trim();
+      const href = a.getAttribute('href');
+      if (text && text.length < 50 && href && !seen[href]) {
+        seen[href] = true;
+        navLinks.push({ text, href, active: a.classList.contains('v-list-item--active') || a.getAttribute('aria-current') === 'page' });
+      }
+    }
+
+    // Visible buttons
+    const btnEls = document.querySelectorAll('button, [role="button"], [role="menuitem"]');
+    const buttons: any[] = [];
+    for (let j = 0; j < btnEls.length && buttons.length < 20; j++) {
+      const b = btnEls[j] as HTMLElement;
+      const text = b.textContent?.trim().split('\n')[0]?.trim();
+      if (text && text.length < 50 && b.offsetParent !== null) {
+        buttons.push({ text, ariaLabel: b.getAttribute('aria-label'), tag: b.tagName });
+      }
+    }
+
+    // Input fields
+    const inputEls = document.querySelectorAll('input, textarea, select');
+    const fields: any[] = [];
+    for (let k = 0; k < inputEls.length && fields.length < 15; k++) {
+      const inp = inputEls[k] as HTMLInputElement;
+      if (inp.offsetParent !== null) {
+        fields.push({
+          tag: inp.tagName, type: inp.type,
+          placeholder: inp.placeholder || null,
+          ariaLabel: inp.getAttribute('aria-label') || null,
+          name: inp.getAttribute('name') || null
+        });
+      }
+    }
+
+    // Tables
+    const tableEls = document.querySelectorAll('table');
+    const tables: any[] = [];
+    for (let t = 0; t < tableEls.length; t++) {
+      const hdrs = tableEls[t].querySelectorAll('thead th');
+      const hdrTexts: string[] = [];
+      for (let h = 0; h < hdrs.length; h++) hdrTexts.push(hdrs[h].textContent?.trim() || '');
+      tables.push({ headers: hdrTexts, rowCount: tableEls[t].querySelectorAll('tbody tr').length });
+    }
+
+    // Action links in main content area
+    const mainEls = document.querySelectorAll('main a, [role="main"] a');
+    const mainActions: any[] = [];
+    const seenActions: Record<string, boolean> = {};
+    for (let m = 0; m < mainEls.length && mainActions.length < 20; m++) {
+      const al = mainEls[m] as HTMLAnchorElement;
+      const text = al.textContent?.trim();
+      if (text && text.length > 2 && text.length < 60 && al.offsetParent !== null && !seenActions[text]) {
+        seenActions[text] = true;
+        mainActions.push({ text, href: al.getAttribute('href') });
+      }
+    }
+
+    // Page headings
+    const headingEls = document.querySelectorAll('h1, h2, h3, [role="heading"]');
+    const headings: any[] = [];
+    for (let p = 0; p < headingEls.length && headings.length < 10; p++) {
+      const text = headingEls[p].textContent?.trim();
+      if (text) headings.push({ level: headingEls[p].tagName, text: text.slice(0, 80) });
+    }
+
+    return {
+      url: window.location.href,
+      title: document.title,
+      headings,
+      navLinks,
+      buttons,
+      fields,
+      tables,
+      mainActions
+    };
+  }
+
+  function PRE_RUN_DOMQUERY(code: string, params: Record<string, any>) {
+    // This function runs in MAIN world via executeScript (pre-bundled, not eval)
+    // It handles common DOM query patterns from payload js steps
+    // Pattern: find row containing identifier and click it
+    try {
+      const identifier = params.user_identifier || params[Object.keys(params)[0]] || '';
+      
+      // Row find + click pattern
+      if (code.includes('find(r =>') || code.includes('find(row') || code.includes('rows.find')) {
+        const rows = Array.from(document.querySelectorAll('.v-data-table__tr,tbody tr'));
+        const match = rows.find((r: any) => r.textContent?.toLowerCase().includes(identifier.toLowerCase()));
+        if (!match) return { found: false, rowCount: rows.length };
+        const link = (match as HTMLElement).querySelector('a[href]') as HTMLAnchorElement | null;
+        if (link) { link.click(); return { found: true, href: link.href }; }
+        const anyLink = (match as HTMLElement).querySelector('a') as HTMLAnchorElement | null;
+        if (anyLink) { anyLink.click(); return { found: true, clickedLink: true, text: anyLink.textContent?.trim() }; }
+        (match as HTMLElement).click();
+        return { found: true, clicked: true };
+      }
+      
+      // Button find + click pattern (Manage, Offboard, Confirm etc)
+      if (code.includes('btns') || code.includes('button')) {
+        const btns = Array.from(document.querySelectorAll('button,[role="menuitem"],[role="option"]'));
+        const keywords = ['offboard', 'deactivate', 'remove', 'confirm', 'yes', 'manage'];
+        for (const kw of keywords) {
+          if (!code.toLowerCase().includes(kw)) continue;
+          const btn = btns.find((b: any) => b.textContent?.trim().toLowerCase().includes(kw)) as HTMLElement | undefined;
+          if (btn) { btn.click(); return { clicked: true, text: btn.textContent?.trim(), keyword: kw }; }
+        }
+        return { found: false, available: btns.map((b: any) => b.textContent?.trim()).filter(Boolean).slice(0, 15) };
+      }
+      
+      // Checkbox select pattern
+      if (code.includes('checkbox') || code.includes('input[type')) {
+        const rows = Array.from(document.querySelectorAll('.v-data-table__tr,tbody tr,[class*="row"]'));
+        const match = rows.find((r: any) => r.textContent?.toLowerCase().includes(identifier.toLowerCase()));
+        if (!match) return { found: false };
+        const cb = (match as HTMLElement).querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+        if (cb) { cb.click(); return { found: true, selectedCheckbox: true }; }
+        (match as HTMLElement).click();
+        return { found: true, clicked: true };
+      }
+      
+      return { __error: 'No matching pattern for js step' };
+    } catch(e: any) {
+      return { __error: e.message };
+    }
+  }
+
+
 
   // ── Trusted type via chrome.debugger ─────────────────────────────────────────
   async function trustedType(tabId: number, selector: string, text: string) {
+    await ensureDebugger(tabId);
     const target = { tabId };
-    try { await chrome.debugger.attach(target, '1.3'); } catch (e: any) {
+    await chrome.debugger.sendCommand(target, 'Runtime.evaluate', {
+      expression: `(function(){const el=document.querySelector(${JSON.stringify(selector)});if(!el)return false;el.focus();el.click();el.select&&el.select();return true;})()`,
+      returnByValue: true
+    });
+    await new Promise(r => setTimeout(r, 80));
+    await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65 });
+    await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65 });
+    await chrome.debugger.sendCommand(target, 'Input.insertText', { text });
+    await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+    await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+    return { ok: true };
+  }
+
+  // ── Debugger session management ─────────────────────────────────────────────
+  // Keep debugger attached for the duration of a chain to avoid viewport resize
+  // flicker from attach/detach (the info bar causes layout shifts that can close menus).
+  let _debuggerTabId: number | null = null;
+
+  async function ensureDebugger(tabId: number) {
+    if (_debuggerTabId === tabId) return; // already attached
+    if (_debuggerTabId !== null) {
+      try { await chrome.debugger.detach({ tabId: _debuggerTabId }); } catch (_) {}
+    }
+    try { await chrome.debugger.attach({ tabId }, '1.3'); } catch (e: any) {
       if (!e.message?.includes('already attached')) throw e;
     }
-    try {
-      await chrome.debugger.sendCommand(target, 'Runtime.evaluate', {
-        expression: `(function(){const el=document.querySelector(${JSON.stringify(selector)});if(!el)return false;el.focus();el.click();el.select&&el.select();return true;})()`,
-        returnByValue: true
-      });
-      await new Promise(r => setTimeout(r, 80));
-      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65 });
-      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65 });
-      await chrome.debugger.sendCommand(target, 'Input.insertText', { text });
-      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
-      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
-      return { ok: true };
-    } finally {
-      try { await chrome.debugger.detach(target); } catch (_) {}
+    _debuggerTabId = tabId;
+  }
+
+  async function releaseDebugger() {
+    if (_debuggerTabId !== null) {
+      try { await chrome.debugger.detach({ tabId: _debuggerTabId }); } catch (_) {}
+      _debuggerTabId = null;
     }
+  }
+
+  // ── Trusted click via chrome.debugger Runtime.evaluate ───────────────────────
+  // CDP Runtime.evaluate click events work with Vuetify menus (chrome.scripting.executeScript doesn't).
+  // Debugger stays attached across the chain to prevent viewport resize closing menus.
+  async function trustedClick(tabId: number, selector: string, buttonText: string | null = null) {
+    await ensureDebugger(tabId);
+    const expr = `(function(){
+      let el = ${JSON.stringify(selector)} ? document.querySelector(${JSON.stringify(selector)}) : null;
+      if (!el && ${JSON.stringify(buttonText)}) {
+        el = Array.from(document.querySelectorAll('button,[role="button"],a,[role="menuitem"]'))
+          .find(b => b.textContent?.trim().toLowerCase().includes(${JSON.stringify(buttonText?.toLowerCase() || '')})) || null;
+      }
+      if (!el) return { ok: false, error: 'Not found: ' + (${JSON.stringify(selector)} || ${JSON.stringify(buttonText)}) };
+      el.click();
+      return { ok: true, tag: el.tagName, text: el.textContent?.trim() };
+    })()`;
+    const result: any = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
+      expression: expr,
+      returnByValue: true
+    });
+    return result?.result?.value || { ok: false, error: 'No result from Runtime.evaluate' };
   }
 
   // ── Navigation ────────────────────────────────────────────────────────────────
@@ -254,6 +572,20 @@ export default defineBackground(() => {
         }
         if (!resolvedSelector) throw new Error('No selector for: ' + (step.target || step.selector));
         await trustedType(tabId, resolvedSelector, value);
+        // If step has responseSignature, wait for the expected element to appear (e.g. search results filtering)
+        if (step.responseSignature?.length) {
+          const sig = step.responseSignature[0];
+          const sigSel = sig.selector || sig.any_of?.[0]?.selector;
+          const sigTimeout = sig.timeout || 2000;
+          if (sigSel) {
+            const sigStart = Date.now();
+            while (Date.now() - sigStart < sigTimeout) {
+              const found = await execInTab(tabId, (s: string) => !!document.querySelector(s), [sigSel]);
+              if (found) break;
+              await new Promise(r => setTimeout(r, 200));
+            }
+          }
+        }
         return { stepId: step.stepId, action: a, status: 'ok', value, selector: resolvedSelector, resolvedVia, confidence, target: step.target, durationMs: Date.now() - t0 };
       }
 
@@ -271,15 +603,34 @@ export default defineBackground(() => {
         }
         const r = await execInTab(tabId, PRE_GUARDED_CLICK, [resolvedSelector, buttonText]);
         if (!r?.ok) throw new Error(r?.error || 'Click failed');
-        return { stepId: step.stepId, action: a, status: 'ok', selector: resolvedSelector, resolvedVia, target: step.target, durationMs: Date.now() - t0 };
+        return { stepId: step.stepId, action: a, status: 'ok', selector: resolvedSelector, resolvedVia, target: step.target, clickDiag: r, durationMs: Date.now() - t0 };
       }
 
       if (a === 'wait_for') {
-        const sel = interpolate(step.selector || step.target || '', params);
         const timeout = step.timeout || 8000;
         const start = Date.now();
+
+        // URL pattern mode: poll until window.location matches
+        if (step.url_pattern) {
+          const pat = interpolate(step.url_pattern, { ...params, ...buffer });
+          while (Date.now() - start < timeout) {
+            const url = await execInTab(tabId, () => window.location.href, []);
+            if (url && new RegExp(pat).test(url)) return { stepId: step.stepId, action: a, status: 'ok', url, durationMs: Date.now() - t0 };
+            await new Promise(r => setTimeout(r, 200));
+          }
+          throw new Error('wait_for url timeout: ' + pat);
+        }
+
+        // Element selector mode
+        let sel: string | null = step.selector || null;
+        if (!sel && step.target && abstractTargets?.[step.target]) {
+          const res = await execInTab(tabId, PRE_RESOLVE_TARGET, [abstractTargets[step.target]]);
+          sel = res?.selector || null;
+          if (!sel) sel = abstractTargets[step.target].fallbackSelectors?.[0] || null;
+        }
+        if (!sel) sel = interpolate(step.target || '', params); // last resort: literal
         while (Date.now() - start < timeout) {
-          const found = await execInTab(tabId, (s: string) => !!document.querySelector(s), [sel]);
+          const found = await execInTab(tabId, (s: string) => !!document.querySelector(s), [sel as string]);
           if (found) return { stepId: step.stepId, action: a, status: 'ok', selector: sel, durationMs: Date.now() - t0 };
           await new Promise(r => setTimeout(r, 300));
         }
@@ -301,10 +652,39 @@ export default defineBackground(() => {
       }
 
       if (a === 'js') {
+        // Execute pre-bundled function directly — avoids CSP unsafe-eval
+        // The code is passed as a template; we use PRE_FIND_ROW_AND_CLICK for row ops
+        // and PRE_FIND_AND_CLICK_TEXT for text clicks.
+        // For arbitrary js steps, detect the pattern and dispatch to the right fn.
         const code = interpolate(step.code || '', { ...params, ...buffer });
-        // new Function() works in extension MAIN world — NOT subject to page CSP
-        const r = await execInTab(tabId, (c: string) => { try { return new Function(c)(); } catch(e: any) { return { __error: e.message }; } }, [code]);
+        let r: any;
+        if (code.includes('querySelector') || code.includes('querySelectorAll')) {
+          // Run as a self-contained IIFE via pre-bundled wrapper
+          // Pass code as string but execute in ISOLATED world via content script message
+          // For now: use PRE_FIND_ROW_AND_CLICK if it looks like a row-find operation
+          const identifier = params[Object.keys(params)[0]] || '';
+          if (code.includes('find(r =>') || code.includes('find(row')) {
+            r = await execInTab(tabId, PRE_FIND_ROW_AND_CLICK, [identifier]);
+          } else {
+            // Generic DOM query — wrap in a safe pre-bundled executor
+            r = await execInTab(tabId, PRE_RUN_DOMQUERY, [code, { ...params, ...buffer }]);
+          }
+        } else {
+          r = await execInTab(tabId, PRE_RUN_DOMQUERY, [code, { ...params, ...buffer }]);
+        }
         if (r?.__error) throw new Error(r.__error);
+        if (step.store_as) buffer[step.store_as] = r;
+        return { stepId: step.stepId, action: a, status: 'ok', result: r, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'delay') {
+        const ms = step.ms || step.timeout || 1000;
+        await new Promise(r => setTimeout(r, ms));
+        return { stepId: step.stepId, action: a, status: 'ok', delayMs: ms, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'perceive') {
+        const r = await execInTab(tabId, PRE_PAGE_RECON, []);
         if (step.store_as) buffer[step.store_as] = r;
         return { stepId: step.stepId, action: a, status: 'ok', result: r, durationMs: Date.now() - t0 };
       }
@@ -330,20 +710,64 @@ export default defineBackground(() => {
     }
   }
 
+  // ── Overlay messaging helper ────────────────────────────────────────────────
+  function sendOverlay(tabId: number, msg: any) {
+    try { chrome.tabs.sendMessage(tabId, msg); } catch (_) {}
+  }
+
   // ── Chain runner ──────────────────────────────────────────────────────────────
   async function startRun(runId: string, payload: any, params: Record<string, any>, tabId: number) {
     const chain = payload.chain || [];
     const abstractTargets = JSON.parse(JSON.stringify(payload.abstractTargets || {}));
     const run = { runId, payload, params, tabId, abstractTargets, buffer: {} as any, stepIndex: 0, status: 'running', result: null as any, stepResults: [] as any[], resolvedTargets: [] as any[] };
     runs.set(runId, run);
+    abortFlags.set(runId, false);
     const t0 = Date.now();
+
+    // Send overlay_show with step list
+    sendOverlay(tabId, {
+      type: 'overlay_show',
+      runId,
+      taskName: payload._meta?.description || 'Running task',
+      steps: chain.map((s: any) => ({
+        stepId: s.stepId,
+        label: s.note || s.action + ' ' + (s.target || s.selector || s.text || ''),
+        status: 'pending'
+      }))
+    });
 
     try {
       for (let i = 0; i < chain.length; i++) {
+        // Abort check
+        if (abortFlags.get(runId)) {
+          // Mark remaining steps as skipped
+          for (let j = i; j < chain.length; j++) {
+            sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: chain[j].stepId, status: 'skipped' });
+          }
+          run.status = 'aborted';
+          run.result = { success: false, error: 'Aborted by user', stepsExecuted: run.stepResults.length, stepResults: run.stepResults, buffer: run.buffer, durationMs: Date.now() - t0, resolvedTargets: run.resolvedTargets };
+          await chrome.storage.session.set({ [runId]: run.result });
+          break;
+        }
+
         run.stepIndex = i;
         const step = chain[i];
+
+        // Overlay: step running
+        sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: step.stepId, status: 'running' });
+
         const res = await executeStep(step, run);
         run.stepResults.push(res);
+
+        // Overlay: step result
+        sendOverlay(tabId, {
+          type: 'overlay_step_update',
+          runId,
+          stepId: step.stepId,
+          status: res.status === 'ok' || res.status === 'skipped' ? res.status : 'error',
+          detail: res.error || null,
+          durationMs: res.durationMs
+        });
 
         if (res.selector && res.resolvedVia && step.target) {
           run.resolvedTargets.push({ abstractName: step.target, selector: res.selector, confidence: res.confidence || 0, resolvedVia: res.resolvedVia, resolvedAt: new Date().toISOString() });
@@ -372,14 +796,22 @@ export default defineBackground(() => {
         }
       }
 
-      run.status = 'complete';
-      run.result = { success: true, stepsExecuted: run.stepResults.length, stepResults: run.stepResults, buffer: run.buffer, durationMs: Date.now() - t0, resolvedTargets: run.resolvedTargets };
-      await chrome.storage.session.set({ [runId]: run.result });
+      if (run.status !== 'aborted') {
+        run.status = 'complete';
+        run.result = { success: true, stepsExecuted: run.stepResults.length, stepResults: run.stepResults, buffer: run.buffer, durationMs: Date.now() - t0, resolvedTargets: run.resolvedTargets };
+        await chrome.storage.session.set({ [runId]: run.result });
+      }
 
     } catch (err: any) {
       run.status = 'failed';
       run.result = { success: false, error: err.message, stepsExecuted: run.stepResults.length, stepResults: run.stepResults, buffer: run.buffer, durationMs: Date.now() - t0, resolvedTargets: run.resolvedTargets };
       await chrome.storage.session.set({ [runId]: run.result });
+    } finally {
+      // Release debugger at end of chain (info bar disappears)
+      await releaseDebugger();
+      // Hide overlay after 3s delay
+      abortFlags.delete(runId);
+      setTimeout(() => sendOverlay(tabId, { type: 'overlay_hide', runId }), 3000);
     }
   }
 
@@ -398,20 +830,22 @@ export default defineBackground(() => {
     }
     if (msg.type === 'get_active_runs') {
       const active = Array.from(runs.entries()).map(([id, r]) => ({ runId: id, status: r.status, stepIndex: r.stepIndex, totalSteps: r.payload?.chain?.length || 0 }));
-      chrome.storage.session.get('__yeshieLastRunId').then(data => {
+      (async () => {
+        const data = await chrome.storage.session.get('__yeshieLastRunId');
         sendResponse({ active, lastRunId: data.__yeshieLastRunId || null });
-      });
-      return true;
+      })();
+      return true;  // keep port open for async sendResponse
     }
     if (msg.type === 'get_status') {
       const run = runs.get(msg.runId);
       if (run) {
         sendResponse({ status: run.status, stepIndex: run.stepIndex, totalSteps: run.payload?.chain?.length || 0, result: run.result });
       } else {
-        chrome.storage.session.get(msg.runId).then(data => {
+        (async () => {
+          const data = await chrome.storage.session.get(msg.runId);
           const result = data[msg.runId];
           sendResponse(result ? { status: 'complete', result } : { status: 'not_found' });
-        });
+        })();
       }
       return true;
     }
@@ -419,6 +853,22 @@ export default defineBackground(() => {
       const run = runs.get(msg.runId);
       if (run) { run.status = 'aborted'; runs.delete(msg.runId); }
       sendResponse({ aborted: true });
+      return true;
+    }
+    if (msg.type === 'cancel_run') {
+      const runId = msg.runId;
+      if (runId && abortFlags.has(runId)) {
+        abortFlags.set(runId, true);
+      }
+      sendResponse({ cancelled: true });
+      return true;
+    }
+    if (msg.type === 'user_suggestion') {
+      // Forward suggestion to relay for Claude to see
+      if (socket && msg.runId && msg.suggestion) {
+        socket.emit('user_suggestion', { runId: msg.runId, suggestion: msg.suggestion });
+      }
+      sendResponse({ received: true });
       return true;
     }
     if (msg.type === 'content_ready') return false;
