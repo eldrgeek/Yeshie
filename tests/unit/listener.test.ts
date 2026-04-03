@@ -64,7 +64,7 @@ describe('Listener startup script (yeshie-listen.sh)', () => {
 
   it('invokes claude command', () => {
     const content = readFileSync(scriptPath, 'utf-8');
-    expect(content).toContain('claude');
+    expect(content).toContain('CLAUDE_BIN');
     expect(content).toContain('system-prompt');
   });
 
@@ -72,5 +72,32 @@ describe('Listener startup script (yeshie-listen.sh)', () => {
     const result = execSync(`bash -n "${scriptPath}" 2>&1`, { encoding: 'utf-8' });
     // If bash -n succeeds, it returns empty string
     expect(result.trim()).toBe('');
+  });
+});
+
+describe('Listener watchdog + service', () => {
+  const watchScriptPath = resolve(projectRoot, 'scripts/yeshie-listener-watch.sh');
+  const plistPath = resolve(projectRoot, 'scripts/com.yeshie.listener.plist');
+
+  it('watch script exists and passes bash syntax check', () => {
+    expect(existsSync(watchScriptPath)).toBe(true);
+    const result = execSync(`bash -n "${watchScriptPath}" 2>&1`, { encoding: 'utf-8' });
+    expect(result.trim()).toBe('');
+  });
+
+  it('watch script health-checks relay chat status', () => {
+    const content = readFileSync(watchScriptPath, 'utf-8');
+    expect(content).toContain('/chat/status');
+    expect(content).toContain('listenerConnected');
+    expect(content).toContain('relay reports listener offline');
+  });
+
+  it('launchd plist exists and runs the watcher with KeepAlive', () => {
+    expect(existsSync(plistPath)).toBe(true);
+    const content = readFileSync(plistPath, 'utf-8');
+    expect(content).toContain('com.yeshie.listener');
+    expect(content).toContain('yeshie-listener-watch.sh');
+    expect(content).toContain('<key>KeepAlive</key>');
+    expect(content).toContain('<true/>');
   });
 });

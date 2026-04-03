@@ -1,4 +1,5 @@
 // Core Yeshie types — derived from actual payload files
+import type { ResolutionMethod, ResolvedTargetUpdate, SurpriseEvidence } from './runtime-contract.js';
 
 export interface AbstractTarget {
   match?: { role?: string; vuetify_label?: string[]; [key: string]: any };
@@ -62,7 +63,7 @@ export interface ResolvedTarget {
   abstractName: string;
   selector: string | null;
   confidence: number;
-  resolvedVia: 'cached' | 'aria' | 'vuetify_label_match' | 'contenteditable' | 'css_cascade' | 'escalate';
+  resolvedVia: ResolutionMethod;
   resolvedAt: string;
 }
 
@@ -75,13 +76,15 @@ export interface StepResult {
   error?: string;
   durationMs: number;
   diagnostics?: any;
+  surpriseEvidence?: SurpriseEvidence[];
 }
 
 export interface ModelUpdates {
-  resolvedTargets: ResolvedTarget[];
+  resolvedTargets: Record<string, ResolvedTargetUpdate> | ResolvedTarget[];
   newTargetsDiscovered: AbstractTarget[];
   statesObserved: string[];
   signaturesObserved: Record<string, string[]>;
+  surpriseEvidence?: SurpriseEvidence[];
 }
 
 export interface ChainResult {

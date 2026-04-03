@@ -5,7 +5,7 @@
 export type StepAction =
   | 'assess_state' | 'navigate' | 'type' | 'click' | 'click_preset'
   | 'wait_for' | 'read' | 'hover' | 'scroll' | 'assert' | 'js' | 'select'
-  | 'probe_affordances';
+  | 'probe_affordances' | 'delay' | 'perceive' | 'find_row' | 'click_text';
 
 export interface StepResult {
   stepId: string;
@@ -30,6 +30,7 @@ export interface StepResult {
   storedAs?: string;
   reason?: string;
   error?: string;
+  surpriseEvidence?: import('./runtime-contract.js').SurpriseEvidence[];
 }
 
 export interface ResponseSignatureResult {
@@ -66,6 +67,7 @@ export interface StateGraph {
 // navigate/type return 'ok' without side effects in jsdom context
 
 import { TargetResolver, AbstractTarget } from './target-resolver.js';
+import { createSurpriseEvidence } from './runtime-contract.js';
 
 export interface Step {
   stepId: string;
@@ -74,7 +76,10 @@ export interface Step {
   target?: string;
   selector?: string;
   value?: string;
+  text?: string;
+  identifier?: string;
   condition?: string;
+  url_pattern?: string;
   expect?: { state?: string };
   candidates?: string[];
   store_as?: string;
@@ -106,6 +111,9 @@ export class StepExecutor {
     for (const [name, node] of Object.entries(sg.nodes)) {
       if (!node.signals?.length) continue;
       const ok = node.signals.every(sig => {
+        if (sig.type === 'url_matches') {
+          return new RegExp(sig.pattern!).test(window.location.href);
+        }
         if (sig.type === 'element_visible') {
           const el = this.doc.querySelector(sig.selector!);
           return !!el;
@@ -119,6 +127,35 @@ export class StepExecutor {
       if (ok) return name;
     }
     return 'unknown';
+  }
+
+  private snapshotPage() {
+    return {
+      url: window.location.href,
+      title: this.doc.title,
+      headings: Array.from(this.doc.querySelectorAll('h1, h2, h3, [role="heading"]'))
+        .map(el => ({ level: el.tagName, text: el.textContent?.trim() || '' }))
+        .filter(h => h.text),
+      buttons: Array.from(this.doc.querySelectorAll('button, a, [role="button"], [role="menuitem"], [role="option"]'))
+        .map(el => ({ text: el.textContent?.trim() || '', ariaLabel: el.getAttribute('aria-label') }))
+        .filter(b => b.text || b.ariaLabel),
+      fields: Array.from(this.doc.querySelectorAll('input, textarea, select, [contenteditable="true"]'))
+        .map(el => ({
+          tag: el.tagName,
+          type: (el as HTMLInputElement).type || null,
+          placeholder: el.getAttribute('placeholder'),
+          ariaLabel: el.getAttribute('aria-label'),
+        })),
+      tables: Array.from(this.doc.querySelectorAll('table'))
+        .map(table => ({
+          headers: Array.from(table.querySelectorAll('thead th')).map(th => th.textContent?.trim() || ''),
+          rowCount: table.querySelectorAll('tbody tr').length,
+          rows: Array.from(table.querySelectorAll('tbody tr')).map(tr => tr.textContent?.trim() || '').filter(Boolean),
+        })),
+      mainActions: Array.from(this.doc.querySelectorAll('main a, [role="main"] a'))
+        .map(el => ({ text: el.textContent?.trim() || '', href: el.getAttribute('href') }))
+        .filter(a => a.text),
+    };
   }
 
   execute(step: Step, stateGraph?: StateGraph): StepResult {
@@ -170,6 +207,11 @@ export class StepExecutor {
 
       if (a === 'read') {
         const candidates = step.candidates ?? (step.selector ? [step.selector] : []);
+        if (candidates.length === 0) {
+          const snapshot = this.snapshotPage();
+          if (step.store_as) this.buffer[step.store_as] = snapshot;
+          return { stepId: step.stepId, action: a, status: 'ok', text: JSON.stringify(snapshot), durationMs: Date.now() - t0 };
+        }
         let text: string | null = null;
         let foundSel: string | null = null;
         for (const sel of candidates) {
@@ -198,6 +240,11 @@ export class StepExecutor {
       }
 
       if (a === 'wait_for') {
+        if (step.url_pattern) {
+          const pattern = this.I(step.url_pattern);
+          if (!new RegExp(pattern).test(window.location.href)) throw new Error('wait_for url timeout: ' + pattern);
+          return { stepId: step.stepId, action: a, status: 'ok', url: window.location.href, durationMs: Date.now() - t0 };
+        }
         const sel = this.I(step.selector ?? step.target ?? '');
         const el = this.doc.querySelector(sel);
         if (!el) throw new Error('wait_for: element not found: ' + sel);
@@ -257,6 +304,46 @@ export class StepExecutor {
         return { stepId: step.stepId, action: a, status: 'ok', preset, selector: res.selector, durationMs: Date.now() - t0 };
       }
 
+      if (a === 'delay') {
+        return { stepId: step.stepId, action: a, status: 'ok', durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'perceive') {
+        const snapshot = this.snapshotPage();
+        if (step.store_as) this.buffer[step.store_as] = snapshot;
+        return { stepId: step.stepId, action: a, status: 'ok', result: snapshot, storedAs: step.store_as, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'find_row') {
+        const identifier = this.I(step.identifier ?? step.value ?? '');
+        const rows = Array.from(this.doc.querySelectorAll('.v-data-table__tr, tbody tr, [role="row"]'));
+        const match = rows.find(row => row.textContent?.toLowerCase().includes(identifier.toLowerCase()));
+        if (!match) throw new Error('Row not found: ' + identifier);
+        const link = match.querySelector('a[href], a') as HTMLElement | null;
+        const clickTarget = link ?? match as HTMLElement;
+        clickTarget.click?.();
+        if (step.store_as) {
+          this.buffer[step.store_as] = {
+            found: true,
+            text: match.textContent?.trim() || '',
+            href: link?.getAttribute('href') || null,
+          };
+        }
+        return { stepId: step.stepId, action: a, status: 'ok', result: { found: true }, storedAs: step.store_as, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'click_text') {
+        const text = this.I(step.text ?? step.value ?? '');
+        const candidates = Array.from(this.doc.querySelectorAll('button, a, [role="button"], [role="menuitem"], [role="option"], .v-list-item'));
+        const match = candidates.find(el => {
+          const content = el.textContent?.trim().toLowerCase() || '';
+          return content === text.toLowerCase() || content.includes(text.toLowerCase());
+        }) as HTMLElement | undefined;
+        if (!match) throw new Error('Text not found: ' + text);
+        match.click();
+        return { stepId: step.stepId, action: a, status: 'ok', value: text, durationMs: Date.now() - t0 };
+      }
+
       if (a === 'probe_affordances') {
         // Hover all buttons/icons in container, collect tooltip texts
         const container = step.selector ? this.doc.querySelector(step.selector) : this.doc.body;
@@ -275,7 +362,29 @@ export class StepExecutor {
 
             return { stepId: step.stepId, action: a, status: 'unsupported', durationMs: Date.now() - t0 };
     } catch (err: unknown) {
-      return { stepId: step.stepId, action: a, status: 'error', error: (err as Error).message, durationMs: Date.now() - t0 };
+      const message = (err as Error).message;
+      let surpriseEvidence;
+      if (message.includes('Cannot resolve') || message.includes('Text not found') || message.includes('Row not found')) {
+        surpriseEvidence = [createSurpriseEvidence('target_not_found', {
+          stepId: step.stepId,
+          target: step.target ?? step.selector ?? step.text ?? step.identifier,
+          details: message,
+        })];
+      } else if (message.includes('wait_for url timeout')) {
+        surpriseEvidence = [createSurpriseEvidence('url_mismatch', {
+          stepId: step.stepId,
+          expected: this.I(step.url_pattern),
+          observed: window.location.href,
+          details: message,
+        })];
+      } else if (message.includes('wait_for: element not found')) {
+        surpriseEvidence = [createSurpriseEvidence('guard_timeout', {
+          stepId: step.stepId,
+          target: step.selector ?? step.target,
+          details: message,
+        })];
+      }
+      return { stepId: step.stepId, action: a, status: 'error', error: message, surpriseEvidence, durationMs: Date.now() - t0 };
     }
   }
 

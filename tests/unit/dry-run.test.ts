@@ -79,10 +79,10 @@ describe('dryRunResolve — cold (no cache)', () => {
     expect(report.targets['company-email-input'].resolvedVia).toBe('vuetify_label_match');
   });
 
-  it('resolves create-onboard-button via aria', () => {
+  it('resolves create-onboard-button via a11y_aria_label', () => {
     const report = dryRunResolve(document, '01-user-add', abstractTargets);
-    expect(report.targets['create-onboard-button'].resolvedVia).toBe('aria');
-    expect(report.targets['create-onboard-button'].confidence).toBe(0.85);
+    expect(report.targets['create-onboard-button'].resolvedVia).toBe('a11y_aria_label');
+    expect(report.targets['create-onboard-button'].confidence).toBe(0.92);
   });
 
   it('has dryRun: true flag', () => {
@@ -114,9 +114,9 @@ describe('dryRunResolve — warm (with cache)', () => {
     expect(report.targets['personal-email-input'].resolvedVia).toBe('cached');
   });
 
-  it('still resolves button via aria even with warm cache (no cachedSelector)', () => {
+  it('still resolves button via a11y_aria_label even with warm cache (no cachedSelector)', () => {
     const report = dryRunResolve(document, '01-user-add', cachedTargets);
-    expect(report.targets['create-onboard-button'].resolvedVia).toBe('aria');
+    expect(report.targets['create-onboard-button'].resolvedVia).toBe('a11y_aria_label');
   });
 
   it('allResolved: true with warm cache', () => {

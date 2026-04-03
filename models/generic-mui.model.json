@@ -1,0 +1,114 @@
+{
+  "_meta": {
+    "layer": 2,
+    "name": "Material-UI (MUI) Framework Patterns",
+    "description": "Reusable interaction patterns for any Material-UI (MUI) application. Okta admin console uses MUI. Captures input resolution, dialog detection, table navigation, and component interaction patterns.",
+    "version": "0.1",
+    "discoveredFrom": "Okta admin console exploration 2026-04-02"
+  },
+
+  "frameworkDetection": {
+    "signals": [
+      "document.querySelector('[class*=\"MuiButton\"]') !== null",
+      "document.querySelector('[class*=\"MuiPaper\"]') !== null",
+      "document.querySelector('[class*=\"MuiTable\"]') !== null"
+    ],
+    "classPrefix": "Mui",
+    "note": "MUI components use class prefixes like MuiButton-root, MuiTextField-root, MuiTable-root"
+  },
+
+  "inputResolution": {
+    "strategy": "mui_label_match",
+    "description": "MUI inputs may use <label> with htmlFor, aria-label, or placeholder text. Okta specifically uses textarea for search fields and standard inputs for forms.",
+    "priority": [
+      "label[for='{id}'] → find input by id",
+      "aria-label attribute on input",
+      "placeholder text match",
+      "MuiTextField container → find nested input",
+      "data-se attribute (Okta-specific stable test ID)"
+    ],
+    "knownPatterns": {
+      "search_field": {
+        "selector": "textarea[placeholder*='Search'], input[placeholder*='Search']",
+        "note": "Okta uses textarea for search fields on People and Groups pages"
+      },
+      "text_input": {
+        "selector": "input[type='text'], input:not([type])",
+        "resolution": "Find parent .MuiTextField-root, then label text inside"
+      },
+      "select": {
+        "selector": "select, [class*='MuiSelect']",
+        "note": "Standard select or MUI Select component"
+      }
+    },
+    "knownLimitations": [
+      "Okta buttons often use href='#' for JavaScript-triggered actions — cannot rely on href for navigation detection",
+      "Some MUI buttons have no text, only icons — use aria-label or class inspection",
+      "Okta uses data-se attributes for test stability but they're inconsistent across pages"
+    ]
+  },
+
+  "buttonPatterns": {
+    "primary": "MuiButton-root MuiButton-primary",
+    "secondary": "MuiButton-root MuiButton-secondary",
+    "floating": "MuiButton-root MuiButton-floating",
+    "iconButton": "MuiButtonBase-root MuiIconButton-root",
+    "note": "Okta wraps many actions in links with href='#' that trigger JS handlers. Click the link element, not just the button."
+  },
+
+  "dialogDetection": {
+    "selector": "[class*='MuiDialog'], [class*='MuiModal'], [role='dialog']",
+    "confirmButton": "[class*='MuiButton-primary'], button[type='submit']",
+    "cancelButton": "[class*='MuiButton-secondary'], button[type='button']",
+    "note": "Okta uses MUI dialogs for Add Person, Create Token, etc."
+  },
+
+  "tableNavigation": {
+    "tableSelector": "[class*='MuiTable'], table",
+    "headerSelector": "th, [class*='MuiTableCell-head']",
+    "rowSelector": "tbody tr, [class*='MuiTableRow-root']",
+    "cellSelector": "td, [class*='MuiTableCell-body']",
+    "sortableHeader": "th[class*='sortable'], th button",
+    "pagination": "[class*='MuiTablePagination']",
+    "knownTables": {
+      "people": {
+        "headers": ["Person & username", "Primary email", "Status"],
+        "rowLinkPattern": "/admin/user/profile/view/{userId}"
+      },
+      "groups": {
+        "headers": ["Group name", "People", "Applications"]
+      },
+      "apps": {
+        "headers": ["(varies)"],
+        "rowLinkPattern": "/admin/app/{appType}/instance/{appId}/"
+      },
+      "api_tokens": {
+        "headers": ["Name", "Role", "Status", "Actions"]
+      }
+    }
+  },
+
+  "tabNavigation": {
+    "selector": "[role='tab'], [class*='MuiTab']",
+    "activeTab": "[aria-selected='true'], [class*='Mui-selected']",
+    "tabPanel": "[role='tabpanel']",
+    "note": "Okta API page uses tab-based navigation: Authorization Servers, Tokens, Trusted Origins"
+  },
+
+  "topBarPattern": {
+    "contactButton": "button:has-text('Contact us')",
+    "userMenu": "button:has-text('Michael Wolf')",
+    "note": "Okta has persistent top bar with Contact us, notifications icon, and user profile dropdown"
+  },
+
+  "sideNavPattern": {
+    "note": "Okta admin console uses a left sidebar with main sections. Navigation is via standard anchor tags. The sidebar may not appear in the accessibility snapshot as navLinks — check links array instead.",
+    "knownSections": {
+      "directory": ["/admin/users", "/admin/groups"],
+      "applications": ["/admin/apps/active", "/admin/apps/add-app", "/admin/app/bulk-assign"],
+      "security": ["/admin/security", "/admin/access/multifactor", "/admin/access/new-policies"],
+      "api": ["/admin/access/api/tokens"],
+      "admin": ["/admin/access/admins"]
+    }
+  }
+}

@@ -141,27 +141,27 @@ describe('Step 3: vuetify_label_match via resolve()', () => {
   });
 });
 
-describe('Step 2: aria role+name resolution', () => {
+describe('Step 2: clickable text resolution', () => {
   it('resolves button by name_contains "create and onboard"', () => {
     const doc = makeDoc();
     const r = new TargetResolver(doc);
     const result = r.resolve({ match: { role: 'button', name_contains: ['create and onboard'] } });
-    expect(result.resolvedVia).toBe('aria');
+    expect(result.resolvedVia).toBe('a11y_aria_label');
     expect(result.element?.tagName.toLowerCase()).toBe('button');
   });
 
-  it('returns resolvedVia aria', () => {
+  it('returns resolvedVia a11y_aria_label when aria-label is available', () => {
     const doc = makeDoc();
     const r = new TargetResolver(doc);
     const result = r.resolve({ match: { name_contains: ['create and onboard'] } });
-    expect(result.resolvedVia).toBe('aria');
+    expect(result.resolvedVia).toBe('a11y_aria_label');
   });
 
-  it('returns confidence 0.85', () => {
+  it('returns higher confidence for aria-label matches', () => {
     const doc = makeDoc();
     const r = new TargetResolver(doc);
     const result = r.resolve({ match: { name_contains: ['create and onboard'] } });
-    expect(result.confidence).toBe(0.85);
+    expect(result.confidence).toBe(0.92);
   });
 });
 

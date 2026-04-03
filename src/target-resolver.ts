@@ -1,5 +1,6 @@
 // Target Resolver — 6-step abstract target resolution algorithm
 // Confirmed working against real YeshID Vuetify 3 DOM structure
+import type { ResolutionMethod } from './runtime-contract.js';
 
 const GENERATED_ID_RE = /^(input-v-\d+|checkbox-v-\d+|_react_|react-\d+)$/;
 const CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -7,7 +8,7 @@ const CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 export interface ResolvedTarget {
   selector: string | null;
   confidence: number;
-  resolvedVia: 'cached' | 'aria' | 'vuetify_label_match' | 'contenteditable' | 'css_cascade' | 'escalate';
+  resolvedVia: ResolutionMethod;
   element?: Element | null;
 }
 
@@ -24,6 +25,20 @@ export interface AbstractTarget {
 
 export class TargetResolver {
   constructor(private doc: Document) {}
+
+  private stableSelector(el: Element): string | null {
+    const tag = el.tagName.toLowerCase();
+    const ariaLabel = el.getAttribute('aria-label');
+    if (ariaLabel) return `[aria-label="${ariaLabel}"]`;
+    const placeholder = (el as HTMLInputElement).placeholder;
+    if (placeholder) return `${tag}[placeholder="${placeholder}"]`;
+    const name = el.getAttribute('name');
+    if (name) return `${tag}[name="${name}"]`;
+    const testid = el.getAttribute('data-testid');
+    if (testid) return `[data-testid="${testid}"]`;
+    if ((el as HTMLElement).id && !GENERATED_ID_RE.test((el as HTMLElement).id)) return '#' + (el as HTMLElement).id;
+    return null;
+  }
 
   // ── Step 1 cache validity ─────────────────────────────────────────────────
   private isCacheValid(target: AbstractTarget): boolean {
@@ -82,41 +97,79 @@ export class TargetResolver {
       }
     }
 
-    // Step 2: ARIA — role + name_contains for buttons/roles
-    if (target.match?.name_contains) {
-      for (const name of target.match.name_contains) {
-        const buttons = Array.from(this.doc.querySelectorAll('button, [role="button"]'));
-        const btn = buttons.find(b =>
-          b.textContent?.trim().toLowerCase().includes(name.toLowerCase()) ||
-          b.getAttribute('aria-label')?.toLowerCase().includes(name.toLowerCase())
-        ) as Element | undefined;
-        if (btn) {
-          const id = btn.id && !GENERATED_ID_RE.test(btn.id) ? `#${btn.id}` : null;
-          return { selector: id, confidence: 0.85, resolvedVia: 'aria', element: btn };
+    const labels = target.match?.vuetify_label || target.semanticKeys || [];
+    const names = target.match?.name_contains || [];
+    const keys = [...new Set([...labels, ...names])];
+
+    // Step 2: A11y-first resolution
+    for (const key of keys) {
+      const byAria = this.doc.querySelector(`[aria-label*="${key}" i]`);
+      if (byAria) {
+        return {
+          selector: this.stableSelector(byAria) || `[aria-label*="${key}" i]`,
+          confidence: 0.92,
+          resolvedVia: 'a11y_aria_label',
+          element: byAria,
+        };
+      }
+
+      for (const label of Array.from(this.doc.querySelectorAll('label[for]'))) {
+        if (label.textContent?.toLowerCase().includes(key.toLowerCase())) {
+          const targetEl = this.doc.getElementById((label as HTMLLabelElement).htmlFor);
+          if (targetEl) {
+            return {
+              selector: this.stableSelector(targetEl) || `#${(label as HTMLLabelElement).htmlFor}`,
+              confidence: 0.9,
+              resolvedVia: 'a11y_label_for',
+              element: targetEl,
+            };
+          }
         }
+      }
+
+      const byPlaceholder = this.doc.querySelector(`[placeholder*="${key}" i]`);
+      if (byPlaceholder) {
+        return {
+          selector: this.stableSelector(byPlaceholder) || `[placeholder*="${key}" i]`,
+          confidence: 0.88,
+          resolvedVia: 'a11y_placeholder',
+          element: byPlaceholder,
+        };
       }
     }
 
     // Step 3: vuetify_label_match
-    const labels = target.match?.vuetify_label || target.semanticKeys || [];
     for (const labelText of labels) {
       const el = this.findInputByLabelText(labelText);
       if (el) {
-        const id = (el as HTMLElement).id;
-        const selector = id && !GENERATED_ID_RE.test(id) ? `#${id}` : null;
+        const selector = this.stableSelector(el);
         // Even with generated IDs we still return the element — selector may be null
         return { selector, confidence: 0.88, resolvedVia: 'vuetify_label_match', element: el };
       }
     }
 
-    // Step 4: contenteditable
+    // Step 4: text/role matching for clickable targets
+    if (names.length) {
+      for (const name of names) {
+        const clickables = Array.from(this.doc.querySelectorAll('a[href], a, button, [role="button"], [role="menuitem"], [role="option"]'));
+        const btn = clickables.find(b =>
+          b.textContent?.trim().toLowerCase().includes(name.toLowerCase()) ||
+          b.getAttribute('aria-label')?.toLowerCase().includes(name.toLowerCase())
+        ) as Element | undefined;
+        if (btn) {
+          return { selector: this.stableSelector(btn), confidence: 0.85, resolvedVia: 'text_match', element: btn };
+        }
+      }
+    }
+
+    // Step 5: contenteditable
     const ce = this.doc.querySelector('[contenteditable="true"]');
     if (ce) {
       const id = (ce as HTMLElement).id;
       return { selector: id ? `#${id}` : null, confidence: 0.6, resolvedVia: 'contenteditable', element: ce };
     }
 
-    // Step 5: css cascade — fallback selectors, skipping generated IDs
+    // Step 6: css cascade — fallback selectors, skipping generated IDs
     for (const sel of (target.fallbackSelectors || [])) {
       // Skip selectors that target only generated IDs
       if (GENERATED_ID_RE.test(sel.replace('#', ''))) continue;
@@ -126,7 +179,7 @@ export class TargetResolver {
       }
     }
 
-    // Step 6: escalate
+    // Step 7: escalate
     return { selector: null, confidence: 0, resolvedVia: 'escalate', element: null };
   }
 }

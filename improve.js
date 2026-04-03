@@ -38,8 +38,11 @@ function mergeTarget(registry, targetName, update) {
   if (!existing) return; // Only update targets already in the registry
 
   const now = Date.now();
-  const cachedAt = existing.cachedAt ? new Date(existing.cachedAt).getTime() : 0;
-  const isStale = (now - cachedAt) > MAX_CACHED_AGE_MS;
+  const existingResolvedOn = existing.resolvedOn || existing.cachedAt;
+  const resolvedOnMs = existingResolvedOn ? new Date(existingResolvedOn).getTime() : 0;
+  const isStale = (now - resolvedOnMs) > MAX_CACHED_AGE_MS;
+  const normalizedResolvedOn = update.resolvedOn || update.cachedAt || new Date().toISOString();
+  const normalizedResolvedVia = update.resolvedVia || update.resolutionMethod || 'unknown';
 
   const shouldUpdate =
     isStale ||
@@ -52,8 +55,9 @@ function mergeTarget(registry, targetName, update) {
       ...existing,
       cachedSelector: update.selector,
       cachedConfidence: update.confidence,
-      cachedAt: new Date().toISOString(),
-      resolutionMethod: update.resolutionMethod || 'unknown'
+      resolvedOn: normalizedResolvedOn,
+      resolutionMethod: normalizedResolvedVia,
+      resolvedVia: normalizedResolvedVia
     };
   } else {
     console.log(`  ~ ${targetName}: keeping existing (${existing.cachedConfidence.toFixed(2)} ≥ ${update.confidence.toFixed(2)})`);
