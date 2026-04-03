@@ -230,7 +230,7 @@ node ~/Projects/yeshie/improve.js \
   sites/yeshid/tasks/03-user-modify.payload.json \
   /tmp/chain-result.json
 ```
-Writes back `cachedSelector`, `cachedConfidence`, `resolvedOn`. After 5 runs, payload switches to `production` mode.
+The script now runs as ESM, derives the sibling `site.model.json` from the payload path, accepts both canonical runtime fields (`resolvedOn`, `resolvedVia`, `signaturesObserved`) and older legacy fields, and writes back `cachedSelector`, `cachedConfidence`, `resolvedOn`. After 5 runs, payload switches to `production` mode.
 
 ### 4. Expand config externalization
 Google account selection and extension relay/watcher endpoints are now configurable. Remaining local assumptions should move behind environment or extension settings as they surface.
