@@ -1,7 +1,7 @@
 # Yeshie Project State
 Updated: 2026-04-02T00:00:00Z
-Phase: Re-baseline after runtime contract hardening
-Last major change: target resolver/runtime contract upgrade landed, docs now being reconciled to the current implementation
+Phase: Re-baseline and contract cleanup
+Last major change: runtime/auth/config/improve paths reconciled with tests and incremental docs cleanup
 
 ## Passing Tests
 - unit/schema: 7/7
@@ -9,6 +9,7 @@ Last major change: target resolver/runtime contract upgrade landed, docs now bei
 - unit/dry-run: 13/13
 - unit/step-executor: 39/39
 - unit/runtime-contract: 3/3
+- unit/improve-script: 2/2
 - unit/listener: 7/7
 - unit/yeshid-behavior: 13/13
 - unit/relay-chat: PASS
@@ -18,7 +19,7 @@ Last major change: target resolver/runtime contract upgrade landed, docs now bei
 - unit/extract-docs: PASS
 - unit/sidepanel: PASS
 - unit/login-flow: PASS
-- TOTAL: 168/168
+- TOTAL: 176/176
 
 ## Integration Tests
 - 01-user-add: PASS (user created, "Workflow created." snackbar)
@@ -56,6 +57,7 @@ Last major change: target resolver/runtime contract upgrade landed, docs now bei
 1. Validate `05-integration-setup` against a real target and document the required pre-run checklist inputs.
 2. Run the full expired-session login recovery loop end to end, not just unit coverage.
 3. Continue moving stale docs toward the current extension + relay architecture so README/CLAUDE/PROJECT-STATE remain the current source of truth.
+4. Plan a deliberate tracked-artifact cleanup pass. Ignore rules are now in place, but the repo still contains already-tracked build/vendor noise.
 
 ## Key Learnings
 - vuetify_label_match uses div.mb-2 siblings (not .v-label in YeshID)

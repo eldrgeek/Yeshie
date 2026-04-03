@@ -25,7 +25,7 @@ The extension detects session expiry and handles Google SSO re-authentication:
 - **Caveat:** Not yet tested against a real expired session end-to-end
 
 ### Infrastructure
-168 tests passing across 14 suites (`npm test`). Both services run via launchd — no manual startup.
+176 tests passing across 15 suites (`npm test`). Both services run via launchd — no manual startup.
 
 | Service | launchd label | Log |
 |---------|--------------|-----|
@@ -151,7 +151,7 @@ All run via `chrome.scripting.executeScript` (pre-bundled, not eval).
 |   |-- step-executor.ts                <- action type handlers
 |   +-- dry-run.ts                      <- pre-flight resolution checker
 |-- tests/
-|   |-- unit/                           <- 14 test suites, 168 tests
+|   |-- unit/                           <- 15 test suites, 176 tests
 |   |   |-- target-resolver.test.ts
 |   |   |-- step-executor.test.ts
 |   |   |-- dry-run.test.ts
@@ -235,7 +235,10 @@ The script now runs as ESM, derives the sibling `site.model.json` from the paylo
 ### 4. Expand config externalization
 Google account selection and extension relay/watcher endpoints are now configurable. Remaining local assumptions should move behind environment or extension settings as they surface.
 
-### 5. Extend to other sites
+### 5. Repository hygiene
+Ignore rules now cover the generated extension output and local dependency trees, but many artifact files are still already tracked in git. Cleaning that historical debt will require an intentional removal pass rather than more ignore entries.
+
+### 6. Extend to other sites
 Three-layer architecture works for any site:
 1. Create `sites/{domain}/site.model.json`
 2. Create `sites/{domain}/tasks/` with payloads
