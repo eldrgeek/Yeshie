@@ -55,8 +55,14 @@ describe('Login flow: auth check integration in startRun', () => {
 
   it('calls waitForAuth when pre-chain auth check fails', () => {
     const startRunIdx = bgSource.indexOf('async function startRun(');
-    const waitForAuthIdx = bgSource.indexOf('waitForAuth(tabId, runId)', startRunIdx);
+    const waitForAuthIdx = bgSource.indexOf('waitForAuth(tabId, runId, authConfig)', startRunIdx);
     expect(waitForAuthIdx).toBeGreaterThan(startRunIdx);
+  });
+
+  it('derives auth config from payload params before auth recovery', () => {
+    const startRunIdx = bgSource.indexOf('async function startRun(');
+    const authConfigIdx = bgSource.indexOf('const authConfig = getAuthConfig(payload, params);', startRunIdx);
+    expect(authConfigIdx).toBeGreaterThan(startRunIdx);
   });
 });
 
@@ -227,6 +233,7 @@ describe('Login flow: overlay messaging', () => {
   it('waitForAuth has a configurable timeout', () => {
     const fnSignature = bgSource.match(/async function waitForAuth\(([^)]+)\)/);
     expect(fnSignature).toBeTruthy();
+    expect(fnSignature![1]).toContain('authConfig');
     expect(fnSignature![1]).toContain('authTimeoutMs');
     expect(fnSignature![1]).toContain('120000'); // default 120s
   });
@@ -239,5 +246,21 @@ describe('Login flow: overlay messaging', () => {
     expect(waitForAuthSection).toContain('Login timed out');
     // PRE_WAIT_FOR_AUTH (the in-page poller) reports timedOut
     expect(bgSource).toContain('timedOut');
+  });
+});
+
+describe('Login flow: auth account selection config', () => {
+  it('does not hardcode a Google account email in waitForAuth', () => {
+    expect(bgSource).not.toContain('mw@mike-wolf.com');
+  });
+
+  it('supports google_account_email from auth config', () => {
+    expect(bgSource).toContain('params?.google_account_email');
+    expect(bgSource).toContain('params?.sso_email');
+    expect(bgSource).toContain('payload?._meta?.auth?.googleAccountEmail');
+  });
+
+  it('falls back to manual account selection when no email is configured', () => {
+    expect(bgSource).toContain('Select your Google account manually');
   });
 });

@@ -20,8 +20,8 @@
 The extension detects session expiry and handles Google SSO re-authentication:
 - **Pre-chain:** `PRE_CHECK_AUTH` runs before any chain; if unauthenticated, triggers `waitForAuth`
 - **Mid-chain:** navigate handler detects redirect to `/login` and returns `auth_required`; chain loop calls `waitForAuth` then retries the failed step
-- **`waitForAuth` flow:** navigates to YeshID login -> clicks "Sign in with Google" -> detects `accounts.google.com` tab URL -> runs `PRE_CLICK_GOOGLE_ACCOUNT(mw@mike-wolf.com)` -> polls for redirect back to YeshID with nav drawer present
-- **Note:** Google account email is hardcoded as `mw@mike-wolf.com` — should be parameterized later
+- **`waitForAuth` flow:** navigates to the configured `base_url` login page -> clicks "Sign in with Google" -> detects `accounts.google.com` tab URL -> optionally runs `PRE_CLICK_GOOGLE_ACCOUNT(google_account_email)` -> polls for redirect back to the app with nav drawer present
+- **Config:** pass `google_account_email` or `sso_email` in params, or set `_meta.auth.googleAccountEmail` in the payload to enable automatic account selection. If omitted, the flow waits for manual account choice.
 - **Caveat:** Not yet tested against a real expired session end-to-end
 
 ### Infrastructure
@@ -230,8 +230,8 @@ node ~/Projects/yeshie/improve.js \
 ```
 Writes back `cachedSelector`, `cachedConfidence`, `resolvedOn`. After 5 runs, payload switches to `production` mode.
 
-### 4. Parameterize Google account email
-Currently hardcoded as `mw@mike-wolf.com` in `waitForAuth`. Should come from payload params or site config.
+### 4. Expand config externalization
+Google account selection is now parameterized. Remaining hardcoded local config includes relay/build endpoints and should move behind environment or extension settings next.
 
 ### 5. Extend to other sites
 Three-layer architecture works for any site:

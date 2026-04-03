@@ -3,6 +3,7 @@ import { createResolvedTargetUpdate, createSurpriseEvidence } from '../../../../
 
 export default defineBackground(() => {
   console.log('[Yeshie] Background worker started');
+  const DEFAULT_BASE_URL = 'https://app.yeshid.com';
 
   // ── Relay socket connection ──────────────────────────────────────────────────
   const RELAY_URL = 'http://localhost:3333';
@@ -1008,10 +1009,25 @@ export default defineBackground(() => {
     try { chrome.tabs.sendMessage(tabId, msg); } catch (_) {}
   }
 
+  function getAuthConfig(payload: any, params: Record<string, any>) {
+    return {
+      baseUrl: params?.base_url || payload?.defaults?.base_url || DEFAULT_BASE_URL,
+      googleAccountEmail:
+        params?.google_account_email ||
+        params?.sso_email ||
+        payload?._meta?.auth?.googleAccountEmail ||
+        payload?.auth?.googleAccountEmail ||
+        null,
+    };
+  }
+
   // ── Auth recovery ─────────────────────────────────────────────────────────────
   // Pauses chain execution, clicks SSO, selects Google account, waits for redirect back
-  async function waitForAuth(tabId: number, runId: string, authTimeoutMs: number = 120000): Promise<{ authenticated: boolean; waitMs: number }> {
+  async function waitForAuth(tabId: number, runId: string, authConfig: { baseUrl?: string; googleAccountEmail?: string | null } = {}, authTimeoutMs: number = 120000): Promise<{ authenticated: boolean; waitMs: number }> {
     console.log('[Yeshie] Auth required — entering auth wait flow');
+    const baseUrl = authConfig.baseUrl || DEFAULT_BASE_URL;
+    const loginUrl = new URL('/login', baseUrl).toString();
+    const googleAccountEmail = authConfig.googleAccountEmail || null;
 
     // Show overlay to user
     sendOverlay(tabId, {
@@ -1029,7 +1045,7 @@ export default defineBackground(() => {
     // Step 1: Get to the YeshID login page and click Google SSO
     const authCheck = await execInTab(tabId, PRE_CHECK_AUTH, []);
     if (!authCheck?.onLoginPage) {
-      await navigateAndWait(tabId, 'https://app.yeshid.com/login');
+      await navigateAndWait(tabId, loginUrl);
       await new Promise(r => setTimeout(r, 1000));
     }
     const ssoResult = await execInTab(tabId, PRE_CLICK_SSO_BUTTON, []);
@@ -1051,16 +1067,19 @@ export default defineBackground(() => {
         console.log('[Yeshie] Auth polling, tab URL:', tabUrl);
 
         if (tabUrl.includes('accounts.google.com')) {
-          // We're on the Google account chooser — click the primary account
-          // The ssoEmail param comes from the site model or defaults to the first workspace account
-          await new Promise(r => setTimeout(r, 1500)); // let the page render
-          const clickResult = await execInTab(tabId, PRE_CLICK_GOOGLE_ACCOUNT, ['mw@mike-wolf.com']);
-          console.log('[Yeshie] Google account click result:', clickResult);
-          googleAccountClicked = clickResult?.clicked || false;
-          if (googleAccountClicked) {
-            sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-account', status: 'ok' });
+          if (googleAccountEmail) {
+            await new Promise(r => setTimeout(r, 1500)); // let the page render
+            const clickResult = await execInTab(tabId, PRE_CLICK_GOOGLE_ACCOUNT, [googleAccountEmail]);
+            console.log('[Yeshie] Google account click result:', clickResult);
+            googleAccountClicked = clickResult?.clicked || false;
+            if (googleAccountClicked) {
+              sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-account', status: 'ok' });
+            }
+          } else {
+            console.log('[Yeshie] No google_account_email configured — waiting for manual account selection');
+            sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-account', status: 'pending', detail: 'Select your Google account manually' });
           }
-        } else if (tabUrl.includes('app.yeshid.com') && !tabUrl.includes('/login')) {
+        } else if (tabUrl.startsWith(baseUrl) && !isLoginUrl(tabUrl)) {
           // Already redirected back — SSO was auto-completed (cached session)
           googleAccountClicked = true;
           sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-account', status: 'ok', detail: 'Auto-login' });
@@ -1080,8 +1099,8 @@ export default defineBackground(() => {
       try {
         const tab = await chrome.tabs.get(tabId);
         const tabUrl = tab?.url || '';
-        // Check if we're back on YeshID (not login page)
-        if (tabUrl.includes('app.yeshid.com') && !tabUrl.includes('/login')) {
+        // Check if we're back on the configured app (not login page)
+        if (tabUrl.startsWith(baseUrl) && !isLoginUrl(tabUrl)) {
           // Verify DOM is ready with nav drawer
           const check = await execInTab(tabId, PRE_CHECK_AUTH, []);
           if (check?.authenticated) {
@@ -1144,10 +1163,11 @@ export default defineBackground(() => {
     //   - the payload sets _meta.skipAuthCheck (for non-YeshID sites like Okta)
     const firstStepIsAssess = chain[0]?.action === 'assess_state';
     const skipAuthCheck = payload._meta?.skipAuthCheck === true;
+    const authConfig = getAuthConfig(payload, params);
     if (!firstStepIsAssess && !skipAuthCheck) {
       const preAuth = await execInTab(tabId, PRE_CHECK_AUTH, []);
       if (preAuth && !preAuth.authenticated) {
-        const authResult = await waitForAuth(tabId, runId);
+        const authResult = await waitForAuth(tabId, runId, authConfig);
         if (!authResult.authenticated) {
           run.status = 'failed';
           run.result = buildChainResult(run, t0, false, 'Authentication failed — user did not complete login within timeout');
@@ -1198,7 +1218,7 @@ export default defineBackground(() => {
           run.stepResults.push({ ...res, note: 'auth_recovery_triggered' });
           sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: step.stepId, status: 'running', detail: 'Session expired — waiting for login…' });
 
-          const authResult = await waitForAuth(tabId, runId);
+          const authResult = await waitForAuth(tabId, runId, authConfig);
           if (!authResult.authenticated) {
             run.status = 'failed';
             run.result = buildChainResult(run, t0, false, 'Authentication failed mid-chain — login timed out');
