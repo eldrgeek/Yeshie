@@ -133,8 +133,18 @@ function handleResponse(resp: any, chatId?: string) {
     const intro = r.text || r.content || `Let me walk you through this (${r.steps.length} steps).`;
     addMessage('assistant', intro, chatId);
     addMessage('system', `\u{1F393} Starting guided walkthrough\u2026`);
-    // Send teach_start to background, which forwards to the active tab's content script
-    chrome.runtime.sendMessage({ type: 'teach_start', steps: r.steps });
+    // Await delivery confirmation — if it fails, tell the user what to do
+    chrome.runtime.sendMessage({ type: 'teach_start', steps: r.steps }, (result) => {
+      if (result?.ok) {
+        // Success — tooltip is now showing in the tab
+      } else {
+        const errMsg = result?.error || 'Could not start walkthrough';
+        // Remove the "Starting guided walkthrough" system message and show error
+        const sysMessages = messagesEl.querySelectorAll('.system-message');
+        sysMessages[sysMessages.length - 1]?.remove();
+        addMessage('error', `\u26A0\uFE0F ${errMsg}`);
+      }
+    });
     return;
   }
 

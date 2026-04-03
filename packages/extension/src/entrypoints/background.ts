@@ -1,4 +1,5 @@
 import { io } from 'socket.io-client';
+import { createResolvedTargetUpdate, createSurpriseEvidence } from '../../../../src/runtime-contract.js';
 
 export default defineBackground(() => {
   console.log('[Yeshie] Background worker started');
@@ -68,6 +69,57 @@ export default defineBackground(() => {
   // ── Run state ────────────────────────────────────────────────────────────────
   const runs = new Map<string, any>();
   const abortFlags = new Map<string, boolean>();
+
+  function collectSurpriseEvidence(stepResults: any[] = [], topLevelError?: string) {
+    const collected = stepResults.flatMap((r: any) => Array.isArray(r?.surpriseEvidence) ? r.surpriseEvidence : []);
+    if (topLevelError && collected.length === 0) {
+      collected.push(createSurpriseEvidence('unexpected_ui', { details: topLevelError }));
+    }
+    return collected;
+  }
+
+  function normalizeResolvedTargets(resolvedTargets: any[] = []) {
+    const normalized: Record<string, any> = {};
+    for (const target of resolvedTargets) {
+      if (!target?.abstractName) continue;
+      normalized[target.abstractName] = createResolvedTargetUpdate(
+        target.selector ?? null,
+        target.confidence ?? 0,
+        target.resolvedVia ?? 'escalate',
+        target.resolvedAt || target.resolvedOn || new Date().toISOString()
+      );
+    }
+    return normalized;
+  }
+
+  function buildChainResult(run: any, startedAt: number, success: boolean, error?: string) {
+    const surpriseEvidence = collectSurpriseEvidence(run.stepResults, error);
+    const resolvedTargets = normalizeResolvedTargets(run.resolvedTargets);
+    const modelUpdates = {
+      resolvedTargets,
+      newTargetsDiscovered: [],
+      statesObserved: run.stepResults
+        .map((r: any) => r?.state)
+        .filter(Boolean),
+      signaturesObserved: {},
+      surpriseEvidence,
+    };
+    return {
+      event: 'chain_complete',
+      goalReached: success,
+      success,
+      error,
+      payloadName: run.payload?._meta?.task || run.payload?.runId || 'unknown',
+      site: run.payload?.site || run.params?.base_url || 'unknown',
+      stepsExecuted: run.stepResults.length,
+      stepResults: run.stepResults,
+      buffer: run.buffer,
+      durationMs: Date.now() - startedAt,
+      resolvedTargets: run.resolvedTargets,
+      modelUpdates,
+      surpriseEvidence,
+    };
+  }
 
   // Keep-alive: prevent service worker suspension ALWAYS (relay needs persistent connection)
   // MV3 workers sleep after ~30s idle — the alarm fires every 24s to keep the worker alive
@@ -732,7 +784,22 @@ export default defineBackground(() => {
         const currentUrl = await execInTab(tabId, () => window.location.href, []);
         if (currentUrl && isLoginUrl(currentUrl) && !isLoginUrl(url)) {
           // We asked for a real page but got redirected to login — session expired
-          return { stepId: step.stepId, action: a, status: 'auth_required', url: currentUrl, requestedUrl: url, durationMs: Date.now() - t0 };
+          return {
+            stepId: step.stepId,
+            action: a,
+            status: 'auth_required',
+            url: currentUrl,
+            requestedUrl: url,
+            surpriseEvidence: [
+              createSurpriseEvidence('url_mismatch', {
+                stepId: step.stepId,
+                expected: url,
+                observed: currentUrl,
+                details: 'Navigation redirected to login',
+              }),
+            ],
+            durationMs: Date.now() - t0,
+          };
         }
         return { stepId: step.stepId, action: a, status: 'ok', url: r.url, durationMs: Date.now() - t0 };
       }
@@ -839,7 +906,15 @@ export default defineBackground(() => {
         const sg = step.stateGraph || run.payload?.stateGraph || { nodes: {} };
         const r = await execInTab(tabId, PRE_ASSESS_STATE, [sg]);
         const matched = !step.expect?.state || r?.state === step.expect.state;
-        return { stepId: step.stepId, action: a, status: 'ok', state: r?.state, matched, durationMs: Date.now() - t0 };
+        const surpriseEvidence = matched ? undefined : [
+          createSurpriseEvidence('state_mismatch', {
+            stepId: step.stepId,
+            expected: step.expect?.state,
+            observed: r?.state || 'unknown',
+            details: 'assess_state did not match expected state',
+          }),
+        ];
+        return { stepId: step.stepId, action: a, status: 'ok', state: r?.state, matched, surpriseEvidence, durationMs: Date.now() - t0 };
       }
 
       if (a === 'js') {
@@ -897,7 +972,34 @@ export default defineBackground(() => {
       return { stepId: step.stepId, action: a, status: 'unsupported', durationMs: Date.now() - t0 };
 
     } catch (err: any) {
-      return { stepId: step.stepId, action: a, status: 'error', error: err.message, durationMs: Date.now() - t0 };
+      const message = err.message;
+      let surpriseEvidence: any[] | undefined;
+      if (message.includes('Cannot resolve') || message.includes('No selector for') || message.includes('Row not found') || message.includes('Text not found') || message.includes('Not found:')) {
+        surpriseEvidence = [createSurpriseEvidence('target_not_found', {
+          stepId: step.stepId,
+          target: step.target || step.selector || step.text || step.identifier,
+          details: message,
+        })];
+      } else if (message.includes('wait_for url timeout')) {
+        surpriseEvidence = [createSurpriseEvidence('url_mismatch', {
+          stepId: step.stepId,
+          expected: interpolate(step.url_pattern || '', { ...params, ...buffer }),
+          observed: await execInTab(tabId, () => window.location.href, []),
+          details: message,
+        })];
+      } else if (message.includes('wait_for timeout')) {
+        surpriseEvidence = [createSurpriseEvidence('guard_timeout', {
+          stepId: step.stepId,
+          target: step.selector || step.target,
+          details: message,
+        })];
+      } else {
+        surpriseEvidence = [createSurpriseEvidence('unexpected_ui', {
+          stepId: step.stepId,
+          details: message,
+        })];
+      }
+      return { stepId: step.stepId, action: a, status: 'error', error: message, surpriseEvidence, durationMs: Date.now() - t0 };
     }
   }
 
@@ -1037,15 +1139,18 @@ export default defineBackground(() => {
 
     // ── Pre-chain auth check ──────────────────────────────────────────────────
     // Before executing any steps, verify the user is authenticated.
-    // Skip this check if the first step is already an assess_state (payload handles it).
+    // Skip this check if:
+    //   - the first step is already an assess_state (payload handles it)
+    //   - the payload sets _meta.skipAuthCheck (for non-YeshID sites like Okta)
     const firstStepIsAssess = chain[0]?.action === 'assess_state';
-    if (!firstStepIsAssess) {
+    const skipAuthCheck = payload._meta?.skipAuthCheck === true;
+    if (!firstStepIsAssess && !skipAuthCheck) {
       const preAuth = await execInTab(tabId, PRE_CHECK_AUTH, []);
       if (preAuth && !preAuth.authenticated) {
         const authResult = await waitForAuth(tabId, runId);
         if (!authResult.authenticated) {
           run.status = 'failed';
-          run.result = { success: false, error: 'Authentication failed — user did not complete login within timeout', stepsExecuted: 0, stepResults: [], buffer: run.buffer, durationMs: Date.now() - t0, resolvedTargets: [] };
+          run.result = buildChainResult(run, t0, false, 'Authentication failed — user did not complete login within timeout');
           await chrome.storage.session.set({ [runId]: run.result });
           return;
         }
@@ -1075,7 +1180,7 @@ export default defineBackground(() => {
             sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: chain[j].stepId, status: 'skipped' });
           }
           run.status = 'aborted';
-          run.result = { success: false, error: 'Aborted by user', stepsExecuted: run.stepResults.length, stepResults: run.stepResults, buffer: run.buffer, durationMs: Date.now() - t0, resolvedTargets: run.resolvedTargets };
+          run.result = buildChainResult(run, t0, false, 'Aborted by user');
           await chrome.storage.session.set({ [runId]: run.result });
           break;
         }
@@ -1096,7 +1201,7 @@ export default defineBackground(() => {
           const authResult = await waitForAuth(tabId, runId);
           if (!authResult.authenticated) {
             run.status = 'failed';
-            run.result = { success: false, error: 'Authentication failed mid-chain — login timed out', stepsExecuted: run.stepResults.length, stepResults: run.stepResults, buffer: run.buffer, durationMs: Date.now() - t0, resolvedTargets: run.resolvedTargets };
+            run.result = buildChainResult(run, t0, false, 'Authentication failed mid-chain — login timed out');
             await chrome.storage.session.set({ [runId]: run.result });
             sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: step.stepId, status: 'error', detail: 'Login timed out' });
             return;
@@ -1142,7 +1247,7 @@ export default defineBackground(() => {
             run.stepResults.push(bRes);
             if (bRes.status === 'error') {
               run.status = 'failed';
-              run.result = { success: false, error: bRes.error, stepsExecuted: run.stepResults.length, stepResults: run.stepResults, buffer: run.buffer, durationMs: Date.now() - t0, resolvedTargets: run.resolvedTargets };
+              run.result = buildChainResult(run, t0, false, bRes.error);
               await chrome.storage.session.set({ [runId]: run.result });
               return;
             }
@@ -1151,7 +1256,7 @@ export default defineBackground(() => {
 
         if (res.status === 'error') {
           run.status = 'failed';
-          run.result = { success: false, error: res.error, stepsExecuted: run.stepResults.length, stepResults: run.stepResults, buffer: run.buffer, durationMs: Date.now() - t0, resolvedTargets: run.resolvedTargets };
+          run.result = buildChainResult(run, t0, false, res.error);
           await chrome.storage.session.set({ [runId]: run.result });
           return;
         }
@@ -1159,13 +1264,13 @@ export default defineBackground(() => {
 
       if (run.status !== 'aborted') {
         run.status = 'complete';
-        run.result = { success: true, stepsExecuted: run.stepResults.length, stepResults: run.stepResults, buffer: run.buffer, durationMs: Date.now() - t0, resolvedTargets: run.resolvedTargets };
+        run.result = buildChainResult(run, t0, true);
         await chrome.storage.session.set({ [runId]: run.result });
       }
 
     } catch (err: any) {
       run.status = 'failed';
-      run.result = { success: false, error: err.message, stepsExecuted: run.stepResults.length, stepResults: run.stepResults, buffer: run.buffer, durationMs: Date.now() - t0, resolvedTargets: run.resolvedTargets };
+      run.result = buildChainResult(run, t0, false, err.message);
       await chrome.storage.session.set({ [runId]: run.result });
     } finally {
       // Release debugger at end of chain (info bar disappears)
@@ -1276,38 +1381,66 @@ export default defineBackground(() => {
       return true;
     }
     if (msg.type === 'teach_start' || msg.type === 'teach_goto' || msg.type === 'teach_end') {
-      // Forward teach messages to the best available tab
-      // Try multiple strategies since the sidepanel's "currentWindow" may not match
+      // Forward teach messages to the best available tab.
+      // If the content overlay isn't loaded (common after hot-reload), inject it first.
       (async () => {
+        // Find best tab
         let targetTabId: number | undefined;
-        // Strategy 1: active tab in last-focused window
         const focused = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
         const realTab = focused.find(t => t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('chrome-extension://'));
         if (realTab?.id) {
           targetTabId = realTab.id;
         } else {
-          // Strategy 2: any YeshID tab
           const yeshidTabs = await chrome.tabs.query({ url: 'https://app.yeshid.com/*' });
           if (yeshidTabs[0]?.id) targetTabId = yeshidTabs[0].id;
           else {
-            // Strategy 3: any https tab
             const allTabs = await chrome.tabs.query({ url: 'https://*/*' });
             if (allTabs[0]?.id) targetTabId = allTabs[0].id;
           }
         }
-        if (targetTabId) {
-          const teachMsg: any = { type: msg.type };
-          if (msg.type === 'teach_start') teachMsg.steps = msg.steps;
-          if (msg.type === 'teach_goto') teachMsg.stepIndex = msg.stepIndex;
-          try {
-            await chrome.tabs.sendMessage(targetTabId, teachMsg);
-          } catch (e: any) {
-            console.warn('[Yeshie] Failed to send teach message to tab', targetTabId, e.message);
-          }
-        } else {
-          console.warn('[Yeshie] No suitable tab found for teach message');
+
+        if (!targetTabId) {
+          sendResponse({ ok: false, error: 'No suitable tab found. Open the YeshID page first.' });
+          return;
         }
-        sendResponse({ ok: true, tabId: targetTabId || null });
+
+        const teachMsg: any = { type: msg.type };
+        if (msg.type === 'teach_start') teachMsg.steps = msg.steps;
+        if (msg.type === 'teach_goto') teachMsg.stepIndex = msg.stepIndex;
+
+        // Attempt to send; if content script not loaded, inject it and retry once
+        const trySend = async (): Promise<{ ok: boolean; error?: string }> => {
+          try {
+            await chrome.tabs.sendMessage(targetTabId!, teachMsg);
+            return { ok: true };
+          } catch (_) {
+            return { ok: false };
+          }
+        };
+
+        let result = await trySend();
+        if (!result.ok) {
+          // Content overlay not injected — inject it now (happens after hot-reload)
+          console.log('[Yeshie] Content overlay not loaded in tab', targetTabId, '— injecting');
+          try {
+            await chrome.scripting.executeScript({
+              target: { tabId: targetTabId! },
+              files: ['content-overlay.js']
+            });
+            await new Promise(r => setTimeout(r, 300)); // let it initialise
+            result = await trySend();
+          } catch (injectErr: any) {
+            console.warn('[Yeshie] Failed to inject content overlay:', injectErr.message);
+            sendResponse({ ok: false, error: `Could not inject overlay into tab ${targetTabId}: ${injectErr.message}` });
+            return;
+          }
+        }
+
+        if (!result.ok) {
+          sendResponse({ ok: false, error: 'Content overlay loaded but message delivery still failed. Try navigating the YeshID tab.' });
+        } else {
+          sendResponse({ ok: true, tabId: targetTabId });
+        }
       })();
       return true;
     }
