@@ -1,0 +1,6 @@
+.build-count
+.output/
+.wxt/
+.build/
+.vite/
+node_modules/

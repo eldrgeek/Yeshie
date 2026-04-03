@@ -1,0 +1,20 @@
+.DS_Store
+logs/
+chain-result.json
+
+# Local dependency installs
+node_modules/
+packages/relay/node_modules/
+packages/extension/node_modules/
+
+# Extension build outputs and caches
+packages/extension/.output/
+packages/extension/.wxt/
+packages/extension/.build/
+packages/extension/.vite/
+packages/extension/.web-extension-id
+
+# Local watcher state
+packages/extension/.build-count
+packages/extension/.cache/
+
