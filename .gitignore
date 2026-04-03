@@ -13,8 +13,8 @@ packages/extension/.wxt/
 packages/extension/.build/
 packages/extension/.vite/
 packages/extension/.web-extension-id
+packages/extension/background.js
 
 # Local watcher state
 packages/extension/.build-count
 packages/extension/.cache/
-
