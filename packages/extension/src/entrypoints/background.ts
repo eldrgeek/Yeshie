@@ -1013,9 +1013,18 @@ export default defineBackground(() => {
     try { chrome.tabs.sendMessage(tabId, msg); } catch (_) {}
   }
 
+  // Auth types:
+  //   'sso_automatable' — Google/GitHub SSO, extension can click through (YeshID, many SaaS apps)
+  //   'manual_required' — MFA/phone push, user must complete login (Okta, Azure AD, Duo-protected)
+  //   'none'            — no auth needed or auth handled externally
   function getAuthConfig(payload: any, params: Record<string, any>) {
     return {
       baseUrl: params?.base_url || payload?.defaults?.base_url || DEFAULT_BASE_URL,
+      // Auth type from site model, payload, or params — defaults to sso_automatable for backward compat
+      authType:
+        params?.auth_type ||
+        payload?._meta?.auth?.type ||
+        'sso_automatable',
       googleAccountEmail:
         params?.google_account_email ||
         params?.sso_email ||
@@ -1125,11 +1134,24 @@ export default defineBackground(() => {
     return { authenticated: false, waitMs: Date.now() - t0 };
   }
 
-  // Check if a URL indicates the user has been redirected to login
+  // Check if a URL indicates the user has been redirected to a login/auth page.
+  // Covers multiple patterns:
+  //   - YeshID: /login
+  //   - Okta: /oauth2/v1/authorize (OAuth2 PKCE redirect)
+  //   - Generic: /signin, /sign-in, /auth/*, /sso/*
   function isLoginUrl(url: string): boolean {
     try {
       const u = new URL(url);
-      return u.pathname === '/login' || u.pathname === '/login/';
+      const p = u.pathname;
+      return (
+        p === '/login' || p === '/login/' ||
+        p === '/signin' || p === '/signin/' ||
+        p === '/sign-in' || p === '/sign-in/' ||
+        /^\/oauth2\/.*\/authorize\/?$/.test(p) ||  // Okta OAuth2 authorize
+        /^\/oauth2\/v[12]\/authorize\/?$/.test(p) || // Okta /oauth2/v1/authorize
+        /^\/auth\//.test(p) ||                       // Generic /auth/* paths
+        /^\/sso\//.test(p)                           // Generic /sso/* paths
+      );
     } catch { return false; }
   }
 
@@ -1164,11 +1186,36 @@ export default defineBackground(() => {
     // Before executing any steps, verify the user is authenticated.
     // Skip this check if:
     //   - the first step is already an assess_state (payload handles it)
-    //   - the payload sets _meta.skipAuthCheck (for non-YeshID sites like Okta)
+    //   - the payload sets _meta.skipAuthCheck
+    //   - authType is 'none' or 'manual_required' (no pre-chain auto-auth)
+    //   - the current tab URL is on a different domain than the auth baseUrl
+    //     (the chain's first navigate step will take us to the right site)
     const firstStepIsAssess = chain[0]?.action === 'assess_state';
     const skipAuthCheck = payload._meta?.skipAuthCheck === true;
     const authConfig = getAuthConfig(payload, params);
-    if (!firstStepIsAssess && !skipAuthCheck) {
+
+    // Site-aware auth: only run automated pre-chain auth for sso_automatable sites
+    // where the current tab is on the auth domain
+    const canAutoAuth = authConfig.authType === 'sso_automatable';
+    let tabOnAuthDomain = true;
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      const tabHost = tab.url ? new URL(tab.url).hostname : '';
+      const authHost = new URL(authConfig.baseUrl || DEFAULT_BASE_URL).hostname;
+      tabOnAuthDomain = tabHost === authHost;
+      if (!tabOnAuthDomain) {
+        console.log(`[Yeshie] Tab domain (${tabHost}) differs from auth domain (${authHost}) — skipping pre-chain auth check`);
+      }
+    } catch (e) {
+      console.log('[Yeshie] Could not determine tab URL for auth check, skipping:', e);
+      tabOnAuthDomain = false;
+    }
+
+    if (!canAutoAuth && !firstStepIsAssess) {
+      console.log(`[Yeshie] Auth type is '${authConfig.authType}' — skipping pre-chain automated auth (mid-chain detection still active)`);
+    }
+
+    if (!firstStepIsAssess && !skipAuthCheck && canAutoAuth && tabOnAuthDomain) {
       const preAuth = await execInTab(tabId, PRE_CHECK_AUTH, []);
       if (preAuth && !preAuth.authenticated) {
         const authResult = await waitForAuth(tabId, runId, authConfig);
@@ -1218,33 +1265,96 @@ export default defineBackground(() => {
         let res = await executeStep(step, run);
 
         // Mid-chain auth recovery: if a step reports auth_required, pause, recover, and retry
+        // Only attempt auth recovery if the tab is on the auth domain (e.g. YeshID).
+        // On non-YeshID sites, report the failure and let the caller handle it.
         if (res.status === 'auth_required') {
-          run.stepResults.push({ ...res, note: 'auth_recovery_triggered' });
-          sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: step.stepId, status: 'running', detail: 'Session expired — waiting for login…' });
+          let midChainAuthDomainMatch = false;
+          try {
+            const midTab = await chrome.tabs.get(tabId);
+            const midTabHost = midTab.url ? new URL(midTab.url).hostname : '';
+            const midAuthHost = new URL(authConfig.baseUrl || DEFAULT_BASE_URL).hostname;
+            midChainAuthDomainMatch = midTabHost === midAuthHost;
+          } catch { midChainAuthDomainMatch = false; }
 
-          const authResult = await waitForAuth(tabId, runId, authConfig);
-          if (!authResult.authenticated) {
-            run.status = 'failed';
-            run.result = buildChainResult(run, t0, false, 'Authentication failed mid-chain — login timed out');
-            await chrome.storage.session.set({ [runId]: run.result });
-            sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: step.stepId, status: 'error', detail: 'Login timed out' });
-            return;
+          if (!midChainAuthDomainMatch) {
+            // Non-YeshID-domain auth required — wait for user to manually authenticate
+            // instead of running the YeshID SSO flow
+            const requestedUrl = res.requestedUrl || res.url || '';
+            let expectedHost = '';
+            try { expectedHost = new URL(requestedUrl).hostname; } catch {}
+            console.log(`[Yeshie] Mid-chain auth_required on non-auth domain (${expectedHost}) — waiting for manual login`);
+            run.stepResults.push({ ...res, note: 'auth_required_manual_wait' });
+            sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: step.stepId, status: 'running', detail: 'Session expired — please log in to continue…' });
+
+            // Poll for user to complete login: tab should return to the expected domain
+            const manualAuthTimeout = 120000;
+            const manualAuthStart = Date.now();
+            let manualAuthSuccess = false;
+            while (Date.now() - manualAuthStart < manualAuthTimeout) {
+              if (abortFlags.get(runId)) break;
+              await new Promise(r => setTimeout(r, 2000));
+              try {
+                const pollTab = await chrome.tabs.get(tabId);
+                const pollHost = pollTab.url ? new URL(pollTab.url).hostname : '';
+                // User has logged in and returned to the expected domain (not on auth/login page)
+                if (expectedHost && pollHost === expectedHost && !isLoginUrl(pollTab.url || '')) {
+                  manualAuthSuccess = true;
+                  break;
+                }
+              } catch { /* tab might be navigating */ }
+            }
+
+            if (!manualAuthSuccess) {
+              run.status = 'failed';
+              run.result = buildChainResult(run, t0, false, 'Manual authentication timed out — please log in and retry');
+              await chrome.storage.session.set({ [runId]: run.result });
+              sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: step.stepId, status: 'error', detail: 'Login timed out' });
+              return;
+            }
+
+            console.log(`[Yeshie] Manual auth completed — resuming chain`);
+            // Re-show the task overlay and retry the step
+            sendOverlay(tabId, {
+              type: 'overlay_show',
+              runId,
+              taskName: (payload._meta?.description || 'Running task') + ' (resumed after login)',
+              steps: chain.map((s: any, idx: number) => ({
+                stepId: s.stepId,
+                label: s.note || s.action + ' ' + (s.target || s.selector || s.text || ''),
+                status: idx < i ? 'ok' : idx === i ? 'running' : 'pending'
+              }))
+            });
+            res = await executeStep(step, run);
+            // Fall through to normal result handling below
+          } else {
+            // YeshID-domain auth recovery — use automated SSO flow
+            run.stepResults.push({ ...res, note: 'auth_recovery_triggered' });
+            sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: step.stepId, status: 'running', detail: 'Session expired — waiting for login…' });
+
+            const authResult = await waitForAuth(tabId, runId, authConfig);
+            if (!authResult.authenticated) {
+              run.status = 'failed';
+              run.result = buildChainResult(run, t0, false, 'Authentication failed mid-chain — login timed out');
+              await chrome.storage.session.set({ [runId]: run.result });
+              sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: step.stepId, status: 'error', detail: 'Login timed out' });
+              return;
+            }
+
+            // Re-show the task overlay (auth overlay replaced it)
+            sendOverlay(tabId, {
+              type: 'overlay_show',
+              runId,
+              taskName: (payload._meta?.description || 'Running task') + ' (resumed)',
+              steps: chain.map((s: any, idx: number) => ({
+                stepId: s.stepId,
+                label: s.note || s.action + ' ' + (s.target || s.selector || s.text || ''),
+                status: idx < i ? 'ok' : idx === i ? 'running' : 'pending'
+              }))
+            });
+
+            // Retry the step after auth recovery
+            res = await executeStep(step, run);
           }
-
-          // Re-show the task overlay (auth overlay replaced it)
-          sendOverlay(tabId, {
-            type: 'overlay_show',
-            runId,
-            taskName: (payload._meta?.description || 'Running task') + ' (resumed)',
-            steps: chain.map((s: any, idx: number) => ({
-              stepId: s.stepId,
-              label: s.note || s.action + ' ' + (s.target || s.selector || s.text || ''),
-              status: idx < i ? 'ok' : idx === i ? 'running' : 'pending'
-            }))
-          });
-
-          // Retry the step after auth recovery
-          res = await executeStep(step, run);
         }
 
         run.stepResults.push(res);

@@ -64,6 +64,36 @@ describe('Login flow: auth check integration in startRun', () => {
     const authConfigIdx = bgSource.indexOf('const authConfig = getAuthConfig(payload, params);', startRunIdx);
     expect(authConfigIdx).toBeGreaterThan(startRunIdx);
   });
+
+  it('skips pre-chain auth check when tab domain differs from auth domain', () => {
+    expect(bgSource).toContain('tabOnAuthDomain');
+    expect(bgSource).toContain('differs from auth domain');
+    // The condition should include canAutoAuth and tabOnAuthDomain
+    expect(bgSource).toContain('!firstStepIsAssess && !skipAuthCheck && canAutoAuth && tabOnAuthDomain');
+  });
+
+  it('skips automated auth for manual_required and none auth types', () => {
+    expect(bgSource).toContain("authConfig.authType === 'sso_automatable'");
+    expect(bgSource).toContain('canAutoAuth');
+  });
+});
+
+describe('Login flow: site-aware mid-chain auth recovery', () => {
+  it('detects foreign domain and waits for manual auth instead of YeshID SSO', () => {
+    expect(bgSource).toContain('auth_required_manual_wait');
+    expect(bgSource).toContain('please log in to continue');
+  });
+
+  it('polls for user to return to expected domain after manual login', () => {
+    expect(bgSource).toContain('Manual auth completed');
+    expect(bgSource).toContain('pollHost === expectedHost');
+  });
+
+  it('uses YeshID SSO flow only when tab is on auth domain', () => {
+    // The else branch should contain the YeshID-specific auth recovery
+    expect(bgSource).toContain('YeshID-domain auth recovery');
+    expect(bgSource).toContain('auth_recovery_triggered');
+  });
 });
 
 describe('Login flow: mid-chain auth detection in navigate', () => {
@@ -89,7 +119,7 @@ describe('Login flow: mid-chain auth detection in navigate', () => {
   it('handles auth_required in the chain loop with recovery', () => {
     // The chain loop should detect auth_required and call waitForAuth
     const chainLoopStart = bgSource.indexOf('for (let i = 0; i < chain.length; i++)');
-    const chainLoopSection = bgSource.slice(chainLoopStart, chainLoopStart + 3000);
+    const chainLoopSection = bgSource.slice(chainLoopStart, chainLoopStart + 8000);
     expect(chainLoopSection).toContain("res.status === 'auth_required'");
     expect(chainLoopSection).toContain('waitForAuth');
     expect(chainLoopSection).toContain('auth_recovery_triggered');
@@ -97,7 +127,7 @@ describe('Login flow: mid-chain auth detection in navigate', () => {
 
   it('retries the failed step after successful auth recovery', () => {
     const chainLoopStart = bgSource.indexOf('for (let i = 0; i < chain.length; i++)');
-    const chainLoopSection = bgSource.slice(chainLoopStart, chainLoopStart + 3000);
+    const chainLoopSection = bgSource.slice(chainLoopStart, chainLoopStart + 8000);
     // Should re-execute the step after auth
     expect(chainLoopSection).toContain('Retry the step after auth recovery');
     expect(chainLoopSection).toContain('res = await executeStep(step, run)');
@@ -181,14 +211,24 @@ describe('Login flow: PRE_CLICK_SSO_BUTTON DOM behavior', () => {
 // ── isLoginUrl tests ────────────────────────────────────────────────────────
 
 describe('Login flow: isLoginUrl', () => {
-  // Extract the function logic
+  // Mirror the generalized function from background.ts
   function isLoginUrl(url: string): boolean {
     try {
       const u = new URL(url);
-      return u.pathname === '/login' || u.pathname === '/login/';
+      const p = u.pathname;
+      return (
+        p === '/login' || p === '/login/' ||
+        p === '/signin' || p === '/signin/' ||
+        p === '/sign-in' || p === '/sign-in/' ||
+        /^\/oauth2\/.*\/authorize\/?$/.test(p) ||
+        /^\/oauth2\/v[12]\/authorize\/?$/.test(p) ||
+        /^\/auth\//.test(p) ||
+        /^\/sso\//.test(p)
+      );
     } catch { return false; }
   }
 
+  // YeshID patterns
   it('detects /login path', () => {
     expect(isLoginUrl('https://app.yeshid.com/login')).toBe(true);
   });
@@ -197,6 +237,34 @@ describe('Login flow: isLoginUrl', () => {
     expect(isLoginUrl('https://app.yeshid.com/login/')).toBe(true);
   });
 
+  // Okta OAuth2 patterns
+  it('detects Okta OAuth2 authorize redirect', () => {
+    expect(isLoginUrl('https://trial-8689388.okta.com/oauth2/v1/authorize?client_id=okta.2b1959c8&response_type=code')).toBe(true);
+  });
+
+  it('detects OAuth2 authorize with custom auth server', () => {
+    expect(isLoginUrl('https://dev-12345.okta.com/oauth2/default/authorize')).toBe(true);
+  });
+
+  // Generic SSO/auth patterns
+  it('detects /signin path', () => {
+    expect(isLoginUrl('https://example.com/signin')).toBe(true);
+  });
+
+  it('detects /sign-in path', () => {
+    expect(isLoginUrl('https://example.com/sign-in')).toBe(true);
+  });
+
+  it('detects /auth/* paths', () => {
+    expect(isLoginUrl('https://example.com/auth/login')).toBe(true);
+    expect(isLoginUrl('https://example.com/auth/saml')).toBe(true);
+  });
+
+  it('detects /sso/* paths', () => {
+    expect(isLoginUrl('https://example.com/sso/redirect')).toBe(true);
+  });
+
+  // Negative cases
   it('does not match /login-callback', () => {
     expect(isLoginUrl('https://app.yeshid.com/login-callback')).toBe(false);
   });
@@ -207,6 +275,15 @@ describe('Login flow: isLoginUrl', () => {
 
   it('does not match /overview', () => {
     expect(isLoginUrl('https://app.yeshid.com/overview')).toBe(false);
+  });
+
+  it('does not match Okta admin pages', () => {
+    expect(isLoginUrl('https://trial-8689388-admin.okta.com/admin/users')).toBe(false);
+    expect(isLoginUrl('https://trial-8689388-admin.okta.com/admin/apps/active')).toBe(false);
+  });
+
+  it('does not match Okta authenticated landing', () => {
+    expect(isLoginUrl('https://trial-8689388.okta.com/app/UserHome?session_hint=AUTHENTICATED')).toBe(false);
   });
 
   it('handles invalid URLs gracefully', () => {
