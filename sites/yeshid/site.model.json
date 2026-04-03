@@ -8,7 +8,15 @@
     "framework": "vue",
     "frameworkDetail": "Vuetify 3 (v-application detected). No ARIA labels on form inputs. Use vuetify_label_match resolution.",
     "lastExplored": "2026-04-02",
-    "exploredBy": "yeshie-04-site-explore automated crawl"
+    "exploredBy": "yeshie-04-site-explore automated crawl",
+    "auth": {
+      "type": "sso_automatable",
+      "provider": "google",
+      "loginPath": "/login",
+      "ssoButtonSelector": "button:has-text('Sign in with Google')",
+      "authenticatedSignal": ".v-navigation-drawer a[href=\"/overview\"]",
+      "notes": "Google SSO — extension can click through automatically if google_account_email is configured"
+    }
   },
   "stateGraph": {
     "nodes": {

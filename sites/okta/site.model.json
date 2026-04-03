@@ -1,0 +1,261 @@
+{
+  "_meta": {
+    "site": "okta",
+    "domain": "trial-8689388-admin.okta.com",
+    "framework": "Material-UI (MUI)",
+    "frameworkDetail": "MuiButtonBase-root, MuiButton-root class prefixes detected. NOT Vuetify.",
+    "version": "Okta 2026.03.3 E (OIE - Okta Identity Engine)",
+    "discoveredOn": "2026-04-02",
+    "lastExplored": "2026-04-02",
+    "explorationRunCount": 1,
+    "auth": {
+      "type": "manual_required",
+      "mechanism": "OAuth2 PKCE + Okta session",
+      "loginPathPattern": "/oauth2/.*/authorize",
+      "authenticatedSignal": "url contains /admin/ or /app/UserHome",
+      "notes": "Okta uses OAuth2 PKCE redirect for auth. May require MFA (phone push, authenticator app). Extension cannot automate — must pause and wait for user to complete login."
+    }
+  },
+
+  "states": {
+    "unauthenticated": {
+      "url_patterns": ["/login*", "/signin*"],
+      "detection_signals": ["login form visible", "no admin sidebar"],
+      "transitions": ["authenticate → getting-started"]
+    },
+    "getting-started": {
+      "url": "/admin/getting-started",
+      "detection_signals": [
+        "H1 contains 'Getting started'",
+        "H2 contains 'Setting up Single Sign-on'",
+        "H2 contains 'Multifactor Authentication'"
+      ],
+      "links": {
+        "add-app": "/admin/apps/add-app",
+        "add-admin": "/admin/access/admins",
+        "select-authenticators": "/admin/access/multifactor",
+        "configure-policy": "/admin/access/new-policies#sign-on"
+      },
+      "transitions": ["navigate → any admin page"]
+    },
+    "dashboard": {
+      "url": "/admin/dashboard",
+      "detection_signals": ["table with Type/Items/Description headers", "rate limit search link"],
+      "tables": [{"headers": ["Type0", "Items0", "Description", "View", ""]}],
+      "transitions": ["navigate → any admin page"]
+    },
+    "users-list": {
+      "url": "/admin/users",
+      "detection_signals": [
+        "H1 contains 'People'",
+        "table with Person & username/Primary email/Status headers",
+        "search textarea with placeholder 'Search for users by first name, primary email or username'"
+      ],
+      "key_elements": {
+        "add_person_link": "a:has-text('Add person') [href='#']",
+        "reset_passwords_link": "a[href='/admin/user/reset_pass']",
+        "more_actions_link": "a:has-text('More actions')",
+        "advanced_search_link": "a:has-text('Advanced search')",
+        "search_textarea": "textarea[placeholder*='Search for users']"
+      },
+      "tables": [{"headers": ["Person & username", "Primary email", "Status"]}],
+      "known_users": [
+        {"name": "Perplexity AI", "profile_url": "/admin/user/profile/view/00u11li6wefRTyiKx698"},
+        {"name": "ChatGPT OpenAI", "profile_url": "/admin/user/profile/view/00u11li2jqqGOd3Lm698"},
+        {"name": "Grok xAI", "profile_url": "/admin/user/profile/view/00u11lib65eeRAt0h698"},
+        {"name": "Gemini Google", "profile_url": "/admin/user/profile/view/00u11libzk14aJVmO698"},
+        {"name": "Claude Anthropic", "profile_url": "/admin/user/profile/view/00u11li1n9nsGaoiX698"},
+        {"name": "Michael Wolf", "profile_url": "/admin/user/profile/view/00u11lcq3lk8XQjBt698"}
+      ],
+      "transitions": [
+        "click Add person → add-person-dialog",
+        "click user row → user-detail",
+        "click More actions → more-actions-menu"
+      ]
+    },
+    "user-detail": {
+      "url_pattern": "/admin/user/profile/view/{userId}",
+      "detection_signals": ["user profile visible", "H2 may contain 'Activate Person' or 'Reset Password'"],
+      "transitions": ["back → users-list"]
+    },
+    "groups-list": {
+      "url": "/admin/groups",
+      "detection_signals": [
+        "H1 contains 'Groups'",
+        "search textarea with placeholder 'Search by group name'",
+        "table with Group name/People/Applications headers"
+      ],
+      "key_elements": {
+        "search_textarea": "textarea[placeholder*='Search by group name']"
+      },
+      "tables": [{"headers": ["Group name", "People", "Applications"]}],
+      "transitions": ["click group row → group-detail"]
+    },
+    "applications-list": {
+      "url": "/admin/apps/active",
+      "detection_signals": [
+        "H1 contains 'Applications'",
+        "H3 contains 'STATUS'",
+        "search input with placeholder 'Search'"
+      ],
+      "key_elements": {
+        "create_app_link": "a:has-text('Create App Integration') [href='#']",
+        "browse_catalog_link": "a[href='/admin/apps/add-app']",
+        "assign_users_link": "a[href='/admin/app/bulk-assign']",
+        "search_input": "input[placeholder='Search']",
+        "active_tab": "a:has-text('ACTIVE')",
+        "inactive_tab": "a:has-text('INACTIVE')"
+      },
+      "known_apps": [
+        {"name": "Okta Admin Console", "url": "/admin/app/saasure/instance/0oa11lcq3hvMSM5Zi698/"},
+        {"name": "Okta Browser Plugin", "url": "/admin/app/okta_browser_plugin/instance/0oa11lcq3kbpHYihz698/"},
+        {"name": "Okta Dashboard", "url": "/admin/app/okta_enduser/instance/0oa11lcq3ipCPuWI9698/"},
+        {"name": "Okta Workflows", "url": "/admin/app/okta_flow_sso/instance/0oa11ld7emwY2ZGnB698/"},
+        {"name": "Okta Workflows OAuth", "url": "/admin/app/flow/instance/0oa11ld7enlSeDeYv698/"}
+      ],
+      "transitions": [
+        "click Create App Integration → create-app-dialog",
+        "click Browse App Catalog → add-app-page",
+        "click app row → application-detail"
+      ]
+    },
+    "add-app-page": {
+      "url": "/admin/apps/add-app",
+      "detection_signals": ["app catalog visible"],
+      "transitions": ["select app → app-config"]
+    },
+    "application-detail": {
+      "url_pattern": "/admin/app/{appType}/instance/{appId}/",
+      "detection_signals": ["app config visible"],
+      "transitions": ["back → applications-list"]
+    },
+    "api-tokens": {
+      "url": "/admin/access/api/tokens",
+      "detection_signals": [
+        "H1 contains 'API'",
+        "table with Name/Role/Status/Actions headers",
+        "tabs: Authorization Servers, Tokens, Trusted Origins"
+      ],
+      "key_elements": {
+        "create_token_link": "a:has-text('Create token') [href='#']",
+        "auth_servers_tab": "a[href='#tab-oauth-as']",
+        "tokens_tab": "a[href='#tab-api-tokens']",
+        "trusted_origins_tab": "a[href='#tab-trusted-origins']",
+        "token_id_input": "input[type='password'][placeholder='Token ID']"
+      },
+      "tables": [{"headers": ["Name", "Role", "Status", "Actions"]}],
+      "transitions": [
+        "click Create token → create-token-dialog",
+        "click tab → switch tab panel"
+      ]
+    },
+    "security": {
+      "url": "/admin/security",
+      "detection_signals": ["security page loaded"],
+      "note": "Returned empty on first exploration — may redirect or require sub-path",
+      "transitions": ["navigate to sub-section"]
+    },
+    "mfa-settings": {
+      "url": "/admin/access/multifactor",
+      "detection_signals": ["authenticator settings visible"],
+      "transitions": []
+    },
+    "admins": {
+      "url": "/admin/access/admins",
+      "detection_signals": ["admin list visible"],
+      "transitions": []
+    },
+    "policies": {
+      "url": "/admin/access/new-policies#sign-on",
+      "detection_signals": ["policy list visible"],
+      "transitions": []
+    }
+  },
+
+  "abstractTargets": {
+    "add-person-link": {
+      "description": "Add person link on users page",
+      "semanticKeys": ["text contains 'Add person'"],
+      "cachedSelector": "a:has-text('Add person')",
+      "cachedConfidence": 0.85,
+      "resolvedOn": "2026-04-02",
+      "note": "href='#', triggers JS dialog"
+    },
+    "search-users-textarea": {
+      "description": "Search textarea on users page",
+      "semanticKeys": ["placeholder contains 'Search for users'"],
+      "cachedSelector": "textarea[placeholder*='Search for users by first name']",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-02"
+    },
+    "reset-passwords-link": {
+      "description": "Reset passwords link on users page",
+      "semanticKeys": ["text contains 'Reset passwords'"],
+      "cachedSelector": "a[href='/admin/user/reset_pass']",
+      "cachedConfidence": 0.90,
+      "resolvedOn": "2026-04-02"
+    },
+    "create-app-link": {
+      "description": "Create App Integration link on apps page",
+      "semanticKeys": ["text contains 'Create App Integration'"],
+      "cachedSelector": "a:has-text('Create App Integration')",
+      "cachedConfidence": 0.85,
+      "resolvedOn": "2026-04-02",
+      "note": "href='#', triggers JS dialog"
+    },
+    "browse-catalog-link": {
+      "description": "Browse App Catalog link on apps page",
+      "semanticKeys": ["text contains 'Browse App Catalog'"],
+      "cachedSelector": "a[href='/admin/apps/add-app']",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-02"
+    },
+    "search-apps-input": {
+      "description": "Search input on applications page",
+      "semanticKeys": ["placeholder equals 'Search'"],
+      "cachedSelector": "input[placeholder='Search']",
+      "cachedConfidence": 0.90,
+      "resolvedOn": "2026-04-02"
+    },
+    "create-token-link": {
+      "description": "Create token link on API tokens page",
+      "semanticKeys": ["text contains 'Create token'"],
+      "cachedSelector": "a:has-text('Create token')",
+      "cachedConfidence": 0.85,
+      "resolvedOn": "2026-04-02",
+      "note": "href='#', triggers JS dialog"
+    },
+    "search-groups-textarea": {
+      "description": "Search textarea on groups page",
+      "semanticKeys": ["placeholder contains 'Search by group name'"],
+      "cachedSelector": "textarea[placeholder*='Search by group name']",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-02"
+    },
+    "user-menu-button": {
+      "description": "User profile dropdown in top bar",
+      "semanticKeys": ["text contains 'Michael Wolf'"],
+      "cachedSelector": "button:has-text('Michael Wolf')",
+      "cachedConfidence": 0.80,
+      "resolvedOn": "2026-04-02",
+      "note": "Contains org name 'embeddedsystemsresearch-trial-8689388'"
+    },
+    "contact-us-button": {
+      "description": "Contact us button in top bar",
+      "semanticKeys": ["text contains 'Contact us'"],
+      "cachedSelector": "button:has-text('Contact us')",
+      "cachedConfidence": 0.90,
+      "resolvedOn": "2026-04-02"
+    }
+  },
+
+  "observedSignatures": {
+    "page_loaded": {
+      "responses": [
+        "H1 heading appears with page title",
+        "table loads with data rows",
+        "Contact us button visible in top bar"
+      ]
+    }
+  }
+}

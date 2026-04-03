@@ -1,0 +1,880 @@
+{
+  "page_getting_started": {
+    "buttons": [
+      {
+        "ariaLabel": null,
+        "classes": "MuiButtonBase-root MuiButton-root MuiButton-secondary MuiButton-secondaryPrimary MuiButton-sizeMedium",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": "Contact us"
+      },
+      {
+        "ariaLabel": "help menu",
+        "classes": "MuiButtonBase-root MuiButton-root MuiButton-floating MuiButton-floatingPrimary MuiButton-sizeSmall",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": ""
+      },
+      {
+        "ariaLabel": "user profile",
+        "classes": "MuiButtonBase-root MuiButton-root MuiButton-floating MuiButton-floatingPrimary MuiButton-sizeLarge",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": "Michael Wolfembeddedsystemsresearch-trial-8689388"
+      },
+      {
+        "ariaLabel": null,
+        "classes": "video-button",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": "Learn about automation with user provisioning (1:58 min)"
+      },
+      {
+        "ariaLabel": null,
+        "classes": "video-button",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": "Learn about up-to-date entitlement with employee role change"
+      },
+      {
+        "ariaLabel": null,
+        "classes": "video-button",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": "Learn about modernizing legacy and new apps (1:16 min)"
+      },
+      {
+        "ariaLabel": null,
+        "classes": "video-button",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": "Learn about customizable device assurance policies (1:16 min"
+      },
+      {
+        "ariaLabel": null,
+        "classes": "video-button",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": "Learn about secure access for your workforce from anywhere ("
+      }
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Getting startedThe essentials to set up your organization in Okta."
+      },
+      {
+        "level": "H2",
+        "text": "Setting up Single Sign-on"
+      },
+      {
+        "level": "H3",
+        "text": "Add users to Okta"
+      },
+      {
+        "level": "H3",
+        "text": "Add an app to use Single Sign-on"
+      },
+      {
+        "level": "H3",
+        "text": "Add another Okta admin"
+      },
+      {
+        "level": "H2",
+        "text": "Multifactor Authentication (MFA)"
+      },
+      {
+        "level": "H3",
+        "text": "Select authenticators"
+      },
+      {
+        "level": "H3",
+        "text": "Require MFA to access Okta"
+      }
+    ],
+    "inputs": [],
+    "links": [
+      {
+        "href": "//help.okta.com/okta_help.htm?type=oie&locale=en&id=csh_dirintmain",
+        "text": "Learn more"
+      },
+      {
+        "href": "//help.okta.com/okta_help.htm?type=oie&locale=en&id=Applications_Applications",
+        "text": "Learn more"
+      },
+      {
+        "href": "/admin/apps/add-app",
+        "text": "Add App"
+      },
+      {
+        "href": "//help.okta.com/okta_help.htm?type=oie&locale=en&id=csh-administrators-admin-comparison",
+        "text": "Learn more"
+      },
+      {
+        "href": "/admin/access/admins",
+        "text": "Add Admin"
+      },
+      {
+        "href": "//help.okta.com/okta_help.htm?type=oie&locale=en&id=csh-configure-authenticators",
+        "text": "Learn more"
+      },
+      {
+        "href": "/admin/access/multifactor",
+        "text": "Select authenticators"
+      },
+      {
+        "href": "//help.okta.com/okta_help.htm?type=oie&locale=en&id=csh-oie-osop",
+        "text": "Learn more"
+      },
+      {
+        "href": "/admin/access/new-policies#sign-on",
+        "text": "Configure Policy"
+      },
+      {
+        "href": "http://www.okta.com",
+        "text": "Okta, Inc."
+      },
+      {
+        "href": "https://okta.com/privacy-policy",
+        "text": "Privacy"
+      },
+      {
+        "href": "https://status.okta.com",
+        "text": "Status site"
+      },
+      {
+        "href": "//help.okta.com/okta_help.htm?type=oie&locale=en&id=csh-index",
+        "text": "Version 2026.03.3 E"
+      },
+      {
+        "href": "https://support.okta.com/help/s/ideas",
+        "text": "Feedback"
+      }
+    ],
+    "navLinks": [],
+    "pageUrl": "/admin/getting-started",
+    "tables": []
+  },
+  "page_dashboard": {
+    "buttons": [
+      {
+        "ariaLabel": null,
+        "classes": "MuiButtonBase-root MuiButton-root MuiButton-secondary MuiButton-secondaryPrimary MuiButton-sizeMedium",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": "Contact us"
+      },
+      {
+        "ariaLabel": "help menu",
+        "classes": "MuiButtonBase-root MuiButton-root MuiButton-floating MuiButton-floatingPrimary MuiButton-sizeSmall",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": ""
+      },
+      {
+        "ariaLabel": "user profile",
+        "classes": "MuiButtonBase-root MuiButton-root MuiButton-floating MuiButton-floatingPrimary MuiButton-sizeLarge",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": "Michael Wolfembeddedsystemsresearch-trial-8689388"
+      },
+      {
+        "ariaLabel": null,
+        "classes": "MuiButtonBase-root MuiButton-root MuiButton-floating MuiButton-floatingPrimary MuiButton-sizeSmall",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": "View"
+      },
+      {
+        "ariaLabel": null,
+        "classes": "MuiButtonBase-root MuiButton-root MuiButton-primary MuiButton-primaryPrimary MuiButton-sizeMedium",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": "Click here to search for rate limit events"
+      }
+    ],
+    "headings": [],
+    "inputs": [
+      {
+        "ariaLabel": null,
+        "id": "",
+        "label": null,
+        "tag": "SELECT",
+        "type": "select-one"
+      }
+    ],
+    "links": [
+      {
+        "href": "/admin/users",
+        "text": "Users"
+      },
+      {
+        "href": "/admin/users",
+        "text": "Import users"
+      },
+      {
+        "href": "/admin/groups",
+        "text": "Groups"
+      },
+      {
+        "href": "/admin/groups",
+        "text": "Import groups"
+      },
+      {
+        "href": "/admin/apps/active",
+        "text": "SSO Apps"
+      },
+      {
+        "href": "/admin/apps/active",
+        "text": "Add an app"
+      },
+      {
+        "href": "https://status.okta.com",
+        "text": "Okta service"
+      },
+      {
+        "href": "/admin/dashboard/agents",
+        "text": "Agents"
+      },
+      {
+        "href": "/report/system_log_2?search=%28outcome.result+eq+%22SUCCESS%22+and+%28eventType+eq+%22application.policy.sign_on.update%22+or+eventType+eq+%22policy.lifecycle.update%22+or+eventType+eq+%22policy.rule.update%22+or+eventType+eq+%22security.threat.configuration.update%22+or+eventType+eq+%22event_hook.updated%22+or+eventType+eq+%22inline_hook.updated%22+or+eventType+eq+%22oauth2.claim.updated%22+or+eventType+eq+%22oauth2.scope.updated%22+or+eventType+eq+%22zone.update%22+or+eventType+eq+%22network_zone.rule.disabled%22+or+eventType+eq+%22oauth2.as.activated%22+or+eventType+eq+%22system.agent.ad.deactivate%22+or+eventType+eq+%22system.agent.ad.reactivate%22+or+eventType+eq+%22system.agent.connector.deactivate%22+or+eventType+eq+%22system.agent.connector.reactivate%22+or+eventType+eq+%22group.privilege.grant%22+or+eventType+eq+%22group.privilege.revoke%22+or+eventType+eq+%22app.oauth2.client.privilege.grant%22+or+eventType+eq+%22app.oauth2.client.privilege.revoke%22+or+eventType+eq+%22user.account.privilege.grant%22+or+eventType+eq+%22user.account.privilege.revoke%22%29%29&fromTime=2026-01-03T00%3A18%3A34.149Z",
+        "text": "View all"
+      },
+      {
+        "href": "/report/system_log_2?search=uuid+eq+%22768861a8-2edf-11f1-bb8c-01223c450bad%22&fromTime=2026-03-27T00%3A18%3A34.149Z",
+        "text": "View"
+      },
+      {
+        "href": "/report/system_log_2?search=%28actor.id+eq+%22spr11lcq3hmsOeNwL698%22+and+%28outcome.result+eq+%22SUCCESS%22+and+%28eventType+eq+%22application.policy.sign_on.update%22+or+eventType+eq+%22policy.lifecycle.update%22+or+eventType+eq+%22policy.rule.update%22+or+eventType+eq+%22security.threat.configuration.update%22+or+eventType+eq+%22event_hook.updated%22+or+eventType+eq+%22inline_hook.updated%22+or+eventType+eq+%22oauth2.claim.updated%22+or+eventType+eq+%22oauth2.scope.updated%22+or+eventType+eq+%22zone.update%22+or+eventType+eq+%22network_zone.rule.disabled%22+or+eventType+eq+%22oauth2.as.activated%22+or+eventType+eq+%22system.agent.ad.deactivate%22+or+eventType+eq+%22system.agent.ad.reactivate%22+or+eventType+eq+%22system.agent.connector.deactivate%22+or+eventType+eq+%22system.agent.connector.reactivate%22+or+eventType+eq+%22group.privilege.grant%22+or+eventType+eq+%22group.privilege.revoke%22+or+eventType+eq+%22app.oauth2.client.privilege.grant%22+or+eventType+eq+%22app.oauth2.client.privilege.revoke%22+or+eventType+eq+%22user.account.privilege.grant%22+or+eventType+eq+%22user.account.privilege.revoke%22%29%29%29&fromTime=2026-03-27T00%3A18%3A34.149Z",
+        "text": "Okta System"
+      },
+      {
+        "href": "/report/system_log_2?search=uuid+eq+%22766e22df-2edf-11f1-bb8c-01223c450bad%22&fromTime=2026-03-27T00%3A18%3A34.149Z",
+        "text": "View"
+      },
+      {
+        "href": "/report/system_log_2?search=uuid+eq+%2276682f6e-2edf-11f1-bb8c-01223c450bad%22&fromTime=2026-03-27T00%3A18%3A34.149Z",
+        "text": "View"
+      },
+      {
+        "href": "/report/system_log_2?search=uuid+eq+%227661c6cb-2edf-11f1-bb8c-01223c450bad%22&fromTime=2026-03-27T00%3A18%3A34.149Z",
+        "text": "View"
+      },
+      {
+        "href": "/report/system_log_2?search=uuid+eq+%22765b853a-2edf-11f1-bb8c-01223c450bad%22&fromTime=2026-03-27T00%3A18%3A34.149Z",
+        "text": "View"
+      },
+      {
+        "href": "/admin/apps/active",
+        "text": "View all apps"
+      },
+      {
+        "href": "/admin/access/healthinsight",
+        "text": "View HealthInsight"
+      },
+      {
+        "href": "/report/system_log_2?search=eventType+eq+\"security.threat.detected\"",
+        "text": "View"
+      },
+      {
+        "href": "/admin/access/general",
+        "text": "Enable it to automatically block IP addresses identified as "
+      },
+      {
+        "href": "/report/system_log_2?search=eventType+eq+\"user.account.report_suspicious_activity_by_enduser\"",
+        "text": "View"
+      },
+      {
+        "href": "/reports/rate-limit",
+        "text": "View"
+      },
+      {
+        "href": "http://www.okta.com",
+        "text": "Okta, Inc."
+      },
+      {
+        "href": "https://okta.com/privacy-policy",
+        "text": "Privacy"
+      },
+      {
+        "href": "https://status.okta.com",
+        "text": "Status site"
+      },
+      {
+        "href": "//help.okta.com/okta_help.htm?type=oie&locale=en&id=csh-index",
+        "text": "Version 2026.03.3 E"
+      },
+      {
+        "href": "https://support.okta.com/help/s/ideas",
+        "text": "Feedback"
+      }
+    ],
+    "navLinks": [],
+    "pageUrl": "/admin/dashboard",
+    "tables": [
+      {
+        "headers": [
+          "Type0",
+          "Items0",
+          "Description",
+          "View",
+          ""
+        ],
+        "rowCount": 1,
+        "sampleRows": [
+          [
+            "To-do",
+            "1",
+            "Assign the super admin role to another user",
+            "View",
+            ""
+          ]
+        ]
+      }
+    ]
+  },
+  "page_users": {
+    "buttons": [
+      {
+        "ariaLabel": null,
+        "classes": "MuiButtonBase-root MuiButton-root MuiButton-secondary MuiButton-secondaryPrimary MuiButton-sizeMedium",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": "Contact us"
+      },
+      {
+        "ariaLabel": "help menu",
+        "classes": "MuiButtonBase-root MuiButton-root MuiButton-floating MuiButton-floatingPrimary MuiButton-sizeSmall",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": ""
+      },
+      {
+        "ariaLabel": "user profile",
+        "classes": "MuiButtonBase-root MuiButton-root MuiButton-floating MuiButton-floatingPrimary MuiButton-sizeLarge",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": "Michael Wolfembeddedsystemsresearch-trial-8689388"
+      }
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "People"
+      },
+      {
+        "level": "H2",
+        "text": "Activate Person"
+      },
+      {
+        "level": "H2",
+        "text": "Reset Password"
+      }
+    ],
+    "inputs": [
+      {
+        "ariaLabel": null,
+        "id": "",
+        "label": null,
+        "placeholder": "Search for users by first name, primary email or username",
+        "tag": "TEXTAREA",
+        "type": "textarea"
+      },
+      {
+        "ariaLabel": null,
+        "id": "",
+        "label": null,
+        "placeholder": "",
+        "tag": "INPUT",
+        "type": "text"
+      }
+    ],
+    "links": [
+      {
+        "href": "//help.okta.com/okta_help.htm?type=oie&locale=en&id=Directory_People",
+        "text": "Help"
+      },
+      {
+        "href": "#",
+        "text": "Add person"
+      },
+      {
+        "href": "/admin/user/reset_pass",
+        "text": "Reset passwords"
+      },
+      {
+        "href": "#",
+        "text": "More actions"
+      },
+      {
+        "href": "#",
+        "text": "Advanced search"
+      },
+      {
+        "href": "#",
+        "text": "All"
+      },
+      {
+        "href": "/admin/user/profile/view/00u11lcq3lk8XQjBt698",
+        "text": "Michael Wolf"
+      },
+      {
+        "href": "http://www.okta.com",
+        "text": "Okta, Inc."
+      },
+      {
+        "href": "https://okta.com/privacy-policy",
+        "text": "Privacy"
+      },
+      {
+        "href": "https://status.okta.com",
+        "text": "Status site"
+      },
+      {
+        "href": "//help.okta.com/okta_help.htm?type=oie&locale=en&id=csh-index",
+        "text": "Version 2026.03.3 E"
+      },
+      {
+        "href": "https://support.okta.com/help/s/ideas",
+        "text": "Feedback"
+      }
+    ],
+    "navLinks": [],
+    "pageUrl": "/admin/users",
+    "tables": [
+      {
+        "headers": [
+          "Person & username",
+          "Primary email",
+          "Status"
+        ],
+        "rowCount": 1,
+        "sampleRows": [
+          [
+            "Michael Wolfmike@embeddedsystemsresearch.org",
+            "mike@embeddedsystemsresearch.org",
+            "Active"
+          ]
+        ]
+      }
+    ]
+  },
+  "page_groups": {
+    "buttons": [
+      {
+        "ariaLabel": null,
+        "classes": "MuiButtonBase-root MuiButton-root MuiButton-secondary MuiButton-secondaryPrimary MuiButton-sizeMedium",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": "Contact us"
+      },
+      {
+        "ariaLabel": "help menu",
+        "classes": "MuiButtonBase-root MuiButton-root MuiButton-floating MuiButton-floatingPrimary MuiButton-sizeSmall",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": ""
+      },
+      {
+        "ariaLabel": "user profile",
+        "classes": "MuiButtonBase-root MuiButton-root MuiButton-floating MuiButton-floatingPrimary MuiButton-sizeLarge",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": "Michael Wolfembeddedsystemsresearch-trial-8689388"
+      }
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Groups"
+      }
+    ],
+    "inputs": [
+      {
+        "ariaLabel": null,
+        "id": "",
+        "label": null,
+        "placeholder": "Search by group name",
+        "tag": "TEXTAREA",
+        "type": "textarea"
+      },
+      {
+        "ariaLabel": null,
+        "id": "",
+        "label": null,
+        "placeholder": "",
+        "tag": "INPUT",
+        "type": "text"
+      }
+    ],
+    "links": [
+      {
+        "href": "//help.okta.com/okta_help.htm?type=oie&locale=en&id=Directory_Groups",
+        "text": "Help"
+      },
+      {
+        "href": "#",
+        "text": "All"
+      },
+      {
+        "href": "#rules",
+        "text": "Rules"
+      },
+      {
+        "href": "#",
+        "text": "Advanced search"
+      },
+      {
+        "href": "#",
+        "text": "Add group"
+      },
+      {
+        "href": "/admin/group/00g11lcq3joc6MpFO698",
+        "text": "Everyone"
+      },
+      {
+        "href": "/admin/group/00g11lcq3jpcMYofS698",
+        "text": "Okta Administrators"
+      },
+      {
+        "href": "http://www.okta.com",
+        "text": "Okta, Inc."
+      },
+      {
+        "href": "https://okta.com/privacy-policy",
+        "text": "Privacy"
+      },
+      {
+        "href": "https://status.okta.com",
+        "text": "Status site"
+      },
+      {
+        "href": "//help.okta.com/okta_help.htm?type=oie&locale=en&id=csh-index",
+        "text": "Version 2026.03.3 E"
+      },
+      {
+        "href": "https://support.okta.com/help/s/ideas",
+        "text": "Feedback"
+      }
+    ],
+    "navLinks": [],
+    "pageUrl": "/admin/groups",
+    "tables": [
+      {
+        "headers": [
+          "Group name",
+          "People",
+          "Applications"
+        ],
+        "rowCount": 2,
+        "sampleRows": [
+          [
+            "EveryoneAll users in your organization",
+            "1",
+            "0"
+          ],
+          [
+            "Okta AdministratorsOkta manages this group, which ",
+            "",
+            ""
+          ]
+        ]
+      }
+    ]
+  },
+  "page_apps": {
+    "buttons": [
+      {
+        "ariaLabel": null,
+        "classes": "MuiButtonBase-root MuiButton-root MuiButton-secondary MuiButton-secondaryPrimary MuiButton-sizeMedium",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": "Contact us"
+      },
+      {
+        "ariaLabel": "help menu",
+        "classes": "MuiButtonBase-root MuiButton-root MuiButton-floating MuiButton-floatingPrimary MuiButton-sizeSmall",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": ""
+      },
+      {
+        "ariaLabel": "user profile",
+        "classes": "MuiButtonBase-root MuiButton-root MuiButton-floating MuiButton-floatingPrimary MuiButton-sizeLarge",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": "Michael Wolfembeddedsystemsresearch-trial-8689388"
+      }
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "Applications"
+      },
+      {
+        "level": "H3",
+        "text": "STATUS"
+      }
+    ],
+    "inputs": [
+      {
+        "ariaLabel": null,
+        "id": "",
+        "label": null,
+        "placeholder": "Search",
+        "tag": "INPUT",
+        "type": "text"
+      }
+    ],
+    "links": [
+      {
+        "href": "//help.okta.com/okta_help.htm?type=oie&locale=en&id=csh-apps-main",
+        "text": "Documentation"
+      },
+      {
+        "href": "#",
+        "text": "Create App Integration"
+      },
+      {
+        "href": "/admin/apps/add-app",
+        "text": "Browse App Catalog"
+      },
+      {
+        "href": "/admin/app/bulk-assign",
+        "text": "Assign Users to App"
+      },
+      {
+        "href": "#",
+        "text": "More"
+      },
+      {
+        "href": "#",
+        "text": "ACTIVE0"
+      },
+      {
+        "href": "#",
+        "text": "INACTIVE0"
+      },
+      {
+        "href": "/admin/app/saasure/instance/0oa11lcq3hvMSM5Zi698/",
+        "text": "Okta Admin Console"
+      },
+      {
+        "href": "/admin/app/okta_browser_plugin/instance/0oa11lcq3kbpHYihz698/",
+        "text": "Okta Browser Plugin"
+      },
+      {
+        "href": "/admin/app/okta_enduser/instance/0oa11lcq3ipCPuWI9698/",
+        "text": "Okta Dashboard"
+      },
+      {
+        "href": "/admin/app/okta_flow_sso/instance/0oa11ld7emwY2ZGnB698/",
+        "text": "Okta Workflows"
+      },
+      {
+        "href": "/admin/app/flow/instance/0oa11ld7enlSeDeYv698/",
+        "text": "Okta Workflows OAuth"
+      },
+      {
+        "href": "http://www.okta.com",
+        "text": "Okta, Inc."
+      },
+      {
+        "href": "https://okta.com/privacy-policy",
+        "text": "Privacy"
+      },
+      {
+        "href": "https://status.okta.com",
+        "text": "Status site"
+      },
+      {
+        "href": "//help.okta.com/okta_help.htm?type=oie&locale=en&id=csh-index",
+        "text": "Version 2026.03.3 E"
+      },
+      {
+        "href": "https://support.okta.com/help/s/ideas",
+        "text": "Feedback"
+      }
+    ],
+    "navLinks": [],
+    "pageUrl": "/admin/apps/active",
+    "tables": [
+      {
+        "headers": [],
+        "rowCount": 5,
+        "sampleRows": [
+          [
+            "",
+            "Okta Admin Console",
+            "",
+            "Assign to UsersAssign to GroupsDeactivateCopy embe"
+          ],
+          [
+            "",
+            "Okta Browser Plugin",
+            "",
+            "Assign to UsersAssign to GroupsDeactivateCopy embe"
+          ],
+          [
+            "",
+            "Okta Dashboard",
+            "",
+            "Assign to UsersAssign to GroupsDeactivateCopy embe"
+          ]
+        ]
+      }
+    ]
+  },
+  "page_api_tokens": {
+    "buttons": [
+      {
+        "ariaLabel": null,
+        "classes": "MuiButtonBase-root MuiButton-root MuiButton-secondary MuiButton-secondaryPrimary MuiButton-sizeMedium",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": "Contact us"
+      },
+      {
+        "ariaLabel": "help menu",
+        "classes": "MuiButtonBase-root MuiButton-root MuiButton-floating MuiButton-floatingPrimary MuiButton-sizeSmall",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": ""
+      },
+      {
+        "ariaLabel": "user profile",
+        "classes": "MuiButtonBase-root MuiButton-root MuiButton-floating MuiButton-floatingPrimary MuiButton-sizeLarge",
+        "disabled": false,
+        "href": null,
+        "tag": "BUTTON",
+        "text": "Michael Wolfembeddedsystemsresearch-trial-8689388"
+      }
+    ],
+    "headings": [
+      {
+        "level": "H1",
+        "text": "API"
+      },
+      {
+        "level": "H3",
+        "text": "Status"
+      },
+      {
+        "level": "H3",
+        "text": "Type"
+      }
+    ],
+    "inputs": [
+      {
+        "ariaLabel": null,
+        "id": "token-discover-input",
+        "label": null,
+        "placeholder": "Token ID",
+        "tag": "INPUT",
+        "type": "password"
+      }
+    ],
+    "links": [
+      {
+        "href": "//help.okta.com/okta_help.htm?type=oie&locale=en&id=csh-trusted-origins",
+        "text": "Documentation"
+      },
+      {
+        "href": "#tab-oauth-as",
+        "text": "Authorization Servers"
+      },
+      {
+        "href": "#tab-api-tokens",
+        "text": "Tokens"
+      },
+      {
+        "href": "#tab-trusted-origins",
+        "text": "Trusted Origins"
+      },
+      {
+        "href": "#",
+        "text": "Create token"
+      },
+      {
+        "href": "#",
+        "text": "Last used: Most recent"
+      },
+      {
+        "href": "#",
+        "text": "All0"
+      },
+      {
+        "href": "http://www.okta.com",
+        "text": "Okta, Inc."
+      },
+      {
+        "href": "https://okta.com/privacy-policy",
+        "text": "Privacy"
+      },
+      {
+        "href": "https://status.okta.com",
+        "text": "Status site"
+      },
+      {
+        "href": "//help.okta.com/okta_help.htm?type=oie&locale=en&id=csh-index",
+        "text": "Version 2026.03.3 E"
+      },
+      {
+        "href": "https://support.okta.com/help/s/ideas",
+        "text": "Feedback"
+      }
+    ],
+    "navLinks": [],
+    "pageUrl": "/admin/access/api/tokens",
+    "tables": [
+      {
+        "headers": [
+          "Name",
+          "Role",
+          "Status",
+          "Actions"
+        ],
+        "rowCount": 0,
+        "sampleRows": []
+      }
+    ]
+  },
+  "page_security": {
+    "buttons": [],
+    "headings": [],
+    "inputs": [],
+    "links": [
+      {
+        "href": "/",
+        "text": "Go to Homepage"
+      }
+    ],
+    "navLinks": [],
+    "pageUrl": "/admin/security",
+    "tables": []
+  }
+}

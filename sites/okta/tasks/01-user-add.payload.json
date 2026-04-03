@@ -1,0 +1,130 @@
+{
+  "_meta": {
+    "task": "user-add",
+    "description": "Add a new user to Okta. Uses name-attribute selectors at high confidence.",
+    "skipAuthCheck": true,
+    "params": ["first_name", "last_name", "email"],
+    "runCount": 0
+  },
+  "params": {
+    "first_name": "",
+    "last_name": "",
+    "email": ""
+  },
+  "abstractTargets": {
+    "okta-first-name": {
+      "description": "First name input in Add Person form",
+      "cachedSelector": "input[name='profile.firstName']",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-02T00:00:00Z"
+    },
+    "okta-last-name": {
+      "description": "Last name input in Add Person form",
+      "cachedSelector": "input[name='profile.lastName']",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-02T00:00:00Z"
+    },
+    "okta-username": {
+      "description": "Username input (email format)",
+      "cachedSelector": "input[name='profile.login']",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-02T00:00:00Z"
+    },
+    "okta-primary-email": {
+      "description": "Primary email input",
+      "cachedSelector": "input[name='profile.email']",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-02T00:00:00Z"
+    },
+    "okta-save-button": {
+      "description": "Save/submit button in Add Person form",
+      "cachedSelector": "input[type='submit']",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-02T00:00:00Z"
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://trial-8689388-admin.okta.com/admin/users",
+      "note": "Navigate to users page"
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 5000,
+      "note": "Wait for page to fully load (extra time for YeshID→Okta transition)"
+    },
+    {
+      "stepId": "s3",
+      "action": "read",
+      "store_as": "pre_click_state",
+      "note": "Read page state before clicking Add person — diagnose what we see"
+    },
+    {
+      "stepId": "s4",
+      "action": "click_text",
+      "text": "Add person",
+      "note": "Click Add person to open form dialog"
+    },
+    {
+      "stepId": "s5",
+      "action": "delay",
+      "ms": 3000,
+      "note": "Wait for dialog to render"
+    },
+    {
+      "stepId": "s6",
+      "action": "type",
+      "target": "okta-first-name",
+      "value": "{{first_name}}",
+      "note": "Type first name"
+    },
+    {
+      "stepId": "s7",
+      "action": "type",
+      "target": "okta-last-name",
+      "value": "{{last_name}}",
+      "note": "Type last name"
+    },
+    {
+      "stepId": "s8",
+      "action": "type",
+      "target": "okta-username",
+      "value": "{{email}}",
+      "note": "Type username (email)"
+    },
+    {
+      "stepId": "s9",
+      "action": "type",
+      "target": "okta-primary-email",
+      "value": "{{email}}",
+      "note": "Type primary email"
+    },
+    {
+      "stepId": "s10",
+      "action": "delay",
+      "ms": 500,
+      "note": "Brief pause before submit"
+    },
+    {
+      "stepId": "s11",
+      "action": "click",
+      "target": "okta-save-button",
+      "note": "Click Save"
+    },
+    {
+      "stepId": "s12",
+      "action": "delay",
+      "ms": 3000,
+      "note": "Wait for save"
+    },
+    {
+      "stepId": "s13",
+      "action": "read",
+      "store_as": "after_save",
+      "note": "Confirm result"
+    }
+  ]
+}
