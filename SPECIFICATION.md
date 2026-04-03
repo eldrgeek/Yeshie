@@ -1,5 +1,15 @@
 # Yeshie — Flywheel Phase 0 Specification (Rev 11)
 
+This document is no longer the authoritative description of the current repository state.
+
+Use:
+- `README.md` for the current implementation and runtime shape
+- `CLAUDE.md` for active operator context
+- `PROJECT-STATE.md` for the current checkpoint
+- `VISION.md` for the long-term direction
+
+Treat the rest of this file as a historical and future-facing specification. Large sections below remain useful design material, but parts of the architecture, storage model, and workflow descriptions do not match the code that currently ships in this repo.
+
 ## Product Vision
 
 Yeshie enables Claude to **learn, save, and reuse website automation skills**. Unlike one-off browser interactions, skills persist in an Obsidian knowledge vault — Claude learns a workflow once and can replay it forever, getting faster and more reliable with each site it masters.

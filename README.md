@@ -1,5 +1,9 @@
 # Yeshie — Recursive Self-Improving Web Automation
 
+This repository currently implements a Chrome MV3 extension plus a local relay server that execute structured automation payloads against live browser tabs. The extension background worker owns execution across navigations, the relay exposes a simple local HTTP/WebSocket boundary, and payload/site models capture what the runtime has learned.
+
+Use this document as the current implementation overview. `VISION.md` is the north-star document. `SPECIFICATION.md` contains older and future-facing architecture that is not the current source of truth.
+
 A three-layer system for automating web tasks. Each layer knows more about a specific site than the one above it. Each successful run makes the scripts faster and more reliable.
 
 ---
@@ -89,15 +93,29 @@ This closes the loop: YeshID's integration page shows the service catalog, CoWor
 
 ## Running Payloads
 
-Payloads are executed by the Yeshie runtime (see `yeshie-runtime-spec.md`). During development, you can test them by injecting them into the page via Claude in Chrome's `javascript_tool` — which is exactly how the verified chat-interface payloads in `yeshie-chat-payloads.md` were built.
+The current runtime path is:
 
-```javascript
-// In Claude in Chrome:
-window.__yeshie__.execute(payload, {
-  onStepComplete: (r) => console.log('step:', r),
-  onChainComplete: (r) => { console.log('done:', r); /* pipe to improve.js */ },
-  onGuardFail: (r) => console.error('guard fail:', r)
-});
+1. a caller sends a payload to the local relay
+2. the relay forwards it to the Chrome extension background worker
+3. the background worker executes the chain in the active tab using `chrome.scripting.executeScript` and `chrome.debugger`
+4. the runtime returns a `ChainResult`, which can be merged back with `improve.js`
+
+Example:
+
+```bash
+curl -s -X POST http://localhost:3333/run \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"payload\": $(cat sites/yeshid/tasks/03-user-modify.payload.json),
+    \"params\": {
+      \"user_identifier\": \"Claude\",
+      \"new_first_name\": \"Claude\",
+      \"new_last_name\": \"AI\",
+      \"base_url\": \"https://app.yeshid.com\"
+    },
+    \"tabId\": null,
+    \"timeoutMs\": 120000
+  }"
 ```
 
 ---
@@ -141,6 +159,6 @@ yeshie/
 
 ## Relationship to Yeshie Architecture
 
-These scripts are the *compiled programs* that CoWork generates and sends to the Yeshie Extension Runtime (specified in `yeshie-runtime-spec.md`). The runtime is the ISA — it executes these payloads locally inside the browser page. CoWork is the compiler — it generates payloads from natural language goals using the three model layers as context.
+These payloads are the compiled programs that the runtime executes locally in the browser. The runtime is the ISA: it knows how to navigate, resolve semantic targets, simulate trusted input, observe state, and return structured results. The model layers provide the context that lets a higher-level agent generate or refine those payloads.
 
 The three layers together form CoWork's *site context* — what it needs to know about a site before it can confidently generate correct payloads. The site model starts sparse and fills in over time, exactly like a human developer's mental model of a codebase.

@@ -25,7 +25,7 @@ The extension detects session expiry and handles Google SSO re-authentication:
 - **Caveat:** Not yet tested against a real expired session end-to-end
 
 ### Infrastructure
-156 tests passing across 12 suites (`npm test`). Both services run via launchd — no manual startup.
+168 tests passing across 14 suites (`npm test`). Both services run via launchd — no manual startup.
 
 | Service | launchd label | Log |
 |---------|--------------|-----|
@@ -142,13 +142,14 @@ All run via `chrome.scripting.executeScript` (pre-bundled, not eval).
 ~/Projects/yeshie/
 |-- CLAUDE.md                           <- you are here
 |-- SPECIFICATION.md                    <- full product spec
-|-- YESHIE-LEARNINGS.md                 <- architecture decisions
+|-- VISION.md                          <- north-star architecture framing
+|-- PROJECT-STATE.md                   <- current checkpoint and next actions
 |-- src/
 |   |-- target-resolver.ts              <- semantic target resolution
 |   |-- step-executor.ts                <- action type handlers
 |   +-- dry-run.ts                      <- pre-flight resolution checker
 |-- tests/
-|   |-- unit/                           <- 12 test suites, 156 tests
+|   |-- unit/                           <- 14 test suites, 168 tests
 |   |   |-- target-resolver.test.ts
 |   |   |-- step-executor.test.ts
 |   |   |-- dry-run.test.ts
@@ -244,4 +245,4 @@ Three-layer architecture works for any site:
 
 "Point at any website -> exploration payload builds site model -> natural language task -> payload generated -> executed -> ChainResult returned. No human writes code."
 
-**Current position:** 4/6 YeshID payloads validated. Login flow automation implemented. Extension handles cross-origin Google SSO. Next: validate remaining payload, then generalize to a second site.
+**Current position:** 4 task payloads validated (`01`-`04`). Login flow automation is implemented in the extension but not fully validated as a standalone expired-session integration loop. Next: validate `05-integration-setup`, finish auth-flow verification, then generalize to a second site.

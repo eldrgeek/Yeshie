@@ -1,20 +1,30 @@
 # Yeshie Project State
-Updated: 2026-03-31T13:00:00Z
-Phase: Phase 4 — WXT Extension (Bead 4)
-Last bead: Bead 4 PASS — Chrome MV3 extension built, syntax-valid, README added
+Updated: 2026-04-02T00:00:00Z
+Phase: Re-baseline after runtime contract hardening
+Last major change: target resolver/runtime contract upgrade landed, docs now being reconciled to the current implementation
 
 ## Passing Tests
 - unit/schema: 7/7
 - unit/target-resolver: 27/27
 - unit/dry-run: 13/13
-- unit/step-executor: 38/38
-- TOTAL: 85/85
+- unit/step-executor: 39/39
+- unit/runtime-contract: 3/3
+- unit/listener: 7/7
+- unit/yeshid-behavior: 13/13
+- unit/relay-chat: PASS
+- unit/chain-overlay: PASS
+- unit/progress-panel: PASS
+- unit/teach-tooltip: PASS
+- unit/extract-docs: PASS
+- unit/sidepanel: PASS
+- unit/login-flow: PASS
+- TOTAL: 168/168
 
 ## Integration Tests
 - 01-user-add: PASS (user created, "Workflow created." snackbar)
-- 02-user-delete: READY TO TEST — extension built, was BLOCKED (page navigation)
-- 03-user-modify: READY TO TEST — extension built, was BLOCKED (page navigation)
-- 04-site-explore: NOT RUN
+- 02-user-delete: PASS
+- 03-user-modify: PASS
+- 04-site-explore: PASS (19 pages, 149 buttons, 53 inputs, 27 tables)
 - 05-integration-setup: NOT RUN
 
 ## Extension Files (packages/extension/)
@@ -41,30 +51,11 @@ Last bead: Bead 4 PASS — Chrome MV3 extension built, syntax-valid, README adde
 - sites/yeshid/tasks/ — 6 payloads with cached selectors
 - packages/extension/ — NEW: Chrome MV3 background worker
 
-## Next: Load Extension + Run 02-user-delete
+## Next
 
-### Step 1: Load extension
-1. Chrome → chrome://extensions → Developer mode ON
-2. Load unpacked → select ~/Projects/yeshie/packages/extension/
-3. Note the Extension ID
-
-### Step 2: Test 02-user-delete from DevTools
-On app.yeshid.com/organization/people, open DevTools console:
-```javascript
-const resp = await fetch('http://localhost:3000/02-user-delete.payload.json')
-  .catch(() => null);
-// OR load the payload inline from clipboard
-// Then:
-chrome.runtime.sendMessage('EXT_ID', {
-  type: 'skill_run',
-  payload: PAYLOAD,
-  params: { user_identifier: 'Deletable User' }
-}, r => { window._runId = r.runId; console.log('started', r); });
-// Poll:
-setInterval(() => chrome.runtime.sendMessage('EXT_ID', {type:'get_status',runId:window._runId}, console.log), 1500);
-```
-
-### Step 3: If 02-delete passes → run 03-modify → all integration tests green → Bead 4 complete
+1. Validate `05-integration-setup` against a real target and document the required pre-run checklist inputs.
+2. Run the full expired-session login recovery loop end to end, not just unit coverage.
+3. Continue moving stale docs toward the current extension + relay architecture so README/CLAUDE/PROJECT-STATE remain the current source of truth.
 
 ## Key Learnings
 - vuetify_label_match uses div.mb-2 siblings (not .v-label in YeshID)
