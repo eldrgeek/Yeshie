@@ -4,9 +4,13 @@ import { createResolvedTargetUpdate, createSurpriseEvidence } from '../../../../
 export default defineBackground(() => {
   console.log('[Yeshie] Background worker started');
   const DEFAULT_BASE_URL = 'https://app.yeshid.com';
+  const RELAY_URL = import.meta.env.WXT_RELAY_URL || 'http://localhost:3333';
+  const WATCHER_URL = import.meta.env.WXT_WATCHER_URL || 'http://localhost:27182';
+  const CHAT_URL = `${RELAY_URL}/chat`;
+  const CHAT_FEEDBACK_URL = `${RELAY_URL}/chat/feedback`;
+  const CHAT_STATUS_URL = `${RELAY_URL}/chat/status`;
 
   // ── Relay socket connection ──────────────────────────────────────────────────
-  const RELAY_URL = 'http://localhost:3333';
   // Delay initial connection slightly — after a hot-reload, the relay needs
   // a moment to clean up the previous socket before accepting a new one.
   // Without this, the first connect attempt fails with a WebSocket error
@@ -51,7 +55,7 @@ export default defineBackground(() => {
   let _lastBuild = -1;
   async function checkForReload() {
     try {
-      const r = await fetch('http://localhost:27182/');
+      const r = await fetch(`${WATCHER_URL}/`);
       const { build, ready } = await r.json();
       if (_lastBuild === -1) { _lastBuild = build; return; }
       // Only reload when build number changed AND watcher confirms build is complete
@@ -1361,7 +1365,7 @@ export default defineBackground(() => {
       const { message, currentUrl, tabId } = msg;
       (async () => {
         try {
-          const resp = await fetch('http://localhost:3333/chat', {
+          const resp = await fetch(CHAT_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message, currentUrl, tabId, history: [] })
@@ -1377,7 +1381,7 @@ export default defineBackground(() => {
     if (msg.type === 'chat_feedback') {
       (async () => {
         try {
-          const resp = await fetch('http://localhost:3333/chat/feedback', {
+          const resp = await fetch(CHAT_FEEDBACK_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ chatId: msg.chatId, rating: msg.rating, comment: msg.comment })
@@ -1392,7 +1396,7 @@ export default defineBackground(() => {
     if (msg.type === 'chat_status') {
       (async () => {
         try {
-          const resp = await fetch('http://localhost:3333/chat/status');
+          const resp = await fetch(CHAT_STATUS_URL);
           sendResponse(await resp.json());
         } catch (e: any) {
           sendResponse({ listenerConnected: false, error: e.message });

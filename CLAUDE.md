@@ -32,6 +32,8 @@ The extension detects session expiry and handles Google SSO re-authentication:
 | Relay (port 3333) | `com.yeshie.relay` | `/tmp/relay.log` |
 | Watcher + build server (port 27182) | `com.yeshie.watcher` | `/tmp/wxt.log` |
 
+Extension endpoint config defaults to those local services, but can now be overridden at build time with `WXT_RELAY_URL` and `WXT_WATCHER_URL`.
+
 **Health check:** `curl -s http://localhost:3333/status` — expect `{"ok":true,"extensionConnected":true,"pending":0}`
 
 **If `extensionConnected: false`** — reload the extension in `chrome://extensions` (click the reload icon on the Yeshie card). The keepalive alarm (24s) prevents service worker sleep after that.
@@ -231,7 +233,7 @@ node ~/Projects/yeshie/improve.js \
 Writes back `cachedSelector`, `cachedConfidence`, `resolvedOn`. After 5 runs, payload switches to `production` mode.
 
 ### 4. Expand config externalization
-Google account selection is now parameterized. Remaining hardcoded local config includes relay/build endpoints and should move behind environment or extension settings next.
+Google account selection and extension relay/watcher endpoints are now configurable. Remaining local assumptions should move behind environment or extension settings as they surface.
 
 ### 5. Extend to other sites
 Three-layer architecture works for any site:

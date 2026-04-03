@@ -101,3 +101,22 @@ describe('Listener watchdog + service', () => {
     expect(content).toContain('<true/>');
   });
 });
+
+describe('Extension endpoint config', () => {
+  const bgPath = resolve(projectRoot, 'packages/extension/src/entrypoints/background.ts');
+
+  it('reads relay and watcher endpoints from WXT env vars with localhost defaults', () => {
+    const content = readFileSync(bgPath, 'utf-8');
+    expect(content).toContain('import.meta.env.WXT_RELAY_URL');
+    expect(content).toContain('import.meta.env.WXT_WATCHER_URL');
+    expect(content).toContain("|| 'http://localhost:3333'");
+    expect(content).toContain("|| 'http://localhost:27182'");
+  });
+
+  it('builds chat endpoint URLs from the relay base URL', () => {
+    const content = readFileSync(bgPath, 'utf-8');
+    expect(content).toContain('const CHAT_URL = `${RELAY_URL}/chat`;');
+    expect(content).toContain('const CHAT_FEEDBACK_URL = `${RELAY_URL}/chat/feedback`;');
+    expect(content).toContain('const CHAT_STATUS_URL = `${RELAY_URL}/chat/status`;');
+  });
+});
