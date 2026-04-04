@@ -1,0 +1,351 @@
+{
+  "_meta": {
+    "site": "google-admin",
+    "domain": "admin.google.com",
+    "framework": "Google Material Design (Polymer/Lit-based)",
+    "frameworkDetail": "Heavy JS rendering, role-based selectors, data-panel-id attributes. Custom Google components. Sidebar nav uses custom elements, not standard <a> tags. Many pages require specific sub-paths.",
+    "version": "Google Workspace Admin Console 2026 (G Suite legacy free edition)",
+    "discoveredOn": "2026-04-03",
+    "lastExplored": "2026-04-03",
+    "explorationRunCount": 2,
+    "auth": {
+      "type": "manual_required",
+      "mechanism": "Google Account login with password + optional 2FA",
+      "loginPathPattern": "/ServiceLogin|/oauth2/|/signin/",
+      "authenticatedSignal": "url starts with admin.google.com and nav sidebar visible",
+      "notes": "Google login requires password entry by user. May require 2FA (phone prompt, authenticator). Extension cannot automate — must pause and wait for user."
+    }
+  },
+
+  "states": {
+    "unauthenticated": {
+      "url_patterns": ["/ServiceLogin*", "/signin*"],
+      "detection_signals": ["Google login form visible"],
+      "transitions": ["authenticate → home"]
+    },
+    "home": {
+      "url": "/",
+      "detection_signals": ["Welcome to the Google Workspace Admin Console", "sidebar nav with Home/Dashboard/Directory"],
+      "dashboard_cards": [
+        "Users: Active 23, Add/Delete/Update user, Create alternate email",
+        "Billing: Manage subscriptions, Payment accounts, Buy or upgrade",
+        "Domains: Primary domain mike-wolf.com",
+        "Alerts: Google Operations notifications (4 alerts from 2024)",
+        "Chrome Enterprise: Enrolled browsers 1, Managed profiles 0",
+        "ChromeOS device management: Start 30-day trial",
+        "Groups, Apps, Devices, Account settings",
+        "Organizational units, Security, Reporting",
+        "Buildings and resources, Directory sync",
+        "Rules, Admin roles, Storage, Support"
+      ],
+      "tools": [
+        "Google Workspace Status Dashboard",
+        "Transfer tool for unmanaged users",
+        "Google Meet video setup",
+        "Google Workspace Marketplace",
+        "Get help from a partner",
+        "Google Workspace Referral Program"
+      ],
+      "product_updates": [
+        "Google Meet is now available on CarPlay (Apr 2)",
+        "Export Google Vids directly to YouTube (Apr 2)",
+        "Google Vids Screen Recorder Chrome Extension (Apr 2)"
+      ],
+      "transitions": ["navigate → any admin section"]
+    },
+    "dashboard": {
+      "url": "/ac/dashboard",
+      "detection_signals": ["Dashboard heading", "Insights count"],
+      "insights": [
+        "Secondary email address alert (mw.personalmail@gmail.com) — Review address action"
+      ],
+      "transitions": ["navigate → any admin section"]
+    },
+    "users-list": {
+      "url": "/ac/users",
+      "detection_signals": ["Users heading", "table with Name/Email/Last sign in columns"],
+      "columns": ["Name", "Email", "Last sign in", "Email usage", "Photos usage"],
+      "user_count": "20+",
+      "per_user_actions": [
+        "Reset password", "Rename user", "Add to groups", "Email user",
+        "Suspend user", "Restore data", "Delete user", "Change organizational unit"
+      ],
+      "bulk_actions": [
+        "Add new user", "Bulk update users", "Download users", "Email selected",
+        "Assign licenses", "Remove users", "Add to groups", "Change OU",
+        "Delete", "Remove Licenses"
+      ],
+      "organizational_units": ["mike-wolf.com", "Everyone", "Just Mike", "Test Department"],
+      "transitions": [
+        "click Add new user → add-user-form",
+        "click user row → user-detail",
+        "bulk select → bulk actions bar"
+      ]
+    },
+    "groups-list": {
+      "url": "/ac/groups",
+      "detection_signals": ["Groups heading", "table with group entries"],
+      "known_groups": [
+        {"name": "Engineering", "access": "Public"},
+        {"name": "Test Group", "access": "Public"}
+      ],
+      "actions": ["Create group", "Inspect groups", "Delete groups"],
+      "per_group_actions": ["View", "Add members", "Manage members", "Edit settings", "DELETE GROUP"],
+      "transitions": ["click group → group-detail", "Create group → create-group-form"]
+    },
+    "org-units": {
+      "url": "/ac/orgunits",
+      "detection_signals": ["Organizational units heading", "table with Name/Description columns"],
+      "known_ous": [
+        {"name": "mike-wolf.com", "description": "mike-wolf.com"},
+        {"name": "Everyone", "description": "All the people"},
+        {"name": "Just Mike", "description": "Test org for just me"},
+        {"name": "Test Department", "description": "Test department for documentation purposes"}
+      ],
+      "count": 6,
+      "actions": ["Create organizational unit", "Search for organizational units"],
+      "per_ou_actions": ["Edit", "Delete"],
+      "transitions": ["Create OU → create-ou-form", "Edit → edit-ou-form"]
+    },
+    "apps-overview": {
+      "url": "/ac/apps",
+      "detection_signals": ["Apps heading", "Google Workspace / Additional Google services / Web and mobile apps"],
+      "sections": [
+        {"name": "Google Workspace", "detail": "11 Services"},
+        {"name": "Additional Google services", "detail": "63 Services — Blogging, photos, video, social tools and more"},
+        {"name": "Web and mobile apps", "detail": "Manage SAML, Android and iOS apps"},
+        {"name": "Google Workspace Marketplace apps", "detail": "No apps"}
+      ],
+      "transitions": [
+        "click Google Workspace → apps-core",
+        "click Additional → additional-services",
+        "click Web and mobile → saml-apps",
+        "click Marketplace → marketplace-apps"
+      ]
+    },
+    "apps-core": {
+      "url": "/ac/appslist/core",
+      "detection_signals": ["Google Workspace heading", "Service Status table"],
+      "services": [
+        {"name": "AppSheet", "status": "On for everyone"},
+        {"name": "Calendar", "status": "On for everyone"},
+        {"name": "Drive and Docs", "status": "On for everyone"},
+        {"name": "Gmail", "status": "On for everyone"},
+        {"name": "Google Chat", "status": "On for everyone"},
+        {"name": "Google Meet", "status": "On for everyone"},
+        {"name": "Google Voice", "status": "On for everyone"},
+        {"name": "Groups for Business", "status": "On for everyone"},
+        {"name": "Keep", "status": "On for everyone"},
+        {"name": "Sites", "status": "On for everyone"},
+        {"name": "Tasks", "status": "On for everyone"}
+      ],
+      "per_service_actions": ["Turn OFF for everyone", "Learn more"],
+      "filters": ["Organizational Units", "Groups"],
+      "sidebar_sub_pages": [
+        "Service status", "Moderation", "AppSheet", "Calendar",
+        "Drive and Docs", "Gmail", "Google Chat", "Google Meet",
+        "Google Voice", "Groups for Business", "Keep", "Sites", "Tasks"
+      ],
+      "transitions": ["click service → service-settings"]
+    },
+    "security": {
+      "url": "/ac/security",
+      "detection_signals": ["Security heading", "Alert center / Authentication / Access and data control"],
+      "sections": [
+        {"name": "Alert center", "detail": "View actionable notifications about potential security issues"},
+        {"name": "Rules", "detail": "Manage rules to set alerts and actions"},
+        {"name": "Data classification", "detail": "Turn on data classification labels"},
+        {"name": "Passwordless", "detail": "Skip passwords: Turned off. Passkeys: Allow on any device/platform"},
+        {"name": "Password management", "detail": "Configure password policies"},
+        {"name": "Less secure apps", "detail": "Configure policies to manage access"},
+        {"name": "2-Step Verification", "detail": "Configure 2-Step Verification policies"},
+        {"name": "Account Recovery", "detail": "Super admin recovery: ON, User recovery: ON, Recovery info: ON"},
+        {"name": "Login challenges", "detail": "Manage information used during login. Employee ID: Turned off"},
+        {"name": "Post-SSO verification", "detail": "Legacy SSO: Don't ask for additional verifications; Other SSO: Ask if suspicious"},
+        {"name": "SSO for SAML applications", "detail": "Google as identity provider"},
+        {"name": "SSO with third party IdP", "detail": "Managed Google Accounts using third-party IdP"},
+        {"name": "Advanced Protection Program", "detail": "Enrollment enabled, security codes without remote access"},
+        {"name": "Context-Aware Access", "detail": "Device and user identification for access levels"},
+        {"name": "Google session control", "detail": "Set session duration for core and additional services"},
+        {"name": "DBSC Beta", "detail": "Device Bound Session Credentials: Turned off"},
+        {"name": "Google Cloud session control", "detail": "Session duration for GCP console and SDK"},
+        {"name": "API controls", "detail": "OAuth access to third party apps, domain-wide delegation"},
+        {"name": "Client-side encryption", "detail": "Content encryption through external key services"}
+      ],
+      "transitions": ["click section → section-detail"]
+    },
+    "devices-list": {
+      "url": "/ac/devices/list",
+      "detection_signals": ["Devices heading", "Mobile and endpoints", "table with Device Name/Name/Email/OS columns"],
+      "columns": ["Device Name", "Name", "Email", "OS", "Ownership", "First Sync", "Last Sync", "Status"],
+      "device_count": "40+",
+      "os_types": ["macOS", "Android", "iOS", "Linux", "ChromeOS"],
+      "bulk_actions": [
+        "Approve Devices", "Stop", "Unenroll Devices", "Delete Devices",
+        "Lock Devices", "Sign Out User", "Reset Device Passwords",
+        "Stop Account Wipe", "Stop Device Wipe", "Unblock Devices",
+        "Unenroll Devices", "View Audit Info", "Wipe Devices"
+      ],
+      "per_device_actions_mobile": ["Wipe Account", "Delete Device", "View Audit Info"],
+      "per_device_actions_desktop": ["Sign Out User", "Delete Device", "View Audit Info"],
+      "filters": ["Status: All", "keyword or serial number search"],
+      "sidebar_sub_pages": ["Overview", "Chrome", "Mobile & endpoints", "Networks"],
+      "transitions": ["click device → device-detail", "bulk select → bulk actions"]
+    },
+    "billing-subscriptions": {
+      "url": "/ac/billing/subscriptions",
+      "detection_signals": ["Subscriptions heading", "table with Name/Status/Licenses/Payment plan columns"],
+      "subscriptions": [
+        {"name": "Chrome Enterprise Core", "status": "Active", "licenses": "All licenses", "plan": "Free Plan"},
+        {"name": "Domain Registration", "status": "Active", "licenses": "-", "plan": "Annual Plan"},
+        {"name": "G Suite legacy", "status": "Active", "licenses": "25 available, 25 assigned", "plan": "Free Plan"}
+      ],
+      "upgrade_notice": "G Suite legacy free edition → Google Workspace Business Starter",
+      "sidebar_sub_pages": ["Subscriptions", "Payment accounts", "Buy or upgrade", "License settings"],
+      "transitions": ["click subscription → subscription-detail", "Upgrade → upgrade-flow"]
+    },
+    "account-settings": {
+      "url": "/ac/accountsettings",
+      "detection_signals": ["Account settings heading", "Profile section with Name/Customer ID"],
+      "profile": {
+        "name": "Mike Wolf",
+        "customer_id": "C01uog30p",
+        "primary_admin": "mw@mike-wolf.com"
+      },
+      "sections": [
+        {"name": "Profile", "detail": "Profile information, Profile settings"},
+        {"name": "Preferences", "detail": "Rapid release, Automatic roll out, Email options (Tips, Announcements, Offers, Surveys)"},
+        {"name": "Smart features for Google Workspace", "detail": "Default setting for smart features"},
+        {"name": "Account management", "detail": "Delete account (permanently deletes all user accounts)"},
+        {"name": "Personalization", "detail": "Logo"},
+        {"name": "Conflicting accounts management", "detail": "Replace unmanaged accounts with managed ones"},
+        {"name": "Legal and compliance", "detail": "0 Accepted ToS, 1 Pending ToS"},
+        {"name": "Custom URLs", "detail": "Create easy-to-remember web addresses"}
+      ],
+      "sidebar_sub_pages": ["Account settings", "Admin roles", "Domains"],
+      "transitions": ["click section → section-detail"]
+    },
+    "admin-roles": {
+      "url": "/ac/roles",
+      "detection_signals": ["Admin roles heading", "table with Role/Description/Type columns"],
+      "roles": [
+        {"name": "Super Admin", "description": "Google Workspace Administrator Seed Role", "type": "System Role"},
+        {"name": "Groups Admin", "description": "Groups Administrator", "type": "System Role"},
+        {"name": "User Management Admin", "description": "User Management Administrator", "type": "System Role"},
+        {"name": "Help Desk Admin", "description": "Help Desk Administrator", "type": "System Role"},
+        {"name": "Services Admin", "description": "Services Administrator", "type": "System Role"},
+        {"name": "Groups Reader", "description": "Groups Reader", "type": "System Role"},
+        {"name": "Groups Editor", "description": "Groups Editor", "type": "System Role"},
+        {"name": "Inventory Reporting Admin", "description": "Admin for Inventory Reporting", "type": "System Role"},
+        {"name": "Google Workspace Migrate", "description": "", "type": "System Role"},
+        {"name": "Drive Admin", "description": "", "type": "System Role"},
+        {"name": "Storage Admin", "description": "Storage Admin Role", "type": "System Role"},
+        {"name": "Mobile Admin", "description": "Mobile Administrator", "type": "System Role"}
+      ],
+      "role_count": 11,
+      "per_role_actions": ["Assign Admin", "View Privileges", "View Admins"],
+      "actions": ["Create new role"],
+      "note": "Can assign admin roles to security groups as well as users",
+      "transitions": ["Create new role → create-role-form", "click role → role-detail"]
+    },
+    "storage": {
+      "url": "/ac/storage",
+      "detection_signals": ["Storage heading", "Workspace storage usage bar"],
+      "storage": {
+        "total": "539 GB shared",
+        "used": "206.68 GB",
+        "available": "332.33 GB",
+        "breakdown": {
+          "google_drive": "13.4 GB",
+          "google_photos": "179.93 GB",
+          "gmail": "10.05 GB",
+          "other": "3.3 GB"
+        }
+      },
+      "top_users": [
+        {"name": "Mike Wolf", "usage": "183.25 GB"},
+        {"name": "Photo Backup", "usage": "14.63 GB"},
+        {"name": "Family Archives", "usage": "8.72 GB"},
+        {"name": "Publication Director", "usage": "40 MB"},
+        {"name": "God O' God", "usage": "30 MB"}
+      ],
+      "shared_drives": "Not available — current subscription doesn't include shared drives. Upgrade offered.",
+      "actions": ["View detailed reports", "Manage storage settings", "View all users"],
+      "transitions": ["Manage → storage-settings", "View all users → users-storage-list"]
+    },
+    "domains-manage": {
+      "url": "/ac/domains/manage",
+      "detection_signals": ["Domains heading", "Manage domains", "table with Domain/Type/Status columns"],
+      "domains": [
+        {"domain": "mike-wolf.com", "type": "Primary Domain", "status": "Verified, Gmail activated (MX records)"},
+        {"domain": "mike-wolf.com.test-google-a.com", "type": "Test domain alias", "status": "Inactive"}
+      ],
+      "actions": ["Add a domain", "Change primary domain"],
+      "per_domain_actions": ["View Details", "Change redirect", "Add Users", "Activate (for inactive)"],
+      "sidebar_sub_pages": ["Overview", "Manage domains", "Allowlisted domains"],
+      "transitions": ["Add a domain → add-domain-flow", "click domain → domain-detail"]
+    }
+  },
+
+  "navigation": {
+    "sidebar": [
+      {"label": "Home", "path": "/"},
+      {"label": "Dashboard", "path": "/ac/dashboard"},
+      {"label": "Directory", "path": "/ac/users", "sub_pages": ["Users", "Groups", "Organizational units", "Buildings and resources", "Directory settings", "Directory sync"]},
+      {"label": "Chrome browser", "path": "/ac/chrome", "note": "Redirects to home — needs sidebar click"},
+      {"label": "Devices", "path": "/ac/devices/list", "sub_pages": ["Overview", "Chrome", "Mobile & endpoints", "Networks"]},
+      {"label": "Apps", "path": "/ac/apps", "sub_pages": ["Overview", "Google Workspace", "Additional Google services", "Web and mobile apps", "Google Workspace Marketplace apps"]},
+      {"label": "Generative AI", "path": "/ac/generativeai", "note": "404 — needs sidebar click"},
+      {"label": "Security", "path": "/ac/security", "sub_pages": ["Overview", "Alert center", "Authentication", "Access and data control"]},
+      {"label": "Data", "path": "/ac/data", "note": "404 — needs sidebar click"},
+      {"label": "Reporting", "path": "/ac/reporting", "note": "404 — needs sidebar click"},
+      {"label": "Billing", "path": "/ac/billing/subscriptions", "sub_pages": ["Subscriptions", "Payment accounts", "Buy or upgrade", "License settings"]},
+      {"label": "Account", "path": "/ac/accountsettings", "sub_pages": ["Account settings", "Admin roles", "Domains"]},
+      {"label": "Rules", "path": "/ac/rules", "note": "404 — needs sidebar click"},
+      {"label": "Storage", "path": "/ac/storage"}
+    ],
+    "url_notes": "Many sidebar items use JS-driven navigation with custom Google components. Direct URL navigation fails for some pages (returns 404). Pages that work with direct URLs: /ac/users, /ac/groups, /ac/orgunits, /ac/apps, /ac/appslist/core, /ac/security, /ac/devices/list, /ac/billing/subscriptions, /ac/accountsettings, /ac/roles, /ac/storage, /ac/domains/manage, /ac/dashboard. Pages that require sidebar click: /ac/chrome, /ac/generativeai, /ac/data, /ac/reporting, /ac/rules."
+  },
+
+  "abstractTargets": {
+    "add-user-button": {
+      "description": "Add new user button on users page",
+      "semanticKeys": ["text contains 'Add new user'"],
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "note": "Bulk actions bar button"
+    },
+    "create-group-button": {
+      "description": "Create group button on groups page",
+      "semanticKeys": ["text contains 'Create group'"],
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "create-ou-button": {
+      "description": "Create organizational unit button",
+      "semanticKeys": ["text contains 'Create organizational unit'"],
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "create-role-button": {
+      "description": "Create new role button on admin roles page",
+      "semanticKeys": ["text contains 'Create new role'"],
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    }
+  },
+
+  "observedSignatures": {
+    "page_loaded": {
+      "responses": [
+        "role='main' content area renders with page heading",
+        "role='navigation' sidebar renders with section links",
+        "Progress indicator elements appear during loading"
+      ]
+    },
+    "read_selectors": {
+      "primary": "[role='main'], [role='navigation']",
+      "notes": "Works well for most pages. Returns both nav sidebar and main content area."
+    }
+  }
+}

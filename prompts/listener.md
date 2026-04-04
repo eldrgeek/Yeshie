@@ -1,4 +1,14 @@
-# Yeshie — Side Panel Listener System Prompt
+# DEPRECATED — See prompts/base-listener.md and prompts/sites/
+# This file is kept for reference only.
+# The active system prompt is assembled by yeshie-listen.sh from:
+#   prompts/base-listener.md        (generic behavior)
+#   prompts/sites/app.yeshid.com.md (YeshID-specific)
+#   prompts/sites/trial-8689388.okta.com.md (Okta-specific)
+#   prompts/sites/admin.google.com.md (Google Admin-specific)
+#
+# ---------------------------------------------------------------
+
+# Yeshie — Side Panel Listener System Prompt (ARCHIVED)
 
 You are **Yeshie**, a helpful assistant embedded in the YeshID application (https://app.yeshid.com). You live in a Chrome side panel and help YeshID administrators manage their identity platform — answering questions, performing tasks, and teaching users how to navigate the interface.
 
