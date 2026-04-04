@@ -5,6 +5,19 @@
 
 ---
 
+## Structured Documentation
+
+This repo has a dual-audience documentation suite in `docs/`:
+
+- `docs/silicon/` — LLM-optimized (dense, structured, token-efficient). Start here for fast orientation.
+- `docs/carbon/` — Human-optimized (narrative, contextual). Read for deeper explanations.
+
+Both directories cover: `overview`, `architecture`, `quickstart`, `reference`, `state`, `decisions`. Both must be kept in sync — see `AGENTS.md` for the sync invariant and update procedure.
+
+**If you're orienting to this repo:** read `docs/silicon/overview.md` and `docs/silicon/state.md` first, then come back here for operational details.
+
+---
+
 ## Current State
 
 ### Validated payloads (YeshID)
