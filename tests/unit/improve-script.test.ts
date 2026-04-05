@@ -74,10 +74,12 @@ describe('improve.js', () => {
     expect(payload.abstractTargets.search.cachedSelector).toBe('[aria-label="Search"]');
     expect(payload.abstractTargets.search.resolvedVia).toBe('a11y_aria_label');
     expect(payload.abstractTargets.search.resolutionMethod).toBe('a11y_aria_label');
+    expect(payload.abstractTargets.search.anchors).toEqual({ ariaLabel: 'Search' });
     expect(payload._meta.runCount).toBe(1);
     expect(payload._meta.lastDurationMs).toBe(1234);
 
     expect(siteModel.abstractTargets.search.cachedSelector).toBe('[aria-label="Search"]');
+    expect(siteModel.abstractTargets.search.anchors).toEqual({ ariaLabel: 'Search' });
     expect(siteModel.observedResponseSignatures['step-s1-observed']).toBeTruthy();
   });
 
@@ -123,7 +125,7 @@ describe('improve.js', () => {
       modelUpdates: {
         resolvedTargets: {
           email: {
-            selector: 'input[type="email"]',
+            selector: 'input[name="email"]',
             confidence: 0.87,
             resolutionMethod: 'a11y_placeholder',
             cachedAt: '2026-04-01T00:00:00.000Z',
@@ -140,6 +142,52 @@ describe('improve.js', () => {
     const payload = JSON.parse(readFileSync(payloadPath, 'utf8'));
     expect(payload.abstractTargets.email.resolvedOn).toBe('2026-04-01T00:00:00.000Z');
     expect(payload.abstractTargets.email.resolvedVia).toBe('a11y_placeholder');
+    expect(payload.abstractTargets.email.anchors).toEqual({ name: 'email' });
     expect(payload.mode).toBe('production');
+  });
+
+  it('creates missing _meta and accepts success-based chain results', () => {
+    const root = mkdtempSync(join(tmpdir(), 'yeshie-improve-success-'));
+    const siteDir = join(root, 'sites', 'success');
+    const taskDir = join(siteDir, 'tasks');
+    mkdirSync(taskDir, { recursive: true });
+
+    const payloadPath = join(taskDir, '01-task.payload.json');
+    const chainResultPath = join(root, 'chain-result.json');
+
+    writeFileSync(payloadPath, JSON.stringify({
+      mode: 'verification',
+      abstractTargets: {
+        account: {
+          cachedSelector: null,
+          cachedConfidence: 0,
+          resolvedOn: null,
+        },
+      },
+    }, null, 2));
+
+    writeFileSync(chainResultPath, JSON.stringify({
+      success: true,
+      durationMs: 50,
+      modelUpdates: {
+        resolvedTargets: {
+          account: {
+            selector: '#account-input',
+            confidence: 0.9,
+            resolvedVia: 'css_cascade',
+            resolvedOn: '2026-04-04T00:00:00.000Z',
+          },
+        },
+      },
+    }, null, 2));
+
+    execFileSync('node', [improveScript, payloadPath, chainResultPath], {
+      cwd: projectRoot,
+      encoding: 'utf8',
+    });
+
+    const payload = JSON.parse(readFileSync(payloadPath, 'utf8'));
+    expect(payload._meta.runCount).toBe(1);
+    expect(payload.abstractTargets.account.anchors).toEqual({ id: 'account-input' });
   });
 });

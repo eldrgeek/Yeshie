@@ -141,6 +141,43 @@ describe('Step 3: vuetify_label_match via resolve()', () => {
   });
 });
 
+describe('Anchor-based auto-heal', () => {
+  it('uses anchors.ariaLabel when the cached selector is stale or missing', () => {
+    const doc = makeDoc();
+    const r = new TargetResolver(doc);
+    const result = r.resolve({
+      cachedSelector: '#missing-input',
+      cachedConfidence: 0.95,
+      resolvedOn: staleDate,
+      anchors: { ariaLabel: 'Search query' },
+    });
+    expect(result.resolvedVia).toBe('auto_heal');
+    expect(result.selector).toBe('[aria-label="Search query"]');
+    expect((result.element as HTMLElement).id).toBe('aria-input');
+  });
+
+  it('uses anchors.labelText to recover a Vuetify field without relying on match keys', () => {
+    const doc = makeDoc();
+    const r = new TargetResolver(doc);
+    const result = r.resolve({
+      anchors: { labelText: 'first name' },
+    });
+    expect(result.resolvedVia).toBe('auto_heal');
+    expect((result.element as HTMLElement).id).toBe('input-v-10');
+    expect(result.confidence).toBe(0.87);
+  });
+
+  it('uses anchors.text to recover clickable targets', () => {
+    const doc = makeDoc();
+    const r = new TargetResolver(doc);
+    const result = r.resolve({
+      anchors: { text: 'Create and onboard' },
+    });
+    expect(result.resolvedVia).toBe('auto_heal');
+    expect(result.element?.tagName.toLowerCase()).toBe('button');
+  });
+});
+
 describe('Step 2: clickable text resolution', () => {
   it('resolves button by name_contains "create and onboard"', () => {
     const doc = makeDoc();

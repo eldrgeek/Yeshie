@@ -5,7 +5,8 @@
 export type StepAction =
   | 'assess_state' | 'navigate' | 'type' | 'click' | 'click_preset'
   | 'wait_for' | 'read' | 'hover' | 'scroll' | 'assert' | 'js' | 'select'
-  | 'probe_affordances' | 'delay' | 'perceive' | 'find_row' | 'click_text';
+  | 'probe_affordances' | 'delay' | 'perceive' | 'find_row' | 'click_text'
+  | 'capture_entities' | 'navigate_to_entity';
 
 export interface StepResult {
   stepId: string;
@@ -26,7 +27,9 @@ export interface StepResult {
   resolvedVia?: string;
   target?: string;
   url?: string;
+  failureSignature?: ResponseSignatureResult;
   responseSignature?: ResponseSignatureResult;
+  outcome?: 'success' | 'failure' | 'ambiguous';
   storedAs?: string;
   reason?: string;
   error?: string;
@@ -36,6 +39,8 @@ export interface StepResult {
 export interface ResponseSignatureResult {
   matched: boolean;
   type?: string;
+  attribute?: string;
+  value?: string | null;
   url?: string;
   selector?: string;
   text?: string;
@@ -48,10 +53,12 @@ export interface ResponseSignatureResult {
 // ── StateGraph types ──────────────────────────────────────────────────────────
 
 export interface StateSignal {
-  type: 'url_matches' | 'element_visible' | 'element_text';
+  type: 'url_matches' | 'url_not_matches' | 'element_visible' | 'element_absent' | 'element_text' | 'attribute_change' | 'attr_change';
   selector?: string;
   pattern?: string;
   text?: string;
+  attribute?: string;
+  value?: string;
 }
 
 export interface StateNode {
@@ -78,13 +85,38 @@ export interface Step {
   value?: string;
   text?: string;
   identifier?: string;
+  entity?: string;
+  entity_map?: string;
+  urlTemplate?: string;
+  urlSchemaKey?: string;
   condition?: string;
   url_pattern?: string;
   expect?: { state?: string };
+  state?: {
+    visible?: boolean;
+    enabled?: boolean;
+    attribute?: Record<string, unknown>;
+    name?: string;
+    stateGraph?: StateGraph;
+  };
+  stateGraph?: StateGraph;
+  responseSignature?: ResponseSignature[];
+  failureSignature?: ResponseSignature[];
   candidates?: string[];
   store_as?: string;
   code?: string;
   [key: string]: unknown;
+}
+
+export interface ResponseSignature {
+  type: string;
+  state?: string;
+  selector?: string;
+  text?: string;
+  pattern?: string;
+  attribute?: string;
+  value?: string;
+  any_of?: ResponseSignature[];
 }
 
 export class StepExecutor {
@@ -106,27 +138,239 @@ export class StepExecutor {
     return s.replace(/\{\{(\w+)\}\}/g, (_, k) => this.params[k] ?? '');
   }
 
+  private captureEntities(step: Step) {
+    const rowSelector = String(step.rowSelector ?? '.v-data-table__tr, tbody tr, [role="row"]');
+    const linkSelector = String(step.linkSelector ?? 'a[href], a');
+    const rows = Array.from(this.doc.querySelectorAll(rowSelector));
+    const entities: Record<string, { id: string | null; href: string | null; text: string }> = {};
+
+    for (const row of rows) {
+      const link = row.querySelector(linkSelector) as HTMLAnchorElement | null;
+      const text = link?.textContent?.trim() || row.querySelector('td, th, [role="cell"]')?.textContent?.trim() || '';
+      if (!text) continue;
+      const href = link?.getAttribute('href') || null;
+      const id =
+        href
+          ? (step.idPattern
+            ? (href.match(new RegExp(String(step.idPattern)))?.[1] ?? null)
+            : (href.match(/\/([A-Za-z0-9-]+)(?:\/details)?\/?$/)?.[1] ?? null))
+          : null;
+      entities[text] = { id, href, text };
+    }
+
+    return entities;
+  }
+
+  private resolveEntityNavigation(step: Step) {
+    const identifier = this.I(step.identifier ?? step.value ?? '');
+    const entityMapName = String(step.entity_map ?? 'entities');
+    const entityMap = this.buffer[entityMapName] as Record<string, { id?: string | null; href?: string | null; text?: string }> | undefined;
+    const entry = entityMap
+      ? Object.entries(entityMap).find(([key]) => key.toLowerCase() === identifier.toLowerCase())?.[1]
+      : undefined;
+
+    if (!entry) {
+      throw new Error(`Entity not found: ${identifier} in ${entityMapName}`);
+    }
+
+    const schema = (step.urlSchema as Record<string, any> | undefined)?.[String(step.urlSchemaKey ?? step.entity ?? '')]
+      || (step.urlSchema as Record<string, any> | undefined)?.[String(step.urlSchemaKey ?? '')]
+      || null;
+    const urlTemplate = String(step.urlTemplate ?? schema?.template ?? '');
+
+    if (urlTemplate) {
+      const entityId = entry.id ?? null;
+      if (entityId) {
+        const url = urlTemplate.replace(/\{(?:entityId|id|uuid)\}/g, entityId);
+        return { identifier, entityId, url, strategy: 'direct' };
+      }
+    }
+
+    if (entry.href) {
+      return { identifier, entityId: entry.id ?? null, url: entry.href, strategy: 'href' };
+    }
+
+    const rows = Array.from(this.doc.querySelectorAll('.v-data-table__tr, tbody tr, [role="row"]'));
+    const match = rows.find((row) => row.textContent?.toLowerCase().includes(identifier.toLowerCase()));
+    if (!match) throw new Error(`Entity href missing for ${identifier}`);
+    const link = match.querySelector('a[href], a') as HTMLAnchorElement | null;
+    const fallbackUrl = link?.getAttribute('href') || null;
+    if (!fallbackUrl) throw new Error(`Entity href missing for ${identifier}`);
+    return { identifier, entityId: entry.id ?? null, url: fallbackUrl, strategy: 'row_click_fallback' };
+  }
+
+  private captureSignatureBaseline(signatures: ResponseSignature[] = []) {
+    const baseline: Record<string, string | null> = {};
+    for (const sig of this.expandSignatures(signatures)) {
+      if ((sig.type === 'attribute_change' || sig.type === 'attr_change') && sig.selector && sig.attribute) {
+        const el = this.doc.querySelector(sig.selector);
+        baseline[`${sig.selector}::${sig.attribute}`] = el?.getAttribute(sig.attribute) ?? null;
+      }
+    }
+    return baseline;
+  }
+
+  private expandSignatures(signatures: ResponseSignature[] = []): ResponseSignature[] {
+    const expanded: ResponseSignature[] = [];
+    for (const sig of signatures) {
+      if (!sig) continue;
+      if (Array.isArray(sig.any_of) && sig.any_of.length > 0) {
+        expanded.push(...this.expandSignatures(sig.any_of));
+      } else {
+        expanded.push(sig);
+      }
+    }
+    return expanded;
+  }
+
+  private evaluateSignatures(
+    signatures: ResponseSignature[] = [],
+    initialUrl = window.location.href,
+    baseline: Record<string, string | null> = {},
+    stateGraph?: StateGraph
+  ): ResponseSignatureResult {
+    const expanded = this.expandSignatures(signatures);
+    for (const sig of expanded) {
+      if (sig.type === 'url_change' && window.location.href !== initialUrl) {
+        return { matched: true, type: sig.type, url: window.location.href };
+      }
+
+      if (sig.type === 'url_matches' && sig.pattern && new RegExp(sig.pattern).test(window.location.href)) {
+        return { matched: true, type: sig.type, url: window.location.href };
+      }
+
+      if (sig.type === 'url_not_matches' && sig.pattern && !new RegExp(sig.pattern).test(window.location.href)) {
+        return { matched: true, type: sig.type, url: window.location.href };
+      }
+
+      if (sig.type === 'element_absent' && sig.selector && !this.doc.querySelector(sig.selector)) {
+        return { matched: true, type: sig.type, selector: sig.selector };
+      }
+
+      if (sig.type === 'element_visible' && sig.selector) {
+        const el = this.doc.querySelector(sig.selector);
+        if (el) {
+          return {
+            matched: true,
+            type: sig.type,
+            selector: sig.selector,
+            text: el.textContent?.trim() || undefined,
+          };
+        }
+      }
+
+      if (sig.type === 'element_text' && sig.selector && sig.text) {
+        const el = this.doc.querySelector(sig.selector);
+        const text = el?.textContent?.trim() || '';
+        if (text.includes(sig.text)) {
+          return { matched: true, type: sig.type, selector: sig.selector, text };
+        }
+      }
+
+      if (sig.type === 'state_reached' && sig.state && stateGraph?.nodes) {
+        const state = this.assessState(stateGraph);
+        if (state === sig.state) {
+          return { matched: true, type: sig.type, text: state };
+        }
+      }
+
+      if ((sig.type === 'attribute_change' || sig.type === 'attr_change') && sig.selector && sig.attribute) {
+        const el = this.doc.querySelector(sig.selector);
+        if (!el) continue;
+        const value = el.getAttribute(sig.attribute);
+        const prev = baseline[`${sig.selector}::${sig.attribute}`] ?? null;
+        const matches =
+          sig.value !== undefined ? value === sig.value
+          : sig.pattern ? new RegExp(sig.pattern).test(value ?? '')
+          : value !== prev;
+        if (matches) {
+          return {
+            matched: true,
+            type: sig.type,
+            selector: sig.selector,
+            attribute: sig.attribute,
+            value,
+          };
+        }
+      }
+    }
+
+    const snackbar = this.doc.querySelector('.v-snackbar__content');
+    const alert = this.doc.querySelector('.v-alert');
+    return {
+      matched: false,
+      timeout: true,
+      snackbarText: snackbar?.textContent?.trim() || undefined,
+      alertText: alert?.textContent?.trim() || undefined,
+      urlNow: window.location.href,
+    };
+  }
+
   private assessState(sg: StateGraph): string {
     if (!sg?.nodes) return 'unknown';
     for (const [name, node] of Object.entries(sg.nodes)) {
       if (!node.signals?.length) continue;
-      const ok = node.signals.every(sig => {
-        if (sig.type === 'url_matches') {
-          return new RegExp(sig.pattern!).test(window.location.href);
-        }
-        if (sig.type === 'element_visible') {
-          const el = this.doc.querySelector(sig.selector!);
-          return !!el;
-        }
-        if (sig.type === 'element_text') {
-          const el = this.doc.querySelector(sig.selector!);
-          return el?.textContent?.includes(sig.text!) ?? false;
-        }
-        return false;
-      });
+      const ok = node.signals.every(sig => this.matchesStateSignal(sig));
       if (ok) return name;
     }
     return 'unknown';
+  }
+
+  private matchesStateSignal(sig: StateSignal): boolean {
+    if (sig.type === 'url_matches') {
+      return !!sig.pattern && new RegExp(sig.pattern).test(window.location.href);
+    }
+    if (sig.type === 'url_not_matches') {
+      return !!sig.pattern && !new RegExp(sig.pattern).test(window.location.href);
+    }
+    if (sig.type === 'element_visible') {
+      const el = sig.selector ? this.doc.querySelector(sig.selector) : null;
+      return !!el;
+    }
+    if (sig.type === 'element_absent') {
+      return sig.selector ? !this.doc.querySelector(sig.selector) : false;
+    }
+    if (sig.type === 'element_text') {
+      const el = sig.selector ? this.doc.querySelector(sig.selector) : null;
+      return el?.textContent?.includes(sig.text!) ?? false;
+    }
+    if ((sig.type === 'attribute_change' || sig.type === 'attr_change') && sig.selector && sig.attribute) {
+      const el = this.doc.querySelector(sig.selector);
+      return !!el && el.getAttribute(sig.attribute) === (sig.value ?? null);
+    }
+    return false;
+  }
+
+  private matchesWaitState(step: Step): boolean {
+    if (step.url_pattern) {
+      const pattern = this.I(step.url_pattern);
+      return new RegExp(pattern).test(window.location.href);
+    }
+
+    if (step.state?.stateGraph?.nodes || step.stateGraph?.nodes) {
+      const graph = (step.state?.stateGraph || step.stateGraph) as StateGraph;
+      const expectedState = step.state?.name || step.expect?.state;
+      if (!expectedState) return this.assessState(graph) !== 'unknown';
+      return this.assessState(graph) === expectedState;
+    }
+
+    let sel: string | null = step.selector || null;
+    if (!sel && typeof step.target === 'string' && step.target.startsWith('#')) sel = step.target;
+    if (!sel && typeof step.target === 'string' && (step.target.includes('.') || step.target.includes('['))) sel = step.target as string;
+    const el = sel ? this.doc.querySelector(sel) as HTMLElement | null : null;
+
+    if (step.state) {
+      if (step.state.visible !== undefined) return step.state.visible ? !!el : !el;
+      if (step.state.enabled !== undefined) {
+        const enabled = !!el && !(el as HTMLInputElement | HTMLButtonElement).disabled && el.getAttribute('aria-disabled') !== 'true';
+        return step.state.enabled ? enabled : !enabled;
+      }
+      if (step.state.attribute && sel) {
+        return Object.entries(step.state.attribute).every(([key, expected]) => el?.getAttribute(key) === String(expected));
+      }
+    }
+
+    return !!el;
   }
 
   private snapshotPage() {
@@ -184,25 +428,66 @@ export class StepExecutor {
         return { stepId: step.stepId, action: a, status: 'ok', url, value: url, durationMs: Date.now() - t0 };
       }
 
+      if (a === 'capture_entities') {
+        const entities = this.captureEntities(step);
+        if (step.store_as) this.buffer[step.store_as] = entities;
+        return { stepId: step.stepId, action: a, status: 'ok', result: entities, storedAs: step.store_as, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'navigate_to_entity') {
+        const resolved = this.resolveEntityNavigation(step);
+        return {
+          stepId: step.stepId,
+          action: a,
+          status: 'ok',
+          url: resolved.url,
+          value: resolved.url,
+          result: resolved,
+          durationMs: Date.now() - t0,
+        };
+      }
+
       if (a === 'type') {
         const value = this.I(step.value);
+        const initialUrl = window.location.href;
+        const failureBaseline = this.captureSignatureBaseline(step.failureSignature);
+        const responseBaseline = this.captureSignatureBaseline(step.responseSignature);
         if (step.target && !this.abstractTargets[step.target]) throw new Error('Cannot resolve target: ' + step.target);
-        const res = this.resolver.resolve(this.abstractTargets[step.target!] ?? {});
-        if (res.resolvedVia === 'escalate') throw new Error('Cannot resolve target: ' + step.target);
+        const res = step.target
+          ? this.resolver.resolve(this.abstractTargets[step.target!] ?? {})
+          : (step.selector ? { element: this.doc.querySelector(step.selector), selector: step.selector, confidence: 0.7, resolvedVia: 'css_cascade' as const } : null);
+        if (!res || res.resolvedVia === 'escalate') throw new Error('Cannot resolve target: ' + (step.target ?? step.selector));
         // In jsdom: set value directly
         if (res.element && 'value' in res.element) {
           (res.element as HTMLInputElement).value = value;
         }
-        return { stepId: step.stepId, action: a, status: 'ok', target: step.target, value, selector: res.selector, confidence: res.confidence, resolvedVia: res.resolvedVia, durationMs: Date.now() - t0 };
+        const failureSignature = step.failureSignature ? this.evaluateSignatures(step.failureSignature, initialUrl, failureBaseline, stateGraph) : undefined;
+        const responseSignature = step.responseSignature ? this.evaluateSignatures(step.responseSignature, initialUrl, responseBaseline, stateGraph) : undefined;
+        const outcome =
+          failureSignature?.matched ? 'failure'
+          : responseSignature?.matched ? 'success'
+          : step.failureSignature || step.responseSignature ? 'ambiguous'
+          : undefined;
+        return { stepId: step.stepId, action: a, status: 'ok', target: step.target, value, selector: res.selector, confidence: res.confidence, resolvedVia: res.resolvedVia, responseSignature, failureSignature, outcome, durationMs: Date.now() - t0 };
       }
 
       if (a === 'click') {
+        const initialUrl = window.location.href;
+        const failureBaseline = this.captureSignatureBaseline(step.failureSignature);
+        const responseBaseline = this.captureSignatureBaseline(step.responseSignature);
         if (step.target && !this.abstractTargets[step.target]) throw new Error('Cannot resolve target: ' + step.target);
         const tgtDef = step.target ? (this.abstractTargets[step.target] ?? {}) : {};
         const res = step.target ? this.resolver.resolve(tgtDef) : (step.selector ? { element: this.doc.querySelector(step.selector), selector: step.selector, confidence: 0.7, resolvedVia: 'css_cascade' as const } : null);
         if (!res || res.resolvedVia === 'escalate') throw new Error('Cannot resolve target: ' + (step.target ?? step.selector));
         if (res.element) (res.element as HTMLElement).click?.();
-        return { stepId: step.stepId, action: a, status: 'ok', target: step.target, selector: res.selector, confidence: res.confidence, resolvedVia: res.resolvedVia, durationMs: Date.now() - t0 };
+        const failureSignature = step.failureSignature ? this.evaluateSignatures(step.failureSignature, initialUrl, failureBaseline, stateGraph) : undefined;
+        const responseSignature = step.responseSignature ? this.evaluateSignatures(step.responseSignature, initialUrl, responseBaseline, stateGraph) : undefined;
+        const outcome =
+          failureSignature?.matched ? 'failure'
+          : responseSignature?.matched ? 'success'
+          : step.failureSignature || step.responseSignature ? 'ambiguous'
+          : undefined;
+        return { stepId: step.stepId, action: a, status: 'ok', target: step.target, selector: res.selector, confidence: res.confidence, resolvedVia: res.resolvedVia, responseSignature, failureSignature, outcome, durationMs: Date.now() - t0 };
       }
 
       if (a === 'read') {
@@ -240,15 +525,18 @@ export class StepExecutor {
       }
 
       if (a === 'wait_for') {
-        if (step.url_pattern) {
-          const pattern = this.I(step.url_pattern);
-          if (!new RegExp(pattern).test(window.location.href)) throw new Error('wait_for url timeout: ' + pattern);
-          return { stepId: step.stepId, action: a, status: 'ok', url: window.location.href, durationMs: Date.now() - t0 };
+        if (!this.matchesWaitState(step)) {
+          if (step.url_pattern) throw new Error('wait_for url timeout: ' + this.I(step.url_pattern));
+          throw new Error('wait_for timeout: ' + this.I(step.selector ?? step.target ?? '[state]'));
         }
-        const sel = this.I(step.selector ?? step.target ?? '');
-        const el = this.doc.querySelector(sel);
-        if (!el) throw new Error('wait_for: element not found: ' + sel);
-        return { stepId: step.stepId, action: a, status: 'ok', selector: sel, durationMs: Date.now() - t0 };
+        return {
+          stepId: step.stepId,
+          action: a,
+          status: 'ok',
+          selector: step.selector ?? null,
+          url: step.url_pattern ? window.location.href : undefined,
+          durationMs: Date.now() - t0,
+        };
       }
 
       if (a === 'hover') {

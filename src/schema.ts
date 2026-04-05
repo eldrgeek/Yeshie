@@ -23,6 +23,7 @@ export const PayloadSchema = z.object({
   chain: z.array(z.any()),                    // steps array
   stateGraph: z.record(z.any()).optional(),
   abstractTargets: z.record(z.any()).optional(),
+  urlSchema: z.record(z.any()).optional(),
   branches: z.record(z.any()).optional(),
   pages: z.array(z.any()).optional(),          // 04-site-explore
   explorationScript: z.any().optional(),       // 04-site-explore

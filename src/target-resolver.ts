@@ -16,6 +16,15 @@ export interface AbstractTarget {
   match?: { role?: string; vuetify_label?: string[]; name_contains?: string[]; [k: string]: any };
   cachedSelector?: string | null;
   cachedConfidence?: number;
+  anchors?: {
+    ariaLabel?: string;
+    placeholder?: string;
+    name?: string;
+    dataTestId?: string;
+    id?: string;
+    text?: string;
+    labelText?: string;
+  };
   resolvedOn?: string | null;
   semanticKeys?: string[];
   resolutionStrategy?: string;
@@ -37,6 +46,67 @@ export class TargetResolver {
     const testid = el.getAttribute('data-testid');
     if (testid) return `[data-testid="${testid}"]`;
     if ((el as HTMLElement).id && !GENERATED_ID_RE.test((el as HTMLElement).id)) return '#' + (el as HTMLElement).id;
+    return null;
+  }
+
+  private tryAnchorSelector(selector: string | null): Element | null {
+    if (!selector) return null;
+    return this.doc.querySelector(selector);
+  }
+
+  private resolveFromAnchors(target: AbstractTarget): ResolvedTarget | null {
+    const anchors = target.anchors;
+    if (!anchors) return null;
+
+    const anchorSelectors = [
+      anchors.ariaLabel ? `[aria-label="${anchors.ariaLabel}"]` : null,
+      anchors.placeholder ? `input[placeholder="${anchors.placeholder}"], textarea[placeholder="${anchors.placeholder}"]` : null,
+      anchors.name ? `input[name="${anchors.name}"], textarea[name="${anchors.name}"], select[name="${anchors.name}"]` : null,
+      anchors.dataTestId ? `[data-testid="${anchors.dataTestId}"]` : null,
+      anchors.id && !GENERATED_ID_RE.test(anchors.id) ? `#${anchors.id}` : null,
+    ];
+
+    for (const selector of anchorSelectors) {
+      const el = this.tryAnchorSelector(selector);
+      if (el) {
+        return {
+          selector: this.stableSelector(el) || selector,
+          confidence: 0.89,
+          resolvedVia: 'auto_heal',
+          element: el,
+        };
+      }
+    }
+
+    if (anchors.labelText) {
+      const el = this.findInputByLabelText(anchors.labelText);
+      if (el) {
+        return {
+          selector: this.stableSelector(el),
+          confidence: 0.87,
+          resolvedVia: 'auto_heal',
+          element: el,
+        };
+      }
+    }
+
+    if (anchors.text) {
+      const clickables = Array.from(this.doc.querySelectorAll('a[href], a, button, [role="button"], [role="menuitem"], [role="option"]'));
+      const lowered = anchors.text.toLowerCase();
+      const el = clickables.find((candidate) =>
+        candidate.textContent?.trim().toLowerCase().includes(lowered) ||
+        candidate.getAttribute('aria-label')?.toLowerCase().includes(lowered)
+      ) || null;
+      if (el) {
+        return {
+          selector: this.stableSelector(el),
+          confidence: 0.86,
+          resolvedVia: 'auto_heal',
+          element: el,
+        };
+      }
+    }
+
     return null;
   }
 
@@ -96,6 +166,9 @@ export class TargetResolver {
         return { selector: target.cachedSelector!, confidence: target.cachedConfidence!, resolvedVia: 'cached', element: el };
       }
     }
+
+    const healed = this.resolveFromAnchors(target);
+    if (healed) return healed;
 
     const labels = target.match?.vuetify_label || target.semanticKeys || [];
     const names = target.match?.name_contains || [];

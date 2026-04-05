@@ -1,5 +1,6 @@
 export const RESOLUTION_METHODS = [
   'cached',
+  'auto_heal',
   'aria',
   'a11y_aria_label',
   'a11y_label_for',
