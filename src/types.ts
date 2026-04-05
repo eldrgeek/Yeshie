@@ -5,6 +5,15 @@ export interface AbstractTarget {
   match?: { role?: string; vuetify_label?: string[]; [key: string]: any };
   cachedSelector: string | null;
   cachedConfidence: number;
+  anchors?: {
+    ariaLabel?: string;
+    placeholder?: string;
+    name?: string;
+    dataTestId?: string;
+    id?: string;
+    text?: string;
+    labelText?: string;
+  };
   resolvedOn?: string | null;
   resolveHint?: string;
   semanticKeys?: string[];
@@ -34,6 +43,8 @@ export interface Step {
   store_to_buffer?: string;
   guard?: any;
   expect?: any;
+  responseSignature?: any[];
+  failureSignature?: any[];
   onMatch?: Step[];
   onMismatch?: Step[];
   [key: string]: any;
@@ -54,6 +65,7 @@ export interface Payload {
   chain: Step[];
   stateGraph?: StateGraph;
   abstractTargets?: Record<string, AbstractTarget>;
+  urlSchema?: Record<string, any>;
   branches?: Record<string, Step[]>;
   preRunChecklist?: string[];
   [key: string]: any;
@@ -73,6 +85,9 @@ export interface StepResult {
   success: boolean;
   guardPassed?: boolean;
   result?: any;
+  outcome?: 'success' | 'failure' | 'ambiguous';
+  responseSignature?: any;
+  failureSignature?: any;
   error?: string;
   durationMs: number;
   diagnostics?: any;

@@ -534,6 +534,28 @@
     "applicationDetail": "https://app.yeshid.com/access/applications/{id}/accounts",
     "integrationConfig": "https://app.yeshid.com/access/applications/{id}/integration/authentication"
   },
+  "urlSchema": {
+    "people": {
+      "list": "/organization/people",
+      "detail": {
+        "template": "/organization/people/{entityId}/details",
+        "entityKey": "people",
+        "idSource": {
+          "type": "table_link_href",
+          "rowSelector": ".v-data-table__tr, tbody tr",
+          "linkSelector": "a[href]",
+          "idPattern": "/organization/people/([A-Za-z0-9-]+)/details"
+        }
+      }
+    },
+    "applications": {
+      "list": "/access/applications",
+      "detail": {
+        "template": "/access/applications/{entityId}/accounts",
+        "entityKey": "applications"
+      }
+    }
+  },
   "observedSignatures": {
     "user_created": {
       "responses": [

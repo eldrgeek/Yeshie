@@ -13,6 +13,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const MAX_CACHED_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const GENERATED_ID_RE = /^(input-v-\d+|checkbox-v-\d+|_react_|react-\d+|:r)/;
 
 function normalizeResolvedTargetUpdate(update = {}) {
   const resolvedVia = update.resolvedVia || update.resolutionMethod || 'escalate';
@@ -34,6 +35,29 @@ function saveJSON(filePath, data) {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n', 'utf8');
 }
 
+export function deriveAnchors(rawUpdate = {}) {
+  const anchors = { ...(rawUpdate.anchors || {}) };
+  const selector = typeof rawUpdate.selector === 'string' ? rawUpdate.selector : '';
+  let match;
+
+  match = selector.match(/^\[aria-label="([^"]+)"\]$/);
+  if (match && !anchors.ariaLabel) anchors.ariaLabel = match[1];
+
+  match = selector.match(/^[a-z0-9_-]+\[placeholder="([^"]+)"\]$/i);
+  if (match && !anchors.placeholder) anchors.placeholder = match[1];
+
+  match = selector.match(/^[a-z0-9_-]+\[name="([^"]+)"\]$/i);
+  if (match && !anchors.name) anchors.name = match[1];
+
+  match = selector.match(/^\[data-testid="([^"]+)"\]$/);
+  if (match && !anchors.dataTestId) anchors.dataTestId = match[1];
+
+  match = selector.match(/^#([A-Za-z][\w:-]*)$/);
+  if (match && !GENERATED_ID_RE.test(match[1]) && !anchors.id) anchors.id = match[1];
+
+  return Object.keys(anchors).length > 0 ? anchors : undefined;
+}
+
 function resolveSiteModelPath(payloadPath) {
   const taskDir = path.dirname(payloadPath);
   const siteDir = path.dirname(taskDir);
@@ -49,6 +73,7 @@ export function mergeTarget(registry, targetName, rawUpdate) {
   if (!existing) return false;
 
   const update = normalizeResolvedTargetUpdate(rawUpdate || {});
+  const derivedAnchors = deriveAnchors(rawUpdate || {});
   const now = Date.now();
   const existingResolvedOn = existing.resolvedOn || existing.cachedAt;
   const resolvedOnMs = existingResolvedOn ? new Date(existingResolvedOn).getTime() : 0;
@@ -68,6 +93,7 @@ export function mergeTarget(registry, targetName, rawUpdate) {
       resolvedOn: update.resolvedOn,
       resolutionMethod: update.resolutionMethod,
       resolvedVia: update.resolvedVia,
+      ...(derivedAnchors ? { anchors: { ...(existing.anchors || {}), ...derivedAnchors } } : {}),
     };
     return true;
   }
@@ -93,7 +119,12 @@ export function mergeResponseSignatures(siteModel, stepId, observed) {
 }
 
 export function applyImprovements(payloadPath, chainResult) {
-  if (chainResult.event !== 'chain_complete' || !chainResult.goalReached) {
+  const succeeded =
+    chainResult?.goalReached === true ||
+    chainResult?.success === true ||
+    chainResult?.event === 'chain_complete';
+
+  if (!succeeded) {
     console.log('Run did not complete successfully — no improvements applied.');
     console.log(`Event: ${chainResult.event}, goalReached: ${chainResult.goalReached}`);
     if (chainResult.guardFails) {
@@ -105,6 +136,7 @@ export function applyImprovements(payloadPath, chainResult) {
   console.log(`\nApplying improvements from successful run (${chainResult.durationMs}ms)...\n`);
 
   const payload = loadJSON(payloadPath);
+  payload._meta = payload._meta || {};
   const siteModelPath = resolveSiteModelPath(payloadPath);
   const siteModel = fs.existsSync(siteModelPath) ? loadJSON(siteModelPath) : null;
   const updates = chainResult.modelUpdates || {};

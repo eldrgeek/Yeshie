@@ -5,6 +5,7 @@ import { StepExecutor, StateGraph } from '../../src/step-executor.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixtureHtml = readFileSync(resolve(__dirname, '../fixtures/vuetify-onboard.html'), 'utf-8');
+const peopleListHtml = readFileSync(resolve(__dirname, '../fixtures/yeshid-people-list.html'), 'utf-8');
 
 const abstractTargets = {
   'first-name-input':    { match: { vuetify_label: ['first name'] },    cachedSelector: null, cachedConfidence: 0 },
@@ -79,6 +80,25 @@ describe('assess_state', () => {
     const r = ex.execute({ stepId: 's1', action: 'assess_state', expect: { state: 'unauthenticated' } }, stateGraph);
     expect(r.matched).toBe(false);
   });
+
+  it('supports url_not_matches and element_absent signals', () => {
+    document.body.innerHTML = '<div class="v-navigation-drawer"></div>';
+    const ex = new StepExecutor(document, {}, {}, {});
+    const graph: StateGraph = {
+      nodes: {
+        logged_in: {
+          signals: [
+            { type: 'url_not_matches', pattern: '/login' } as any,
+            { type: 'element_absent', selector: '.login-form' } as any,
+          ],
+        },
+      },
+    };
+    const r = ex.execute({ stepId: 's1', action: 'assess_state', expect: { state: 'logged_in' } }, graph);
+    expect(r.status).toBe('ok');
+    expect(r.state).toBe('logged_in');
+    expect(r.matched).toBe(true);
+  });
 });
 
 // ── type ──────────────────────────────────────────────────────────────────────
@@ -116,6 +136,20 @@ describe('type action', () => {
     expect(r.status).toBe('error');
     expect(r.error).toContain('nonexistent-target');
   });
+
+  it('reports ambiguous outcome when no signature matches after type', () => {
+    const ex = makeExec();
+    const r = ex.execute({
+      stepId: 's3',
+      action: 'type',
+      target: 'first-name-input',
+      value: 'Alice',
+      responseSignature: [{ type: 'element_visible', selector: '.does-not-exist' }],
+    });
+    expect(r.status).toBe('ok');
+    expect((r as any).outcome).toBe('ambiguous');
+    expect((r as any).responseSignature?.matched).toBe(false);
+  });
 });
 
 // ── click ─────────────────────────────────────────────────────────────────────
@@ -144,6 +178,67 @@ describe('click action', () => {
     const r = ex.execute({ stepId: 's7', action: 'click', target: 'ghost-button' });
     expect(r.status).toBe('error');
   });
+
+  it('reports success outcome when response signature matches after click', () => {
+    const ex = makeExec();
+    document.querySelector('button.v-btn')?.addEventListener('click', () => {
+      const snackbar = document.createElement('div');
+      snackbar.className = 'post-click-success';
+      snackbar.textContent = 'Saved';
+      document.body.appendChild(snackbar);
+    });
+    const r = ex.execute({
+      stepId: 's7',
+      action: 'click',
+      target: 'create-onboard-button',
+      responseSignature: [{ type: 'element_text', selector: '.post-click-success', text: 'Saved' }],
+    });
+    expect(r.status).toBe('ok');
+    expect((r as any).outcome).toBe('success');
+    expect((r as any).responseSignature?.matched).toBe(true);
+  });
+
+  it('supports state_reached response signatures against the state graph', () => {
+    const ex = makeExec();
+    document.querySelector('button.v-btn')?.addEventListener('click', () => {
+      const nav = document.createElement('div');
+      nav.className = 'v-navigation-drawer';
+      document.body.appendChild(nav);
+    });
+    const graph: StateGraph = {
+      nodes: {
+        authenticated: { signals: [{ type: 'element_visible', selector: '.v-navigation-drawer' }] },
+      },
+    };
+    const r = ex.execute({
+      stepId: 's7',
+      action: 'click',
+      target: 'create-onboard-button',
+      responseSignature: [{ type: 'state_reached', state: 'authenticated' } as any],
+    }, graph);
+    expect(r.status).toBe('ok');
+    expect((r as any).outcome).toBe('success');
+    expect((r as any).responseSignature?.type).toBe('state_reached');
+  });
+
+  it('reports failure outcome when failure signature matches after click', () => {
+    const ex = makeExec();
+    document.querySelector('button.v-btn')?.addEventListener('click', () => {
+      const error = document.createElement('div');
+      error.className = 'v-messages--error';
+      error.textContent = 'Validation failed';
+      document.body.appendChild(error);
+    });
+    const r = ex.execute({
+      stepId: 's7',
+      action: 'click',
+      target: 'create-onboard-button',
+      failureSignature: [{ type: 'element_text', selector: '.v-messages--error', text: 'Validation failed' }],
+    });
+    expect(r.status).toBe('ok');
+    expect((r as any).outcome).toBe('failure');
+    expect((r as any).failureSignature?.matched).toBe(true);
+  });
 });
 
 // ── navigate ──────────────────────────────────────────────────────────────────
@@ -162,6 +257,66 @@ describe('navigate action', () => {
   });
 });
 
+describe('entity navigation actions', () => {
+  it('captures entity links from a people table into the buffer', () => {
+    const buffer: Record<string, any> = {};
+    document.body.innerHTML = peopleListHtml;
+    const ex = new StepExecutor(document, {}, {}, buffer);
+    const r = ex.execute({ stepId: 'e1', action: 'capture_entities', store_as: 'people' } as any);
+    expect(r.status).toBe('ok');
+    expect(buffer.people['John Doe']).toEqual({
+      id: 'abc-123',
+      href: '/organization/people/abc-123/details',
+      text: 'John Doe',
+    });
+  });
+
+  it('navigates directly to an entity URL using the captured id and url template', () => {
+    const buffer: Record<string, any> = {
+      people: {
+        'John Doe': {
+          id: 'abc-123',
+          href: '/organization/people/abc-123/details',
+          text: 'John Doe',
+        },
+      },
+    };
+    document.body.innerHTML = peopleListHtml;
+    const ex = new StepExecutor(document, {}, {}, buffer);
+    const r = ex.execute({
+      stepId: 'e2',
+      action: 'navigate_to_entity',
+      identifier: 'John Doe',
+      entity_map: 'people',
+      urlTemplate: 'https://app.yeshid.com/organization/people/{entityId}/details',
+    } as any);
+    expect(r.status).toBe('ok');
+    expect(r.url).toBe('https://app.yeshid.com/organization/people/abc-123/details');
+  });
+
+  it('falls back to the captured href when no url template is provided', () => {
+    const buffer: Record<string, any> = {
+      people: {
+        'Jane Smith': {
+          id: 'def-456',
+          href: '/organization/people/def-456/details',
+          text: 'Jane Smith',
+        },
+      },
+    };
+    document.body.innerHTML = peopleListHtml;
+    const ex = new StepExecutor(document, {}, {}, buffer);
+    const r = ex.execute({
+      stepId: 'e3',
+      action: 'navigate_to_entity',
+      identifier: 'Jane Smith',
+      entity_map: 'people',
+    } as any);
+    expect(r.status).toBe('ok');
+    expect(r.url).toBe('/organization/people/def-456/details');
+  });
+});
+
 // ── wait_for ──────────────────────────────────────────────────────────────────
 describe('wait_for action', () => {
   it('returns ok when element exists in DOM', () => {
@@ -175,6 +330,26 @@ describe('wait_for action', () => {
     const ex = makeExec();
     const r = ex.execute({ stepId: 's2', action: 'wait_for', selector: '#does-not-exist' });
     expect(r.status).toBe('error');
+  });
+
+  it('supports visible:false for absence checks', () => {
+    const ex = makeExec();
+    const r = ex.execute({ stepId: 's2', action: 'wait_for', selector: '#does-not-exist', state: { visible: false } });
+    expect(r.status).toBe('ok');
+  });
+
+  it('supports enabled:false checks', () => {
+    document.body.innerHTML = fixtureHtml + '<button id="disabled-btn" disabled>Wait</button>';
+    const ex = new StepExecutor(document, {}, {}, {});
+    const r = ex.execute({ stepId: 's2', action: 'wait_for', selector: '#disabled-btn', state: { enabled: false } });
+    expect(r.status).toBe('ok');
+  });
+
+  it('supports attribute state checks', () => {
+    document.body.innerHTML = fixtureHtml + '<div id="status-pill" data-state="ready"></div>';
+    const ex = new StepExecutor(document, {}, {}, {});
+    const r = ex.execute({ stepId: 's2', action: 'wait_for', selector: '#status-pill', state: { attribute: { 'data-state': 'ready' } } });
+    expect(r.status).toBe('ok');
   });
 });
 

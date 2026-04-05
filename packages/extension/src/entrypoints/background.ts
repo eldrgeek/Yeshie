@@ -83,6 +83,27 @@ export default defineBackground(() => {
     return collected;
   }
 
+  function collectObservedSignatures(stepResults: any[] = []) {
+    const observed: Record<string, any[]> = {};
+    for (const result of stepResults) {
+      const stepId = result?.stepId;
+      if (!stepId) continue;
+      const matches = [result?.failureSignature, result?.responseSignature]
+        .filter((sig: any) => sig?.matched)
+        .map((sig: any) => ({
+          kind: sig.type,
+          selector: sig.selector,
+          text: sig.text,
+          attribute: sig.attribute,
+          value: sig.value,
+          url: sig.url,
+          outcome: result?.outcome,
+        }));
+      if (matches.length > 0) observed[stepId] = matches;
+    }
+    return observed;
+  }
+
   function normalizeResolvedTargets(resolvedTargets: any[] = []) {
     const normalized: Record<string, any> = {};
     for (const target of resolvedTargets) {
@@ -106,7 +127,7 @@ export default defineBackground(() => {
       statesObserved: run.stepResults
         .map((r: any) => r?.state)
         .filter(Boolean),
-      signaturesObserved: {},
+      signaturesObserved: collectObservedSignatures(run.stepResults),
       surpriseEvidence,
     };
     return {
@@ -196,6 +217,63 @@ export default defineBackground(() => {
       return null;
     }
 
+    function resolveFromAnchors(anchors: any) {
+      if (!anchors) return null;
+
+      const selectorCandidates = [
+        anchors.ariaLabel ? `[aria-label="${anchors.ariaLabel}"]` : null,
+        anchors.placeholder ? `input[placeholder="${anchors.placeholder}"], textarea[placeholder="${anchors.placeholder}"]` : null,
+        anchors.name ? `input[name="${anchors.name}"], textarea[name="${anchors.name}"], select[name="${anchors.name}"]` : null,
+        anchors.dataTestId ? `[data-testid="${anchors.dataTestId}"]` : null,
+        anchors.id && !/^(input-v-\d+|checkbox-v-\d+|_react_|react-\d+|:r)/.test(anchors.id) ? `#${anchors.id}` : null,
+      ];
+
+      for (const selector of selectorCandidates) {
+        if (!selector) continue;
+        const el = document.querySelector(selector);
+        if (el) {
+          return {
+            selector: stableSelector(el) || selector,
+            confidence: 0.89,
+            resolvedVia: 'auto_heal',
+            found: true,
+          };
+        }
+      }
+
+      if (anchors.labelText) {
+        const res = PRE_FIND_BY_LABEL(anchors.labelText);
+        if (res?.found) {
+          return {
+            selector: res.selector,
+            confidence: 0.87,
+            resolvedVia: 'auto_heal',
+            found: true,
+          };
+        }
+      }
+
+      if (anchors.text) {
+        const lowered = String(anchors.text).toLowerCase();
+        const el = Array.from(document.querySelectorAll('a[href],a,button,[role="button"],[role="menuitem"],[role="option"]'))
+          .find((candidate: any) =>
+            candidate.textContent?.trim().toLowerCase().includes(lowered) ||
+            candidate.getAttribute('aria-label')?.toLowerCase().includes(lowered)
+          ) as HTMLElement | undefined;
+        if (el) {
+          return {
+            selector: stableSelector(el) || null,
+            confidence: 0.86,
+            resolvedVia: 'auto_heal',
+            found: true,
+            buttonText: el.textContent?.trim() || null,
+          };
+        }
+      }
+
+      return null;
+    }
+
     // Step 1: cached selector (verify still valid in DOM)
     if (abstractTarget.cachedSelector && (abstractTarget.cachedConfidence || 0) >= 0.85 && abstractTarget.resolvedOn) {
       const age = Date.now() - new Date(abstractTarget.resolvedOn).getTime();
@@ -204,6 +282,9 @@ export default defineBackground(() => {
         if (el) return { selector: abstractTarget.cachedSelector, confidence: abstractTarget.cachedConfidence, resolvedVia: 'cached', found: true };
       }
     }
+
+    const healed = resolveFromAnchors(abstractTarget.anchors);
+    if (healed) return healed;
 
     const labelKeys: string[] = abstractTarget.match?.vuetify_label || abstractTarget.semanticKeys || [];
     const nameKeys: string[] = abstractTarget.match?.name_contains || [];
@@ -330,6 +411,116 @@ export default defineBackground(() => {
     return { ok: true, tag: el.tagName, text: (el as HTMLElement).textContent?.trim() };
   }
 
+  function PRE_CAPTURE_SIGNATURE_BASELINE(signatures: any[] = []) {
+    const expanded: any[] = [];
+    function flatten(sig: any) {
+      if (!sig) return;
+      if (Array.isArray(sig.any_of) && sig.any_of.length > 0) {
+        sig.any_of.forEach(flatten);
+      } else {
+        expanded.push(sig);
+      }
+    }
+    signatures.forEach(flatten);
+
+    const baseline: Record<string, string | null> = {};
+    for (const sig of expanded) {
+      if ((sig.type === 'attribute_change' || sig.type === 'attr_change') && sig.selector && sig.attribute) {
+        const el = document.querySelector(sig.selector);
+        baseline[`${sig.selector}::${sig.attribute}`] = el?.getAttribute(sig.attribute) ?? null;
+      }
+    }
+    return baseline;
+  }
+
+  function PRE_MATCH_RESPONSE_SIGNATURES(signatures: any[] = [], initialUrl: string, baseline: Record<string, string | null> = {}, stateGraph: any = null) {
+    const expanded: any[] = [];
+    function flatten(sig: any) {
+      if (!sig) return;
+      if (Array.isArray(sig.any_of) && sig.any_of.length > 0) {
+        sig.any_of.forEach(flatten);
+      } else {
+        expanded.push(sig);
+      }
+    }
+    signatures.forEach(flatten);
+
+    for (const sig of expanded) {
+      if (sig.type === 'url_change' && window.location.href !== initialUrl) {
+        return { matched: true, type: sig.type, url: window.location.href };
+      }
+
+      if (sig.type === 'url_matches' && sig.pattern && new RegExp(sig.pattern).test(window.location.href)) {
+        return { matched: true, type: sig.type, url: window.location.href };
+      }
+
+      if (sig.type === 'url_not_matches' && sig.pattern && !new RegExp(sig.pattern).test(window.location.href)) {
+        return { matched: true, type: sig.type, url: window.location.href };
+      }
+
+      if (sig.type === 'element_absent' && sig.selector && !document.querySelector(sig.selector)) {
+        return { matched: true, type: sig.type, selector: sig.selector };
+      }
+
+      if (sig.type === 'element_visible' && sig.selector) {
+        const el = document.querySelector(sig.selector) as HTMLElement | null;
+        if (el) {
+          return {
+            matched: true,
+            type: sig.type,
+            selector: sig.selector,
+            text: el.textContent?.trim() || undefined,
+          };
+        }
+      }
+
+      if (sig.type === 'element_text' && sig.selector && sig.text) {
+        const el = document.querySelector(sig.selector);
+        const text = el?.textContent?.trim() || '';
+        if (text.includes(sig.text)) {
+          return { matched: true, type: sig.type, selector: sig.selector, text };
+        }
+      }
+
+      if (sig.type === 'state_reached' && sig.state && stateGraph?.nodes) {
+        const state = PRE_ASSESS_STATE(stateGraph).state;
+        if (state === sig.state) {
+          return { matched: true, type: sig.type, state };
+        }
+      }
+
+      if ((sig.type === 'attribute_change' || sig.type === 'attr_change') && sig.selector && sig.attribute) {
+        const el = document.querySelector(sig.selector);
+        if (!el) continue;
+        const value = el.getAttribute(sig.attribute);
+        const prev = baseline[`${sig.selector}::${sig.attribute}`] ?? null;
+        const matches =
+          sig.value !== undefined ? value === String(sig.value)
+          : sig.pattern ? new RegExp(sig.pattern).test(value ?? '')
+          : value !== prev;
+        if (matches) {
+          return {
+            matched: true,
+            type: sig.type,
+            selector: sig.selector,
+            attribute: sig.attribute,
+            value,
+          };
+        }
+      }
+    }
+
+    const snackbar = document.querySelector('.v-snackbar__content');
+    const alert = document.querySelector('.v-alert');
+    return {
+      matched: false,
+      timeout: true,
+      snackbarText: snackbar?.textContent?.trim() || undefined,
+      alertText: alert?.textContent?.trim() || undefined,
+      urlNow: window.location.href,
+    };
+  }
+
   function PRE_GUARDED_READ(candidates: string[]) {
     for (const sel of (candidates || [])) {
       const el = document.querySelector(sel);
@@ -442,18 +633,141 @@ export default defineBackground(() => {
   }
 
   function PRE_ASSESS_STATE(stateGraph: any) {
+    function matchesSignal(sig: any) {
+      if (sig.type === 'url_matches') return !!sig.pattern && new RegExp(sig.pattern).test(window.location.href);
+      if (sig.type === 'url_not_matches') return !!sig.pattern && !new RegExp(sig.pattern).test(window.location.href);
+      if (sig.type === 'element_visible') return !!sig.selector && !!document.querySelector(sig.selector);
+      if (sig.type === 'element_absent') return !!sig.selector && !document.querySelector(sig.selector);
+      if (sig.type === 'element_text') return !!sig.selector && (document.querySelector(sig.selector)?.textContent?.includes(sig.text) ?? false);
+      if ((sig.type === 'attribute_change' || sig.type === 'attr_change') && sig.selector && sig.attribute) {
+        const el = document.querySelector(sig.selector);
+        return !!el && el.getAttribute(sig.attribute) === String(sig.value ?? '');
+      }
+      return false;
+    }
     if (!stateGraph?.nodes) return { state: 'unknown' };
     for (const [name, node] of Object.entries(stateGraph.nodes) as any) {
       if (!node.signals?.length) continue;
-      const allMatch = node.signals.every((sig: any) => {
-        if (sig.type === 'url_matches') return new RegExp(sig.pattern).test(window.location.pathname);
-        if (sig.type === 'element_visible') return !!document.querySelector(sig.selector);
-        if (sig.type === 'element_text') return document.querySelector(sig.selector)?.textContent?.includes(sig.text) ?? false;
-        return false;
-      });
+      const allMatch = node.signals.every((sig: any) => matchesSignal(sig));
       if (allMatch) return { state: name };
     }
     return { state: 'unknown' };
+  }
+
+  function PRE_ARM_MUTATION_OBSERVER() {
+    const w = window as any;
+    try {
+      w.__yeshieObserver?.disconnect?.();
+    } catch (_) {}
+
+    w.__yeshieMutations = [];
+
+    function summarizeNode(node: Node | null) {
+      if (!node) return null;
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent?.trim();
+        return text ? { type: 'text', text: text.slice(0, 120) } : { type: 'text', text: '' };
+      }
+      if (!(node instanceof Element)) return { type: 'node', tag: node.nodeName };
+      return {
+        type: 'element',
+        tag: node.tagName.toLowerCase(),
+        id: node.id || null,
+        className: node.className || null,
+        text: node.textContent?.trim().slice(0, 120) || null,
+      };
+    }
+
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        const target = record.target instanceof Element ? record.target : null;
+        w.__yeshieMutations.push({
+          type: record.type,
+          tag: target?.tagName?.toLowerCase() || null,
+          id: target?.id || null,
+          className: target?.className || null,
+          text: target?.textContent?.trim().slice(0, 120) || null,
+          attribute: record.attributeName || null,
+          oldValue: record.oldValue || null,
+          added: Array.from(record.addedNodes || []).slice(0, 5).map(summarizeNode),
+          removed: Array.from(record.removedNodes || []).slice(0, 5).map(summarizeNode),
+          timestamp: Date.now(),
+        });
+      }
+      if (w.__yeshieMutations.length > 250) {
+        w.__yeshieMutations = w.__yeshieMutations.slice(-250);
+      }
+    });
+
+    const root = document.body || document.documentElement;
+    if (!root) return { armed: false, reason: 'no_root' };
+
+    observer.observe(root, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeOldValue: true,
+      characterData: true,
+      characterDataOldValue: true,
+    });
+
+    w.__yeshieObserver = observer;
+    return { armed: true, startedAt: Date.now() };
+  }
+
+  function PRE_READ_MUTATIONS(disconnect: boolean = true) {
+    const w = window as any;
+    const records = Array.isArray(w.__yeshieMutations) ? w.__yeshieMutations.slice() : [];
+    if (disconnect) {
+      try {
+        w.__yeshieObserver?.disconnect?.();
+      } catch (_) {}
+      w.__yeshieObserver = null;
+    }
+    return {
+      count: records.length,
+      records,
+    };
+  }
+
+  async function PRE_FLUSH_UI() {
+    await Promise.resolve();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    return { flushed: true };
+  }
+
+  function PRE_MATCH_WAIT_FOR(step: any, selector: string | null, stateGraph: any) {
+    if (step.url_pattern) {
+      return {
+        matched: new RegExp(step.url_pattern).test(window.location.href),
+        url: window.location.href,
+      };
+    }
+
+    if (step.stateGraph?.nodes || step.state?.stateGraph?.nodes || stateGraph?.nodes) {
+      const graph = step.state?.stateGraph || step.stateGraph || stateGraph;
+      const currentState = PRE_ASSESS_STATE(graph).state;
+      const expectedState = step.state?.name || step.expect?.state;
+      return {
+        matched: expectedState ? currentState === expectedState : currentState !== 'unknown',
+        state: currentState,
+      };
+    }
+
+    const el = selector ? document.querySelector(selector) as HTMLElement | null : null;
+    if (step.state) {
+      if (step.state.visible !== undefined) return { matched: step.state.visible ? !!el : !el };
+      if (step.state.enabled !== undefined) {
+        const enabled = !!el && !(el as HTMLInputElement | HTMLButtonElement).disabled && el.getAttribute('aria-disabled') !== 'true';
+        return { matched: step.state.enabled ? enabled : !enabled };
+      }
+      if (step.state.attribute) {
+        const matched = !!el && Object.entries(step.state.attribute).every(([key, expected]) => el?.getAttribute(key) === String(expected));
+        return { matched };
+      }
+    }
+
+    return { matched: !!el };
   }
 
   function PRE_FIND_ROW_AND_CLICK(identifier: string) {
@@ -577,6 +891,58 @@ export default defineBackground(() => {
       tables,
       mainActions
     };
+  }
+
+  function PRE_CAPTURE_ENTITIES(config: any = {}) {
+    const rowSelector = String(config.rowSelector || '.v-data-table__tr, tbody tr, [role="row"]');
+    const linkSelector = String(config.linkSelector || 'a[href], a');
+    const idPattern = config.idPattern ? new RegExp(String(config.idPattern)) : null;
+    const rows = Array.from(document.querySelectorAll(rowSelector));
+    const entities: Record<string, { id: string | null; href: string | null; text: string }> = {};
+
+    function firstMatchingAttr(el: Element | null) {
+      if (!el) return { href: null, id: null, attrs: {} as Record<string, string | null> };
+      const attrNames = ['href', 'to', 'data-href', 'data-to', 'data-route', 'router-link', 'aria-label', 'title'];
+      const attrs: Record<string, string | null> = {};
+      for (const name of attrNames) attrs[name] = el.getAttribute(name);
+      const values = Object.values(attrs).filter(Boolean) as string[];
+      const href = values.find(v => v.startsWith('/')) || attrs.href || attrs['data-href'] || attrs['data-to'] || attrs['data-route'] || attrs.to || null;
+      const id = href
+        ? (idPattern ? (href.match(idPattern)?.[1] ?? null) : (href.match(/\/([A-Za-z0-9-]+)(?:\/details)?\/?$/)?.[1] ?? null))
+        : null;
+      return { href, id, attrs };
+    }
+
+    for (const row of rows) {
+      const link = row.querySelector(linkSelector) as HTMLAnchorElement | null;
+      const cell = row.querySelector('td, th, [role="cell"]');
+      const text = link?.textContent?.trim() || cell?.textContent?.trim() || '';
+      if (!text) continue;
+      const clickable = row.querySelector('a[href], a, button, [role="button"], [tabindex], [aria-label], [title]') as HTMLElement | null;
+      const match = firstMatchingAttr(link || clickable || row);
+      entities[text] = {
+        id: match.id,
+        href: match.href,
+        text,
+      };
+      if (config.debug) {
+        (entities[text] as any).debug = {
+          rowClass: (row as HTMLElement).className || null,
+          rowRole: row.getAttribute('role'),
+          rowAttrs: firstMatchingAttr(row).attrs,
+          clickableTag: clickable?.tagName || null,
+          clickableText: clickable?.textContent?.trim() || null,
+          clickableAttrs: clickable ? firstMatchingAttr(clickable).attrs : {},
+          clickableKeys: clickable ? Object.keys(clickable).filter((k) => k.startsWith('__v') || k.startsWith('_vei')).slice(0, 20) : [],
+          clickableVueProps: clickable && (clickable as any).__vnode?.props
+            ? Object.fromEntries(Object.entries((clickable as any).__vnode.props).filter(([k, v]) => typeof v !== 'function').slice(0, 20))
+            : null,
+          rowHtml: (row as HTMLElement).outerHTML.slice(0, 1200),
+        };
+      }
+    }
+
+    return entities;
   }
 
   function PRE_RUN_DOMQUERY(code: string, params: Record<string, any>) {
@@ -768,6 +1134,96 @@ export default defineBackground(() => {
     return results?.[0]?.result;
   }
 
+  function getSignatureTimeout(signatures: any[] = [], fallback = 2000) {
+    const values: number[] = [];
+    function visit(sig: any) {
+      if (!sig) return;
+      if (typeof sig.timeout === 'number') values.push(sig.timeout);
+      if (Array.isArray(sig.any_of)) sig.any_of.forEach(visit);
+    }
+    signatures.forEach(visit);
+    return values.length > 0 ? Math.max(...values) : fallback;
+  }
+
+  function resolveEntityNavigation(step: any, buffer: Record<string, any>) {
+    const identifier = interpolate(step.identifier || step.value || '', buffer);
+    const entityMapName = String(step.entity_map || 'entities');
+    const entityMap = buffer[entityMapName] || {};
+    const entry = Object.entries(entityMap).find(([key]) => key.toLowerCase() === String(identifier).toLowerCase())?.[1] as any;
+
+    if (!entry) throw new Error(`Entity not found: ${identifier} in ${entityMapName}`);
+
+    const schema = step.urlSchema?.[step.urlSchemaKey || step.entity] || step.urlSchema?.[step.urlSchemaKey] || null;
+    const urlTemplate = step.urlTemplate || schema?.template || '';
+    if (urlTemplate) {
+      const entityId = entry.id || null;
+      if (entityId) {
+        return {
+          identifier,
+          entityId,
+          url: String(urlTemplate).replace(/\{(?:entityId|id|uuid)\}/g, entityId),
+          strategy: 'direct',
+        };
+      }
+    }
+
+    if (entry.href) {
+      return {
+        identifier,
+        entityId: entry.id || null,
+        url: entry.href,
+        strategy: 'href',
+      };
+    }
+
+    return {
+      identifier,
+      entityId: entry.id || null,
+      url: null,
+      strategy: 'row_click_fallback',
+      listUrl: step.listUrl || schema?.list || null,
+    };
+  }
+
+  async function evaluateActionOutcome(tabId: number, step: any, initialUrl: string, failureBaseline: Record<string, string | null>, responseBaseline: Record<string, string | null>, stateGraph: any = null) {
+    const hasFailure = Array.isArray(step.failureSignature) && step.failureSignature.length > 0;
+    const hasResponse = Array.isArray(step.responseSignature) && step.responseSignature.length > 0;
+    await execInTab(tabId, PRE_FLUSH_UI, []);
+
+    const failureTimeout = getSignatureTimeout(step.failureSignature, 0);
+    const responseTimeout = getSignatureTimeout(step.responseSignature, 0);
+    const timeout = hasFailure || hasResponse
+      ? Math.max(failureTimeout, responseTimeout, 2000)
+      : 600;
+    const startedAt = Date.now();
+
+    let failureSignature = hasFailure ? await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.failureSignature, initialUrl, failureBaseline, stateGraph]) : undefined;
+    let responseSignature = hasResponse ? await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.responseSignature, initialUrl, responseBaseline, stateGraph]) : undefined;
+    while ((hasFailure || hasResponse) && Date.now() - startedAt < timeout) {
+      if (failureSignature?.matched || responseSignature?.matched) break;
+      await new Promise(r => setTimeout(r, 200));
+      if (hasFailure) failureSignature = await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.failureSignature, initialUrl, failureBaseline, stateGraph]);
+      if (hasResponse) responseSignature = await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.responseSignature, initialUrl, responseBaseline, stateGraph]);
+    }
+
+    const mutationDiagnostics = await execInTab(tabId, PRE_READ_MUTATIONS, [true]);
+
+    const outcome =
+      failureSignature?.matched ? 'failure'
+      : responseSignature?.matched ? 'success'
+      : hasFailure || hasResponse ? 'ambiguous' : undefined;
+
+    return {
+      failureSignature,
+      responseSignature,
+      outcome,
+      diagnostics: {
+        mutationCount: mutationDiagnostics?.count || 0,
+        mutations: mutationDiagnostics?.records || [],
+      },
+    };
+  }
+
   // ── Step executor ─────────────────────────────────────────────────────────────
   async function executeStep(step: any, run: any) {
     const t0 = Date.now();
@@ -809,8 +1265,72 @@ export default defineBackground(() => {
         return { stepId: step.stepId, action: a, status: 'ok', url: r.url, durationMs: Date.now() - t0 };
       }
 
+      if (a === 'capture_entities') {
+        const entities = await execInTab(tabId, PRE_CAPTURE_ENTITIES, [step]);
+        if (step.store_as) buffer[step.store_as] = entities;
+        return { stepId: step.stepId, action: a, status: 'ok', result: entities, storedAs: step.store_as, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'navigate_to_entity') {
+        const resolved = resolveEntityNavigation(step, { ...params, ...buffer });
+        if (resolved.url) {
+          const r = await navigateAndWait(tabId, resolved.url);
+          return { stepId: step.stepId, action: a, status: 'ok', url: r.url, value: r.url, result: resolved, durationMs: Date.now() - t0 };
+        }
+
+        const initialUrl = await execInTab(tabId, () => window.location.href, []);
+        let clickResult = await execInTab(tabId, PRE_FIND_ROW_AND_CLICK, [resolved.identifier]);
+
+        if (!clickResult?.found && resolved.listUrl) {
+          const absoluteListUrl = String(resolved.listUrl).startsWith('http')
+            ? resolved.listUrl
+            : new URL(String(resolved.listUrl), params?.base_url || step.base_url || 'https://app.yeshid.com').toString();
+          const currentUrl = await execInTab(tabId, () => window.location.href, []);
+          if (currentUrl !== absoluteListUrl) {
+            await navigateAndWait(tabId, absoluteListUrl);
+          }
+
+          const rowStartedAt = Date.now();
+          while (Date.now() - rowStartedAt < 5000) {
+            const rowReady = await execInTab(tabId, () => !!document.querySelector('.v-data-table__tr, tbody tr, [role="row"]'), []);
+            if (rowReady) break;
+            await new Promise(r => setTimeout(r, 200));
+          }
+
+          clickResult = await execInTab(tabId, PRE_FIND_ROW_AND_CLICK, [resolved.identifier]);
+        }
+
+        if (!clickResult?.found) throw new Error('Row not found: ' + resolved.identifier);
+
+        const startedAt = Date.now();
+        let currentUrl = initialUrl;
+        while (Date.now() - startedAt < 5000) {
+          await new Promise(r => setTimeout(r, 200));
+          currentUrl = await execInTab(tabId, () => window.location.href, []);
+          if (currentUrl && currentUrl !== initialUrl) break;
+        }
+
+        return {
+          stepId: step.stepId,
+          action: a,
+          status: 'ok',
+          url: currentUrl,
+          value: currentUrl,
+          result: { ...resolved, url: currentUrl, clickResult },
+          durationMs: Date.now() - t0,
+        };
+      }
+
       if (a === 'type') {
         const value = interpolate(step.value || '', { ...params, ...buffer });
+        const initialUrl = await execInTab(tabId, () => window.location.href, []);
+        await execInTab(tabId, PRE_ARM_MUTATION_OBSERVER, []);
+        const failureBaseline = step.failureSignature?.length
+          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.failureSignature])
+          : {};
+        const responseBaseline = step.responseSignature?.length
+          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.responseSignature])
+          : {};
         const tgt = step.target ? abstractTargets?.[step.target] : null;
         let resolvedSelector = step.selector || null;
         let resolvedVia = 'direct';
@@ -829,24 +1349,19 @@ export default defineBackground(() => {
         }
         if (!resolvedSelector) throw new Error('No selector for: ' + (step.target || step.selector));
         await trustedType(tabId, resolvedSelector, value);
-        // If step has responseSignature, wait for the expected element to appear (e.g. search results filtering)
-        if (step.responseSignature?.length) {
-          const sig = step.responseSignature[0];
-          const sigSel = sig.selector || sig.any_of?.[0]?.selector;
-          const sigTimeout = sig.timeout || 2000;
-          if (sigSel) {
-            const sigStart = Date.now();
-            while (Date.now() - sigStart < sigTimeout) {
-              const found = await execInTab(tabId, (s: string) => !!document.querySelector(s), [sigSel]);
-              if (found) break;
-              await new Promise(r => setTimeout(r, 200));
-            }
-          }
-        }
-        return { stepId: step.stepId, action: a, status: 'ok', value, selector: resolvedSelector, resolvedVia, confidence, target: step.target, durationMs: Date.now() - t0 };
+        const outcomeFields = await evaluateActionOutcome(tabId, step, initialUrl, failureBaseline, responseBaseline, run.payload?.stateGraph || null);
+        return { stepId: step.stepId, action: a, status: 'ok', value, selector: resolvedSelector, resolvedVia, confidence, target: step.target, ...outcomeFields, durationMs: Date.now() - t0 };
       }
 
       if (a === 'click') {
+        const initialUrl = await execInTab(tabId, () => window.location.href, []);
+        await execInTab(tabId, PRE_ARM_MUTATION_OBSERVER, []);
+        const failureBaseline = step.failureSignature?.length
+          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.failureSignature])
+          : {};
+        const responseBaseline = step.responseSignature?.length
+          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.responseSignature])
+          : {};
         const tgt = step.target ? abstractTargets?.[step.target] : null;
         let resolvedSelector = step.selector || null;
         let resolvedVia = 'direct';
@@ -860,7 +1375,8 @@ export default defineBackground(() => {
         }
         const r = await execInTab(tabId, PRE_GUARDED_CLICK, [resolvedSelector, buttonText]);
         if (!r?.ok) throw new Error(r?.error || 'Click failed');
-        return { stepId: step.stepId, action: a, status: 'ok', selector: resolvedSelector, resolvedVia, target: step.target, clickDiag: r, durationMs: Date.now() - t0 };
+        const outcomeFields = await evaluateActionOutcome(tabId, step, initialUrl, failureBaseline, responseBaseline, run.payload?.stateGraph || null);
+        return { stepId: step.stepId, action: a, status: 'ok', selector: resolvedSelector, resolvedVia, target: step.target, clickDiag: r, ...outcomeFields, durationMs: Date.now() - t0 };
       }
 
       if (a === 'wait_for') {
@@ -871,8 +1387,8 @@ export default defineBackground(() => {
         if (step.url_pattern) {
           const pat = interpolate(step.url_pattern, { ...params, ...buffer });
           while (Date.now() - start < timeout) {
-            const url = await execInTab(tabId, () => window.location.href, []);
-            if (url && new RegExp(pat).test(url)) return { stepId: step.stepId, action: a, status: 'ok', url, durationMs: Date.now() - t0 };
+            const match = await execInTab(tabId, PRE_MATCH_WAIT_FOR, [{ ...step, url_pattern: pat }, null, run.payload?.stateGraph || null]);
+            if (match?.matched) return { stepId: step.stepId, action: a, status: 'ok', url: match.url, durationMs: Date.now() - t0 };
             await new Promise(r => setTimeout(r, 200));
           }
           throw new Error('wait_for url timeout: ' + pat);
@@ -887,8 +1403,8 @@ export default defineBackground(() => {
         }
         if (!sel) sel = interpolate(step.target || '', params); // last resort: literal
         while (Date.now() - start < timeout) {
-          const found = await execInTab(tabId, (s: string) => !!document.querySelector(s), [sel as string]);
-          if (found) return { stepId: step.stepId, action: a, status: 'ok', selector: sel, durationMs: Date.now() - t0 };
+          const match = await execInTab(tabId, PRE_MATCH_WAIT_FOR, [step, sel as string, run.payload?.stateGraph || null]);
+          if (match?.matched) return { stepId: step.stepId, action: a, status: 'ok', selector: sel, state: match.state, durationMs: Date.now() - t0 };
           await new Promise(r => setTimeout(r, 300));
         }
         throw new Error('wait_for timeout: ' + sel);
