@@ -47,7 +47,75 @@ export default defineBackground(() => {
         socket.emit('chain_error', { commandId, error: err.message });
       });
     });
+
+    // Relay injects a chat message into a specific tab's side-panel conversation.
+    // The message appears as if the user typed it, then flows through the normal
+    // chat path so the listener receives it just like any user-initiated message.
+    socket.on('inject_chat', async ({ tabId, message }: any) => {
+      console.log('[Yeshie] inject_chat for tab', tabId, message);
+
+      // Step 1: ask the side panel for the current history of this tab
+      let history: any[] = [];
+      try {
+        const histResp: any = await new Promise((resolve) => {
+          chrome.runtime.sendMessage({ type: 'get_tab_history', tabId }, (r) => resolve(r));
+        });
+        if (Array.isArray(histResp?.history)) history = histResp.history;
+      } catch { /* proceed with empty history */ }
+
+      // Step 2: tell the side panel to display the user message immediately
+      try { chrome.runtime.sendMessage({ type: 'show_user_message', tabId, message }); } catch { /* ignore */ }
+
+      // Step 3: resolve tab URL for context
+      let currentUrl = '';
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        currentUrl = tab.url || '';
+      } catch { /* ignore */ }
+
+      // Step 4: forward to relay /chat (same path as user-initiated messages)
+      try {
+        const resp = await fetch(CHAT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, currentUrl, tabId, history })
+        });
+        const data = await resp.json();
+        const chatId = data?.chatId || data?.id || null;
+        // Step 5: push the response back to the side panel for that tab
+        try { chrome.runtime.sendMessage({ type: 'show_response', tabId, response: data, chatId }); } catch { /* ignore */ }
+      } catch (e: any) {
+        try { chrome.runtime.sendMessage({ type: 'show_response', tabId, response: { type: 'error', text: e.message }, chatId: null }); } catch { /* ignore */ }
+      }
+    });
   }, 800);
+
+  // ── Tab activation: broadcast to side panel so conversations switch ──────────
+  chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      if (tab.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://')) {
+        chrome.runtime.sendMessage({ type: 'tab_activated', tabId, url: tab.url }).catch(() => {});
+      }
+    } catch { /* ignore */ }
+  });
+
+  // Window focus changes also change the active tab visible to the side panel
+  chrome.windows.onFocusChanged.addListener(async (windowId) => {
+    if (windowId === chrome.windows.WINDOW_ID_NONE) return;
+    try {
+      const tabs = await chrome.tabs.query({ active: true, windowId });
+      const tab = tabs[0];
+      if (tab?.id && tab.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://')) {
+        chrome.runtime.sendMessage({ type: 'tab_activated', tabId: tab.id, url: tab.url }).catch(() => {});
+      }
+    } catch { /* ignore */ }
+  });
+
+  // Clean up conversation memory when a tab is closed
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    chrome.runtime.sendMessage({ type: 'tab_removed', tabId }).catch(() => {});
+  });
 
 
 
@@ -222,7 +290,7 @@ export default defineBackground(() => {
 
       const selectorCandidates = [
         anchors.ariaLabel ? `[aria-label="${anchors.ariaLabel}"]` : null,
-        anchors.placeholder ? `input[placeholder="${anchors.placeholder}"], textarea[placeholder="${anchors.placeholder}"]` : null,
+        anchors.placeholder ? `input[placeholder="${anchors.placeholder}"], textarea[placeholder="${anchors.placeholder}"], [placeholder="${anchors.placeholder}"], [data-placeholder="${anchors.placeholder}"]` : null,
         anchors.name ? `input[name="${anchors.name}"], textarea[name="${anchors.name}"], select[name="${anchors.name}"]` : null,
         anchors.dataTestId ? `[data-testid="${anchors.dataTestId}"]` : null,
         anchors.id && !/^(input-v-\d+|checkbox-v-\d+|_react_|react-\d+|:r)/.test(anchors.id) ? `#${anchors.id}` : null,
@@ -542,11 +610,18 @@ export default defineBackground(() => {
     }
     const headings = [...document.querySelectorAll('main h1, main h2, main h3, .v-toolbar-title')]
       .map(h => ({ level: h.tagName, text: h.textContent?.trim() }));
-    const inputs = [...document.querySelectorAll('input, textarea, select')]
+    const inputs = [...document.querySelectorAll('input, textarea, select, [contenteditable="true"], [contenteditable="plaintext-only"]')]
       .filter(el => (el as HTMLElement).offsetParent !== null)
       .map(el => {
         const inp = el as HTMLInputElement;
-        return { tag: el.tagName, type: inp.type, id: inp.id, placeholder: inp.placeholder, label: getLabel(el), ariaLabel: el.getAttribute('aria-label') };
+        const isContentEditable = el.getAttribute('contenteditable') != null;
+        return {
+          tag: el.tagName, type: isContentEditable ? 'contenteditable' : inp.type,
+          id: inp.id, placeholder: inp.placeholder || el.getAttribute('data-placeholder') || null,
+          label: getLabel(el), ariaLabel: el.getAttribute('aria-label'),
+          role: el.getAttribute('role') || null,
+          dataTestId: el.getAttribute('data-testid') || null,
+        };
       });
     const buttons = [...document.querySelectorAll('button, [role=button], a.v-btn')]
       .filter(el => (el as HTMLElement).offsetParent !== null)
@@ -1047,19 +1122,89 @@ export default defineBackground(() => {
 
 
   // ── Trusted type via chrome.debugger ─────────────────────────────────────────
-  async function trustedType(tabId: number, selector: string, text: string) {
+  // submit=true: sends Enter after text (for chat UIs) instead of Tab (for form fields)
+  // For native <textarea> elements React uses controlled inputs — Input.insertText writes to
+  // the DOM but bypasses React's synthetic event system (state stays empty, Enter is ignored).
+  // We detect textarea vs contenteditable and use nativeInputValueSetter for textarea so React
+  // sees the value before we press Enter.
+  async function trustedType(tabId: number, selector: string, text: string, submit: boolean = false) {
     await ensureDebugger(tabId);
     const target = { tabId };
+
+    // Detect whether the target is a native textarea (React-controlled) or contenteditable
+    const { result: tagResult } = await chrome.debugger.sendCommand(target, 'Runtime.evaluate', {
+      expression: `(function(){const el=document.querySelector(${JSON.stringify(selector)});return el?el.tagName.toLowerCase():null;})()`,
+      returnByValue: true
+    }) as { result: { value: string | null } };
+    const isTextarea = tagResult?.value === 'textarea';
+
+    // Focus + select-all
     await chrome.debugger.sendCommand(target, 'Runtime.evaluate', {
       expression: `(function(){const el=document.querySelector(${JSON.stringify(selector)});if(!el)return false;el.focus();el.click();el.select&&el.select();return true;})()`,
       returnByValue: true
     });
     await new Promise(r => setTimeout(r, 80));
-    await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65 });
-    await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65 });
-    await chrome.debugger.sendCommand(target, 'Input.insertText', { text });
-    await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
-    await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+
+    if (isTextarea) {
+      // React-controlled textarea: use nativeInputValueSetter + _valueTracker mismatch trick
+      // so React's change detection fires and the submit handler sees the new value.
+      await chrome.debugger.sendCommand(target, 'Runtime.evaluate', {
+        expression: `(function(){
+          const el=document.querySelector(${JSON.stringify(selector)});
+          if(!el)return false;
+          const nativeSetter=Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value')?.set;
+          const prev=el.value;
+          if(nativeSetter){nativeSetter.call(el,${JSON.stringify(text)});}else{el.value=${JSON.stringify(text)};}
+          if(el._valueTracker){el._valueTracker.setValue(prev);}
+          el.dispatchEvent(new Event('input',{bubbles:true}));
+          el.dispatchEvent(new Event('change',{bubbles:true}));
+          return true;
+        })()`,
+        returnByValue: true
+      });
+    } else {
+      // contenteditable: use CDP insertText (produces isTrusted input events)
+      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65 });
+      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65 });
+      await chrome.debugger.sendCommand(target, 'Input.insertText', { text });
+    }
+
+    if (submit) {
+      await new Promise(r => setTimeout(r, 80));
+      if (isTextarea) {
+        // For textarea-based chat UIs (DeepSeek, Grok): the send button is a div[role="button"]
+        // with no stable aria-label or ID. Find the rightmost visible clickable element near the
+        // textarea and click it. Falls back to Enter key if no button found.
+        const { result: clickResult } = await chrome.debugger.sendCommand(target, 'Runtime.evaluate', {
+          expression: `(function(){
+            const ta=document.querySelector(${JSON.stringify(selector)});
+            if(!ta)return false;
+            const tr=ta.getBoundingClientRect();
+            const candidates=[...document.querySelectorAll('div[role="button"],button')]
+              .filter(el=>{
+                const r=el.getBoundingClientRect();
+                return r.right>tr.right-120 && Math.abs(r.top-tr.top)<120 && r.width>10 && r.width<80;
+              })
+              .sort((a,b)=>b.getBoundingClientRect().left-a.getBoundingClientRect().left);
+            if(candidates[0]){candidates[0].click();return true;}
+            return false;
+          })()`,
+          returnByValue: true
+        }) as { result: { value: boolean } };
+        if (!clickResult?.value) {
+          // Fallback: Enter key if no send button found
+          await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Return', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+          await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Return', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+        }
+      } else {
+        // contenteditable chat UIs (Claude.ai, ChatGPT, Gemini): Enter key submits
+        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Return', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Return', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+      }
+    } else {
+      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+    }
     return { ok: true };
   }
 
@@ -1348,7 +1493,7 @@ export default defineBackground(() => {
           }
         }
         if (!resolvedSelector) throw new Error('No selector for: ' + (step.target || step.selector));
-        await trustedType(tabId, resolvedSelector, value);
+        await trustedType(tabId, resolvedSelector, value, !!step.submit);
         const outcomeFields = await evaluateActionOutcome(tabId, step, initialUrl, failureBaseline, responseBaseline, run.payload?.stateGraph || null);
         return { stepId: step.stepId, action: a, status: 'ok', value, selector: resolvedSelector, resolvedVia, confidence, target: step.target, ...outcomeFields, durationMs: Date.now() - t0 };
       }
@@ -1988,13 +2133,13 @@ export default defineBackground(() => {
       return true;
     }
     if (msg.type === 'chat_message') {
-      const { message, currentUrl, tabId } = msg;
+      const { message, currentUrl, tabId, history } = msg;
       (async () => {
         try {
           const resp = await fetch(CHAT_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message, currentUrl, tabId, history: [] })
+            body: JSON.stringify({ message, currentUrl, tabId, history: history || [] })
           });
           const data = await resp.json();
           sendResponse(data);
@@ -2031,21 +2176,27 @@ export default defineBackground(() => {
       return true;
     }
     if (msg.type === 'teach_start' || msg.type === 'teach_goto' || msg.type === 'teach_end') {
-      // Forward teach messages to the best available tab.
-      // If the content overlay isn't loaded (common after hot-reload), inject it first.
+      // Forward teach messages to the correct tab.
+      // Preference order: (1) targetTabId from side panel (originating tab's conversation),
+      // (2) currently active real tab, (3) YeshID tab, (4) any https tab.
       (async () => {
         // Find best tab
         let targetTabId: number | undefined;
-        const focused = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-        const realTab = focused.find(t => t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('chrome-extension://'));
-        if (realTab?.id) {
-          targetTabId = realTab.id;
+        // If the side panel specified a tab (from the conversation that triggered this), use it
+        if (msg.targetTabId) {
+          targetTabId = msg.targetTabId;
         } else {
-          const yeshidTabs = await chrome.tabs.query({ url: 'https://app.yeshid.com/*' });
-          if (yeshidTabs[0]?.id) targetTabId = yeshidTabs[0].id;
-          else {
-            const allTabs = await chrome.tabs.query({ url: 'https://*/*' });
-            if (allTabs[0]?.id) targetTabId = allTabs[0].id;
+          const focused = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+          const realTab = focused.find(t => t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('chrome-extension://'));
+          if (realTab?.id) {
+            targetTabId = realTab.id;
+          } else {
+            const yeshidTabs = await chrome.tabs.query({ url: 'https://app.yeshid.com/*' });
+            if (yeshidTabs[0]?.id) targetTabId = yeshidTabs[0].id;
+            else {
+              const allTabs = await chrome.tabs.query({ url: 'https://*/*' });
+              if (allTabs[0]?.id) targetTabId = allTabs[0].id;
+            }
           }
         }
 

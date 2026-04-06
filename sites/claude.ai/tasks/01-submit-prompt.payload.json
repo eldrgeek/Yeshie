@@ -1,0 +1,87 @@
+{
+  "_meta": {
+    "task": "submit-prompt",
+    "description": "Submit a prompt to Claude.ai and capture the response. Detects auth wall; if not logged in, returns auth_required.",
+    "params": ["prompt", "base_url"],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null
+  },
+  "params": {
+    "base_url": "https://claude.ai/new",
+    "prompt": "Say hello in exactly one sentence."
+  },
+  "abstractTargets": {
+    "prompt_input": {
+      "description": "Main chat prompt input area (ProseMirror contenteditable)",
+      "anchors": {
+        "ariaLabel": "Write your prompt to Claude",
+        "placeholder": "How can I help you today?"
+      },
+      "fallbackSelectors": [
+        "[contenteditable='true'][role='textbox']",
+        "div[contenteditable='true']",
+        ".ProseMirror"
+      ]
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "stateGraph": {
+        "nodes": {
+          "auth_required": { "signals": [{ "type": "url_matches", "pattern": "claude\\.ai/login" }] }
+        }
+      },
+      "onMismatch": "continue",
+      "note": "Check for auth wall — if on login page, fail fast"
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 800,
+      "note": "Let page settle"
+    },
+    {
+      "stepId": "s3",
+      "action": "type",
+      "target": "prompt_input",
+      "value": "{{prompt}}",
+      "submit": true,
+      "note": "Type prompt and press Enter to submit"
+    },
+    {
+      "stepId": "s4",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Allow generation to start before polling for completion"
+    },
+    {
+      "stepId": "s5",
+      "action": "wait_for",
+      "selector": "[aria-label='Stop streaming']",
+      "state": { "visible": false },
+      "timeout": 120000,
+      "note": "Wait until Stop Streaming button disappears — generation complete"
+    },
+    {
+      "stepId": "s6",
+      "action": "delay",
+      "ms": 500,
+      "note": "Brief settle after generation"
+    },
+    {
+      "stepId": "s7",
+      "action": "read",
+      "candidates": [
+        "[data-message-author-role='assistant']:last-of-type",
+        "[data-is-streaming='false']:last-of-type"
+      ],
+      "store_as": "response",
+      "note": "Capture the last assistant message text"
+    }
+  ],
+  "site": "claude.ai",
+  "mode": "exploratory"
+}

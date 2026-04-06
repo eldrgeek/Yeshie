@@ -73,11 +73,31 @@ When adding a new document, add a row to the Documentation Map table above.
 
 ## Repository-Specific Notes for Agents
 
-### Services
+### Services (via HTTP)
 Both services must be running for any payload execution:
-- Relay: `curl -s http://localhost:3333/status` — expect `{"ok":true,"extensionConnected":true,"pending":0}`
+- **Health check:** `curl -s http://localhost:3333/status` — expect `{"ok":true,"extensionConnected":true,"pending":0}`
 - If `extensionConnected: false`: reload extension in `chrome://extensions`
 - Restart services: `launchctl kickstart -k gui/$(id -u)/com.yeshie.relay`
+
+#### Relay HTTP API
+The relay server on `localhost:3333` exposes these endpoints directly. Use `curl` to interact:
+
+- **`GET /status`** — health check, returns `{"ok":true,"extensionConnected":<bool>,"pending":<int>}`
+- **`POST /run`** — execute a payload against a browser tab
+  ```bash
+  curl -s -X POST http://localhost:3333/run \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"payload\": $(cat sites/yeshid/tasks/03-user-modify.payload.json),
+      \"params\": {\"user_identifier\": \"Claude\", \"base_url\": \"https://app.yeshid.com\"},
+      \"tabId\": null,
+      \"timeoutMs\": 120000
+    }"
+  ```
+- **`POST /chat`** — send a chat message to the side panel
+- **`GET /chat/listen`** — long-poll for incoming chat messages from the side panel
+
+> **Note:** Claude Code users have these capabilities via MCP tools (`yeshie_run`, `yeshie_status`, etc. in `.mcp.json`). Agents without MCP support (e.g., Codex) should use the HTTP API directly via curl.
 
 ### Tests
 `npm test` — should always be 176/176. Run tests before and after any changes to `src/` or `packages/`.

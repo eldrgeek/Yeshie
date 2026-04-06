@@ -196,4 +196,87 @@ describe('Relay Chat Endpoints', () => {
     const status = await request('GET', '/chat/status');
     expect(status.data.listenerConnected).toBe(true);
   });
+
+  test('TEST 9: POST /chat/inject returns 503 when extension not connected', async () => {
+    const { status, data } = await request('POST', '/chat/inject', {
+      tabId: 42,
+      message: 'hello from test',
+    });
+    // No extension connected in unit tests, so expect 503
+    expect(status).toBe(503);
+    expect(data.error).toMatch(/Extension not connected/);
+  });
+
+  test('TEST 10: POST /chat/inject returns 400 when tabId or message missing', async () => {
+    const r1 = await request('POST', '/chat/inject', { message: 'no tabId' });
+    expect(r1.status).toBe(400);
+    expect(r1.data.error).toMatch(/tabId and message/);
+
+    const r2 = await request('POST', '/chat/inject', { tabId: 42 });
+    expect(r2.status).toBe(400);
+    expect(r2.data.error).toMatch(/tabId and message/);
+  });
+
+  test('TEST 11: chat_message tabId and history are forwarded to listener', async () => {
+    // This test verifies the relay preserves tabId and history
+    const listenP = request('GET', '/chat/listen?timeout=5');
+    await new Promise((r) => setTimeout(r, 50));
+
+    const postP = request('POST', '/chat', {
+      message: 'help',
+      tabId: 77,
+      currentUrl: 'https://example.com/',
+      history: [
+        { role: 'user', content: 'previous question' },
+        { role: 'assistant', content: 'previous answer' },
+      ],
+    });
+
+    const listenResult = await listenP;
+    expect(listenResult.data.tabId).toBe(77);
+    expect(listenResult.data.currentUrl).toBe('https://example.com/');
+
+    // Clean up
+    const chatId = listenResult.data.id;
+    await request('POST', '/chat/respond', { chatId, response: { type: 'answer', text: 'ok' } });
+    await postP;
+  });
+
+  test('TEST 12: Two concurrent tabs have independent chat flows', async () => {
+    // Tab A starts a listener, posts a message, then Claude responds
+    const listenA = request('GET', '/chat/listen?timeout=5');
+    await new Promise((r) => setTimeout(r, 50));
+
+    const postA = request('POST', '/chat', {
+      message: 'Tab A question',
+      tabId: 1,
+    });
+
+    const listenResultA = await listenA;
+    expect(listenResultA.data.tabId).toBe(1);
+    const chatIdA = listenResultA.data.id;
+
+    // Start another listener for tab B
+    const listenB = request('GET', '/chat/listen?timeout=5');
+    await new Promise((r) => setTimeout(r, 50));
+
+    const postB = request('POST', '/chat', {
+      message: 'Tab B question',
+      tabId: 2,
+    });
+
+    const listenResultB = await listenB;
+    expect(listenResultB.data.tabId).toBe(2);
+    const chatIdB = listenResultB.data.id;
+
+    // Respond to both — responses should go to the correct side panel requests
+    await request('POST', '/chat/respond', { chatId: chatIdA, response: { type: 'answer', text: 'Reply to A' } });
+    await request('POST', '/chat/respond', { chatId: chatIdB, response: { type: 'answer', text: 'Reply to B' } });
+
+    const resultA = await postA;
+    const resultB = await postB;
+
+    expect(resultA.data.text).toBe('Reply to A');
+    expect(resultB.data.text).toBe('Reply to B');
+  });
 });

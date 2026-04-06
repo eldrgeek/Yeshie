@@ -1,0 +1,4 @@
+# Workflows RSI Tasks
+Navigate to the Workflows page and describe what templates exist
+On the Workflows page, try clicking "New Template" and describe what happens
+Look for any triggers or policies sections and describe them

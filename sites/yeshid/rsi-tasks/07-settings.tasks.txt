@@ -1,0 +1,6 @@
+# Settings RSI Tasks
+Navigate to the Events page and describe the event log - how many events, what types
+On the Events page, search for "onboard" and describe the results
+Navigate to Settings and find the Administrators section - list current admins
+In Settings, find the notification settings and describe current configuration
+In Settings, look for branding or customization options and describe them

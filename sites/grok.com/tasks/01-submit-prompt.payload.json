@@ -1,0 +1,66 @@
+{
+  "_meta": {
+    "task": "submit-prompt",
+    "description": "Submit a prompt to Grok and capture the response.",
+    "params": ["prompt"],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "notes": "Grok uses Tiptap/ProseMirror contenteditable (not textarea). Use Input.insertText via CDP. Submit button: button[aria-label='Submit'] — stable. Response selector needs calibration after first run."
+  },
+  "params": {
+    "prompt": "Say hello in exactly one sentence."
+  },
+  "abstractTargets": {
+    "prompt_input": {
+      "description": "Tiptap/ProseMirror contenteditable — confirmed on fresh Grok page",
+      "fallbackSelectors": [
+        "div.tiptap.ProseMirror[contenteditable='true']",
+        ".ProseMirror[contenteditable='true']",
+        "[contenteditable='true']"
+      ]
+    },
+    "send_button": {
+      "description": "Submit button — stable aria-label='Submit'",
+      "anchors": { "ariaLabel": "Submit" },
+      "fallbackSelectors": [
+        "button[aria-label='Submit']",
+        "button[aria-label*='Submit']"
+      ]
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "delay",
+      "ms": 800,
+      "note": "Let page settle"
+    },
+    {
+      "stepId": "s2",
+      "action": "type",
+      "target": "prompt_input",
+      "value": "{{prompt}}",
+      "submit": true,
+      "note": "ProseMirror contenteditable: Input.insertText + Enter key. submit:true fires Enter."
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 30000,
+      "note": "Fixed 30s wait for generation. TODO: replace with wait_for once stop-button selector confirmed."
+    },
+    {
+      "stepId": "s4",
+      "action": "read",
+      "candidates": [
+        "[class*='markdown']:last-of-type",
+        "[class*='markdown']"
+      ],
+      "store_as": "response",
+      "note": "Confirmed 2026-04-06: [class*='markdown']:last-of-type captures Grok's answer (skips thinking preamble)"
+    }
+  ],
+  "site": "grok.com",
+  "mode": "exploratory"
+}

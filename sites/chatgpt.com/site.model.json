@@ -1,0 +1,90 @@
+{
+  "site": "chatgpt.com",
+  "framework": "react-lexical",
+  "description": "ChatGPT chat interface — Lexical contenteditable input, React UI",
+  "abstractTargets": {
+    "prompt_input": {
+      "description": "Main chat prompt input area (Lexical contenteditable editor)",
+      "match": {
+        "name_contains": ["Message ChatGPT", "Send a message"]
+      },
+      "anchors": {
+        "ariaLabel": "Message ChatGPT",
+        "dataTestId": "prompt-textarea"
+      },
+      "fallbackSelectors": [
+        "#prompt-textarea",
+        "[data-testid='prompt-textarea']",
+        "[contenteditable='true'][data-lexical-editor='true']",
+        "div[contenteditable='true']"
+      ]
+    },
+    "send_button": {
+      "description": "Send prompt button",
+      "match": {
+        "name_contains": ["Send prompt", "Send message"]
+      },
+      "anchors": {
+        "ariaLabel": "Send prompt",
+        "dataTestId": "send-button"
+      },
+      "fallbackSelectors": [
+        "[data-testid='send-button']",
+        "button[aria-label='Send prompt']",
+        "button[aria-label*='Send']"
+      ]
+    },
+    "stop_button": {
+      "description": "Stop generating button (present while generating, absent when done)",
+      "match": {
+        "name_contains": ["Stop generating", "Stop streaming"]
+      },
+      "anchors": {
+        "ariaLabel": "Stop generating",
+        "dataTestId": "stop-button"
+      },
+      "fallbackSelectors": [
+        "[data-testid='stop-button']",
+        "button[aria-label*='Stop']"
+      ]
+    },
+    "response_container": {
+      "description": "Last assistant message container",
+      "fallbackSelectors": [
+        "[data-message-author-role='assistant']:last-of-type",
+        "[data-message-author-role='assistant']:last-child"
+      ]
+    },
+    "auth_wall": {
+      "description": "Login indicator when session expired",
+      "fallbackSelectors": [
+        "a[href='/auth/login']",
+        "button[aria-label*='Log in']"
+      ]
+    }
+  },
+  "stateGraph": {
+    "nodes": {
+      "authenticated": {
+        "signals": [
+          { "type": "url_matches", "pattern": "chatgpt\\.com/(c/|$)" }
+        ]
+      },
+      "generating": {
+        "signals": [
+          { "type": "element_visible", "selector": "[data-testid='stop-button']" }
+        ]
+      },
+      "idle": {
+        "signals": [
+          { "type": "element_absent", "selector": "[data-testid='stop-button']" }
+        ]
+      },
+      "auth_required": {
+        "signals": [
+          { "type": "url_matches", "pattern": "chatgpt\\.com/auth" }
+        ]
+      }
+    }
+  }
+}

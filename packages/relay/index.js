@@ -157,6 +157,24 @@ export function createRelay(port = 3333) {
         ack({ connected: !!extensionSocket, id: extensionSocket?.id || null });
       });
     }
+
+    // Any connected socket (regardless of role) may inject a chat message into
+    // a specific tab's side-panel conversation for testing and automation.
+    // The relay forwards inject_chat to the extension, which surfaces it in the
+    // correct tab's conversation and routes it through the normal /chat flow.
+    socket.on('inject_chat', ({ tabId, message }) => {
+      if (!tabId || !message) {
+        socket.emit('inject_ack', { ok: false, error: 'tabId and message required' });
+        return;
+      }
+      if (!extensionSocket) {
+        socket.emit('inject_ack', { ok: false, error: 'Extension not connected' });
+        return;
+      }
+      logConversation({ event: 'injected_message', tabId, message });
+      extensionSocket.emit('inject_chat', { tabId, message });
+      socket.emit('inject_ack', { ok: true });
+    });
   });
 
   // HTTP handler
@@ -194,6 +212,39 @@ export function createRelay(port = 3333) {
       } catch (err) {
         jsonReply(res, 500, { error: err.message });
       }
+      return;
+    }
+
+
+    // --- Status board ---
+
+    if (path === '/status-board' && req.method === 'GET') {
+      if (!global._statusMessages) global._statusMessages = [];
+      const rows = global._statusMessages.map(m => {
+        const cls = m.text.includes('DONE') ? 'done' : m.text.includes('FAIL') ? 'fail' : m.text.includes('WATCHDOG') ? 'watch' : 'info';
+        return `<div class="msg ${cls}"><span class="ts">${m.ts}</span>${m.text}</div>`;
+      }).join('\n') || '<div class="msg info"><span class="ts">--:--:--</span>No messages yet</div>';
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Yeshie Status</title>
+
+<style>body{font-family:monospace;background:#0d1117;color:#c9d1d9;margin:20px;font-size:13px}
+h2{color:#58a6ff}hr{border-color:#333}
+.msg{padding:4px 8px;border-left:3px solid #333;margin:3px 0}
+.done{border-color:#3fb950}.fail{border-color:#f85149}.watch{border-color:#d29922}.info{border-color:#58a6ff}
+.ts{color:#8b949e;margin-right:8px}</style></head>
+<body><h2>Yeshie Status Board</h2><small id="cd">Refreshing in 10s...</small><script>let t=10;setInterval(()=>{t--;document.getElementById("cd").textContent="Refreshing in "+t+"s...";if(t<=0){t=10;location.reload();}},1000);</script><hr>${rows}</body></html>`;
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(html);
+      return;
+    }
+
+    if (path === '/status-board' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'bad json' }); return; }
+      if (!global._statusMessages) global._statusMessages = [];
+      const ts = new Date().toLocaleTimeString('en-US', { hour12: false });
+      global._statusMessages.unshift({ ts, text: body.text || JSON.stringify(body) });
+      if (global._statusMessages.length > 50) global._statusMessages.length = 50;
+      jsonReply(res, 200, { ok: true, count: global._statusMessages.length });
       return;
     }
 
@@ -286,7 +337,7 @@ export function createRelay(port = 3333) {
       const respTimer = setTimeout(() => {
         pendingResponders.delete(chatId);
         jsonReply(res, 200, { type: 'timeout' });
-      }, 120_000);
+      }, 300_000);
 
       pendingResponders.set(chatId, { res, timer: respTimer });
 
@@ -338,6 +389,25 @@ export function createRelay(port = 3333) {
         suggestionQueue.push(suggestion);
       }
 
+      jsonReply(res, 200, { ok: true });
+      return;
+    }
+
+    if (path === '/chat/inject' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+
+      const { tabId, message } = body;
+      if (!tabId || !message) {
+        jsonReply(res, 400, { error: 'tabId and message are required' });
+        return;
+      }
+      if (!extensionSocket) {
+        jsonReply(res, 503, { error: 'Extension not connected' });
+        return;
+      }
+      logConversation({ event: 'injected_message', tabId, message });
+      extensionSocket.emit('inject_chat', { tabId, message });
       jsonReply(res, 200, { ok: true });
       return;
     }

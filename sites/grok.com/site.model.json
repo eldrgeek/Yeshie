@@ -1,0 +1,66 @@
+{
+  "site": "grok.com",
+  "framework": "react",
+  "description": "Grok chat — Tiptap/ProseMirror contenteditable input, stable Submit aria-label",
+  "notes": "Earlier probe mistakenly identified a hidden accessibility textarea. Real input is div.tiptap.ProseMirror[contenteditable='true']. Placeholder on fresh page: 'What's on your mind?' (may vary). Submit button has stable aria-label='Submit'. Use Input.insertText (CDP) for typing — ProseMirror requires isTrusted events.",
+  "abstractTargets": {
+    "prompt_input": {
+      "description": "Tiptap/ProseMirror contenteditable div — confirmed on fresh chat page",
+      "anchors": {
+        "ariaLabel": "Ask Grok anything"
+      },
+      "fallbackSelectors": [
+        "div.tiptap.ProseMirror[contenteditable='true']",
+        ".ProseMirror[contenteditable='true']",
+        "[contenteditable='true']"
+      ]
+    },
+    "send_button": {
+      "description": "Send/submit button — stable aria-label='Submit', disabled when input empty",
+      "anchors": {
+        "ariaLabel": "Submit"
+      },
+      "fallbackSelectors": [
+        "button[aria-label='Submit']",
+        "button[aria-label*='Submit']",
+        "button[aria-label*='Send']"
+      ]
+    },
+    "stop_button": {
+      "description": "Stop generation — selector unconfirmed, needs calibration during active generation",
+      "fallbackSelectors": [
+        "button[aria-label*='Stop']",
+        "button[aria-label*='Cancel']"
+      ]
+    },
+    "response_container": {
+      "description": "Last Grok response — confirmed: [class*='markdown']:last-of-type. 2 markdown elements per response (thinking + answer); last-of-type gives the answer.",
+      "notes": "Confirmed 2026-04-06. Grok responded in 377ms to YESHIE_TEST.",
+      "fallbackSelectors": [
+        "[class*='markdown']:last-of-type",
+        "[class*='markdown']"
+      ]
+    },
+    "auth_wall": {
+      "description": "Sign-in indicator",
+      "fallbackSelectors": [
+        "a[href*='/sign-in']",
+        "button[aria-label*='Sign in']"
+      ]
+    }
+  },
+  "stateGraph": {
+    "nodes": {
+      "authenticated": {
+        "signals": [
+          { "type": "url_matches", "pattern": "grok\\.com" }
+        ]
+      },
+      "auth_required": {
+        "signals": [
+          { "type": "url_matches", "pattern": "grok\\.com/sign-in" }
+        ]
+      }
+    }
+  }
+}

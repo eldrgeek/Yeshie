@@ -1,0 +1,6 @@
+# Access & Audit RSI Tasks
+Navigate to the Access Grid page and describe what you see - how many people and apps
+On the Access Grid page, look for filter options and describe them
+Navigate to the Audits page and describe what's there
+On the Audits page, click to start a new audit and read the form fields, then cancel
+Navigate to the Access Requests page and describe any pending requests

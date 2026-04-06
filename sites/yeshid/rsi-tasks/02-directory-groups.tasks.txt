@@ -1,0 +1,8 @@
+# Directory & Groups RSI Tasks
+Navigate to the Directories page and tell me what directories exist and when they were last synced
+On the Directories page, click the Active filter button and tell me how many active identities there are
+On the Directories page, click the Suspended filter button and tell me how many suspended identities there are
+On the Directories page, click the Admin filter button
+On the Directories page, click the No-MFA filter button
+Navigate to the Groups page and list all groups
+On the Groups page, click "New Group" and read the dialog fields

@@ -31,7 +31,6 @@ STDOUT_LOG="${LOG_DIR}/stdout.log"
 PID_FILE="${RUN_ROOT}/pid"
 MODE="${CODEX_EXECUTION_MODE:-danger}"
 MODEL="${CODEX_MODEL:-gpt-5.4}"
-INCLUDE_DIRTY_WORKTREE="${INCLUDE_DIRTY_WORKTREE:-1}"
 
 mkdir -p "$WORKTREE_DIR" "$LOG_DIR"
 
@@ -55,21 +54,6 @@ fi
 
 if [[ ! -d "${WORKTREE_DIR}/.git" ]]; then
   git worktree add --detach "$WORKTREE_DIR" HEAD >/dev/null
-fi
-
-if [[ "$INCLUDE_DIRTY_WORKTREE" == "1" ]]; then
-  if command -v rsync >/dev/null 2>&1; then
-    rsync -a \
-      --exclude '.git' \
-      --exclude 'node_modules' \
-      --exclude '.codex' \
-      --exclude '.claude' \
-      --exclude '.DS_Store' \
-      "${REPO_ROOT}/" "${WORKTREE_DIR}/"
-  else
-    echo "rsync is required when INCLUDE_DIRTY_WORKTREE=1." >&2
-    exit 1
-  fi
 fi
 
 if [[ -d "${REPO_ROOT}/node_modules" && ! -e "${WORKTREE_DIR}/node_modules" ]]; then
@@ -161,7 +145,6 @@ PID: $PID
 Mode: $MODE
 Model: $MODEL
 Source branch: $CURRENT_BRANCH
-Include dirty worktree: $INCLUDE_DIRTY_WORKTREE
 Worktree: $WORKTREE_DIR
 Report target: ${WORKTREE_DIR}/${REPORT_PATH_REL}
 Final message: $FINAL_MESSAGE_FILE
