@@ -101,3 +101,50 @@ For native textarea: use `nativeInputValueSetter` + `_valueTracker` + `click` se
 Hot-reload is polling `localhost:27182` every 2s. When build number changes, extension reloads. This resets `_debuggerTabId` to null. Any in-flight chain will be dropped. Always check `yeshie_status` after a build to confirm reconnection before running tests.
 
 Logs appear in Chrome's extension page (`chrome://extensions` → Yeshie → background service worker inspect).
+
+---
+
+## Notification Architecture (3 Cases)
+
+**Goal:** Get a macOS notification when async work finishes, even after MCP bridge timeout.
+
+### Case 1 — yeshie_run / long chains
+
+Add a `notify` action as the LAST step in any payload chain:
+```json
+{
+  "stepId": "sN",
+  "action": "notify",
+  "message": "Chain complete: {{task}}",
+  "title": "Yeshie"
+}
+```
+Flow: `executeStep` → `socket.emit('notify', {message, title})` → relay `runOsascript()` → macOS notification.
+Works even after the MCP bridge 60s timeout because the extension socket connection to the relay persists.
+
+### Case 2 — bash fire-and-forget scripts
+
+When writing a `nohup` fire-and-forget bash wrapper, add osascript retry loop as the LAST command:
+```bash
+nohup bash -c '
+  <your command here>
+  # Notify when done (retry up to 3x)
+  for i in 1 2 3; do
+    osascript -e '"'"'display notification "Done" with title "Yeshie"'"'"' 2>/dev/null && break
+    sleep 2
+  done
+' > /dev/null 2>&1 &
+echo "PID: $!"
+```
+Or POST to relay directly (simpler, if relay is running):
+```bash
+curl -s -X POST http://localhost:3333/notify \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Done", "title": "Yeshie"}'
+```
+
+### Case 3 — MCP tool completions (cc-bridge)
+
+`notifyHost(message, title)` is wired into `shell_exec`, `claude_code`, and `yeshie_run` completions in `cc-bridge-mcp/server.js`. Uses detached `spawn('osascript', ...)` + `.unref()` so the subprocess outlives any bridge timeout. Retries up to 3x with 2s gap.
+
+`yeshie_run` skips the fallback notify if the chain already included a `notify` step (avoids double-notification).

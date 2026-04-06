@@ -1635,6 +1635,15 @@ export default defineBackground(() => {
         return { stepId: step.stepId, action: a, status: 'ok', result: r, durationMs: Date.now() - t0 };
       }
 
+      if (a === 'notify') {
+        // Case 1: chain-end notification — send to relay, relay runs osascript on host
+        const message = interpolate(step.message || 'Step complete', { ...params, ...buffer });
+        const title = interpolate(step.title || 'Yeshie', { ...params, ...buffer });
+        // socket is captured from outer scope via closure
+        socket.emit('notify', { message, title });
+        return { stepId: step.stepId, action: a, status: 'ok', message, durationMs: Date.now() - t0 };
+      }
+
       return { stepId: step.stepId, action: a, status: 'unsupported', durationMs: Date.now() - t0 };
 
     } catch (err: any) {
