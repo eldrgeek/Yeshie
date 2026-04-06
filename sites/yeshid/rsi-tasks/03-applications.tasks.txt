@@ -1,0 +1,7 @@
+# Applications RSI Tasks
+Navigate to the Applications page and list all connected applications
+On the Applications page, click "Add application" and read the dialog fields, then close the dialog
+Click on the first application in the list and describe its detail page
+On the application detail page, look for integration or SCIM configuration options
+On the application detail page, find and click the "Disconnect" button area and read what options appear, then cancel
+Navigate to the Applications page and click "Import application list" and describe the import options, then close

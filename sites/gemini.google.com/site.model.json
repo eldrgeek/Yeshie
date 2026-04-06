@@ -1,0 +1,90 @@
+{
+  "site": "gemini.google.com",
+  "framework": "angular",
+  "description": "Google Gemini chat interface — Angular Material with rich-textarea custom element",
+  "abstractTargets": {
+    "prompt_input": {
+      "description": "Main chat prompt input (rich-textarea / contenteditable within custom element)",
+      "match": {
+        "name_contains": ["Enter a prompt here", "Message Gemini", "Ask Gemini"]
+      },
+      "anchors": {
+        "ariaLabel": "Enter a prompt here",
+        "placeholder": "Enter a prompt here"
+      },
+      "fallbackSelectors": [
+        "[aria-label='Enter a prompt here']",
+        "rich-textarea div[contenteditable='true']",
+        "div[contenteditable='true'][role='textbox']",
+        "div.ql-editor",
+        "div[contenteditable='true']"
+      ]
+    },
+    "send_button": {
+      "description": "Submit prompt button",
+      "match": {
+        "name_contains": ["Send message", "Submit"]
+      },
+      "anchors": {
+        "ariaLabel": "Send message"
+      },
+      "fallbackSelectors": [
+        "button[aria-label='Send message']",
+        "button.send-button",
+        "mat-icon-button[aria-label*='Send']"
+      ]
+    },
+    "stop_button": {
+      "description": "Stop generating button (present while generating)",
+      "match": {
+        "name_contains": ["Stop response", "Stop generating"]
+      },
+      "anchors": {
+        "ariaLabel": "Stop response"
+      },
+      "fallbackSelectors": [
+        "button[aria-label='Stop response']",
+        "button[aria-label*='Stop']"
+      ]
+    },
+    "response_container": {
+      "description": "Last model response container",
+      "fallbackSelectors": [
+        "model-response:last-of-type",
+        ".response-container:last-child",
+        "message-content:last-of-type"
+      ]
+    },
+    "auth_wall": {
+      "description": "Google sign-in indicator",
+      "fallbackSelectors": [
+        "a[href*='accounts.google.com']",
+        "[aria-label*='Sign in']"
+      ]
+    }
+  },
+  "stateGraph": {
+    "nodes": {
+      "authenticated": {
+        "signals": [
+          { "type": "url_matches", "pattern": "gemini\\.google\\.com/app" }
+        ]
+      },
+      "generating": {
+        "signals": [
+          { "type": "element_visible", "selector": "button[aria-label='Stop response']" }
+        ]
+      },
+      "idle": {
+        "signals": [
+          { "type": "element_absent", "selector": "button[aria-label='Stop response']" }
+        ]
+      },
+      "auth_required": {
+        "signals": [
+          { "type": "url_matches", "pattern": "accounts\\.google\\.com" }
+        ]
+      }
+    }
+  }
+}

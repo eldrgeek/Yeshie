@@ -1,0 +1,86 @@
+{
+  "site": "claude.ai",
+  "framework": "react",
+  "description": "Claude.ai chat interface — ProseMirror contenteditable input, React UI",
+  "abstractTargets": {
+    "prompt_input": {
+      "description": "Main chat prompt input area (contenteditable ProseMirror editor)",
+      "match": {
+        "name_contains": ["Message Claude", "Write your prompt"]
+      },
+      "anchors": {
+        "ariaLabel": "Write your prompt to Claude",
+        "placeholder": "How can I help you today?"
+      },
+      "fallbackSelectors": [
+        "[contenteditable='true'][role='textbox']",
+        "div[contenteditable='true']",
+        ".ProseMirror"
+      ]
+    },
+    "send_button": {
+      "description": "Send message button (appears after text is typed)",
+      "match": {
+        "name_contains": ["Send message", "Send"]
+      },
+      "anchors": {
+        "ariaLabel": "Send message"
+      },
+      "fallbackSelectors": [
+        "[aria-label='Send message']",
+        "button[aria-label*='Send']"
+      ]
+    },
+    "stop_button": {
+      "description": "Stop streaming button (present while model is generating, absent when done)",
+      "match": {
+        "name_contains": ["Stop streaming", "Stop"]
+      },
+      "anchors": {
+        "ariaLabel": "Stop streaming"
+      },
+      "fallbackSelectors": [
+        "[aria-label='Stop streaming']",
+        "button[aria-label*='Stop']"
+      ]
+    },
+    "response_container": {
+      "description": "Last assistant message text container",
+      "fallbackSelectors": [
+        "[data-message-author-role='assistant']:last-of-type",
+        "[data-is-streaming='false']:last-of-type"
+      ]
+    },
+    "auth_wall": {
+      "description": "Login/sign-in indicator when session expired",
+      "fallbackSelectors": [
+        "a[href*='/login']",
+        "button[aria-label*='Sign in']"
+      ]
+    }
+  },
+  "stateGraph": {
+    "nodes": {
+      "authenticated": {
+        "signals": [
+          { "type": "url_matches", "pattern": "claude\\.ai/(new|chat)" }
+        ]
+      },
+      "generating": {
+        "signals": [
+          { "type": "element_visible", "selector": "[aria-label='Stop streaming']" }
+        ]
+      },
+      "idle": {
+        "signals": [
+          { "type": "element_absent", "selector": "[aria-label='Stop streaming']" }
+        ]
+      },
+      "auth_required": {
+        "signals": [
+          { "type": "url_matches", "pattern": "claude\\.ai/login" }
+        ]
+      }
+    }
+  }
+}

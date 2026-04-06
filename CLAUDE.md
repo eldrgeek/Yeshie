@@ -1,3 +1,27 @@
+# Working Memory
+
+> Read `memory/` for full context. This hot cache covers the essentials.
+
+## Mike
+Mike Wolf (mw@mike-wolf.com). Builder, ADD — needs external continuity structures. Goes to do morning pages while Claude works. Pastes HTML/console evidence when Claude is stuck. Collaborative: he wants to help, let him.
+
+## Key Patterns
+| Pattern | Rule |
+|---------|------|
+| MCP timeout | ~60s hard cap — use fire-and-forget `nohup curl ... &` for long chains |
+| React textarea | `nativeInputValueSetter` + `_valueTracker.setValue(prev)` before Enter (see SPECIFICATION.md) |
+| DeepSeek send button | `div[role='button'][class*='ds-icon-button--sizing-container']` — no aria-label |
+| DeepSeek CF | Cloudflare Turnstile blocks CDP navigation — manual submit works |
+| Tab IDs | Grok=1637801571, DeepSeek=1637801583, Claude.ai=1637801558, ChatGPT=1637801574, Gemini=1637801577 |
+| Outer loop | Edits to background.ts / target-resolver.ts. Inner loop = model JSON only. |
+
+## Deep Memory
+- `memory/mike.md` — who Mike is, how he works
+- `memory/patterns.md` — hard-won technical discoveries (add anything that took >10min)
+- `memory/projects.md` — Yeshie, cc-bridge-mcp, INTOO status
+
+---
+
 # Yeshie — Agent Context Document
 
 **Project:** `~/Projects/yeshie`

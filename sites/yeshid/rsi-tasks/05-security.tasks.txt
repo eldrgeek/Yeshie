@@ -1,0 +1,6 @@
+# Security RSI Tasks
+Navigate to the Shadow Applications page and describe what you see
+On the Shadow Applications page, click the Sensitive filter tab and describe the results
+On the Shadow Applications page, click the Restricted filter tab and describe the results
+Navigate to the Access Drift page and read the current risk score and compliance breakdown
+On the Access Drift page, look for the Resync button and describe what it does

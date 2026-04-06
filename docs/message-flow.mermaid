@@ -1,0 +1,51 @@
+---
+title: Yeshie — What Happens When a Task Runs
+---
+sequenceDiagram
+    actor Mike as Mike / Claude
+    participant Bridge as cc-bridge MCP
+    participant Relay as Relay Server<br/>:3333
+    participant Ext as Chrome Extension<br/>Background Worker
+    participant Tab as Browser Tab<br/>app.yeshid.com
+
+    Note over Mike,Tab: Example task: "Modify John Smith — new email: john@newco.com"
+
+    Mike->>Bridge: yeshie_run(payload_path, params)
+    Bridge->>Relay: HTTP POST /run<br/>{ payload: {...}, params: {user_identifier:"John Smith", new_personal_email:"john@newco.com"} }
+
+    Relay->>Ext: WebSocket: emit("run", payload)
+    Note over Ext: Receives task,<br/>begins chain execution
+
+    rect rgb(237, 233, 254)
+        Note over Ext,Tab: Step 1 — Navigate
+        Ext->>Tab: Navigate to /organization/people
+        Tab-->>Ext: Page loaded ✓
+    end
+
+    rect rgb(237, 233, 254)
+        Note over Ext,Tab: Step 2 — Find & type in search box
+        Ext->>Tab: executeScript: find input[placeholder='Search']
+        Tab-->>Ext: Element found (confidence: 0.90)
+        Ext->>Tab: debugger.Input.insertText("John Smith")
+        Tab-->>Ext: List filtered to John Smith ✓
+    end
+
+    rect rgb(237, 233, 254)
+        Note over Ext,Tab: Step 3 — Click John's name
+        Ext->>Tab: executeScript: find row containing "John Smith", click it
+        Tab-->>Ext: Navigated to /organization/people/{uuid} ✓
+    end
+
+    rect rgb(237, 233, 254)
+        Note over Ext,Tab: Steps 4–12 — Click Edit, find fields, update email, Confirm
+        Ext->>Tab: (multiple steps: click Edit button, find email field,<br/>clear old value, type new value, click Confirm)
+        Tab-->>Ext: "Workflow created." snackbar visible ✓
+    end
+
+    Ext->>Relay: WebSocket: emit("result", ChainResult)
+    Note over Ext,Relay: ChainResult includes:<br/>• success: true<br/>• steps completed: 14<br/>• resolved selectors (what actually worked)<br/>• duration: 8.4s
+
+    Relay->>Bridge: HTTP response: ChainResult JSON
+    Bridge->>Mike: Task complete ✓
+
+    Note over Mike,Tab: After the run, improve.js merges the<br/>resolved selectors back into the payload file.<br/>Next run will be faster (uses cached selectors).

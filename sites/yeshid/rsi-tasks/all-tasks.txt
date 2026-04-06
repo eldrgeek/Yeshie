@@ -1,0 +1,38 @@
+Navigate to the People page and search for a person named "Mike"
+Navigate to the People page and view the profile of the first person in the list
+Navigate to the People page and filter by status to show only active people
+Navigate to the People page and filter by status to show only suspended people
+Navigate to the People page and view all people - tell me how many are listed
+View a person's profile and click on the Applications tab to see what apps they have assigned
+View a person's profile and click on the Events tab to see their activity history
+Navigate to the Directories page and tell me what directories exist and when they were last synced
+On the Directories page, click the Active filter button and tell me how many active identities there are
+On the Directories page, click the Suspended filter button and tell me how many suspended identities there are
+On the Directories page, click the Admin filter button
+On the Directories page, click the No-MFA filter button
+Navigate to the Groups page and list all groups
+On the Groups page, click "New Group" and read the dialog fields
+Navigate to the Applications page and list all connected applications
+On the Applications page, click "Add application" and read the dialog fields, then close the dialog
+Click on the first application in the list and describe its detail page
+On the application detail page, look for integration or SCIM configuration options
+On the application detail page, find and click the "Disconnect" button area and read what options appear, then cancel
+Navigate to the Applications page and click "Import application list" and describe the import options, then close
+Navigate to the Access Grid page and describe what you see - how many people and apps
+On the Access Grid page, look for filter options and describe them
+Navigate to the Audits page and describe what's there
+On the Audits page, click to start a new audit and read the form fields, then cancel
+Navigate to the Access Requests page and describe any pending requests
+Navigate to the Shadow Applications page and describe what you see
+On the Shadow Applications page, click the Sensitive filter tab and describe the results
+On the Shadow Applications page, click the Restricted filter tab and describe the results
+Navigate to the Access Drift page and read the current risk score and compliance breakdown
+On the Access Drift page, look for the Resync button and describe what it does
+Navigate to the Workflows page and describe what templates exist
+On the Workflows page, try clicking "New Template" and describe what happens
+Look for any triggers or policies sections and describe them
+Navigate to the Events page and describe the event log - how many events, what types
+On the Events page, search for "onboard" and describe the results
+Navigate to Settings and find the Administrators section - list current admins
+In Settings, find the notification settings and describe current configuration
+In Settings, look for branding or customization options and describe them

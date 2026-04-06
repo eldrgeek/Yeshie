@@ -65,6 +65,13 @@
     "readText": ".v-snackbar__content"
   },
 
+  "failurePatterns": [
+    ".v-messages--error",
+    ".v-input--error",
+    "[class*='error']",
+    ".v-alert--type-error"
+  ],
+
   "formPatterns": {
     "submitButton": {
       "match": { "role": "button", "name_contains": ["save", "create", "add", "submit", "onboard", "update"] },

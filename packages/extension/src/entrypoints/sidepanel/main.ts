@@ -35,19 +35,57 @@ function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-const messages: Array<{ role: 'user' | 'assistant' | 'error' | 'system'; content: string }> = [];
+// ── Per-tab conversation storage ────────────────────────────────────────────
+type Message = { role: 'user' | 'assistant' | 'error' | 'system'; content: string };
+
+const tabConversations = new Map<number, Message[]>();
+let currentTabId: number | null = null;
+
+function getTabMessages(tabId: number): Message[] {
+  if (!tabConversations.has(tabId)) {
+    tabConversations.set(tabId, []);
+  }
+  return tabConversations.get(tabId)!;
+}
+
+function tryGetDomain(url: string): string {
+  try { return new URL(url).hostname; } catch { return url; }
+}
+
+// ── DOM elements ─────────────────────────────────────────────────────────────
 const messagesEl = document.getElementById('messages')!;
 const statusEl = document.getElementById('status')!;
 const inputEl = document.getElementById('chat-input') as HTMLInputElement;
 const sendBtn = document.getElementById('send-btn') as HTMLButtonElement;
+const headerEl = document.getElementById('header')!;
 
 // Track the current chatId for feedback
 let lastChatId: string | null = null;
 
-function addMessage(role: 'user' | 'assistant' | 'error' | 'system', content: string, chatId?: string) {
-  messages.push({ role, content });
-  messagesEl.innerHTML += renderMessage({ role, content }, chatId);
+// ── Render all messages for the active tab ──────────────────────────────────
+function renderTabMessages(tabId: number) {
+  const msgs = getTabMessages(tabId);
+  messagesEl.innerHTML = msgs.map(m => renderMessage(m)).join('');
   messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+// ── Switch to a different tab's conversation ────────────────────────────────
+function switchToTab(tabId: number, tabUrl?: string) {
+  currentTabId = tabId;
+  renderTabMessages(tabId);
+  const domain = tabUrl ? tryGetDomain(tabUrl) : null;
+  headerEl.textContent = domain ? `Yeshie — ${domain}` : 'Yeshie';
+}
+
+// ── Add a message to a specific tab's conversation ──────────────────────────
+function addMessageToTab(tabId: number, role: Message['role'], content: string, chatId?: string) {
+  const msgs = getTabMessages(tabId);
+  msgs.push({ role, content });
+  // Only render to DOM if this is the currently viewed tab
+  if (currentTabId === tabId) {
+    messagesEl.innerHTML += renderMessage({ role, content }, chatId);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
 }
 
 // Handle feedback button clicks (event delegation)
@@ -123,18 +161,18 @@ function extractResponseText(resp: any): string | null {
   return null;
 }
 
-// Handle the three response types from the listener
-function handleResponse(resp: any, chatId?: string) {
+// Handle the three response types from the listener, targeted at a specific tab
+function handleResponseForTab(tabId: number, resp: any, chatId?: string) {
   const r = resp?.response || resp;
   const rtype = r?.type;
 
   if (rtype === 'teach_steps' && Array.isArray(r.steps) && r.steps.length > 0) {
     // SHOW MODE: forward teach steps to content script via background
     const intro = r.text || r.content || `Let me walk you through this (${r.steps.length} steps).`;
-    addMessage('assistant', intro, chatId);
-    addMessage('system', `\u{1F393} Starting guided walkthrough\u2026`);
+    addMessageToTab(tabId, 'assistant', intro, chatId);
+    addMessageToTab(tabId, 'system', `\u{1F393} Starting guided walkthrough\u2026`);
     // Await delivery confirmation — if it fails, tell the user what to do
-    chrome.runtime.sendMessage({ type: 'teach_start', steps: r.steps }, (result) => {
+    chrome.runtime.sendMessage({ type: 'teach_start', steps: r.steps, targetTabId: tabId }, (result) => {
       if (result?.ok) {
         // Success — tooltip is now showing in the tab
       } else {
@@ -142,7 +180,10 @@ function handleResponse(resp: any, chatId?: string) {
         // Remove the "Starting guided walkthrough" system message and show error
         const sysMessages = messagesEl.querySelectorAll('.system-message');
         sysMessages[sysMessages.length - 1]?.remove();
-        addMessage('error', `\u26A0\uFE0F ${errMsg}`);
+        // Remove from tab's stored messages too
+        const msgs = getTabMessages(tabId);
+        msgs.splice(msgs.length - 1, 1);
+        addMessageToTab(tabId, 'error', `\u26A0\uFE0F ${errMsg}`);
       }
     });
     return;
@@ -151,16 +192,16 @@ function handleResponse(resp: any, chatId?: string) {
   if (rtype === 'do_result') {
     // DO MODE: payload was executed, show result
     const text = r.text || r.content || (r.success ? 'Done!' : `Failed: ${r.error || 'unknown error'}`);
-    addMessage('assistant', text, chatId);
+    addMessageToTab(tabId, 'assistant', text, chatId);
     return;
   }
 
   // EXPLAIN MODE (answer) or any other text response
   const text = extractResponseText(resp);
   if (text) {
-    addMessage('assistant', text, chatId);
+    addMessageToTab(tabId, 'assistant', text, chatId);
   } else {
-    addMessage('assistant', JSON.stringify(resp, null, 2), chatId);
+    addMessageToTab(tabId, 'assistant', JSON.stringify(resp, null, 2), chatId);
   }
 }
 
@@ -180,20 +221,28 @@ async function getActiveTabInfo(): Promise<{ url: string; tabId: number | null }
 async function sendMessage() {
   const text = inputEl.value.trim();
   if (!text) return;
+
+  // Capture the tab context at the moment of send — the user may switch tabs
+  // while waiting for a response, and we want it to land in the right conversation.
+  const sendingTabId = currentTabId;
+  if (sendingTabId === null) return;
+
   inputEl.value = '';
   sendBtn.disabled = true;
-  addMessage('user', text);
+
+  addMessageToTab(sendingTabId, 'user', text);
   showTyping();
 
   try {
-    const { url: activeTabUrl, tabId: activeTabId } = await getActiveTabInfo();
-    // Send last 10 messages as history so listener has conversation context
-    const history = messages.slice(-10).map(m => ({ role: m.role, content: m.content }));
+    const { url: activeTabUrl } = await getActiveTabInfo();
+    // Send the last 10 messages of THIS tab as history
+    const tabMsgs = getTabMessages(sendingTabId);
+    const history = tabMsgs.slice(-11, -1).map(m => ({ role: m.role, content: m.content }));
     const resp = await chrome.runtime.sendMessage({
       type: 'chat_message',
       message: text,
       currentUrl: activeTabUrl,
-      tabId: activeTabId,
+      tabId: sendingTabId,
       history
     });
     hideTyping();
@@ -202,18 +251,77 @@ async function sendMessage() {
     if (chatId) lastChatId = chatId;
 
     if (resp?.error) {
-      addMessage('error', resp.error);
+      addMessageToTab(sendingTabId, 'error', resp.error);
     } else if (resp?.type === 'timeout') {
-      addMessage('error', 'No response \u2014 is a Claude listener running?');
+      addMessageToTab(sendingTabId, 'error', 'No response \u2014 is a Claude listener running?');
     } else {
-      handleResponse(resp, chatId);
+      handleResponseForTab(sendingTabId, resp, chatId);
     }
   } catch (err: any) {
     hideTyping();
-    addMessage('error', err.message || 'Failed to send message');
+    addMessageToTab(sendingTabId, 'error', err.message || 'Failed to send message');
   } finally {
     sendBtn.disabled = false;
     inputEl.focus();
+  }
+}
+
+// ── Listen for tab activation and injected messages from background ──────────
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.type === 'tab_activated') {
+    // Background detected that the user switched to a different tab
+    switchToTab(msg.tabId, msg.url);
+    return false;
+  }
+
+  if (msg.type === 'tab_removed') {
+    // Optionally clear stored conversation for closed tabs to free memory
+    tabConversations.delete(msg.tabId);
+    return false;
+  }
+
+  if (msg.type === 'get_tab_history') {
+    // Background is asking for history of a specific tab (used for inject_chat flow)
+    const msgs = getTabMessages(msg.tabId);
+    const history = msgs.slice(-10).map(m => ({ role: m.role, content: m.content }));
+    sendResponse({ history });
+    return true; // keep channel open for async sendResponse
+  }
+
+  if (msg.type === 'show_user_message') {
+    // An injected user message — display it in the target tab's conversation
+    addMessageToTab(msg.tabId, 'user', msg.message);
+    if (currentTabId === msg.tabId) {
+      showTyping();
+    }
+    return false;
+  }
+
+  if (msg.type === 'show_response') {
+    // Response for an injected message
+    if (currentTabId === msg.tabId) {
+      hideTyping();
+    }
+    const chatId = msg.chatId || null;
+    if (chatId) lastChatId = chatId;
+
+    if (msg.response?.type === 'error' || msg.response?.error) {
+      const errText = msg.response.text || msg.response.error || 'Error processing message';
+      addMessageToTab(msg.tabId, 'error', errText);
+    } else {
+      handleResponseForTab(msg.tabId, msg.response, chatId);
+    }
+    return false;
+  }
+
+  return false;
+});
+
+// ── Initialise: get active tab and render its (empty) conversation ───────────
+async function init() {
+  const { url, tabId } = await getActiveTabInfo();
+  if (tabId !== null) {
+    switchToTab(tabId, url);
   }
 }
 
@@ -221,3 +329,4 @@ inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(
 sendBtn.addEventListener('click', sendMessage);
 checkStatus();
 setInterval(checkStatus, 30000);
+init();

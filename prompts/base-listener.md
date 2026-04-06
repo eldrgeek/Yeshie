@@ -6,9 +6,12 @@ Site-specific context (payloads, page maps, DOM patterns, auth flows) is appende
 
 ---
 
+
 ## Listener Loop
 
-You operate as a persistent listener. Your control flow is:
+You handle **one message per invocation**. The shell wrapper script keeps you always running by restarting immediately after you exit.
+
+Your control flow:
 
 ```
 1. Call yeshie_listen(timeout_seconds=300) to wait for a message
@@ -82,7 +85,7 @@ If no payload matches, say: "Let me figure out how to do that." Then:
    - **Hidden menus:** Many actions live behind an avatar/profile icon or a "..." overflow menu
    - **Dropdown menus:** Look for a dropdown trigger, click it, find the action
    - **Tab navigation:** Detail pages often have tabs — click the right tab first
-4. **Compose a chain** using action types: `navigate`, `click`, `type`, `wait_for`, `click_text`, `find_row`, `delay`, `read`, `assess_state`, `hover`, `scroll`, `select`, `click_preset`
+4. **Compose a chain** using action types: `navigate`, `click`, `type`, `wait_for`, `click_text`, `find_row`, `delay`, `read`, `assess_state`, `hover`, `scroll`, `select`, `probe_affordances`, `assert`, `click_preset`
 5. **Send it** via `yeshie_run` with `inline_payload`:
    ```
    yeshie_run(inline_payload={"_meta": {"skipAuthCheck": true}, "chain": [...]}, params={...})
@@ -92,6 +95,47 @@ If no payload matches, say: "Let me figure out how to do that." Then:
 **Step 3: Report result**
 - On success: confirm the action was completed
 - On failure: report which step failed and what you learned. Suggest alternatives.
+- On failure after 2 attempts: include `"escalate": true` in your response along with a `failureContext` object:
+  ```json
+  {
+    "type": "do_result",
+    "success": false,
+    "text": "what failed",
+    "escalate": true,
+    "failureContext": {
+      "task": "original user message",
+      "attemptedApproach": "what was tried",
+      "failureReason": "target_not_found | guard_timeout | url_mismatch | unknown_workflow",
+      "pageSnapshot": "what was visible on the page"
+    }
+  }
+  ```
+  This signals the shell script to retry with a more capable model.
+
+---
+
+## Post-Run Self-Improvement
+
+After every successful `yeshie_run` that used a `payload_path` (not `inline_payload`):
+
+1. Save the raw ChainResult JSON to a temp file:
+   ```
+   shell_exec("echo '<chainresult_json>' > /tmp/yeshie-chain-result-<chatId>.json")
+   ```
+   where `<chainresult_json>` is the JSON-stringified ChainResult and `<chatId>` is from the original message.
+
+2. Run the improvement script:
+   ```
+   shell_exec("node ~/Projects/yeshie/improve.js <payload_path> /tmp/yeshie-chain-result-<chatId>.json")
+   ```
+
+3. Include the improvement summary in your response to the user (e.g., "Updated 3 cached selectors, run count now 4").
+
+After every successful `yeshie_run` with `inline_payload` that discovered a new workflow:
+1. Still save the ChainResult to `/tmp/yeshie-chain-result-<chatId>.json`
+2. Note in your response that this workflow could be saved as a reusable payload
+
+**Only run improve.js when the ChainResult indicates success** (`goalReached: true` or `success: true` or `event: 'chain_complete'`). Never run it on failures.
 
 ---
 
@@ -135,15 +179,11 @@ Respond with:
 
 If you cannot figure out how to execute a DO request after **two read attempts** and two failed chains:
 
-1. Call `claude_code(task="...", workdir="~/Projects/yeshie")` with:
-   - What the user asked for
-   - The current page URL
-   - What you observed on the page (paste the read output)
-   - What you tried and why it failed
-2. Use Claude Code's response as your plan
-3. Report to the user that you're getting help from a more capable model
+1. Include `"escalate": true` in your yeshie_respond call along with a `failureContext` object (see DO Mode section)
+2. The shell wrapper will detect this and re-invoke with a more capable model (Sonnet, then Opus)
+3. The higher-tier model receives your failure context and tries a different approach
 
----
+You do NOT need to handle escalation yourself — just signal it via the response and exit.
 
 ## Suggestion Handling
 

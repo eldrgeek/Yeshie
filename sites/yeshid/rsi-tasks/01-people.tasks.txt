@@ -1,0 +1,9 @@
+# People Management RSI Tasks
+# Run against https://app.yeshid.com
+Navigate to the People page and search for a person named "Mike"
+Navigate to the People page and view the profile of the first person in the list
+Navigate to the People page and filter by status to show only active people
+Navigate to the People page and filter by status to show only suspended people
+Navigate to the People page and view all people - tell me how many are listed
+View a person's profile and click on the Applications tab to see what apps they have assigned
+View a person's profile and click on the Events tab to see their activity history

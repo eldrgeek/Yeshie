@@ -1,0 +1,72 @@
+{
+  "site": "chat.deepseek.com",
+  "framework": "react",
+  "description": "DeepSeek chat interface — React UI with native textarea input",
+  "notes": "Probe confirmed: TEXTAREA with placeholder='Message DeepSeek'. Target resolves cleanly via placeholder anchor.",
+  "abstractTargets": {
+    "prompt_input": {
+      "description": "Main chat textarea — placeholder confirmed: 'Message DeepSeek'",
+      "match": {
+        "name_contains": ["Message DeepSeek"]
+      },
+      "anchors": {
+        "placeholder": "Message DeepSeek"
+      },
+      "fallbackSelectors": [
+        "textarea[placeholder='Message DeepSeek']",
+        "textarea"
+      ]
+    },
+    "send_button": {
+      "description": "Send message button — div[role=button] with stable class ds-icon-button--sizing-container. No aria-label. Confirmed via DOM inspection.",
+      "notes": "DeepSeek uses divs not buttons. All icon buttons have hashed prefix classes; --sizing-container is stable.",
+      "fallbackSelectors": [
+        "div[role='button'][class*='ds-icon-button--sizing-container']",
+        "div[role='button'][class*='ds-icon-button--l']"
+      ]
+    },
+    "stop_button": {
+      "description": "Stop generation button — appears during streaming, disappears when done",
+      "notes": "Selector uncertain — needs calibration on first run with active generation",
+      "fallbackSelectors": [
+        "div[role='button'][class*='stop']",
+        "[aria-label*='Stop']",
+        "[class*='stop-button']"
+      ]
+    },
+    "response_container": {
+      "description": "Last DeepSeek response message — confirmed selector: [class*='ds-markdown']",
+      "notes": "First child is thinking preamble; last child or :last-of-type gives final answer",
+      "fallbackSelectors": [
+        "[class*='ds-markdown']:last-of-type",
+        "[class*='ds-markdown']"
+      ]
+    },
+    "cloudflare_overlay": {
+      "description": "Cloudflare Turnstile bot-challenge overlay — present in DOM with display:none, activates on bot detection",
+      "notes": "div#cf-overlay. Triggered by automation. Manual submit bypasses it. Real keyboard events via CDP may also bypass."
+    },
+    "auth_wall": {
+      "description": "Login indicator",
+      "fallbackSelectors": [
+        "a[href*='/sign-in']",
+        "button[aria-label*='Sign in']",
+        "button[aria-label*='Log in']"
+      ]
+    }
+  },
+  "stateGraph": {
+    "nodes": {
+      "authenticated": {
+        "signals": [
+          { "type": "url_matches", "pattern": "chat\\.deepseek\\.com" }
+        ]
+      },
+      "auth_required": {
+        "signals": [
+          { "type": "url_matches", "pattern": "deepseek\\.com/sign-in" }
+        ]
+      }
+    }
+  }
+}

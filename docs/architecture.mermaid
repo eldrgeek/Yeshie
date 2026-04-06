@@ -1,0 +1,57 @@
+---
+title: Yeshie — System Architecture
+---
+graph TB
+    subgraph USER["User / Operator"]
+        U[("Mike or Claude\ngives a task")]
+    end
+
+    subgraph CLAUDE["Claude (AI)"]
+        CL["Claude\nyeshie_run('add user John Smith'\nparams: name, email, base_url)"]
+    end
+
+    subgraph BRIDGE["cc-bridge MCP (local)"]
+        BR["cc-bridge MCP Server\nTranslates Claude tool calls\ninto HTTP requests\nRunning on localhost"]
+    end
+
+    subgraph RELAY["Relay Server (localhost:3333)"]
+        RLY["Relay Server\nReceives HTTP POST /run\nForwards to extension via WebSocket\nWaits for result"]
+    end
+
+    subgraph EXT["Chrome Extension (Background Worker)"]
+        BG["Background Worker\nOwns execution across page navigations\nRuns pre-bundled action functions\nHandles login/auth recovery"]
+    end
+
+    subgraph BROWSER["Live Browser Tab"]
+        TAB["app.yeshid.com\nor any target website\nReal Chrome tab with real DOM"]
+    end
+
+    subgraph FILES["Task Files & Knowledge"]
+        PAY["Task Payloads\n01-user-add.payload.json\n02-user-delete.payload.json\n03-user-modify.payload.json\n04-site-explore.payload.json"]
+        SM["Site Model\nsite.model.json\nLearned: pages, elements,\ncached selectors"]
+        L1["Runtime Model (Layer 1)\nGeneral web knowledge\nAction types, resolution strategies"]
+        L2["Vuetify Model (Layer 2)\nFramework-specific patterns\nHow Vuetify labels inputs"]
+    end
+
+    U -->|"Gives task"| CL
+    CL -->|"Calls yeshie_run tool"| BR
+    BR -->|"HTTP POST /run\n(payload JSON + params)"| RLY
+    RLY -->|"WebSocket\nSocket.IO emit"| BG
+    BG -->|"chrome.scripting.executeScript\nchrome.debugger.Input.insertText"| TAB
+    TAB -->|"ChainResult\n(success + resolved selectors)"| BG
+    BG -->|"Socket.IO result"| RLY
+    RLY -->|"HTTP response\nChainResult JSON"| BR
+    BR -->|"Result to Claude"| CL
+
+    PAY -.->|"payload sent\nwith task"| BR
+    SM -.->|"cached selectors\nstored here"| PAY
+    L1 -.->|"resolution strategy"| BG
+    L2 -.->|"Vuetify patterns"| BG
+
+    style USER fill:#f0f0f0,stroke:#999
+    style CLAUDE fill:#dbeafe,stroke:#3b82f6
+    style BRIDGE fill:#dcfce7,stroke:#16a34a
+    style RELAY fill:#fef9c3,stroke:#ca8a04
+    style EXT fill:#ede9fe,stroke:#7c3aed
+    style BROWSER fill:#fee2e2,stroke:#dc2626
+    style FILES fill:#f1f5f9,stroke:#64748b

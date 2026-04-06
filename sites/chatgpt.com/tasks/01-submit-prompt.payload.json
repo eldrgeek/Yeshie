@@ -1,0 +1,86 @@
+{
+  "_meta": {
+    "task": "submit-prompt",
+    "description": "Submit a prompt to ChatGPT and capture the response.",
+    "params": ["prompt", "base_url"],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null
+  },
+  "params": {
+    "base_url": "https://chatgpt.com/",
+    "prompt": "Say hello in exactly one sentence."
+  },
+  "abstractTargets": {
+    "prompt_input": {
+      "description": "Lexical contenteditable prompt textarea",
+      "anchors": {
+        "ariaLabel": "Message ChatGPT",
+        "dataTestId": "prompt-textarea"
+      },
+      "fallbackSelectors": [
+        "#prompt-textarea",
+        "[data-testid='prompt-textarea']",
+        "[contenteditable='true'][data-lexical-editor='true']",
+        "div[contenteditable='true']"
+      ]
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "stateGraph": {
+        "nodes": {
+          "auth_required": { "signals": [{ "type": "url_matches", "pattern": "chatgpt\\.com/auth" }] }
+        }
+      },
+      "onMismatch": "continue",
+      "note": "Check for auth wall"
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 800
+    },
+    {
+      "stepId": "s3",
+      "action": "type",
+      "target": "prompt_input",
+      "value": "{{prompt}}",
+      "submit": true,
+      "note": "Type prompt and press Enter"
+    },
+    {
+      "stepId": "s4",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Allow generation to start"
+    },
+    {
+      "stepId": "s5",
+      "action": "wait_for",
+      "selector": "[data-testid='stop-button']",
+      "state": { "visible": false },
+      "timeout": 120000,
+      "note": "Wait until stop button disappears — generation complete"
+    },
+    {
+      "stepId": "s6",
+      "action": "delay",
+      "ms": 500
+    },
+    {
+      "stepId": "s7",
+      "action": "read",
+      "candidates": [
+        "[data-message-author-role='assistant']:last-of-type",
+        "[data-message-author-role='assistant']:last-child"
+      ],
+      "store_as": "response",
+      "note": "Capture last assistant message"
+    }
+  ],
+  "site": "chatgpt.com",
+  "mode": "exploratory"
+}

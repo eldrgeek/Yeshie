@@ -1,0 +1,38 @@
+---
+title: Yeshie — How Knowledge Is Organized
+---
+graph TB
+    subgraph L1["Layer 1 — General Web Knowledge (any website)"]
+        L1A["runtime.model.json"]
+        L1B["What Yeshie knows about all websites:\n• Buttons can be clicked\n• Text inputs accept typing\n• Navigation changes the URL\n• Forms have labels\n• ARIA attributes carry meaning\n• Tables have rows\n\nThis never changes."]
+    end
+
+    subgraph L2["Layer 2 — Framework Knowledge (any Vuetify app)"]
+        L2A["generic-vuetify.model.json"]
+        L2B["What Yeshie knows about apps built with Vuetify:\n• Form labels are in .v-label inside .v-input\n• Validation errors appear in .v-messages--error\n• Success toasts use .v-snackbar\n• Dialogs use .v-dialog--active\n• Dropdowns use .v-overlay\n\nApplies to YeshID and any other Vuetify app."]
+    end
+
+    subgraph L3["Layer 3 — Site-Specific Knowledge (YeshID only)"]
+        L3A["sites/yeshid/site.model.json"]
+        L3B["What Yeshie has learned about app.yeshid.com:\n• 'Delete user' is called 'Offboard'\n• People list is at /organization/people\n• Detail page URL: /organization/people/{uuid}/details\n• Save button is labeled 'Confirm'\n• 19 pages discovered, 149 buttons, 53 inputs\n• Google SSO login detected\n\nGrows richer with every task run."]
+    end
+
+    subgraph TASKS["Task Payloads (one per task)"]
+        T1["01-user-add.payload.json\nAdd a new person to YeshID"]
+        T2["02-user-delete.payload.json\nOffboard (remove) a person"]
+        T3["03-user-modify.payload.json\nChange name or email"]
+        T4["04-site-explore.payload.json\nMap the entire site"]
+        T5["05-integration-setup.payload.json\nConnect a SaaS service\n⚠ Not yet validated"]
+    end
+
+    L1 -->|"provides resolution strategies to"| L2
+    L2 -->|"provides Vuetify patterns to"| L3
+    L3 -->|"provides cached selectors to"| TASKS
+
+    Note1["When Yeshie encounters a new website:\n1. Layer 1 priors apply immediately (it's a website)\n2. If it's Vuetify, Layer 2 priors kick in\n3. Layer 3 starts empty and fills in as tasks run\n\nResult: even a brand-new site isn't completely unknown."]
+
+    style L1 fill:#dbeafe,stroke:#3b82f6
+    style L2 fill:#dcfce7,stroke:#16a34a
+    style L3 fill:#fef9c3,stroke:#ca8a04
+    style TASKS fill:#ede9fe,stroke:#7c3aed
+    style Note1 fill:#f1f5f9,stroke:#94a3b8

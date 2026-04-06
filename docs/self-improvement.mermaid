@@ -1,0 +1,52 @@
+---
+title: Yeshie — How It Gets Faster Over Time
+---
+flowchart LR
+    subgraph RUN1["First Run (slow — learning)"]
+        direction TB
+        R1A["Task starts\nNo cached knowledge"]
+        R1B["Try approach 1:\nLook for ARIA label\n→ Not found on YeshID"]
+        R1C["Try approach 2:\nLook for Vuetify label pattern\n→ Found! 'First name' field"]
+        R1D["Execute step\nRecord what worked:\ncachedSelector = 'td:contains(First name) + td input'\ncachedConfidence = 0.87"]
+        R1E["Total time: ~8 seconds\n14 steps completed"]
+        R1A --> R1B --> R1C --> R1D --> R1E
+    end
+
+    IMPROVE["improve.js\nMerges resolved selectors\nback into payload file\nand site.model.json"]
+
+    subgraph RUN5["Fifth Run (fast — confident)"]
+        direction TB
+        R5A["Task starts\nCached selectors available"]
+        R5B["Use cached selector directly\nconfidence: 0.87 → skip search\n→ Element found instantly"]
+        R5C["Execute step"]
+        R5D["Total time: ~2 seconds\nSame 14 steps, 4× faster"]
+        R5A --> R5B --> R5C --> R5D
+    end
+
+    subgraph MODES["Execution Modes"]
+        direction TB
+        M1["exploratory\nShort chains, reports each step\nUsed on first few runs"]
+        M2["verification\nFull chain, validates each step\nDefault after first success"]
+        M3["production\nFull chain, minimal checking\nAuto-upgrades after 5 successful runs"]
+        M1 --> M2 --> M3
+    end
+
+    subgraph RECOVERY["When Something Changes"]
+        direction TB
+        RC1["Cached selector fails\n(website was updated)"]
+        RC2["Fall back to Vuetify label search\nor text matching"]
+        RC3["Find new selector\nUpdate cache\nResume task"]
+        RC1 --> RC2 --> RC3
+    end
+
+    RUN1 -->|"ChainResult with\nresolvedTargets"| IMPROVE
+    IMPROVE -->|"Updated payload file\nBetter cached selectors"| RUN5
+    IMPROVE -.->|"runCount increments\nAt 5 runs:"| MODES
+    RUN5 -.->|"If cached selector fails"| RECOVERY
+    RECOVERY -.->|"New selector merged back"| IMPROVE
+
+    style RUN1 fill:#fee2e2,stroke:#dc2626
+    style RUN5 fill:#dcfce7,stroke:#16a34a
+    style IMPROVE fill:#fef9c3,stroke:#ca8a04
+    style MODES fill:#dbeafe,stroke:#3b82f6
+    style RECOVERY fill:#ede9fe,stroke:#7c3aed

@@ -1,0 +1,85 @@
+{
+  "_meta": {
+    "task": "submit-prompt",
+    "description": "Submit a prompt to DeepSeek and capture the response.",
+    "params": ["prompt", "base_url"],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "notes": "DeepSeek uses div[role=button] not <button>. Send button class: ds-icon-button--sizing-container. Cloudflare Turnstile present — CDP isTrusted events may bypass it; manual click confirmed to work. wait_for uses fixed delay instead of stop-button polling (stop button selector unconfirmed)."
+  },
+  "params": {
+    "base_url": "https://chat.deepseek.com/",
+    "prompt": "Say hello in exactly one sentence."
+  },
+  "abstractTargets": {
+    "prompt_input": {
+      "description": "Native textarea — placeholder='Message DeepSeek' confirmed by DOM probe",
+      "anchors": {
+        "placeholder": "Message DeepSeek"
+      },
+      "fallbackSelectors": [
+        "textarea[placeholder='Message DeepSeek']",
+        "textarea"
+      ]
+    },
+    "send_button": {
+      "description": "Send button — div[role=button] with stable class ds-icon-button--sizing-container",
+      "fallbackSelectors": [
+        "div[role='button'][class*='ds-icon-button--sizing-container']",
+        "div[role='button'][class*='ds-icon-button--l']"
+      ]
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "{{base_url}}",
+      "note": "Start a fresh chat to avoid leftover state"
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for React to mount"
+    },
+    {
+      "stepId": "s3",
+      "action": "type",
+      "target": "prompt_input",
+      "value": "{{prompt}}",
+      "note": "Type prompt — nativeInputValueSetter sets React state. No submit:true; explicit click follows."
+    },
+    {
+      "stepId": "s4",
+      "action": "delay",
+      "ms": 200,
+      "note": "Brief pause for React onChange to propagate"
+    },
+    {
+      "stepId": "s5",
+      "action": "click",
+      "target": "send_button",
+      "note": "Click send button explicitly — more reliable than Enter for React+Cloudflare"
+    },
+    {
+      "stepId": "s6",
+      "action": "delay",
+      "ms": 45000,
+      "note": "Fixed wait for generation — DeepThink can take 30-60s. TODO: replace with wait_for once stop-button selector confirmed."
+    },
+    {
+      "stepId": "s7",
+      "action": "read",
+      "candidates": [
+        "[class*='ds-markdown']:last-of-type",
+        "[class*='ds-markdown']"
+      ],
+      "store_as": "response",
+      "note": "Confirmed working selector from manual run"
+    }
+  ],
+  "site": "chat.deepseek.com",
+  "mode": "exploratory"
+}
