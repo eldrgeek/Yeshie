@@ -7,6 +7,7 @@ import { Server } from 'socket.io';
 import { appendFileSync, mkdirSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { execFile } from 'child_process';
 
 // ====================== Conversation Logger ======================
 
@@ -31,6 +32,35 @@ function logConversation(entry) {
   } catch (e) {
     console.warn('[relay] Failed to log conversation:', e.message);
   }
+}
+
+// ====================== osascript notifier ======================
+
+/**
+ * Run osascript on the host to show a macOS notification.
+ * Retries up to `retries` times with a 2s delay between attempts.
+ * Returns true if a dispatch succeeded, false if all attempts failed.
+ */
+async function runOsascript(message, title = 'Yeshie', retries = 3) {
+  const safeMsg = String(message).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const safeTitle = String(title).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const script = `display notification "${safeMsg}" with title "${safeTitle}"`;
+  for (let i = 0; i < retries; i++) {
+    try {
+      await new Promise((resolve, reject) => {
+        execFile('osascript', ['-e', script], { timeout: 5000 }, (err) => {
+          if (err) reject(err); else resolve();
+        });
+      });
+      console.log(`[relay] notify dispatched (attempt ${i + 1}): ${message}`);
+      return true;
+    } catch (e) {
+      console.warn(`[relay] notify attempt ${i + 1} failed: ${e.message}`);
+      if (i < retries - 1) await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+  console.error(`[relay] notify failed after ${retries} attempts: ${message}`);
+  return false;
 }
 
 // ====================== Server factory ======================
@@ -135,6 +165,11 @@ export function createRelay(port = 3333) {
         const p = pending.get(commandId);
         if (p) p.lastStatus = { stepIndex, totalSteps, action };
       });
+
+      // Case 1: chain `notify` step — extension emits this, relay fires osascript
+      socket.on('notify', ({ message, title }) => {
+        runOsascript(message || 'Done', title || 'Yeshie');
+      });
     }
 
     if (who === 'client') {
@@ -215,6 +250,18 @@ export function createRelay(port = 3333) {
       return;
     }
 
+
+    // --- Notify endpoint (Case 2/3: called from bash or cc-bridge) ---
+
+    if (path === '/notify' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const { message, title } = body;
+      if (!message) { jsonReply(res, 400, { error: 'message required' }); return; }
+      const ok = await runOsascript(message, title || 'Yeshie');
+      jsonReply(res, ok ? 200 : 500, { ok, message });
+      return;
+    }
 
     // --- Status board ---
 
