@@ -1,5 +1,5 @@
 # Yeshie RSI Loop — Continuity Document
-**For:** New Claude Web (CW) session continuing from April 6, 2026 session
+**For:** New Claude Web (CW) session continuing from April 6, 2026 (Part 2) session
 **Project:** ~/Projects/yeshie
 **Read this first. Then read nothing else.**
 
@@ -185,6 +185,76 @@ The relay forwards `inject_chat` → extension background → side panel display
 If the user sends a message from Tab A then switches to Tab B while waiting, the response still appears in Tab A's conversation (not Tab B's). The `sendingTabId` is captured at send time.
 ---
 
+## What Was Built — April 6, 2026 Session (Part 2)
+
+### Frontier Model Automation (trustedType overhaul)
+
+`trustedType()` in `background.ts` was rewritten to handle both React-controlled textareas and contenteditable (ProseMirror/Tiptap) inputs correctly.
+
+**The React textarea hack** (`_valueTracker.setValue(prev)` before dispatching input event) was already documented in SPECIFICATION.md from a prior session — this session rediscovered and applied it to fix DeepSeek submit failures. Add to memory if you see React textarea submit failing silently.
+
+**Two input modes:**
+- `textarea` → `nativeInputValueSetter` + `_valueTracker.setValue(prev)` + positional send button click
+- `contenteditable` (Tiptap/ProseMirror) → `Input.insertText` (CDP) + Enter key
+
+**Frontier model status:**
+| Model | Tab ID | Input type | Send selector | Status |
+|---|---|---|---|---|
+| Grok | 1637801571 | `div.tiptap.ProseMirror[contenteditable='true']` | `button[aria-label='Submit']` | ✅ Validated |
+| DeepSeek | 1637801583 | textarea | `div[role='button'][class*='ds-icon-button--sizing-container']` | ⚠️ CF Turnstile blocks CDP navigate — manual nav works |
+| Claude.ai | 1637801558 | contenteditable | TBD | ⬜ Not tested |
+| ChatGPT | 1637801574 | TBD | TBD | ⬜ Not tested |
+| Gemini | 1637801577 | TBD | TBD | ⬜ Not tested |
+
+**DeepSeek Cloudflare note:** CDP-initiated navigation to `chat.deepseek.com` lands on `chrome-error://` due to Turnstile. Skip the `navigate` step — user navigates manually. The hidden `div#cf-overlay` in DOM is the CF widget; once it's dismissed and the prompt input is visible, automation works.
+
+**Site models and tasks created:**
+- `sites/chat.deepseek.com/site.model.json` + `tasks/01-submit-prompt.payload.json`
+- `sites/grok.com/site.model.json` + `tasks/01-submit-prompt.payload.json`
+
+### Persistent Memory System
+
+Three-tier continuity structure created so future sessions don't re-learn hard-won discoveries:
+
+| File | Purpose |
+|---|---|
+| `CLAUDE.md` (top section) | Hot cache — essentials Claude reads in every session |
+| `memory/mike.md` | Mike's profile, working style, ADD note, collaborative patterns |
+| `memory/patterns.md` | Hard-won technical discoveries (add anything that took >10min) |
+| `memory/projects.md` | Yeshie sprint status, cc-bridge tools, INTOO context |
+
+**Rule:** Any discovery that took >10min to figure out → `memory/patterns.md`. Any pattern that's needed in every session → promote to CLAUDE.md hot cache table.
+
+### Three-Case Notification Architecture
+
+When async work finishes (after MCP bridge timeout), Claude Desktop gets a macOS notification.
+
+**Case 1 — chain `notify` step:**
+Add as last step in any payload:
+```json
+{ "stepId": "sN", "action": "notify", "message": "Done: {{task}}", "title": "Yeshie" }
+```
+Flow: extension `socket.emit('notify')` → relay `runOsascript()` → macOS notification (3 retries, 2s gap). Works after bridge timeout because extension↔relay socket persists.
+
+**Case 2 — bash fire-and-forget:**
+End any `nohup` script with:
+```bash
+curl -s -X POST http://localhost:3333/notify \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Done", "title": "Yeshie"}'
+```
+Or use the osascript retry loop directly (see `memory/patterns.md`).
+
+**Case 3 — MCP tool completions:**
+`notifyHost()` wired into `shell_exec`, `claude_code`, `yeshie_run` in `cc-bridge-mcp/server.js`. Uses detached `spawn` + `unref()`. `yeshie_run` skips fallback if chain already has a `notify` step.
+
+**New relay endpoint:** `POST http://localhost:3333/notify` — `{ message, title }`.
+
+### Also: Extension rebuilt
+`background.ts` changes from April 6 session are built and live. Issue 4 in Known Issues is resolved.
+
+---
+
 ## Current State
 
 ### Infrastructure health check
@@ -229,15 +299,16 @@ When YeshID session expires, Google OAuth redirects to account chooser. The exte
 
 **Protocol:** Always click `mw@mike-wolf.com` without asking. Check Chrome tabs before each campaign — if you see `accounts.google.com`, click through it first.
 
-### Issue 4: Extension needs rebuild after background.ts changes
-The April 6 changes to `background.ts` require rebuilding the extension and reloading it in Chrome.
-
-**Fix:**
+### ~~Issue 4: Extension needs rebuild~~ — RESOLVED
+`background.ts` changes from April 6 Part 1 + Part 2 sessions are built. Extension is current.
+If extension ever becomes stale after future `background.ts` changes:
 ```bash
 cd ~/Projects/yeshie/packages/extension && npm run build
-# Reload in chrome://extensions (click reload icon on Yeshie card)
-curl -s http://localhost:3333/status  # verify extensionConnected: true
+# Reload in chrome://extensions, verify extensionConnected: true
 ```
+
+### Issue 5: cc-bridge-mcp server needs restart for notifyHost to activate
+The `notifyHost()` addition to `cc-bridge-mcp/server.js` requires restarting Claude Desktop (which restarts the MCP server) to take effect.
 
 ---
 
@@ -409,10 +480,6 @@ nohup bash -c 'sleep 5 && osascript /tmp/inject-cd.scpt' > /dev/null 2>&1 &
    - **Post-tri-model:** expect `{ listeners: { haiku: true, sonnet: true, opus: true } }`
 3. `Control Chrome:list_tabs` — note YeshID tab ID, check for auth page
 4. Open `http://localhost:3333/status-board` in a separate Chrome window if not already open
-5. **Rebuild extension** (background.ts changed in April 6 session):
-   ```bash
-   cd ~/Projects/yeshie/packages/extension && npm run build
-   # Reload in chrome://extensions, verify extensionConnected: true
-   ```
-6. Fix Issue 1 (tabId) in `run-campaign.sh` — add YeshID tab ID discovery at campaign start
-7. Rerun campaign 02
+5. Fix Issue 1 (tabId) in `run-campaign.sh` — add YeshID tab ID discovery at campaign start
+6. Rerun campaign 02
+7. **Frontier model work (if continuing):** Test Claude.ai, ChatGPT, Gemini automation — Grok ✅ done, DeepSeek ⚠️ CF issue deferred
