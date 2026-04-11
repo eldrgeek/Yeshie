@@ -128,6 +128,11 @@ export default defineBackground(() => {
       if (_lastBuild === -1) { _lastBuild = build; return; }
       // Only reload when build number changed AND watcher confirms build is complete
       if (build !== _lastBuild && ready) {
+        // Defer reload if a chain is actively running — reloading mid-chain kills the run
+        if (abortFlags.size > 0) {
+          console.log('[Yeshie] New build ready but chain is running — deferring reload');
+          return; // Don't update _lastBuild so next poll catches it after chain completes
+        }
         _lastBuild = build;
         console.log('[Yeshie] New build detected (ready), reloading extension...');
         chrome.runtime.reload();
@@ -849,9 +854,9 @@ export default defineBackground(() => {
 
     // Step 3: find the preset option by text
     const lowerPreset = preset.toLowerCase();
-    const optionSel = '.v-overlay--active *, [role="option"], [role="menuitem"], .v-list-item';
+    const optionSel = '.v-overlay--active.v-menu .v-list-item, .v-overlay--active .v-list-item, [role="option"], [role="menuitem"]';
     const option = Array.from(document.querySelectorAll(optionSel))
-      .find((e: any) => e.textContent?.trim().toLowerCase() === lowerPreset) as HTMLElement | undefined;
+      .find((e: any) => e.textContent?.trim().toLowerCase().startsWith(lowerPreset)) as HTMLElement | undefined;
     if (!option) {
       // Collect available options for better error messages
       const available = Array.from(document.querySelectorAll(optionSel))
