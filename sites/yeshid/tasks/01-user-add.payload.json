@@ -18,6 +18,37 @@
     "auth": {
       "type": "sso_automatable",
       "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "params": {
+      "first_name": {
+        "required": true,
+        "description": "First name"
+      },
+      "last_name": {
+        "required": true,
+        "description": "Last name"
+      },
+      "company_email": {
+        "required": true,
+        "description": "Company email (@mike-wolf.com)",
+        "pattern": "^.+@mike-wolf\\.com$",
+        "hint": "Usually firstname.lastname@mike-wolf.com"
+      },
+      "backup_email": {
+        "required": true,
+        "description": "Personal/recovery email (e.g. Gmail)",
+        "hint": "Ask if not provided \u2014 this is required by YeshID"
+      },
+      "start_date_preset": {
+        "required": false,
+        "default": "Immediately",
+        "description": "When to start onboarding",
+        "options": [
+          "Immediately",
+          "Monday morning",
+          "Pick date & time"
+        ]
+      }
     }
   },
   "runId": "yeshid-user-add-{{timestamp}}",
@@ -268,7 +299,7 @@
   ],
   "branches": {
     "not-authenticated": {
-      "description": "Not logged in — run login flow first.",
+      "description": "Not logged in \u2014 run login flow first.",
       "steps": [
         {
           "stepId": "b1",

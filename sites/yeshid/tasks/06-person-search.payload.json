@@ -2,17 +2,23 @@
   "_meta": {
     "task": "person-search",
     "description": "Search for a person by name or email and view their row in the people list.",
-    "params": [
-      "search_term",
-      "base_url"
-    ],
+    "params": {
+      "search_term": {
+        "required": true,
+        "description": "Name or email to search for"
+      }
+    },
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
     "auth": {
       "type": "sso_automatable",
       "googleAccountEmail": "mw@mike-wolf.com"
-    }
+    },
+    "requiredParams": [
+      "search_term"
+    ],
+    "optionalParams": []
   },
   "params": {
     "base_url": "https://app.yeshid.com",

@@ -2,18 +2,29 @@
   "_meta": {
     "task": "add-application",
     "description": "Add a new application to YeshID.",
-    "params": [
-      "app_name",
-      "technical_owner",
-      "base_url"
-    ],
+    "params": {
+      "app_name": {
+        "required": true,
+        "description": "Name of the application to add"
+      },
+      "technical_owner": {
+        "required": true,
+        "description": "Email of the technical owner",
+        "hint": "Usually an admin \u2014 suggest current user if not specified"
+      }
+    },
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
     "auth": {
       "type": "sso_automatable",
       "googleAccountEmail": "mw@mike-wolf.com"
-    }
+    },
+    "requiredParams": [
+      "app_name",
+      "technical_owner"
+    ],
+    "optionalParams": []
   },
   "params": {
     "base_url": "https://app.yeshid.com",

@@ -2,17 +2,24 @@
   "_meta": {
     "task": "view-events",
     "description": "Navigate to events page and optionally search for specific events.",
-    "params": [
-      "base_url",
-      "search_term"
-    ],
+    "params": {
+      "search_term": {
+        "required": false,
+        "default": "",
+        "description": "Event search term (leave blank to show all recent events)"
+      }
+    },
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
     "auth": {
       "type": "sso_automatable",
       "googleAccountEmail": "mw@mike-wolf.com"
-    }
+    },
+    "requiredParams": [],
+    "optionalParams": [
+      "search_term"
+    ]
   },
   "params": {
     "base_url": "https://app.yeshid.com",

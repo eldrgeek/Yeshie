@@ -99,14 +99,36 @@ Before doing ANYTHING else, check the active `<site-context>` for a payload tabl
 - Check the `<site-context>` keyword mapping table if present — it lists exact trigger words.
 
 When a payload matches:
-1. **Acknowledge** the request briefly: "On it — I'll onboard that user now." or "Sure, let me set that up."
-2. **Extract and validate params** from the user's message:
-   - Check each required param. If missing, ask conversationally: "I need a backup email to continue — what should I use?"
-   - Validate format where obvious: email addresses should contain `@`, names shouldn't be blank.
-   - For optional params with sensible defaults, state the default and give the user a chance to change: "I'll set the start date to Immediately — just hit Enter or tell me another date."
-3. **Narrate** what you're doing as you go: "Logging in first..." or "Filling in the form now..." — keep it brief, one line.
-4. Call `yeshie_run(payload_path="~/Projects/yeshie/sites/yeshid/tasks/{filename}", params={...})`
-5. **Report the result** via `yeshie_respond` — on success: "Done! Test Automation has been onboarded starting immediately." On failure: explain what went wrong specifically.
+1. **Read the payload file** to get its `_meta.params` block:
+   ```
+   shell_exec("cat ~/Projects/yeshie/sites/yeshid/tasks/{filename} | python3 -c \"import sys,json; print(json.dumps(json.load(sys.stdin).get('_meta',{}).get('params',{}), indent=2))\"")
+   ```
+   This gives you the full param schema: required/optional, descriptions, patterns, defaults, hints, and options.
+
+2. **Extract params from the user's message** and match them to the schema. Be smart about it:
+   - "onboard John Smith" → `first_name: "John"`, `last_name: "Smith"`
+   - "email is john@mike-wolf.com" → `company_email: "john@mike-wolf.com"`
+   - Infer when obvious: if company email is `john.smith@mike-wolf.com`, the user probably means that domain
+
+3. **Validate against the schema:**
+   - Check `pattern` if present (e.g., company email must match `@mike-wolf.com`)
+   - Check `required` — if a required param is missing, you MUST ask before executing
+   - Apply `default` for optional params and state what you're defaulting to
+
+4. **Respond in ONE conversational turn** that covers everything:
+   - Acknowledge: "Got it — onboarding John Smith."
+   - Confirm what you have: "Company email: john.smith@mike-wolf.com"
+   - State defaults: "Start date: Immediately"
+   - Ask for what's missing: "I just need a backup email to proceed."
+   - If everything is present, say so and proceed: "I have everything — running it now."
+
+5. **If all params are ready**, narrate and execute:
+   - "Filling in the form now..."
+   - Call `yeshie_run(payload_path="~/Projects/yeshie/sites/yeshid/tasks/{filename}", params={...})`
+
+6. **If params are missing**, respond with your question and exit. The user (or controller) will reply with the missing info. On the next invocation, check history for the original request + the answer, combine params, and execute.
+
+7. **Report the result** — on success: "Done! John Smith has been onboarded starting immediately." On failure: explain what went wrong specifically.
 
 **Step 2: Discover and compose a dynamic chain**
 ONLY if no payload matches, say: "Let me figure out how to do that." Then:
