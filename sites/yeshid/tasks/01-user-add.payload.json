@@ -12,9 +12,14 @@
       "start_date_preset"
     ],
     "selfImproving": true,
-    "runCount": 1,
-    "lastSuccess": "2026-03-31T00:11:57.745179+00:00",
-    "prerequisite": "00-login.payload.json"
+    "runCount": 3,
+    "lastSuccess": "2026-04-11T17:51:02.447Z",
+    "prerequisite": "00-login.payload.json",
+    "lastDurationMs": 12500,
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    }
   },
   "runId": "yeshid-user-add-{{timestamp}}",
   "mode": "verification",
@@ -136,7 +141,7 @@
         ]
       },
       "cachedSelector": null,
-      "cachedConfidence": 0.0,
+      "cachedConfidence": 0,
       "resolveHint": "Button with text \"Select start date\". Click opens preset picker with options: Immediately, ASAP, Monday morning, Pick date & time.",
       "pickerOptions": [
         "Immediately",

@@ -2,7 +2,12 @@
   "_meta": {
     "task": "integration-setup",
     "description": "Set up a SCIM or custom integration for a named SaaS service in YeshID. Can create the application if it doesn't exist yet, then configure authentication. The LLM is expected to look up the service's SCIM/API documentation and supply the correct auth values before running this payload.",
-    "params": ["service_name", "auth_type", "base_url", "bearer_token"],
+    "params": [
+      "service_name",
+      "auth_type",
+      "base_url",
+      "bearer_token"
+    ],
     "paramNotes": {
       "service_name": "Display name of the SaaS service (e.g. 'GitHub', 'Slack', 'Okta')",
       "integration_type": "scim | custom (default: scim)",
@@ -15,13 +20,15 @@
     "runCount": 0,
     "lastSuccess": null,
     "prerequisite": "00-login.payload.json",
-    "note": "Before running, CoWork should: (1) search docs.yeshid.com for integration instructions for the service, (2) look up the service's SCIM endpoint and token, (3) populate params accordingly."
+    "note": "Before running, CoWork should: (1) search docs.yeshid.com for integration instructions for the service, (2) look up the service's SCIM endpoint and token, (3) populate params accordingly.",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    }
   },
-
   "runId": "yeshid-integration-{{service_name}}-{{timestamp}}",
   "mode": "verification",
   "site": "app.yeshid.com",
-
   "params": {
     "service_name": "{{service_name}}",
     "integration_type": "{{integration_type}}",
@@ -31,58 +38,120 @@
     "app_id": "{{app_id}}",
     "base_url": "https://app.yeshid.com"
   },
-
   "stateGraph": {
     "currentNode": "authenticated",
     "nodes": {
       "authenticated": {
-        "signals": [{ "type": "element_visible", "selector": ".v-navigation-drawer a[href='/overview']" }]
+        "signals": [
+          {
+            "type": "element_visible",
+            "selector": ".v-navigation-drawer a[href='/overview']"
+          }
+        ]
       },
       "applications-list": {
-        "signals": [{ "type": "url_matches", "pattern": "/access/applications$" }]
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/applications$"
+          }
+        ]
       },
       "application-detail": {
-        "signals": [{ "type": "url_matches", "pattern": "/access/applications/.+/accounts" }]
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/applications/.+/accounts"
+          }
+        ]
       },
       "integration-config": {
-        "signals": [{ "type": "url_matches", "pattern": "/access/applications/.+/integration/authentication" }]
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/applications/.+/integration/authentication"
+          }
+        ]
       }
     }
   },
-
   "abstractTargets": {
     "add-application-button": {
-      "match": { "role": "button", "name_contains": ["add application"] },
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "add application"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
-      "fallbackSelectors": ["button"]
+      "fallbackSelectors": [
+        "button"
+      ]
     },
     "application-name-input": {
-      "match": { "role": "textbox", "name_contains": ["application name"] },
+      "match": {
+        "role": "textbox",
+        "name_contains": [
+          "application name"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
-      "fallbackSelectors": [".v-overlay--active input[placeholder*='application' i]", ".v-overlay--active input"]
+      "fallbackSelectors": [
+        ".v-overlay--active input[placeholder*='application' i]",
+        ".v-overlay--active input"
+      ]
     },
     "technical-owners-input": {
-      "match": { "role": "textbox", "name_contains": ["technical owner", "owner"] },
+      "match": {
+        "role": "textbox",
+        "name_contains": [
+          "technical owner",
+          "owner"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
-      "fallbackSelectors": [".v-overlay--active input[placeholder*='owner' i]"]
+      "fallbackSelectors": [
+        ".v-overlay--active input[placeholder*='owner' i]"
+      ]
     },
     "dialog-add-button": {
-      "match": { "role": "button", "name_contains": ["add", "create"] },
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "add",
+          "create"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
-      "fallbackSelectors": [".v-overlay--active .v-btn--variant-flat:last-child"]
+      "fallbackSelectors": [
+        ".v-overlay--active .v-btn--variant-flat:last-child"
+      ]
     },
     "manage-integration-button": {
-      "match": { "role": "button", "name_contains": ["manage integration", "connect"] },
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "manage integration",
+          "connect"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
-      "fallbackSelectors": ["button"]
+      "fallbackSelectors": [
+        "button"
+      ]
     },
     "scim-radio": {
-      "match": { "role": "radio", "name_contains": ["scim"] },
+      "match": {
+        "role": "radio",
+        "name_contains": [
+          "scim"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
       "fallbackSelectors": [
@@ -91,38 +160,81 @@
       ]
     },
     "auth-type-selector": {
-      "match": { "role": "combobox", "vuetify_label": ["authentication type"] },
+      "match": {
+        "role": "combobox",
+        "vuetify_label": [
+          "authentication type"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
-      "fallbackSelectors": [".v-select input", "input[role='combobox']"]
+      "fallbackSelectors": [
+        ".v-select input",
+        "input[role='combobox']"
+      ]
     },
     "api-base-url-input": {
-      "match": { "role": "textbox", "vuetify_label": ["base url", "root api", "api url"] },
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "base url",
+          "root api",
+          "api url"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
-      "fallbackSelectors": ["input[placeholder*='https://example' i]", "input[placeholder*='URL' i]"]
+      "fallbackSelectors": [
+        "input[placeholder*='https://example' i]",
+        "input[placeholder*='URL' i]"
+      ]
     },
     "bearer-token-input": {
-      "match": { "role": "textbox", "vuetify_label": ["token", "bearer", "api key", "secret"] },
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "token",
+          "bearer",
+          "api key",
+          "secret"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
-      "fallbackSelectors": ["input[type='password']", "input[placeholder*='token' i]"]
+      "fallbackSelectors": [
+        "input[type='password']",
+        "input[placeholder*='token' i]"
+      ]
     },
     "save-button": {
-      "match": { "role": "button", "name_contains": ["save"] },
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "save"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
-      "fallbackSelectors": ["button.v-btn--variant-flat"]
+      "fallbackSelectors": [
+        "button.v-btn--variant-flat"
+      ]
     }
   },
-
   "chain": [
     {
       "stepId": "s1",
       "action": "navigate",
       "url": "{{base_url}}/access/applications",
-      "guard": { "target": "add-application-button", "state": { "visible": true }, "timeout": 5000 },
-      "expect": { "state": "applications-list" }
+      "guard": {
+        "target": "add-application-button",
+        "state": {
+          "visible": true
+        },
+        "timeout": 5000
+      },
+      "expect": {
+        "state": "applications-list"
+      }
     },
     {
       "stepId": "s2",
@@ -136,9 +248,19 @@
       "action": "click",
       "target": "add-application-button",
       "condition": "!{{app_check.skip}}",
-      "guard": { "target": "add-application-button", "state": { "visible": true, "enabled": true } },
+      "guard": {
+        "target": "add-application-button",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      },
       "responseSignature": [
-        { "type": "element_visible", "selector": ".v-overlay--active", "timeout": 2000 }
+        {
+          "type": "element_visible",
+          "selector": ".v-overlay--active",
+          "timeout": 2000
+        }
       ]
     },
     {
@@ -147,19 +269,39 @@
       "target": "application-name-input",
       "value": "{{service_name}}",
       "condition": "!{{app_check.skip}}",
-      "guard": { "target": "application-name-input", "state": { "visible": true, "enabled": true } }
+      "guard": {
+        "target": "application-name-input",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      }
     },
     {
       "stepId": "s5",
       "action": "click",
       "target": "dialog-add-button",
       "condition": "!{{app_check.skip}}",
-      "guard": { "target": "dialog-add-button", "state": { "visible": true, "enabled": true } },
+      "guard": {
+        "target": "dialog-add-button",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      },
       "responseSignature": [
         {
           "any_of": [
-            { "type": "element_absent", "selector": ".v-overlay--active", "timeout": 3000 },
-            { "type": "url_change", "matches": "/access/applications/.+/accounts", "timeout": 5000 }
+            {
+              "type": "element_absent",
+              "selector": ".v-overlay--active",
+              "timeout": 3000
+            },
+            {
+              "type": "url_change",
+              "matches": "/access/applications/.+/accounts",
+              "timeout": 5000
+            }
           ]
         }
       ]
@@ -175,17 +317,31 @@
       "stepId": "s7",
       "action": "wait_for",
       "target": "manage-integration-button",
-      "state": { "visible": true },
+      "state": {
+        "visible": true
+      },
       "timeout": 5000,
-      "expect": { "state": "application-detail" }
+      "expect": {
+        "state": "application-detail"
+      }
     },
     {
       "stepId": "s8",
       "action": "click",
       "target": "manage-integration-button",
-      "guard": { "target": "manage-integration-button", "state": { "visible": true, "enabled": true } },
+      "guard": {
+        "target": "manage-integration-button",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      },
       "responseSignature": [
-        { "type": "url_change", "matches": "/integration/authentication", "timeout": 5000 }
+        {
+          "type": "url_change",
+          "matches": "/integration/authentication",
+          "timeout": 5000
+        }
       ]
     },
     {
@@ -219,12 +375,26 @@
       "stepId": "s13",
       "action": "click",
       "target": "save-button",
-      "guard": { "target": "save-button", "state": { "visible": true, "enabled": true } },
+      "guard": {
+        "target": "save-button",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      },
       "responseSignature": [
         {
           "any_of": [
-            { "type": "element_visible", "selector": ".v-snackbar--active", "timeout": 5000 },
-            { "type": "element_visible", "selector": ".v-alert", "timeout": 5000 }
+            {
+              "type": "element_visible",
+              "selector": ".v-snackbar--active",
+              "timeout": 5000
+            },
+            {
+              "type": "element_visible",
+              "selector": ".v-alert",
+              "timeout": 5000
+            }
           ]
         }
       ]
@@ -232,12 +402,14 @@
     {
       "stepId": "s14",
       "action": "read",
-      "candidates": [".v-snackbar--active .v-snackbar__content", ".v-alert .v-alert__content"],
+      "candidates": [
+        ".v-snackbar--active .v-snackbar__content",
+        ".v-alert .v-alert__content"
+      ],
       "store_as": "save_result",
       "minLength": 1
     }
   ],
-
   "preRunChecklist": {
     "description": "Steps CoWork should complete BEFORE generating this payload.",
     "steps": [

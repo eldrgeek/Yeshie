@@ -2,10 +2,18 @@
   "_meta": {
     "task": "add-application",
     "description": "Add a new application to YeshID.",
-    "params": ["app_name", "technical_owner", "base_url"],
+    "params": [
+      "app_name",
+      "technical_owner",
+      "base_url"
+    ],
     "selfImproving": true,
     "runCount": 0,
-    "lastSuccess": null
+    "lastSuccess": null,
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    }
   },
   "params": {
     "base_url": "https://app.yeshid.com",
@@ -16,7 +24,9 @@
     {
       "stepId": "s1",
       "action": "assess_state",
-      "expect": {"state": "authenticated"},
+      "expect": {
+        "state": "authenticated"
+      },
       "onMismatch": "exit_with_error:not-authenticated"
     },
     {
@@ -64,7 +74,10 @@
       "stepId": "s9",
       "action": "click",
       "target": "dialog-add-button",
-      "responseSignature": {"type": "snackbar_text", "selector": ".v-snackbar--active .v-snackbar__content"},
+      "responseSignature": {
+        "type": "snackbar_text",
+        "selector": ".v-snackbar--active .v-snackbar__content"
+      },
       "note": "Click Add in dialog and verify success"
     }
   ]

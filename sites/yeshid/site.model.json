@@ -16,7 +16,8 @@
       "ssoButtonSelector": "button:has-text('Sign in with Google')",
       "authenticatedSignal": ".v-navigation-drawer a[href=\"/overview\"]",
       "notes": "Google SSO \u2014 extension can click through automatically if google_account_email is configured"
-    }
+    },
+    "lastUpdated": "2026-04-11T17:51:02.448Z"
   },
   "stateGraph": {
     "nodes": {
@@ -37,12 +38,12 @@
         "description": "User is logged in. Navigation sidebar is visible.",
         "signals": [
           {
-            "type": "element_visible",
-            "selector": ".v-navigation-drawer a[href='/overview']"
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
           },
           {
-            "type": "url_not_matches",
-            "pattern": "/login|/auth|/signin"
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
           }
         ]
       },
@@ -461,7 +462,7 @@
         ]
       },
       "cachedSelector": null,
-      "cachedConfidence": 0.0,
+      "cachedConfidence": 0,
       "fallbackSelectors": [
         "button"
       ],
@@ -564,7 +565,7 @@
         ]
       },
       "cachedSelector": null,
-      "cachedConfidence": 0.0,
+      "cachedConfidence": 0,
       "resolveHint": "Button with text 'Add application' on /access/applications page."
     },
     "application-name-input": {
@@ -576,7 +577,7 @@
         ]
       },
       "cachedSelector": null,
-      "cachedConfidence": 0.0,
+      "cachedConfidence": 0,
       "fallbackSelectors": [
         ".v-overlay--active input[placeholder*='application name' i]"
       ]
@@ -591,7 +592,7 @@
         ]
       },
       "cachedSelector": null,
-      "cachedConfidence": 0.0,
+      "cachedConfidence": 0,
       "fallbackSelectors": [
         ".v-overlay--active input[placeholder*='owner' i]"
       ]
@@ -608,7 +609,7 @@
         ]
       },
       "cachedSelector": null,
-      "cachedConfidence": 0.0,
+      "cachedConfidence": 0,
       "fallbackSelectors": [
         ".v-overlay--active .v-btn--variant-flat:last-child",
         ".v-overlay--active button:last-child"
@@ -623,7 +624,7 @@
         ]
       },
       "cachedSelector": null,
-      "cachedConfidence": 0.0,
+      "cachedConfidence": 0,
       "fallbackSelectors": [
         ".v-overlay--active button"
       ]
@@ -637,7 +638,7 @@
         ]
       },
       "cachedSelector": null,
-      "cachedConfidence": 0.0,
+      "cachedConfidence": 0,
       "resolveHint": "Button with text 'Manage Integration' on application detail page."
     },
     "base-url-input": {
@@ -650,7 +651,7 @@
         ]
       },
       "cachedSelector": null,
-      "cachedConfidence": 0.0
+      "cachedConfidence": 0
     },
     "integration-save-button": {
       "description": "Save button on integration config page",
@@ -661,7 +662,7 @@
         ]
       },
       "cachedSelector": null,
-      "cachedConfidence": 0.0,
+      "cachedConfidence": 0,
       "fallbackSelectors": [
         "button.v-btn--variant-flat"
       ]
@@ -675,7 +676,7 @@
         ]
       },
       "cachedSelector": null,
-      "cachedConfidence": 0.0,
+      "cachedConfidence": 0,
       "resolveHint": "Button with text \"Select start date\". Click opens preset picker with options: Immediately, ASAP, Monday morning, Pick date & time.",
       "pickerOptions": [
         "Immediately",
@@ -2103,5 +2104,9 @@
         "type into: No preference (default)"
       ]
     }
+  },
+  "auth": {
+    "type": "sso_automatable",
+    "googleAccountEmail": "mw@mike-wolf.com"
   }
 }

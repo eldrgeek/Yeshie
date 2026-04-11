@@ -8,7 +8,11 @@
     "selfImproving": true,
     "outputFile": "sites/yeshid/exploration-results.json",
     "runCount": 0,
-    "lastSuccess": null
+    "lastSuccess": null,
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    }
   },
   "params": {
     "base_url": "https://app.yeshid.com"
