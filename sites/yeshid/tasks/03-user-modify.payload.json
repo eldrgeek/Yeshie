@@ -2,12 +2,24 @@
   "_meta": {
     "task": "user-modify",
     "description": "Modify an existing user's profile in YeshID. Searches for the user, opens their detail page, updates specified fields, and saves.",
-    "params": [
-      "user_identifier",
-      "new_first_name",
-      "new_last_name",
-      "new_personal_email"
-    ],
+    "params": {
+      "user_identifier": {
+        "required": true,
+        "description": "Name or email of the person to modify"
+      },
+      "new_first_name": {
+        "required": false,
+        "description": "New first name (leave blank to keep current)"
+      },
+      "new_last_name": {
+        "required": false,
+        "description": "New last name (leave blank to keep current)"
+      },
+      "new_personal_email": {
+        "required": false,
+        "description": "New personal/recovery email (leave blank to keep current)"
+      }
+    },
     "paramNotes": {
       "user_identifier": "Name or email to find the user",
       "new_first_name": "New first name (optional, leave empty to skip)",
@@ -21,7 +33,15 @@
     "auth": {
       "type": "sso_automatable",
       "googleAccountEmail": "mw@mike-wolf.com"
-    }
+    },
+    "requiredParams": [
+      "user_identifier"
+    ],
+    "optionalParams": [
+      "new_first_name",
+      "new_last_name",
+      "new_personal_email"
+    ]
   },
   "runId": "yeshid-user-modify-{{timestamp}}",
   "mode": "verification",

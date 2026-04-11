@@ -2,9 +2,13 @@
   "_meta": {
     "task": "user-delete",
     "description": "Delete (offboard) a user from YeshID by name or email. Searches the people list, opens the person's profile, clicks Manage \u2192 Offboard, and confirms.",
-    "params": [
-      "user_identifier"
-    ],
+    "params": {
+      "user_identifier": {
+        "required": true,
+        "description": "Name or email of the person to offboard",
+        "hint": "Can be a full name like \"John Smith\" or an email"
+      }
+    },
     "paramNotes": {
       "user_identifier": "Name or email of the user to delete. Used to search the people table."
     },
@@ -16,7 +20,11 @@
     "auth": {
       "type": "sso_automatable",
       "googleAccountEmail": "mw@mike-wolf.com"
-    }
+    },
+    "requiredParams": [
+      "user_identifier"
+    ],
+    "optionalParams": []
   },
   "runId": "yeshid-user-delete-{{timestamp}}",
   "mode": "verification",

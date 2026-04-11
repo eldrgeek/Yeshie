@@ -2,17 +2,24 @@
   "_meta": {
     "task": "start-audit",
     "description": "Start a new access audit from the audit reports page.",
-    "params": [
-      "audit_title",
-      "base_url"
-    ],
+    "params": {
+      "audit_title": {
+        "required": true,
+        "description": "Title for the access audit",
+        "hint": "e.g. \"Q2 2026 Access Review\""
+      }
+    },
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
     "auth": {
       "type": "sso_automatable",
       "googleAccountEmail": "mw@mike-wolf.com"
-    }
+    },
+    "requiredParams": [
+      "audit_title"
+    ],
+    "optionalParams": []
   },
   "params": {
     "base_url": "https://app.yeshid.com",

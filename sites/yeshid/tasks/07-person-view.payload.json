@@ -2,17 +2,23 @@
   "_meta": {
     "task": "person-view",
     "description": "Search for a person and navigate to their detail profile page.",
-    "params": [
-      "user_identifier",
-      "base_url"
-    ],
+    "params": {
+      "user_identifier": {
+        "required": true,
+        "description": "Name or email of the person to view"
+      }
+    },
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
     "auth": {
       "type": "sso_automatable",
       "googleAccountEmail": "mw@mike-wolf.com"
-    }
+    },
+    "requiredParams": [
+      "user_identifier"
+    ],
+    "optionalParams": []
   },
   "params": {
     "base_url": "https://app.yeshid.com",
