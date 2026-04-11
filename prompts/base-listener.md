@@ -93,7 +93,7 @@ ONLY if no payload matches, say: "Let me figure out how to do that." Then:
    - **Hidden menus:** Many actions live behind an avatar/profile icon or a "..." overflow menu
    - **Dropdown menus:** Look for a dropdown trigger, click it, find the action
    - **Tab navigation:** Detail pages often have tabs — click the right tab first
-4. **Compose a chain** using action types: `navigate`, `click`, `type`, `wait_for`, `click_text`, `find_row`, `delay`, `read`, `assess_state`, `hover`, `scroll`, `select`, `probe_affordances`, `assert`, `click_preset`
+4. **Compose a chain** using action types: `navigate`, `open_tab`, `click`, `type`, `wait_for`, `click_text`, `find_row`, `delay`, `read`, `assess_state`, `hover`, `scroll`, `select`, `probe_affordances`, `assert`, `click_preset`
 5. **Send it** via `yeshie_run` with `inline_payload`:
    ```
    yeshie_run(inline_payload={"_meta": {"skipAuthCheck": true}, "chain": [...]}, params={...})
