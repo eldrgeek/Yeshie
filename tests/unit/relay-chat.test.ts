@@ -280,3 +280,145 @@ describe('Relay Chat Endpoints', () => {
     expect(resultB.data.text).toBe('Reply to B');
   });
 });
+
+// ── HTTP endpoint coverage ────────────────────────────────────────────────────
+
+describe('Relay HTTP endpoints', () => {
+  test('GET /status returns server status', async () => {
+    const { status, data } = await request('GET', '/status');
+    expect(status).toBe(200);
+    expect(data.ok).toBe(true);
+    expect(data.extensionConnected).toBe(false);
+    expect(typeof data.pending).toBe('number');
+  });
+
+  test('POST /run returns 503 when no extension connected', async () => {
+    const { status, data } = await request('POST', '/run', {
+      payload: { chain: [] },
+      params: {},
+    });
+    expect(status).toBe(503);
+    expect(data.error).toContain('Extension not connected');
+  });
+
+  test('POST /run returns 400 on invalid JSON body', async () => {
+    const { status } = await new Promise<{ status: number; data: any }>((resolve, reject) => {
+      const url = new URL('/run', baseUrl);
+      const req = http.request({
+        hostname: url.hostname,
+        port: url.port,
+        path: url.pathname,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      }, (res) => {
+        let d = '';
+        res.on('data', (chunk) => (d += chunk));
+        res.on('end', () => {
+          try { resolve({ status: res.statusCode!, data: JSON.parse(d) }); }
+          catch { resolve({ status: res.statusCode!, data: d }); }
+        });
+      });
+      req.on('error', reject);
+      req.write('not valid json{{{');
+      req.end();
+    });
+    expect(status).toBe(400);
+  });
+
+  test('POST /notify returns 400 when message missing', async () => {
+    const { status, data } = await request('POST', '/notify', { title: 'Test' });
+    expect(status).toBe(400);
+    expect(data.error).toContain('message required');
+  });
+
+  test('GET /status-board returns HTML', async () => {
+    const { status, data } = await new Promise<{ status: number; data: string }>((resolve, reject) => {
+      const url = new URL('/status-board', baseUrl);
+      http.get(url, (res) => {
+        let d = '';
+        res.on('data', (chunk) => (d += chunk));
+        res.on('end', () => resolve({ status: res.statusCode!, data: d }));
+      }).on('error', reject);
+    });
+    expect(status).toBe(200);
+    expect(data).toContain('Yeshie Status');
+    expect(data).toContain('<!DOCTYPE html>');
+  });
+
+  test('POST /status-board adds a message', async () => {
+    const { status, data } = await request('POST', '/status-board', { text: 'DONE: test passed' });
+    expect(status).toBe(200);
+    expect(data.ok).toBe(true);
+    expect(data.count).toBeGreaterThan(0);
+  });
+
+  test('POST /chat/feedback logs feedback', async () => {
+    const { status, data } = await request('POST', '/chat/feedback', {
+      chatId: 'test_123',
+      rating: 'positive',
+      comment: 'Great response',
+    });
+    expect(status).toBe(200);
+    expect(data.ok).toBe(true);
+  });
+
+  test('POST /chat/respond returns 404 for unknown chatId', async () => {
+    const { status, data } = await request('POST', '/chat/respond', {
+      chatId: 'nonexistent_chat_id',
+      response: { type: 'answer', text: 'hello' },
+    });
+    expect(status).toBe(404);
+    expect(data.error).toContain('No pending response');
+  });
+
+  test('GET /chat/logs returns log entries', async () => {
+    const { status, data } = await request('GET', '/chat/logs?limit=5');
+    expect(status).toBe(200);
+    expect(Array.isArray(data.logs)).toBe(true);
+  });
+
+  test('GET /nonexistent returns 404', async () => {
+    const { status } = await new Promise<{ status: number; data: any }>((resolve, reject) => {
+      const url = new URL('/nonexistent', baseUrl);
+      http.get(url, (res) => {
+        let d = '';
+        res.on('data', (chunk) => (d += chunk));
+        res.on('end', () => resolve({ status: res.statusCode!, data: d }));
+      }).on('error', reject);
+    });
+    expect(status).toBe(404);
+  });
+
+  test('Suggest queues when no listener, delivered on next listen', async () => {
+    // Queue two suggestions without a listener
+    await request('POST', '/chat/suggest', { runId: 'r1', suggestion: 'Try approach A' });
+    await request('POST', '/chat/suggest', { runId: 'r2', suggestion: 'Try approach B' });
+
+    // Now listen — should get queued suggestions in order
+    const first = await request('GET', '/chat/listen?timeout=2');
+    expect(first.status).toBe(200);
+    expect(first.data.type).toBe('suggestion');
+    expect(first.data.suggestion).toBe('Try approach A');
+
+    const second = await request('GET', '/chat/listen?timeout=2');
+    expect(second.status).toBe(200);
+    expect(second.data.type).toBe('suggestion');
+    expect(second.data.suggestion).toBe('Try approach B');
+  });
+
+  test('Chat status shows listener connected during grace period', async () => {
+    // Start a listener, then cancel it
+    const listenP = request('GET', '/chat/listen?timeout=1');
+
+    await new Promise((r) => setTimeout(r, 50));
+    const during = await request('GET', '/chat/status');
+    expect(during.data.listenerConnected).toBe(true);
+
+    // Wait for timeout
+    await listenP;
+
+    // Should still be "connected" during grace period
+    const after = await request('GET', '/chat/status');
+    expect(after.data.listenerConnected).toBe(true);
+  });
+});
