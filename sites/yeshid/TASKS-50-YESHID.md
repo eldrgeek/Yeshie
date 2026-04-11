@@ -13,8 +13,8 @@ Priority: tasks ranked by frequency of use in a typical identity governance work
 | 1 | Onboard a new person | VALIDATED | `01-user-add` | 18 steps, creates user with email |
 | 2 | Offboard a person | VALIDATED | `02-user-delete` | 18 steps, 7.7s, full offboard flow |
 | 3 | Modify a person's details | VALIDATED | `03-user-modify` | 14 steps, edit first/last/email |
-| 4 | Search for a person | EXPLORED | — | Search input works, typed "Mike" (6.7s). Results didn't visibly filter — may need Enter key or debounce wait |
-| 5 | View a person's profile | EXPLORED | — | `find_row("Claude")` → detail page. UUID `5e33dec8-6ebb-44ce-974e-5e80d8c9925d`. Tabs: Details, Directory IDs, Events, Applications, Tokens |
+| 4 | Search for a person | LEARNED | `06-person-search` | Search input works, typed "Mike" (6.7s). Results didn't visibly filter — may need Enter key or debounce wait |
+| 5 | View a person's profile | LEARNED | `07-person-view` | `find_row("Claude")` → detail page. UUID `5e33dec8-6ebb-44ce-974e-5e80d8c9925d`. Tabs: Details, Directory IDs, Events, Applications, Tokens |
 | 6 | Filter people by status | NOT STARTED | — | Status filter on people list |
 | 7 | View all people | EXPLORED | — | `/organization/people` mapped |
 | 8 | Assign person to application | NOT STARTED | — | Person detail has Applications tab; needs further exploration |
@@ -25,7 +25,7 @@ Priority: tasks ranked by frequency of use in a typical identity governance work
 
 | # | Task | Status | Payload | Notes |
 |---|------|--------|---------|-------|
-| 11 | Sync directory | EXPLORED | — | "Sync directory" button present, last sync ~6h ago. 4 filter buttons (Active/Suspended/Admin/No-MFA), 25 identities in table |
+| 11 | Sync directory | LEARNED | `08-sync-directory` | "Sync directory" button present, last sync ~6h ago. 4 filter buttons (Active/Suspended/Admin/No-MFA), 25 identities in table |
 | 12 | View directory identities | EXPLORED | — | Table with 25 identities |
 | 13 | Filter identities (active/suspended/admin/no-MFA) | EXPLORED | — | 4 filter buttons confirmed on directory page: Active, Suspended, Admin, No-MFA |
 | 14 | Add a directory | EXPLORED | — | Button on directories page |
@@ -35,7 +35,7 @@ Priority: tasks ranked by frequency of use in a typical identity governance work
 
 | # | Task | Status | Payload | Notes |
 |---|------|--------|---------|-------|
-| 16 | Create a new group | EXPLORED | — | Dialog fields: Group Name, Type (Static), Description, Owners. "New Group" button opens modal |
+| 16 | Create a new group | LEARNED | `09-create-group` | Dialog fields: Group Name, Type (Static), Description, Owners. "New Group" button opens modal |
 | 17 | View groups | EXPLORED | — | `/organization/groups` mapped |
 | 18 | Edit a group | NOT STARTED | — | Actions column in groups table |
 | 19 | Delete a group | NOT STARTED | — | Likely in Actions dropdown |
@@ -44,7 +44,7 @@ Priority: tasks ranked by frequency of use in a typical identity governance work
 
 | # | Task | Status | Payload | Notes |
 |---|------|--------|---------|-------|
-| 20 | Add an application | EXPLORED | — | `click_text "Add application"` opens dialog. Fields: Application name, Technical Owners (1–5 required), Advanced Options section |
+| 20 | Add an application | LEARNED | `10-add-application` | `click_text "Add application"` opens dialog. Fields: Application name, Technical Owners (1–5 required), Advanced Options section |
 | 21 | Import application list | EXPLORED | — | Dialog offers AI Paste + Upload CSV options |
 | 22 | View application accounts | EXPLORED | — | App detail page mapped |
 | 23 | Set up SCIM integration | NOT STARTED | `05-integration-setup` | Has preRunChecklist |
@@ -56,8 +56,8 @@ Priority: tasks ranked by frequency of use in a typical identity governance work
 
 | # | Task | Status | Payload | Notes |
 |---|------|--------|---------|-------|
-| 27 | View access grid | EXPLORED | — | `/access/grid` mapped |
-| 28 | Start a new audit | EXPLORED | — | Form: Title, Start date, Audit Workflow template, Tasks table. Navigated via `/access/audits` |
+| 27 | View access grid | LEARNED | `12-view-access-grid` | `/access/grid` mapped |
+| 28 | Start a new audit | LEARNED | `11-start-audit` | Form: Title, Start date, Audit Workflow template, Tasks table. Navigated via `/access/audits` |
 | 29 | Create RBAC policy | NOT STARTED | — | "New RBAC Policy" button (requires upgrade?) |
 | 30 | View access requests | EXPLORED | — | `/access/requests` mapped |
 | 31 | Approve/deny access request | NOT STARTED | — | Table with request rows |

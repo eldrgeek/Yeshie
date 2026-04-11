@@ -32,6 +32,14 @@ Use the inference loop. Logout is hidden behind the user avatar in the top-right
 | `03-user-modify.payload.json` | Modify user attributes | `user_identifier`, `new_first_name`, `new_last_name`, `base_url` |
 | `04-site-explore.payload.json` | Map all pages and affordances | `base_url` |
 | `05-integration-setup.payload.json` | Set up a SCIM integration | `base_url` |
+| `06-person-search.payload.json` | Search people by name/email | `search_term`, `base_url` |
+| `07-person-view.payload.json` | View a person's detail profile | `user_identifier`, `base_url` |
+| `08-sync-directory.payload.json` | Trigger a directory sync | `base_url` |
+| `09-create-group.payload.json` | Create a new group | `group_name`, `group_description`, `base_url` |
+| `10-add-application.payload.json` | Add a new application | `app_name`, `technical_owner`, `base_url` |
+| `11-start-audit.payload.json` | Start a new access audit | `audit_title`, `base_url` |
+| `12-view-access-grid.payload.json` | View people × apps access grid | `base_url` |
+| `13-view-events.payload.json` | View/search event log | `base_url`, `search_term` |
 
 Payload path pattern: `~/Projects/yeshie/sites/yeshid/tasks/{filename}`
 
@@ -53,6 +61,20 @@ If a payload matches the user's request:
 | `/settings` | Org settings, integrations, HRIS |
 | `/access-requests` | Access request queue |
 | `/` or `/dashboard` | Dashboard — overview metrics |
+| `/organization/directories` | Directories — sync, filter identities (active/suspended/admin/no-MFA) |
+| `/organization/groups` | Groups — create, view, manage groups |
+| `/access/grid` | Access Grid — people × applications matrix |
+| `/access/rbac` | RBAC — role-based access control (BETA) |
+| `/access/requests` | Access Requests — view and action pending requests |
+| `/access/audits` | Audit Reports — start audits, view reports |
+| `/security/shadow` | Shadow Applications — unmanaged apps from SSO logs |
+| `/security/identities/applications` | Identities — application-linked identity view |
+| `/security/access-drift` | Access Drift — unauthorized access changes |
+| `/security/risk-assessment` | Risk Assessment — risk scores and posture |
+| `/manage/triggers` | Triggers — event-driven automation rules |
+| `/workflow-templates` | Workflow Templates — onboarding/offboarding/audit templates |
+| `/events` | Events — full activity event log |
+| `/manage/settings` | Settings — general, notifications, customize, billing, admins |
 | `/organization/people/onboard` | Onboard form — fill first name, last name, company email, start date |
 
 ### Vuetify 3 DOM Patterns (for SHOW mode selectors)
