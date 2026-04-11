@@ -2,10 +2,17 @@
   "_meta": {
     "task": "start-audit",
     "description": "Start a new access audit from the audit reports page.",
-    "params": ["audit_title", "base_url"],
+    "params": [
+      "audit_title",
+      "base_url"
+    ],
     "selfImproving": true,
     "runCount": 0,
-    "lastSuccess": null
+    "lastSuccess": null,
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    }
   },
   "params": {
     "base_url": "https://app.yeshid.com",
@@ -15,7 +22,9 @@
     {
       "stepId": "s1",
       "action": "assess_state",
-      "expect": {"state": "authenticated"},
+      "expect": {
+        "state": "authenticated"
+      },
       "onMismatch": "exit_with_error:not-authenticated"
     },
     {

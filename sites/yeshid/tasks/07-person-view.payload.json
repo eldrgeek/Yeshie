@@ -2,10 +2,17 @@
   "_meta": {
     "task": "person-view",
     "description": "Search for a person and navigate to their detail profile page.",
-    "params": ["user_identifier", "base_url"],
+    "params": [
+      "user_identifier",
+      "base_url"
+    ],
     "selfImproving": true,
     "runCount": 0,
-    "lastSuccess": null
+    "lastSuccess": null,
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    }
   },
   "params": {
     "base_url": "https://app.yeshid.com",
@@ -15,7 +22,9 @@
     {
       "stepId": "s1",
       "action": "assess_state",
-      "expect": {"state": "authenticated"},
+      "expect": {
+        "state": "authenticated"
+      },
       "onMismatch": "exit_with_error:not-authenticated"
     },
     {
@@ -44,7 +53,9 @@
     {
       "stepId": "s6",
       "action": "assess_state",
-      "expect": {"state": "person-detail"}
+      "expect": {
+        "state": "person-detail"
+      }
     },
     {
       "stepId": "s7",

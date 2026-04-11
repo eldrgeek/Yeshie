@@ -1,7 +1,7 @@
 {
   "_meta": {
     "task": "user-delete",
-    "description": "Delete (offboard) a user from YeshID by name or email. Searches the people list, opens the person's profile, clicks Manage → Offboard, and confirms.",
+    "description": "Delete (offboard) a user from YeshID by name or email. Searches the people list, opens the person's profile, clicks Manage \u2192 Offboard, and confirms.",
     "params": [
       "user_identifier"
     ],
@@ -12,7 +12,11 @@
     "runCount": 1,
     "lastSuccess": "2026-04-01T21:46:34.307Z",
     "prerequisite": "00-login.payload.json",
-    "warning": "Destructive action. Verify user_identifier before running in production mode."
+    "warning": "Destructive action. Verify user_identifier before running in production mode.",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    }
   },
   "runId": "yeshid-user-delete-{{timestamp}}",
   "mode": "verification",
@@ -256,7 +260,7 @@
       "stepId": "s14",
       "action": "perceive",
       "store_as": "result_state",
-      "note": "Capture final state — expect user row showing 'Deactivated' status."
+      "note": "Capture final state \u2014 expect user row showing 'Deactivated' status."
     }
   ]
 }

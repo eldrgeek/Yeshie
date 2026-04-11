@@ -2,7 +2,12 @@
   "_meta": {
     "task": "user-modify",
     "description": "Modify an existing user's profile in YeshID. Searches for the user, opens their detail page, updates specified fields, and saves.",
-    "params": ["user_identifier", "new_first_name", "new_last_name", "new_personal_email"],
+    "params": [
+      "user_identifier",
+      "new_first_name",
+      "new_last_name",
+      "new_personal_email"
+    ],
     "paramNotes": {
       "user_identifier": "Name or email to find the user",
       "new_first_name": "New first name (optional, leave empty to skip)",
@@ -12,13 +17,15 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "prerequisite": "00-login.payload.json"
+    "prerequisite": "00-login.payload.json",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    }
   },
-
   "runId": "yeshid-user-modify-{{timestamp}}",
   "mode": "verification",
   "site": "app.yeshid.com",
-
   "params": {
     "user_identifier": "{{user_identifier}}",
     "new_first_name": "{{new_first_name}}",
@@ -26,51 +33,95 @@
     "new_personal_email": "{{new_personal_email}}",
     "base_url": "https://app.yeshid.com"
   },
-
   "stateGraph": {
     "currentNode": "authenticated",
     "nodes": {
       "authenticated": {
-        "signals": [{ "type": "element_visible", "selector": ".v-navigation-drawer a[href='/overview']" }]
+        "signals": [
+          {
+            "type": "element_visible",
+            "selector": ".v-navigation-drawer a[href='/overview']"
+          }
+        ]
       },
       "people-list": {
-        "signals": [{ "type": "url_matches", "pattern": "/organization/people$" }]
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people$"
+          }
+        ]
       },
       "person-detail": {
-        "signals": [{ "type": "url_matches", "pattern": "/organization/people/[a-z0-9-]+" }]
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/[a-z0-9-]+"
+          }
+        ]
       }
     }
   },
-
   "abstractTargets": {
     "search-input": {
-      "match": { "role": "textbox", "name_contains": ["search"] },
+      "match": {
+        "role": "textbox",
+        "name_contains": [
+          "search"
+        ]
+      },
       "cachedSelector": "input[placeholder='Search']",
-      "cachedConfidence": 0.90
+      "cachedConfidence": 0.9
     },
     "save-button": {
-      "match": { "role": "button", "name_contains": ["confirm", "save", "update"] },
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "confirm",
+          "save",
+          "update"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0,
-      "fallbackSelectors": ["button.bg-primary", "button.v-btn--variant-flat", "button[type='submit']"]
+      "fallbackSelectors": [
+        "button.bg-primary",
+        "button.v-btn--variant-flat",
+        "button[type='submit']"
+      ]
     },
     "edit-first-name": {
-      "match": { "role": "textbox", "vuetify_label": ["first name"] },
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "first name"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0
     },
     "edit-last-name": {
-      "match": { "role": "textbox", "vuetify_label": ["last name"] },
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "last name"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0
     },
     "edit-personal-email": {
-      "match": { "role": "textbox", "vuetify_label": ["personal", "recovery"] },
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "personal",
+          "recovery"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0.0
     }
   },
-
   "chain": [
     {
       "stepId": "s1",
@@ -90,7 +141,11 @@
       "target": "search-input",
       "value": "{{user_identifier}}",
       "responseSignature": [
-        { "type": "element_visible", "selector": "table tbody tr", "timeout": 2000 }
+        {
+          "type": "element_visible",
+          "selector": "table tbody tr",
+          "timeout": 2000
+        }
       ],
       "note": "Search for the user"
     },
@@ -164,7 +219,11 @@
     {
       "stepId": "s12",
       "action": "read",
-      "candidates": [".v-snackbar--active .v-snackbar__content", ".v-alert .v-alert__content", ".v-snackbar .v-snackbar__content"],
+      "candidates": [
+        ".v-snackbar--active .v-snackbar__content",
+        ".v-alert .v-alert__content",
+        ".v-snackbar .v-snackbar__content"
+      ],
       "store_as": "confirmation_message",
       "note": "Read the save confirmation message"
     }

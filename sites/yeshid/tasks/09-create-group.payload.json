@@ -2,10 +2,18 @@
   "_meta": {
     "task": "create-group",
     "description": "Create a new group with name, type, and description.",
-    "params": ["group_name", "group_description", "base_url"],
+    "params": [
+      "group_name",
+      "group_description",
+      "base_url"
+    ],
     "selfImproving": true,
     "runCount": 0,
-    "lastSuccess": null
+    "lastSuccess": null,
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    }
   },
   "params": {
     "base_url": "https://app.yeshid.com",
@@ -16,7 +24,9 @@
     {
       "stepId": "s1",
       "action": "assess_state",
-      "expect": {"state": "authenticated"},
+      "expect": {
+        "state": "authenticated"
+      },
       "onMismatch": "exit_with_error:not-authenticated"
     },
     {
@@ -46,7 +56,7 @@
       "action": "type",
       "target": "first-name-input",
       "value": "{{group_name}}",
-      "note": "Type group name — target will need to be resolved via vuetify_label 'group name'"
+      "note": "Type group name \u2014 target will need to be resolved via vuetify_label 'group name'"
     },
     {
       "stepId": "s7",
@@ -59,7 +69,10 @@
       "stepId": "s8",
       "action": "click_text",
       "text": "Create",
-      "responseSignature": {"type": "snackbar_text", "selector": ".v-snackbar--active .v-snackbar__content"},
+      "responseSignature": {
+        "type": "snackbar_text",
+        "selector": ".v-snackbar--active .v-snackbar__content"
+      },
       "note": "Click Create button and verify snackbar appears"
     }
   ]

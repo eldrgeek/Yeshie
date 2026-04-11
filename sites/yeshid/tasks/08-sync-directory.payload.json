@@ -2,10 +2,16 @@
   "_meta": {
     "task": "sync-directory",
     "description": "Navigate to directories page and trigger a directory sync.",
-    "params": ["base_url"],
+    "params": [
+      "base_url"
+    ],
     "selfImproving": true,
     "runCount": 0,
-    "lastSuccess": null
+    "lastSuccess": null,
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    }
   },
   "params": {
     "base_url": "https://app.yeshid.com"
@@ -14,7 +20,9 @@
     {
       "stepId": "s1",
       "action": "assess_state",
-      "expect": {"state": "authenticated"},
+      "expect": {
+        "state": "authenticated"
+      },
       "onMismatch": "exit_with_error:not-authenticated"
     },
     {
@@ -32,7 +40,9 @@
     {
       "stepId": "s4",
       "action": "assess_state",
-      "expect": {"state": "directories"}
+      "expect": {
+        "state": "directories"
+      }
     },
     {
       "stepId": "s5",
