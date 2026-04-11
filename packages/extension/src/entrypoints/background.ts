@@ -48,6 +48,25 @@ export default defineBackground(() => {
       });
     });
 
+    // Relay asks for all open tabs
+    socket.on('list_tabs', (ack: (result: any) => void) => {
+      chrome.tabs.query({}, (tabs) => {
+        ack(tabs.map(t => ({ tabId: t.id, url: t.url, title: t.title })));
+      });
+    });
+
+    // Relay asks to open a new tab
+    socket.on('open_tab', async ({ url }: { url: string }, ack: (result: any) => void) => {
+      try {
+        const result = await openTabAndWait(url);
+        let title = '';
+        try { const tab = await chrome.tabs.get(result.tabId); title = tab.title || ''; } catch { /* ignore */ }
+        ack({ ok: true, tabId: result.tabId, url: result.url, title });
+      } catch (err: any) {
+        ack({ ok: false, error: err.message });
+      }
+    });
+
     // Relay injects a chat message into a specific tab's side-panel conversation.
     // The message appears as if the user typed it, then flows through the normal
     // chat path so the listener receives it just like any user-initiated message.

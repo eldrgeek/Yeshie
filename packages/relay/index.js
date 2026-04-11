@@ -284,6 +284,47 @@ export function createRelay(port = 3333) {
     }
 
 
+    // --- Tab management endpoints ---
+
+    if (path === '/tabs/list' && req.method === 'GET') {
+      if (!extensionSocket) { jsonReply(res, 503, { error: 'Extension not connected' }); return; }
+      try {
+        const tabs = await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('Timeout waiting for list_tabs')), 10_000);
+          extensionSocket.emit('list_tabs', (result) => {
+            clearTimeout(timer);
+            resolve(result);
+          });
+        });
+        jsonReply(res, 200, tabs);
+      } catch (err) {
+        jsonReply(res, 500, { error: err.message });
+      }
+      return;
+    }
+
+    if (path === '/tabs/open' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const { url } = body;
+      if (!url) { jsonReply(res, 400, { error: 'url required' }); return; }
+      if (!extensionSocket) { jsonReply(res, 503, { error: 'Extension not connected' }); return; }
+      try {
+        const result = await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('Timeout waiting for open_tab')), 20_000);
+          extensionSocket.emit('open_tab', { url }, (result) => {
+            clearTimeout(timer);
+            if (result?.ok === false) reject(new Error(result.error || 'open_tab failed'));
+            else resolve(result);
+          });
+        });
+        jsonReply(res, 200, result);
+      } catch (err) {
+        jsonReply(res, 500, { error: err.message });
+      }
+      return;
+    }
+
     // --- Notify endpoint (Case 2/3: called from bash or cc-bridge) ---
 
     if (path === '/notify' && req.method === 'POST') {
