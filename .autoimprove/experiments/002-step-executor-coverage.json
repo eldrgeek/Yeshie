@@ -1,0 +1,14 @@
+{
+  "id": 2,
+  "title": "Add 12 step-executor tests for uncovered actions",
+  "status": "kept",
+  "commit": "04cdb052",
+  "score": 272,
+  "baseline_score": 260,
+  "delta_pct": 4.6,
+  "duration_s": 120,
+  "reasoning": "Added tests for delay, perceive, find_row (hit+miss+store), click_text (hit+miss), unsupported action fallback, surprise evidence attachment, and param interpolation edge cases. These actions had zero test coverage before.",
+  "files_changed": ["tests/unit/step-executor.test.ts"],
+  "supersedes": [],
+  "timestamp": "2026-04-11T00:24:00Z"
+}
