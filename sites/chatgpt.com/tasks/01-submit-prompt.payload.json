@@ -2,7 +2,19 @@
   "_meta": {
     "task": "submit-prompt",
     "description": "Submit a prompt to ChatGPT and capture the response.",
-    "params": ["prompt", "base_url"],
+    "params": {
+      "prompt": {
+        "required": true,
+        "description": "The prompt/question to send to ChatGPT",
+        "hint": "Can be any length. For multi-line, use newlines in the string."
+      },
+      "base_url": {
+        "required": false,
+        "default": "https://chatgpt.com/",
+        "description": "URL to navigate to before submitting. Use default for new conversation.",
+        "hint": "Can point to an existing conversation URL to continue a thread"
+      }
+    },
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null
@@ -32,7 +44,14 @@
       "action": "assess_state",
       "stateGraph": {
         "nodes": {
-          "auth_required": { "signals": [{ "type": "url_matches", "pattern": "chatgpt\\.com/auth" }] }
+          "auth_required": {
+            "signals": [
+              {
+                "type": "url_matches",
+                "pattern": "chatgpt\\.com/auth"
+              }
+            ]
+          }
         }
       },
       "onMismatch": "continue",
@@ -61,9 +80,11 @@
       "stepId": "s5",
       "action": "wait_for",
       "selector": "[data-testid='stop-button']",
-      "state": { "visible": false },
+      "state": {
+        "visible": false
+      },
       "timeout": 120000,
-      "note": "Wait until stop button disappears — generation complete"
+      "note": "Wait until stop button disappears \u2014 generation complete"
     },
     {
       "stepId": "s6",
