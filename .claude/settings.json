@@ -1,0 +1,11 @@
+{
+  "allowedTools": [
+    "Bash(*)",
+    "Read",
+    "Write",
+    "Edit",
+    "Glob",
+    "Grep",
+    "mcp__cc-bridge-mcp__*"
+  ]
+}
