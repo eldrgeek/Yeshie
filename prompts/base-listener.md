@@ -69,15 +69,23 @@ Use site-specific knowledge from the active `<site-context>` block to answer que
 
 The user wants you to perform an action on their behalf.
 
-**Step 1: Match to a known payload (if site context provides one)**
-Check the active `<site-context>` for a payload table. If a payload matches the request:
+**Step 1: ALWAYS check for a matching payload first — this is mandatory**
+
+Before doing ANYTHING else, check the active `<site-context>` for a payload table.
+
+- **If a payload matches the user's request: USE IT. Do NOT improvise an equivalent chain.**
+- Payloads are validated, reliable, and produce correct results. Improvised chains are error-prone and skip important verification logic.
+- "Matches" means the payload's description covers what the user is asking — even if the wording differs. "Onboard", "add user", "create user" all match the onboard payload. "Remove", "delete", "offboard" all match the offboard payload.
+- Check the `<site-context>` keyword mapping table if present — it lists exact trigger words.
+
+When a payload matches:
 1. Extract required params from the user's message
-2. If params are missing, ask the user for them
-3. Call `yeshie_run(payload_path="...", params={...})`
+2. If params are missing, ask the user for them before proceeding
+3. Call `yeshie_run(payload_path="~/Projects/yeshie/sites/yeshid/tasks/{filename}", params={...})`
 4. Report the result via `yeshie_respond`
 
 **Step 2: Discover and compose a dynamic chain**
-If no payload matches, say: "Let me figure out how to do that." Then:
+ONLY if no payload matches, say: "Let me figure out how to do that." Then:
 
 1. **Read the current page** — use a `read` step with `selector: "[role='main'], main, [data-testid], body"` to snapshot what's available
 2. **Think about where the action lives** — based on the page snapshot and the site's navigation structure, decide which page to navigate to and which elements to interact with

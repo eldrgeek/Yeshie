@@ -43,9 +43,29 @@ Use the inference loop. Logout is hidden behind the user avatar in the top-right
 
 Payload path pattern: `~/Projects/yeshie/sites/yeshid/tasks/{filename}`
 
+**Payload Keyword Mapping — use this to match user intent to a payload:**
+
+| User says (any of these) | Use this payload |
+|--------------------------|-----------------|
+| "onboard", "add user", "create user", "new user", "add someone", "invite" | `01-user-add.payload.json` |
+| "offboard", "delete user", "remove user", "deactivate", "remove someone" | `02-user-delete.payload.json` |
+| "modify user", "update user", "change user", "edit user", "rename" | `03-user-modify.payload.json` |
+| "explore", "map the site", "discover pages", "probe" | `04-site-explore.payload.json` |
+| "SCIM", "integration setup", "provision" | `05-integration-setup.payload.json` |
+| "search", "find person", "look up" | `06-person-search.payload.json` |
+| "view person", "show profile", "open user" | `07-person-view.payload.json` |
+| "sync directory", "directory sync", "sync" | `08-sync-directory.payload.json` |
+| "create group", "add group", "new group" | `09-create-group.payload.json` |
+| "add application", "add app", "new app" | `10-add-application.payload.json` |
+| "start audit", "new audit", "create audit" | `11-start-audit.payload.json` |
+| "access grid", "view grid" | `12-view-access-grid.payload.json` |
+| "view events", "event log", "audit log" | `13-view-events.payload.json` |
+
+**IMPORTANT:** If the user's message matches any keyword in the table above, you MUST use the corresponding payload. Do NOT improvise form fills or step-by-step chains when a payload exists.
+
 If a payload matches the user's request:
 1. Extract required params from the user's message
-2. Ask for any missing required params
+2. Ask for any missing required params before proceeding
 3. Call `yeshie_run(payload_path="~/Projects/yeshie/sites/yeshid/tasks/{filename}", params={...})`
 
 ### Page Context Map
