@@ -1,0 +1,56 @@
+{
+  "_meta": {
+    "task": "sync-directory",
+    "description": "Navigate to directories page and trigger a directory sync.",
+    "params": ["base_url"],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {"state": "authenticated"},
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "click",
+      "target": "nav-directories",
+      "note": "Click Directories in sidebar nav"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for directory page to load"
+    },
+    {
+      "stepId": "s4",
+      "action": "assess_state",
+      "expect": {"state": "directories"}
+    },
+    {
+      "stepId": "s5",
+      "action": "click_text",
+      "text": "Sync directory",
+      "note": "Click the sync directory button"
+    },
+    {
+      "stepId": "s6",
+      "action": "delay",
+      "ms": 3000,
+      "note": "Wait for sync to initiate"
+    },
+    {
+      "stepId": "s7",
+      "action": "read",
+      "store_as": "sync_result",
+      "note": "Capture page state after sync trigger"
+    }
+  ]
+}

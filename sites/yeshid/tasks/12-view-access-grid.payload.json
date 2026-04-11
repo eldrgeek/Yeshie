@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "task": "view-access-grid",
+    "description": "Navigate to the access grid and capture the people × applications matrix.",
+    "params": ["base_url"],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {"state": "authenticated"},
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/access/grid"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Access grid loads slowly — extra wait"
+    },
+    {
+      "stepId": "s4",
+      "action": "assess_state",
+      "expect": {"state": "access-grid"}
+    },
+    {
+      "stepId": "s5",
+      "action": "read",
+      "selector": ".v-data-table",
+      "store_as": "access_grid_data",
+      "note": "Capture the full access grid table"
+    }
+  ]
+}

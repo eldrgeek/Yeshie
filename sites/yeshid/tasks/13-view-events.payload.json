@@ -1,0 +1,53 @@
+{
+  "_meta": {
+    "task": "view-events",
+    "description": "Navigate to events page and optionally search for specific events.",
+    "params": ["base_url", "search_term"],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com",
+    "search_term": ""
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {"state": "authenticated"},
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/events"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 1500
+    },
+    {
+      "stepId": "s4",
+      "action": "type",
+      "selector": "input[placeholder='Search']",
+      "value": "{{search_term}}",
+      "condition": "{{search_term}}",
+      "note": "Search events if search_term provided"
+    },
+    {
+      "stepId": "s5",
+      "action": "delay",
+      "ms": 1000,
+      "condition": "{{search_term}}"
+    },
+    {
+      "stepId": "s6",
+      "action": "read",
+      "selector": ".v-data-table",
+      "store_as": "events_data",
+      "note": "Capture events table"
+    }
+  ]
+}

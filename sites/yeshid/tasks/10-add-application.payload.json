@@ -1,0 +1,71 @@
+{
+  "_meta": {
+    "task": "add-application",
+    "description": "Add a new application to YeshID.",
+    "params": ["app_name", "technical_owner", "base_url"],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com",
+    "app_name": "",
+    "technical_owner": ""
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {"state": "authenticated"},
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/access/applications"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 1500
+    },
+    {
+      "stepId": "s4",
+      "action": "click",
+      "target": "add-application-button",
+      "note": "Click Add application button"
+    },
+    {
+      "stepId": "s5",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Wait for dialog to open"
+    },
+    {
+      "stepId": "s6",
+      "action": "type",
+      "target": "application-name-input",
+      "value": "{{app_name}}",
+      "note": "Type application name"
+    },
+    {
+      "stepId": "s7",
+      "action": "type",
+      "target": "technical-owners-input",
+      "value": "{{technical_owner}}",
+      "note": "Type technical owner"
+    },
+    {
+      "stepId": "s8",
+      "action": "delay",
+      "ms": 500
+    },
+    {
+      "stepId": "s9",
+      "action": "click",
+      "target": "dialog-add-button",
+      "responseSignature": {"type": "snackbar_text", "selector": ".v-snackbar--active .v-snackbar__content"},
+      "note": "Click Add in dialog and verify success"
+    }
+  ]
+}
