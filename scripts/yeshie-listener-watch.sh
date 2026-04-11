@@ -14,7 +14,6 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 LISTENER_PID=""
-PROMPT_FILE="prompts/listener.md"
 PROMPT_HASH=""
 MISSED_HEALTHCHECKS=0
 MAX_MISSED_HEALTHCHECKS=24  # 24 * 5s = 120s before forced restart (covers long payloads)
@@ -30,13 +29,15 @@ cleanup() {
 
 trap cleanup INT TERM
 
-get_hash() {
-  md5 -q "$1" 2>/dev/null || md5sum "$1" 2>/dev/null | cut -d' ' -f1
+get_prompt_hash() {
+  # Hash of all files that make up the system prompt: base + all site files
+  cat prompts/base-listener.md prompts/sites/*.md 2>/dev/null | md5 -q 2>/dev/null || \
+  cat prompts/base-listener.md prompts/sites/*.md 2>/dev/null | md5sum 2>/dev/null | cut -d' ' -f1
 }
 
 start_listener() {
   echo "[watcher] Starting Yeshie listener..."
-  PROMPT_HASH=$(get_hash "$PROMPT_FILE")
+  PROMPT_HASH=$(get_prompt_hash)
   MISSED_HEALTHCHECKS=0
 
   # Run listener in background
@@ -69,7 +70,7 @@ if ! curl -sf http://localhost:3333/status > /dev/null 2>&1; then
 fi
 
 echo "[watcher] Yeshie listener watcher starting"
-echo "[watcher] Watching: $PROMPT_FILE"
+echo "[watcher] Watching: prompts/base-listener.md + prompts/sites/*.md"
 echo "[watcher] Press Ctrl+C to stop"
 echo ""
 
@@ -79,10 +80,10 @@ start_listener
 while true; do
   sleep 5
 
-  # Check if prompt file changed
-  NEW_HASH=$(get_hash "$PROMPT_FILE")
+  # Check if any prompt file changed
+  NEW_HASH=$(get_prompt_hash)
   if [ "$NEW_HASH" != "$PROMPT_HASH" ]; then
-    echo "[watcher] $PROMPT_FILE changed (hash: $PROMPT_HASH -> $NEW_HASH)"
+    echo "[watcher] Prompt files changed (hash: $PROMPT_HASH -> $NEW_HASH)"
     restart_listener "prompt file changed"
     continue
   fi
