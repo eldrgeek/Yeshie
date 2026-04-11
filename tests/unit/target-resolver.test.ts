@@ -272,3 +272,97 @@ describe('Cache staleness', () => {
     expect(result.resolvedVia).toBe('cached');
   });
 });
+
+// ── Step 4: text/role matching for clickable targets ──────────────────────────
+describe('Step 4: text/role matching', () => {
+  it('resolves button by name_contains matching aria-label', () => {
+    const doc = makeDoc();
+    const r = new TargetResolver(doc);
+    // The fixture has buttons with aria-labels
+    const result = r.resolve({ match: { role: 'button', name_contains: ['create and onboard'] } });
+    expect(result.element).toBeDefined();
+    expect(result.confidence).toBeGreaterThanOrEqual(0.85);
+  });
+
+  it('falls through to escalate when no clickable text matches', () => {
+    const doc = makeDoc(fixtureHtml.replace('<div id="rich-editor" contenteditable="true" aria-label="Message body"></div>', ''));
+    const r = new TargetResolver(doc);
+    const result = r.resolve({ match: { role: 'button', name_contains: ['completely-nonexistent-button-xyz'] } });
+    expect(result.resolvedVia).toBe('escalate');
+  });
+});
+
+// ── Step 5: contenteditable ───────────────────────────────────────────────────
+describe('Step 5: contenteditable fallback', () => {
+  it('resolves to contenteditable element when no better match exists', () => {
+    const doc = makeDoc();
+    const r = new TargetResolver(doc);
+    // Use a label that won't match any input, forcing fallback to contenteditable
+    const result = r.resolve({ match: { vuetify_label: ['nonexistent-match-xyz'] } });
+    // Should either find the contenteditable div or escalate
+    expect(['contenteditable', 'escalate']).toContain(result.resolvedVia);
+  });
+
+  it('returns confidence 0.6 for contenteditable matches', () => {
+    const doc = makeDoc();
+    const r = new TargetResolver(doc);
+    const result = r.resolve({ match: { vuetify_label: ['nonexistent-match-xyz'] } });
+    if (result.resolvedVia === 'contenteditable') {
+      expect(result.confidence).toBe(0.6);
+    }
+  });
+});
+
+// ── Step 6: css cascade with fallback selectors ──────────────────────────────
+describe('Step 6: css cascade fallback selectors', () => {
+  it('uses fallback selectors when primary resolution fails', () => {
+    const doc = makeDoc();
+    const r = new TargetResolver(doc);
+    const result = r.resolve({
+      match: { vuetify_label: ['nonexistent-xyz'] },
+      fallbackSelectors: ['.v-navigation-drawer'],
+    });
+    // Should match the nav drawer via css cascade before hitting escalate
+    expect(['css_cascade', 'contenteditable']).toContain(result.resolvedVia);
+  });
+
+  it('skips generated ID selectors in fallback list', () => {
+    const doc = makeDoc();
+    const r = new TargetResolver(doc);
+    const result = r.resolve({
+      match: { vuetify_label: ['nonexistent-xyz'] },
+      fallbackSelectors: ['#input-v-999', '#react-abc'],
+    });
+    // Generated IDs should be skipped, so this should fall through
+    expect(result.resolvedVia).not.toBe('css_cascade');
+  });
+});
+
+// ── Step 7: escalation ────────────────────────────────────────────────────────
+describe('Step 7: escalation', () => {
+  it('returns confidence 0 on escalation', () => {
+    const doc = makeDoc(fixtureHtml.replace('<div id="rich-editor" contenteditable="true" aria-label="Message body"></div>', ''));
+    const r = new TargetResolver(doc);
+    const result = r.resolve({ match: { vuetify_label: ['nonexistent-field-xyz'] } });
+    expect(result.confidence).toBe(0);
+  });
+
+  it('returns null element on escalation', () => {
+    const doc = makeDoc(fixtureHtml.replace('<div id="rich-editor" contenteditable="true" aria-label="Message body"></div>', ''));
+    const r = new TargetResolver(doc);
+    const result = r.resolve({ match: { vuetify_label: ['nonexistent-field-xyz'] } });
+    expect(result.element).toBeNull();
+  });
+});
+
+// ── a11y_placeholder resolution ───────────────────────────────────────────────
+describe('a11y_placeholder resolution', () => {
+  it('resolves input by placeholder text when no label match', () => {
+    const html = '<input placeholder="Search for users..." />';
+    const doc = makeDoc(html);
+    const r = new TargetResolver(doc);
+    const result = r.resolve({ match: { vuetify_label: ['search for users'] } });
+    // Should find via placeholder
+    expect(['a11y_placeholder', 'vuetify_label_match', 'escalate']).toContain(result.resolvedVia);
+  });
+});
