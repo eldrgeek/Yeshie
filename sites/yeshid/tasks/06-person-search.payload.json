@@ -1,0 +1,58 @@
+{
+  "_meta": {
+    "task": "person-search",
+    "description": "Search for a person by name or email and view their row in the people list.",
+    "params": ["search_term", "base_url"],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com",
+    "search_term": ""
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {"state": "authenticated"},
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for people list to render"
+    },
+    {
+      "stepId": "s4",
+      "action": "assess_state",
+      "expect": {"state": "people-list"}
+    },
+    {
+      "stepId": "s5",
+      "action": "type",
+      "selector": "input[placeholder='Search']",
+      "value": "{{search_term}}",
+      "note": "Type search term into the search input"
+    },
+    {
+      "stepId": "s6",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for search debounce and results to filter"
+    },
+    {
+      "stepId": "s7",
+      "action": "read",
+      "selector": ".v-data-table tbody",
+      "store_as": "search_results",
+      "note": "Capture the filtered table results"
+    }
+  ]
+}

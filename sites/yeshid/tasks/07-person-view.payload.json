@@ -1,0 +1,56 @@
+{
+  "_meta": {
+    "task": "person-view",
+    "description": "Search for a person and navigate to their detail profile page.",
+    "params": ["user_identifier", "base_url"],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com",
+    "user_identifier": ""
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {"state": "authenticated"},
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 1500
+    },
+    {
+      "stepId": "s4",
+      "action": "find_row",
+      "identifier": "{{user_identifier}}",
+      "store_as": "found_person",
+      "note": "Find and click the row matching the user identifier"
+    },
+    {
+      "stepId": "s5",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for person detail page to load"
+    },
+    {
+      "stepId": "s6",
+      "action": "assess_state",
+      "expect": {"state": "person-detail"}
+    },
+    {
+      "stepId": "s7",
+      "action": "read",
+      "store_as": "person_details",
+      "note": "Capture the person detail page content"
+    }
+  ]
+}

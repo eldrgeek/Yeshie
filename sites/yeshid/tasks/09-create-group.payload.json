@@ -1,0 +1,66 @@
+{
+  "_meta": {
+    "task": "create-group",
+    "description": "Create a new group with name, type, and description.",
+    "params": ["group_name", "group_description", "base_url"],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com",
+    "group_name": "",
+    "group_description": ""
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {"state": "authenticated"},
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/groups"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 1500
+    },
+    {
+      "stepId": "s4",
+      "action": "click_text",
+      "text": "New Group",
+      "note": "Click New Group button to open dialog"
+    },
+    {
+      "stepId": "s5",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Wait for dialog to open"
+    },
+    {
+      "stepId": "s6",
+      "action": "type",
+      "target": "first-name-input",
+      "value": "{{group_name}}",
+      "note": "Type group name — target will need to be resolved via vuetify_label 'group name'"
+    },
+    {
+      "stepId": "s7",
+      "action": "type",
+      "selector": "textarea, input[placeholder*='escription']",
+      "value": "{{group_description}}",
+      "note": "Type group description"
+    },
+    {
+      "stepId": "s8",
+      "action": "click_text",
+      "text": "Create",
+      "responseSignature": {"type": "snackbar_text", "selector": ".v-snackbar--active .v-snackbar__content"},
+      "note": "Click Create button and verify snackbar appears"
+    }
+  ]
+}

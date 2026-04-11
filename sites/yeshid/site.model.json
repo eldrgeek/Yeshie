@@ -3,11 +3,11 @@
     "layer": 3,
     "name": "YeshID Site Model",
     "description": "State graph, abstract target registry, and observed response signatures for app.yeshid.com. This file is the accumulation of all learning from running payloads against YeshID. It is updated automatically after each successful run via the self-improvement merge protocol.",
-    "version": "0.1",
+    "version": "0.2",
     "site": "app.yeshid.com",
     "framework": "vue",
     "frameworkDetail": "Vuetify 3 (v-application detected). No ARIA labels on form inputs. Use vuetify_label_match resolution.",
-    "lastExplored": "2026-04-02",
+    "lastExplored": "2026-04-10",
     "exploredBy": "yeshie-04-site-explore automated crawl",
     "auth": {
       "type": "sso_automatable",
@@ -15,7 +15,7 @@
       "loginPath": "/login",
       "ssoButtonSelector": "button:has-text('Sign in with Google')",
       "authenticatedSignal": ".v-navigation-drawer a[href=\"/overview\"]",
-      "notes": "Google SSO — extension can click through automatically if google_account_email is configured"
+      "notes": "Google SSO \u2014 extension can click through automatically if google_account_email is configured"
     }
   },
   "stateGraph": {
@@ -153,6 +153,232 @@
           "save-button": "'Save' button",
           "disconnect-button": "'Disconnect' button"
         }
+      },
+      "directories": {
+        "description": "Directory management \u2014 sync, filter, view identities.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/directories"
+          },
+          {
+            "type": "element_visible",
+            "selector": "button"
+          }
+        ],
+        "knownElements": {
+          "sync-directory-button": "Sync directory button",
+          "add-directory-button": "Add Directory button",
+          "filter-active": "Filter active identities button",
+          "filter-suspended": "Filter suspended identities button",
+          "filter-admin": "Filter super admins button",
+          "filter-no-mfa": "Filter identities without MFA button",
+          "search-input": "Search box for filtering identities",
+          "identities-table": "Table of directory identities"
+        }
+      },
+      "groups": {
+        "description": "Group management \u2014 create, view, edit groups.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/groups$"
+          },
+          {
+            "type": "element_visible",
+            "selector": ".v-data-table"
+          }
+        ],
+        "knownElements": {
+          "new-group-button": "New Group button (may be disabled if on free tier)",
+          "search-input": "Search box for filtering groups",
+          "groups-table": "Table of groups with columns and actions"
+        }
+      },
+      "access-grid": {
+        "description": "Access grid \u2014 cross-reference people \u00d7 applications.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/grid$"
+          },
+          {
+            "type": "element_visible",
+            "selector": ".v-data-table"
+          }
+        ],
+        "knownElements": {
+          "start-audit-button": "Start an audit button",
+          "filter-input": "Add another filter input",
+          "clear-all-button": "Clear all filters button",
+          "access-table": "Access grid table"
+        }
+      },
+      "rbac": {
+        "description": "Role-based access control management.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/rbac$"
+          }
+        ]
+      },
+      "access-requests": {
+        "description": "Access request queue \u2014 view and action pending requests.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/requests$"
+          },
+          {
+            "type": "element_visible",
+            "selector": ".v-data-table"
+          }
+        ]
+      },
+      "audit-reports": {
+        "description": "Audit management \u2014 start new audits, view reports.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/audits$"
+          }
+        ],
+        "knownElements": {
+          "start-new-audit-button": "Start new audit button (bg-primary)"
+        }
+      },
+      "shadow-applications": {
+        "description": "Shadow IT \u2014 unmanaged applications detected via SSO logs.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/security/shadow"
+          }
+        ],
+        "knownElements": {
+          "filter-all": "All shadow apps toggle",
+          "filter-neutral": "Neutral classification filter",
+          "filter-sensitive": "Sensitive classification filter",
+          "filter-restricted": "Restricted classification filter",
+          "add-managed-button": "Add as managed application button",
+          "revoke-access-button": "Revoke access button (text-error)",
+          "search-input": "Search by applications and scopes"
+        }
+      },
+      "identities": {
+        "description": "Identity security \u2014 view application-linked identities.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/security/identities"
+          }
+        ]
+      },
+      "access-drift": {
+        "description": "Access drift detection \u2014 identify unauthorized access changes.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/security/access-drift$"
+          }
+        ]
+      },
+      "risk-assessment": {
+        "description": "Risk assessment dashboard \u2014 risk scores and posture.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/security/risk-assessment$"
+          }
+        ]
+      },
+      "triggers": {
+        "description": "Automation triggers \u2014 event-driven workflow rules.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/manage/triggers$"
+          },
+          {
+            "type": "element_visible",
+            "selector": ".v-data-table"
+          }
+        ],
+        "knownElements": {
+          "new-trigger-button": "New Trigger button (bg-primary)",
+          "search-input": "Search triggers input",
+          "triggers-table": "Table of configured triggers"
+        }
+      },
+      "workflow-templates": {
+        "description": "Workflow templates \u2014 onboarding, offboarding, audit templates.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/workflow-templates$"
+          }
+        ],
+        "knownElements": {
+          "new-template-button": "New Template button (bg-primary)",
+          "filter-all": "All templates toggle",
+          "filter-onboarding": "Onboarding filter",
+          "filter-offboarding": "Offboarding filter",
+          "filter-audit": "Audit filter",
+          "templates-table": "Table of workflow templates"
+        }
+      },
+      "policies": {
+        "description": "Policies \u2014 compliance rules (BETA).",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/policies$"
+          }
+        ]
+      },
+      "events": {
+        "description": "Event log \u2014 all activity events across the org.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/events$"
+          },
+          {
+            "type": "element_visible",
+            "selector": ".v-data-table"
+          }
+        ],
+        "knownElements": {
+          "search-input": "Search events input",
+          "events-table": "Table of events"
+        }
+      },
+      "settings": {
+        "description": "Organization settings \u2014 general, notifications, customize, billing, admins.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/manage/settings"
+          }
+        ],
+        "knownElements": {
+          "tab-general": "General settings tab",
+          "tab-notifications": "Notifications settings tab",
+          "tab-customize": "Customize settings tab",
+          "tab-billing": "Billing settings tab",
+          "tab-administrators": "Administrators settings tab",
+          "admin-search": "Search by name or email input"
+        }
+      },
+      "offboard-form": {
+        "description": "Offboard form \u2014 remove a person from the organization.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/offboard"
+          }
+        ]
       }
     },
     "transitions": [
@@ -458,6 +684,397 @@
         "Pick date & time"
       ],
       "discoveredOn": "2026-03-31T00:11:57.745179+00:00"
+    },
+    "nav-overview": {
+      "match": {
+        "css": "a[href='/overview']"
+      },
+      "cachedSelector": "a[href='/overview']",
+      "cachedConfidence": 0.95
+    },
+    "nav-workflows": {
+      "match": {
+        "css": "a[href='/workflows']"
+      },
+      "cachedSelector": "a[href='/workflows']",
+      "cachedConfidence": 0.95
+    },
+    "nav-directories": {
+      "match": {
+        "css": "a[href='/organization/directories']"
+      },
+      "cachedSelector": "a[href='/organization/directories']",
+      "cachedConfidence": 0.95
+    },
+    "nav-groups": {
+      "match": {
+        "css": "a[href='/organization/groups']"
+      },
+      "cachedSelector": "a[href='/organization/groups']",
+      "cachedConfidence": 0.95
+    },
+    "nav-access-grid": {
+      "match": {
+        "css": "a[href='/access/grid']"
+      },
+      "cachedSelector": "a[href='/access/grid']",
+      "cachedConfidence": 0.95
+    },
+    "nav-rbac": {
+      "match": {
+        "css": "a[href='/access/rbac']"
+      },
+      "cachedSelector": "a[href='/access/rbac']",
+      "cachedConfidence": 0.95
+    },
+    "nav-access-requests": {
+      "match": {
+        "css": "a[href='/access/requests']"
+      },
+      "cachedSelector": "a[href='/access/requests']",
+      "cachedConfidence": 0.95
+    },
+    "nav-audit-reports": {
+      "match": {
+        "css": "a[href='/access/audits']"
+      },
+      "cachedSelector": "a[href='/access/audits']",
+      "cachedConfidence": 0.95
+    },
+    "nav-shadow-apps": {
+      "match": {
+        "css": "a[href='/security/shadow']"
+      },
+      "cachedSelector": "a[href='/security/shadow']",
+      "cachedConfidence": 0.95
+    },
+    "nav-identities": {
+      "match": {
+        "css": "a[href='/security/identities/applications']"
+      },
+      "cachedSelector": "a[href='/security/identities/applications']",
+      "cachedConfidence": 0.95
+    },
+    "nav-access-drift": {
+      "match": {
+        "css": "a[href='/security/access-drift']"
+      },
+      "cachedSelector": "a[href='/security/access-drift']",
+      "cachedConfidence": 0.95
+    },
+    "nav-risk-assessment": {
+      "match": {
+        "css": "a[href='/security/risk-assessment']"
+      },
+      "cachedSelector": "a[href='/security/risk-assessment']",
+      "cachedConfidence": 0.95
+    },
+    "nav-triggers": {
+      "match": {
+        "css": "a[href='/manage/triggers']"
+      },
+      "cachedSelector": "a[href='/manage/triggers']",
+      "cachedConfidence": 0.95
+    },
+    "nav-workflow-templates": {
+      "match": {
+        "css": "a[href='/workflow-templates']"
+      },
+      "cachedSelector": "a[href='/workflow-templates']",
+      "cachedConfidence": 0.95
+    },
+    "nav-policies": {
+      "match": {
+        "css": "a[href='/policies']"
+      },
+      "cachedSelector": "a[href='/policies']",
+      "cachedConfidence": 0.95
+    },
+    "nav-events": {
+      "match": {
+        "css": "a[href='/events']"
+      },
+      "cachedSelector": "a[href='/events']",
+      "cachedConfidence": 0.95
+    },
+    "nav-settings": {
+      "match": {
+        "css": "a[href='/manage/settings']"
+      },
+      "cachedSelector": "a[href='/manage/settings']",
+      "cachedConfidence": 0.95
+    },
+    "sync-directory-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "sync directory"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "add-directory-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "add directory"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "filter-active-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "filter active"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "filter-suspended-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "filter suspended"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "filter-admin-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "filter super admin"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "filter-no-mfa-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "filter identities without mfa",
+          "without mfa"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "new-group-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "new group"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "start-audit-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "start an audit",
+          "start audit"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "grid-filter-input": {
+      "match": {
+        "vuetify_label": [
+          "add another filter"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "clear-all-filters-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "clear all"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "start-new-audit-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "start new audit"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "shadow-filter-all": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "all"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "shadow-filter-sensitive": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "sensitive"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "shadow-filter-restricted": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "restricted"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "shadow-add-managed-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "add as managed"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "shadow-revoke-access-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "revoke access"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "new-trigger-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "new trigger"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "new-template-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "new template"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "template-filter-onboarding": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "onboarding"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "template-filter-offboarding": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "offboarding"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "template-filter-audit": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "audit"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "settings-tab-general": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "general"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "settings-tab-notifications": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "notifications"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "settings-tab-customize": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "customize"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "settings-tab-billing": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "billing"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "settings-tab-administrators": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "administrators"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0
+    },
+    "offboard-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "offboard people",
+          "offboard"
+        ]
+      },
+      "cachedSelector": "a[href='/organization/people/offboard']",
+      "cachedConfidence": 0.9
     }
   },
   "observedResponseSignatures": {

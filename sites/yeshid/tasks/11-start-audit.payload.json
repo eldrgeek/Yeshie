@@ -1,0 +1,58 @@
+{
+  "_meta": {
+    "task": "start-audit",
+    "description": "Start a new access audit from the audit reports page.",
+    "params": ["audit_title", "base_url"],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com",
+    "audit_title": ""
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {"state": "authenticated"},
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/access/audits"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 1500
+    },
+    {
+      "stepId": "s4",
+      "action": "click_text",
+      "text": "Start new audit",
+      "note": "Click Start new audit button"
+    },
+    {
+      "stepId": "s5",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for audit form to open"
+    },
+    {
+      "stepId": "s6",
+      "action": "type",
+      "selector": "input",
+      "value": "{{audit_title}}",
+      "condition": "{{audit_title}}",
+      "note": "Type audit title if provided"
+    },
+    {
+      "stepId": "s7",
+      "action": "read",
+      "store_as": "audit_form",
+      "note": "Capture audit form state for review before submission"
+    }
+  ]
+}
