@@ -400,13 +400,15 @@ h2{color:#58a6ff}hr{border-color:#333}
       lastListenerActiveAt = Date.now();
 
       if (!pendingListener) {
-        logConversation({ event: 'no_listener', chatId });
-        jsonReply(res, 503, { type: 'no_listener', message: 'Yeshie is offline' });
-        return;
+        // No listener right now — queue the message instead of rejecting.
+        // The listener shell wrapper restarts Haiku after each response,
+        // so there's a brief gap between invocations. Queue survives that gap.
+        logConversation({ event: 'message_queued', chatId, reason: 'no_listener' });
+        chatQueue.push(msg);
+      } else {
+        // Resolve the listener with this message
+        resolveListener(msg);
       }
-
-      // Resolve the listener with this message
-      resolveListener(msg);
 
       // Hold side panel response until Claude responds via POST /chat/respond
       const respTimer = setTimeout(() => {
