@@ -1,0 +1,27 @@
+strictness = "advisory"
+
+[metric]
+name = "tests_passing"
+direction = "higher"
+unit = "count"
+
+[eval]
+command = "npm test 2>&1 | tail -5 | grep -oP '(\\d+) passed' | grep -oP '\\d+' | xargs -I{} echo 'METRIC tests_passing={}'"
+timeout = 60
+format = "metric_lines"
+retries = 1
+
+[[guardrails]]
+name = "no_failures"
+command = "npm test 2>&1 | grep -q '0 failed' || npm test 2>&1 | grep -qv 'failed'"
+kind = "pass_fail"
+format = "auto"
+
+[confidence]
+min_experiments = 2
+keep_threshold = 1.0
+rerun_threshold = 2.0
+
+[git]
+enabled = true
+commit_prefix = "autoimprove:"
