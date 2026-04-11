@@ -74,8 +74,9 @@ export function createRelay(port = 3333) {
   // Pending calls: commandId → { resolve, reject, timer }
   const pending = new Map();
 
-  // Track connected extension
+  // Track connected extensions — last registered is primary; others are fallbacks
   let extensionSocket = null;
+  const extensionSockets = new Set();
 
   // Chat state (per-instance)
   let chatQueue = [];
@@ -83,6 +84,11 @@ export function createRelay(port = 3333) {
   let pendingResponders = new Map();     // chatId → { res, timer }
   let suggestionQueue = [];
   let lastListenerActiveAt = 0;          // timestamp of last listener activity (grace period for status)
+
+  // Controller (C) channel — buffered responses and heartbeats for programmatic callers
+  const controllerResponses = new Map();  // tabId → [{ response, chatId, ts }]
+  const controllerHeartbeats = new Map(); // tabId → { status, step, ts }
+  const controllerAwaiters = [];          // [{ tabId, res, timer }]
 
   function resetChatState() {
     if (pendingListener) {
@@ -97,6 +103,10 @@ export function createRelay(port = 3333) {
     pendingResponders = new Map();
     chatQueue = [];
     suggestionQueue = [];
+    controllerResponses.clear();
+    controllerHeartbeats.clear();
+    for (const aw of controllerAwaiters) clearTimeout(aw.timer);
+    controllerAwaiters.length = 0;
   }
 
   function readBody(req) {
@@ -136,12 +146,30 @@ export function createRelay(port = 3333) {
     console.log(`[relay] connected: ${who} (${socket.id})`);
 
     if (who === 'extension') {
+      extensionSockets.add(socket);
       extensionSocket = socket;
       console.log('[relay] extension registered');
 
       socket.on('disconnect', () => {
+        extensionSockets.delete(socket);
         console.log('[relay] extension disconnected');
-        if (extensionSocket === socket) extensionSocket = null;
+        if (extensionSocket === socket) {
+          // Fall back to another connected extension socket if one exists
+          extensionSocket = extensionSockets.size > 0
+            ? [...extensionSockets][extensionSockets.size - 1]
+            : null;
+          if (extensionSocket) {
+            console.log('[relay] fell back to previous extension socket');
+          } else if (pending.size > 0) {
+            // No fallback — fail in-flight runs immediately
+            console.log(`[relay] rejecting ${pending.size} pending run(s) due to extension disconnect`);
+            for (const [, p] of pending) {
+              clearTimeout(p.timer);
+              p.reject(new Error('Extension disconnected mid-run'));
+            }
+            pending.clear();
+          }
+        }
       });
 
       socket.on('chain_result', ({ commandId, result }) => {
@@ -386,7 +414,7 @@ h2{color:#58a6ff}hr{border-color:#333}
         jsonReply(res, 200, { type: 'timeout' });
       }, 300_000);
 
-      pendingResponders.set(chatId, { res, timer: respTimer });
+      pendingResponders.set(chatId, { res, timer: respTimer, tabId: body.tabId || null });
 
       req.on('close', () => {
         if (pendingResponders.has(chatId)) {
@@ -413,6 +441,25 @@ h2{color:#58a6ff}hr{border-color:#333}
       lastListenerActiveAt = Date.now();
       // Log the response
       logConversation({ event: 'yeshie_response', chatId, response });
+
+      // Buffer response for controller (C) channel
+      const respTabId = responder.tabId;
+      if (respTabId) {
+        if (!controllerResponses.has(respTabId)) controllerResponses.set(respTabId, []);
+        const buf = controllerResponses.get(respTabId);
+        buf.push({ response, chatId, ts: Date.now() });
+        if (buf.length > 50) buf.splice(0, buf.length - 50);
+        // Wake up any awaiting controllers for this tab
+        for (let i = controllerAwaiters.length - 1; i >= 0; i--) {
+          const aw = controllerAwaiters[i];
+          if (aw.tabId === respTabId) {
+            clearTimeout(aw.timer);
+            controllerAwaiters.splice(i, 1);
+            jsonReply(aw.res, 200, { type: 'response', response, chatId, tabId: respTabId });
+          }
+        }
+      }
+
       // Include chatId so sidepanel can associate feedback
       jsonReply(responder.res, 200, { ...response, chatId });
       jsonReply(res, 200, { ok: true });
@@ -456,6 +503,68 @@ h2{color:#58a6ff}hr{border-color:#333}
       logConversation({ event: 'injected_message', tabId, message });
       extensionSocket.emit('inject_chat', { tabId, message });
       jsonReply(res, 200, { ok: true });
+      return;
+    }
+
+    // ── Controller (C) channel: long-poll for Haiku responses ──
+    if (path === '/chat/await' && req.method === 'GET') {
+      const awaitTabId = parseInt(url.searchParams.get('tabId'), 10);
+      const timeout = Math.min(parseInt(url.searchParams.get('timeout') || '30', 10), 120) * 1000;
+      const since = parseInt(url.searchParams.get('since') || '0', 10);
+
+      if (!awaitTabId) { jsonReply(res, 400, { error: 'tabId required' }); return; }
+
+      // Check if there's already a buffered response newer than `since`
+      const awBuf = controllerResponses.get(awaitTabId) || [];
+      const fresh = awBuf.filter(r => r.ts > since);
+      if (fresh.length > 0) {
+        jsonReply(res, 200, { type: 'response', ...fresh[fresh.length - 1] });
+        return;
+      }
+
+      // No response yet — long-poll
+      const awTimer = setTimeout(() => {
+        const idx = controllerAwaiters.findIndex(a => a.res === res);
+        if (idx !== -1) controllerAwaiters.splice(idx, 1);
+        const hb = controllerHeartbeats.get(awaitTabId);
+        jsonReply(res, 200, { type: 'timeout', heartbeat: hb || null });
+      }, timeout);
+
+      controllerAwaiters.push({ tabId: awaitTabId, res, timer: awTimer });
+
+      req.on('close', () => {
+        const idx = controllerAwaiters.findIndex(a => a.res === res);
+        if (idx !== -1) {
+          clearTimeout(controllerAwaiters[idx].timer);
+          controllerAwaiters.splice(idx, 1);
+        }
+      });
+      return;
+    }
+
+    // ── Controller (C) channel: heartbeat from Haiku ──
+    if (path === '/chat/heartbeat' && req.method === 'POST') {
+      let hbBody;
+      try { hbBody = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+
+      const { tabId: hbTabId, status: hbStatus, step: hbStep } = hbBody;
+      if (!hbTabId) { jsonReply(res, 400, { error: 'tabId required' }); return; }
+
+      controllerHeartbeats.set(hbTabId, { status: hbStatus || 'working', step: hbStep || null, ts: Date.now() });
+      jsonReply(res, 200, { ok: true });
+      return;
+    }
+
+    // ── Controller (C) channel: read buffered responses ──
+    if (path === '/chat/responses' && req.method === 'GET') {
+      const respBufTabId = parseInt(url.searchParams.get('tabId'), 10);
+      const respSince = parseInt(url.searchParams.get('since') || '0', 10);
+
+      if (!respBufTabId) { jsonReply(res, 400, { error: 'tabId required' }); return; }
+
+      const rBuf = (controllerResponses.get(respBufTabId) || []).filter(r => r.ts > respSince);
+      const rHb = controllerHeartbeats.get(respBufTabId) || null;
+      jsonReply(res, 200, { responses: rBuf, heartbeat: rHb });
       return;
     }
 

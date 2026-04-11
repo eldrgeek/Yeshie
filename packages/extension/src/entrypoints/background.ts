@@ -848,7 +848,7 @@ export default defineBackground(() => {
     // Step 2: wait for overlay/picker to appear
     const t0 = Date.now();
     while (Date.now() - t0 < 3000) {
-      if (document.querySelector('.v-overlay--active, [role="menu"], [role="listbox"]')) break;
+      if (document.querySelector('.v-overlay--active.v-menu .v-list-item, .v-overlay--active [role="option"], .v-overlay--active [role="menuitem"]')) break;
       await new Promise(r => setTimeout(r, 100));
     }
 
