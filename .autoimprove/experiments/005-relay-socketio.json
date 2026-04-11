@@ -1,0 +1,14 @@
+{
+  "id": 5,
+  "title": "Add 14 Socket.IO event tests — full relay coverage",
+  "status": "kept",
+  "commit": "63d2f003",
+  "score": 307,
+  "baseline_score": 293,
+  "delta_pct": 4.8,
+  "duration_s": 300,
+  "reasoning": "Added socket.io-client as dev dep and wrote 14 tests covering all Socket.IO event paths: extension connect/disconnect lifecycle, client extension_status query, skill_run routing (no ext / with ext), chain_result resolution, chain_error rejection, chain_error with partial result, inject_chat forwarding via HTTP and socket, notify event, get_status for unknown commands, inject_ack success/error/missing-tabId. Every relay code path now has test coverage.",
+  "files_changed": ["tests/unit/relay-chat.test.ts", "package.json"],
+  "supersedes": [],
+  "timestamp": "2026-04-11T02:25:00Z"
+}
