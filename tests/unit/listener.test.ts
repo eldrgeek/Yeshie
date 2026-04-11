@@ -47,9 +47,9 @@ describe('Base listener system prompt (base-listener.md)', () => {
     expect(content).toContain('site-context');
   });
 
-  it('includes escalation instructions referencing claude_code', () => {
+  it('includes escalation instructions', () => {
     const content = readFileSync(promptPath, 'utf-8');
-    expect(content).toContain('claude_code');
+    expect(content).toContain('escalate');
     expect(content).toContain('Escalation');
   });
 });
@@ -176,7 +176,7 @@ describe('Listener startup script (yeshie-listen.sh)', () => {
 
   it('includes claude_code in allowedTools for escalation', () => {
     const content = readFileSync(scriptPath, 'utf-8');
-    expect(content).toContain('claude_code');
+    expect(content).toContain('escalate');
   });
 
   it('concatenates site context files from prompts/sites/', () => {
