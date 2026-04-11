@@ -821,6 +821,65 @@ export default defineBackground(() => {
     return { flushed: true };
   }
 
+  async function PRE_CLICK_PRESET(selector: string | null, buttonText: string | null, preset: string) {
+    // Step 1: find and click the picker trigger button
+    let el: Element | null = selector ? document.querySelector(selector) : null;
+    if (!el && buttonText) {
+      el = Array.from(document.querySelectorAll('button,[role="button"],[data-testid]'))
+        .find((b: any) => b.textContent?.trim().toLowerCase().includes(buttonText.toLowerCase())) || null;
+    }
+    if (!el) return { ok: false, error: 'Picker trigger not found: ' + (selector || buttonText) };
+    const triggerEl = el as HTMLElement;
+    const rect = triggerEl.getBoundingClientRect();
+    const cx = rect.x + rect.width / 2;
+    const cy = rect.y + rect.height / 2;
+    const eventInit = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy, screenX: cx, screenY: cy };
+    triggerEl.dispatchEvent(new PointerEvent('pointerdown', { ...eventInit, pointerId: 1, pointerType: 'mouse' }));
+    triggerEl.dispatchEvent(new MouseEvent('mousedown', eventInit));
+    triggerEl.dispatchEvent(new PointerEvent('pointerup', { ...eventInit, pointerId: 1, pointerType: 'mouse' }));
+    triggerEl.dispatchEvent(new MouseEvent('mouseup', eventInit));
+    triggerEl.dispatchEvent(new MouseEvent('click', eventInit));
+
+    // Step 2: wait for overlay/picker to appear
+    const t0 = Date.now();
+    while (Date.now() - t0 < 3000) {
+      if (document.querySelector('.v-overlay--active, [role="menu"], [role="listbox"]')) break;
+      await new Promise(r => setTimeout(r, 100));
+    }
+
+    // Step 3: find the preset option by text
+    const lowerPreset = preset.toLowerCase();
+    const optionSel = '.v-overlay--active *, [role="option"], [role="menuitem"], .v-list-item';
+    const option = Array.from(document.querySelectorAll(optionSel))
+      .find((e: any) => e.textContent?.trim().toLowerCase() === lowerPreset) as HTMLElement | undefined;
+    if (!option) {
+      // Collect available options for better error messages
+      const available = Array.from(document.querySelectorAll(optionSel))
+        .map((e: any) => e.textContent?.trim()).filter(Boolean).join(', ');
+      return { ok: false, error: `Preset option "${preset}" not found. Available: ${available || '(none visible)'}` };
+    }
+
+    // Step 4: click the option
+    const oRect = option.getBoundingClientRect();
+    const ox = oRect.x + oRect.width / 2;
+    const oy = oRect.y + oRect.height / 2;
+    const oInit = { bubbles: true, cancelable: true, view: window, clientX: ox, clientY: oy, screenX: ox, screenY: oy };
+    option.dispatchEvent(new PointerEvent('pointerdown', { ...oInit, pointerId: 1, pointerType: 'mouse' }));
+    option.dispatchEvent(new MouseEvent('mousedown', oInit));
+    option.dispatchEvent(new PointerEvent('pointerup', { ...oInit, pointerId: 1, pointerType: 'mouse' }));
+    option.dispatchEvent(new MouseEvent('mouseup', oInit));
+    option.dispatchEvent(new MouseEvent('click', oInit));
+
+    // Step 5: wait for overlay to close
+    const t1 = Date.now();
+    while (Date.now() - t1 < 3000) {
+      if (!document.querySelector('.v-overlay--active')) break;
+      await new Promise(r => setTimeout(r, 100));
+    }
+
+    return { ok: true, preset, optionText: option.textContent?.trim() };
+  }
+
   function PRE_MATCH_WAIT_FOR(step: any, selector: string | null, stateGraph: any) {
     if (step.url_pattern) {
       return {
@@ -1687,6 +1746,27 @@ export default defineBackground(() => {
         const r = await execInTab(tabId, PRE_FIND_AND_CLICK_TEXT, [text]);
         if (!r?.found) throw new Error('Text not found: ' + text);
         return { stepId: step.stepId, action: a, status: 'ok', result: r, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'click_preset') {
+        const tgt = step.target ? abstractTargets?.[step.target] : null;
+        let resolvedSelector = step.selector || null;
+        let buttonText: string | null = null;
+        if (tgt) {
+          const res = await execInTab(tabId, PRE_RESOLVE_TARGET, [tgt]);
+          if (res?.found) {
+            resolvedSelector = res.selector;
+            buttonText = res.buttonText || null;
+          } else {
+            // Fall back to name_contains text matching
+            const nameContains = tgt?.match?.name_contains;
+            buttonText = Array.isArray(nameContains) ? nameContains[0] : (nameContains || null);
+          }
+        }
+        const preset = interpolate(step.preset || step.defaultPreset || 'Immediately', { ...params, ...buffer }) || step.defaultPreset || 'Immediately';
+        const r = await execInTab(tabId, PRE_CLICK_PRESET, [resolvedSelector, buttonText, preset]);
+        if (!r?.ok) throw new Error(r?.error || 'click_preset failed');
+        return { stepId: step.stepId, action: a, status: 'ok', selector: resolvedSelector, target: step.target, preset, clickDiag: r, durationMs: Date.now() - t0 };
       }
 
       if (a === 'notify') {
