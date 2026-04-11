@@ -1,0 +1,14 @@
+{
+  "id": 4,
+  "title": "Add 12 relay HTTP endpoint tests",
+  "status": "kept",
+  "commit": "47244365",
+  "score": 293,
+  "baseline_score": 281,
+  "delta_pct": 4.3,
+  "duration_s": 180,
+  "reasoning": "Added tests for all previously uncovered HTTP endpoints: GET /status, POST /run (503+400), POST /notify (400), GET /status-board (HTML), POST /status-board, POST /chat/feedback, POST /chat/respond (404), GET /chat/logs, GET /nonexistent (404 fallback), suggestion queuing and ordering, and listener grace period behavior.",
+  "files_changed": ["tests/unit/relay-chat.test.ts"],
+  "supersedes": [],
+  "timestamp": "2026-04-11T00:30:00Z"
+}
