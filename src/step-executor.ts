@@ -3,7 +3,7 @@
 // This file is the canonical reference; executor-inject.js mirrors it
 
 export type StepAction =
-  | 'assess_state' | 'navigate' | 'type' | 'click' | 'click_preset'
+  | 'assess_state' | 'navigate' | 'open_tab' | 'type' | 'click' | 'click_preset'
   | 'wait_for' | 'read' | 'hover' | 'scroll' | 'assert' | 'js' | 'select'
   | 'probe_affordances' | 'delay' | 'perceive' | 'find_row' | 'click_text'
   | 'capture_entities' | 'navigate_to_entity';
