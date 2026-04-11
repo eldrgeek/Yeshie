@@ -422,3 +422,219 @@ describe('Relay HTTP endpoints', () => {
     expect(after.data.listenerConnected).toBe(true);
   });
 });
+
+// ── Socket.IO event coverage ──────────────────────────────────────────────────
+
+import { io as ioClient, Socket as ClientSocket } from 'socket.io-client';
+
+function connectSocket(url: string, role: string): Promise<ClientSocket> {
+  return new Promise((resolve) => {
+    const s = ioClient(url, { auth: { role }, transports: ['websocket'] });
+    s.on('connect', () => resolve(s));
+  });
+}
+
+describe('Relay Socket.IO events', () => {
+  test('Extension socket registers and shows in /status', async () => {
+    const ext = await connectSocket(baseUrl, 'extension');
+    // Give relay a tick to register
+    await new Promise(r => setTimeout(r, 100));
+    const { data } = await request('GET', '/status');
+    expect(data.extensionConnected).toBe(true);
+    ext.disconnect();
+  });
+
+  test('Extension disconnect updates /status', async () => {
+    const ext = await connectSocket(baseUrl, 'extension');
+    await new Promise(r => setTimeout(r, 100));
+    ext.disconnect();
+    await new Promise(r => setTimeout(r, 100));
+    const { data } = await request('GET', '/status');
+    expect(data.extensionConnected).toBe(false);
+  });
+
+  test('Client extension_status returns connected state', async () => {
+    const ext = await connectSocket(baseUrl, 'extension');
+    await new Promise(r => setTimeout(r, 100));
+
+    const client = await connectSocket(baseUrl, 'client');
+    const result = await new Promise<any>((resolve) => {
+      client.emit('extension_status', {}, (ack: any) => resolve(ack));
+    });
+    expect(result.connected).toBe(true);
+    expect(result.id).toBeTruthy();
+
+    client.disconnect();
+    ext.disconnect();
+  });
+
+  test('Client skill_run returns error when extension not connected', async () => {
+    const client = await connectSocket(baseUrl, 'client');
+    const result = await new Promise<any>((resolve) => {
+      client.emit('skill_run', { commandId: 'test1', payload: {}, params: {} }, (ack: any) => resolve(ack));
+    });
+    expect(result.error).toContain('Extension not connected');
+    client.disconnect();
+  });
+
+  test('Client skill_run routes to extension when connected', async () => {
+    const ext = await connectSocket(baseUrl, 'extension');
+    await new Promise(r => setTimeout(r, 100));
+
+    // Listen for skill_run on extension side
+    const extensionReceived = new Promise<any>((resolve) => {
+      ext.on('skill_run', (data) => resolve(data));
+    });
+
+    const client = await connectSocket(baseUrl, 'client');
+    const ack = await new Promise<any>((resolve) => {
+      client.emit('skill_run', { commandId: 'cmd123', payload: { chain: [] }, params: {}, tabId: 1 }, (a: any) => resolve(a));
+    });
+    expect(ack.queued).toBe(true);
+
+    const received = await extensionReceived;
+    expect(received.commandId).toBe('cmd123');
+
+    client.disconnect();
+    ext.disconnect();
+  });
+
+  test('chain_result resolves pending HTTP /run call', async () => {
+    const ext = await connectSocket(baseUrl, 'extension');
+    await new Promise(r => setTimeout(r, 100));
+
+    // Intercept skill_run on extension and immediately send back chain_result
+    ext.on('skill_run', ({ commandId }) => {
+      ext.emit('chain_result', { commandId, result: { success: true, steps: [] } });
+    });
+
+    const { status, data } = await request('POST', '/run', {
+      payload: { chain: [] },
+      params: {},
+      timeoutMs: 5000,
+    });
+    expect(status).toBe(200);
+    expect(data.success).toBe(true);
+
+    ext.disconnect();
+  });
+
+  test('chain_error rejects pending HTTP /run call', async () => {
+    const ext = await connectSocket(baseUrl, 'extension');
+    await new Promise(r => setTimeout(r, 100));
+
+    ext.on('skill_run', ({ commandId }) => {
+      ext.emit('chain_error', { commandId, error: 'Element not found' });
+    });
+
+    const { status, data } = await request('POST', '/run', {
+      payload: { chain: [] },
+      params: {},
+      timeoutMs: 5000,
+    });
+    expect(status).toBe(500);
+    expect(data.error).toContain('Element not found');
+
+    ext.disconnect();
+  });
+
+  test('chain_error with result resolves (not rejects)', async () => {
+    const ext = await connectSocket(baseUrl, 'extension');
+    await new Promise(r => setTimeout(r, 100));
+
+    ext.on('skill_run', ({ commandId }) => {
+      ext.emit('chain_error', { commandId, error: 'partial', result: { success: false, partial: true } });
+    });
+
+    const { status, data } = await request('POST', '/run', {
+      payload: { chain: [] },
+      params: {},
+      timeoutMs: 5000,
+    });
+    expect(status).toBe(200);
+    expect(data.partial).toBe(true);
+
+    ext.disconnect();
+  });
+
+  test('inject_chat forwarded to extension', async () => {
+    const ext = await connectSocket(baseUrl, 'extension');
+    await new Promise(r => setTimeout(r, 100));
+
+    const injected = new Promise<any>((resolve) => {
+      ext.on('inject_chat', (data) => resolve(data));
+    });
+
+    const { status, data } = await request('POST', '/chat/inject', {
+      tabId: 42,
+      message: 'Hello from test',
+    });
+    expect(status).toBe(200);
+    expect(data.ok).toBe(true);
+
+    const received = await injected;
+    expect(received.tabId).toBe(42);
+    expect(received.message).toBe('Hello from test');
+
+    ext.disconnect();
+  });
+
+  test('notify event from extension triggers osascript (best-effort)', async () => {
+    const ext = await connectSocket(baseUrl, 'extension');
+    await new Promise(r => setTimeout(r, 100));
+
+    // Just verify it doesn't crash — osascript may fail in CI
+    ext.emit('notify', { message: 'Test notification', title: 'Test' });
+    await new Promise(r => setTimeout(r, 200));
+
+    ext.disconnect();
+  });
+
+  test('get_status returns not_found for unknown commandId', async () => {
+    const client = await connectSocket(baseUrl, 'client');
+    const result = await new Promise<any>((resolve) => {
+      client.emit('get_status', { commandId: 'nonexistent' }, (ack: any) => resolve(ack));
+    });
+    expect(result.status).toBe('not_found');
+    client.disconnect();
+  });
+
+  test('inject_chat via socket emits inject_ack', async () => {
+    const ext = await connectSocket(baseUrl, 'extension');
+    await new Promise(r => setTimeout(r, 100));
+
+    const other = await connectSocket(baseUrl, 'client');
+    const ackP = new Promise<any>((resolve) => {
+      other.on('inject_ack', (data) => resolve(data));
+    });
+    other.emit('inject_chat', { tabId: 1, message: 'test' });
+    const ack = await ackP;
+    expect(ack.ok).toBe(true);
+
+    other.disconnect();
+    ext.disconnect();
+  });
+
+  test('inject_chat without extension returns error ack', async () => {
+    const other = await connectSocket(baseUrl, 'client');
+    const ackP = new Promise<any>((resolve) => {
+      other.on('inject_ack', (data) => resolve(data));
+    });
+    other.emit('inject_chat', { tabId: 1, message: 'test' });
+    const ack = await ackP;
+    expect(ack.ok).toBe(false);
+    expect(ack.error).toContain('Extension not connected');
+    other.disconnect();
+  });
+
+  test('inject_chat without tabId returns error ack', async () => {
+    const other = await connectSocket(baseUrl, 'client');
+    const ackP = new Promise<any>((resolve) => {
+      other.on('inject_ack', (data) => resolve(data));
+    });
+    other.emit('inject_chat', { message: 'no tab' });
+    const ack = await ackP;
+    expect(ack.ok).toBe(false);
+    other.disconnect();
+  });
+});
