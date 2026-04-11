@@ -533,19 +533,29 @@ export default defineBackground(() => {
       if (sig.type === 'element_visible' && sig.selector) {
         const el = document.querySelector(sig.selector) as HTMLElement | null;
         if (el) {
-          return {
-            matched: true,
-            type: sig.type,
-            selector: sig.selector,
-            text: el.textContent?.trim() || undefined,
-          };
+          const text = el.textContent?.trim() || '';
+          // If textMatch specified, only match when text satisfies the regex
+          if (sig.textMatch && !new RegExp(sig.textMatch, 'i').test(text)) {
+            // element present but text doesn't match yet — keep polling
+          } else {
+            return {
+              matched: true,
+              type: sig.type,
+              selector: sig.selector,
+              text: text || undefined,
+            };
+          }
         }
       }
 
-      if (sig.type === 'element_text' && sig.selector && sig.text) {
+      if (sig.type === 'element_text' && sig.selector) {
         const el = document.querySelector(sig.selector);
         const text = el?.textContent?.trim() || '';
-        if (text.includes(sig.text)) {
+        // Support textPattern (regex) in addition to plain text.includes
+        const isMatch = sig.textPattern
+          ? new RegExp(sig.textPattern, 'i').test(text)
+          : sig.text ? text.includes(sig.text) : false;
+        if (isMatch) {
           return { matched: true, type: sig.type, selector: sig.selector, text };
         }
       }
@@ -1358,10 +1368,23 @@ export default defineBackground(() => {
       : responseSignature?.matched ? 'success'
       : hasFailure || hasResponse ? 'ambiguous' : undefined;
 
+    const verificationStatus =
+      failureSignature?.matched ? 'error'
+      : responseSignature?.matched ? 'confirmed'
+      : (hasFailure || hasResponse) ? 'timeout' : undefined;
+    const verificationMessage =
+      failureSignature?.matched ? (failureSignature.text || 'Failure signal detected')
+      : responseSignature?.matched ? (responseSignature.text || 'Action confirmed')
+      : (hasFailure || hasResponse) ? 'No confirmation received within timeout' : undefined;
+    const verification = verificationStatus
+      ? { status: verificationStatus, message: verificationMessage }
+      : undefined;
+
     return {
       failureSignature,
       responseSignature,
       outcome,
+      verification,
       diagnostics: {
         mutationCount: mutationDiagnostics?.count || 0,
         mutations: mutationDiagnostics?.records || [],
@@ -1495,6 +1518,10 @@ export default defineBackground(() => {
         if (!resolvedSelector) throw new Error('No selector for: ' + (step.target || step.selector));
         await trustedType(tabId, resolvedSelector, value, !!step.submit);
         const outcomeFields = await evaluateActionOutcome(tabId, step, initialUrl, failureBaseline, responseBaseline, run.payload?.stateGraph || null);
+        if (outcomeFields.outcome === 'failure') {
+          const msg = outcomeFields.failureSignature?.text || 'Form action rejected by the page';
+          return { stepId: step.stepId, action: a, status: 'error', error: msg, value, selector: resolvedSelector, resolvedVia, confidence, target: step.target, ...outcomeFields, durationMs: Date.now() - t0 };
+        }
         return { stepId: step.stepId, action: a, status: 'ok', value, selector: resolvedSelector, resolvedVia, confidence, target: step.target, ...outcomeFields, durationMs: Date.now() - t0 };
       }
 
@@ -1521,6 +1548,10 @@ export default defineBackground(() => {
         const r = await execInTab(tabId, PRE_GUARDED_CLICK, [resolvedSelector, buttonText]);
         if (!r?.ok) throw new Error(r?.error || 'Click failed');
         const outcomeFields = await evaluateActionOutcome(tabId, step, initialUrl, failureBaseline, responseBaseline, run.payload?.stateGraph || null);
+        if (outcomeFields.outcome === 'failure') {
+          const msg = outcomeFields.failureSignature?.text || 'Action rejected by the page';
+          return { stepId: step.stepId, action: a, status: 'error', error: msg, selector: resolvedSelector, resolvedVia, target: step.target, clickDiag: r, ...outcomeFields, durationMs: Date.now() - t0 };
+        }
         return { stepId: step.stepId, action: a, status: 'ok', selector: resolvedSelector, resolvedVia, target: step.target, clickDiag: r, ...outcomeFields, durationMs: Date.now() - t0 };
       }
 
