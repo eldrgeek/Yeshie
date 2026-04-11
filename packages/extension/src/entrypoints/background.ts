@@ -1268,6 +1268,22 @@ export default defineBackground(() => {
     });
   }
 
+  function openTabAndWait(url: string): Promise<{ ok: boolean; tabId: number; url: string }> {
+    return new Promise((resolve) => {
+      chrome.tabs.create({ url, active: true }, (tab) => {
+        const newTabId = tab.id!;
+        function listener(updatedTabId: number, info: chrome.tabs.TabChangeInfo) {
+          if (updatedTabId === newTabId && info.status === 'complete') {
+            chrome.tabs.onUpdated.removeListener(listener);
+            setTimeout(() => resolve({ ok: true, tabId: newTabId, url }), 600);
+          }
+        }
+        chrome.tabs.onUpdated.addListener(listener);
+        setTimeout(() => { chrome.tabs.onUpdated.removeListener(listener); resolve({ ok: true, tabId: newTabId, url }); }, 15000);
+      });
+    });
+  }
+
   // ── executeScript helper ──────────────────────────────────────────────────────
   async function execInTab(tabId: number, func: Function, args: any[]) {
     const results = await chrome.scripting.executeScript({
@@ -1408,6 +1424,13 @@ export default defineBackground(() => {
           };
         }
         return { stepId: step.stepId, action: a, status: 'ok', url: r.url, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'open_tab') {
+        const url = interpolate(step.url, { ...params, ...buffer });
+        const r = await openTabAndWait(url);
+        if (step.store_tab_id) buffer[step.store_tab_id] = r.tabId;
+        return { stepId: step.stepId, action: a, status: 'ok', url: r.url, tabId: r.tabId, durationMs: Date.now() - t0 };
       }
 
       if (a === 'capture_entities') {
