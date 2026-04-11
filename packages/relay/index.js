@@ -90,6 +90,10 @@ export function createRelay(port = 3333) {
   const controllerHeartbeats = new Map(); // tabId → { status, step, ts }
   const controllerAwaiters = [];          // [{ tabId, res, timer }]
 
+  // Job tracking — subprocesses report status here, Dispatch polls on each wake-up
+  const jobs = new Map();                 // jobId → { id, title, status, step, result, error, createdAt, updatedAt }
+  const JOB_TTL_MS = 30 * 60 * 1000;     // 30 minutes — auto-expire stale jobs
+
   function resetChatState() {
     if (pendingListener) {
       clearTimeout(pendingListener.timer);
@@ -107,6 +111,7 @@ export function createRelay(port = 3333) {
     controllerHeartbeats.clear();
     for (const aw of controllerAwaiters) clearTimeout(aw.timer);
     controllerAwaiters.length = 0;
+    jobs.clear();
   }
 
   function readBody(req) {
@@ -567,6 +572,76 @@ h2{color:#58a6ff}hr{border-color:#333}
       const rBuf = (controllerResponses.get(respBufTabId) || []).filter(r => r.ts > respSince);
       const rHb = controllerHeartbeats.get(respBufTabId) || null;
       jsonReply(res, 200, { responses: rBuf, heartbeat: rHb });
+      return;
+    }
+
+    // ── Job tracking: subprocesses report status, Dispatch polls ──
+
+    if (path === '/jobs/update' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+
+      const { id, title, status, step, result, error: jobError } = body;
+      if (!id) { jsonReply(res, 400, { error: 'id required' }); return; }
+
+      const now = Date.now();
+      const existing = jobs.get(id);
+      jobs.set(id, {
+        id,
+        title: title || existing?.title || id,
+        status: status || existing?.status || 'running',
+        step: step || null,
+        result: result || existing?.result || null,
+        error: jobError || existing?.error || null,
+        createdAt: existing?.createdAt || now,
+        updatedAt: now,
+      });
+      logConversation({ event: 'job_update', jobId: id, status: status || 'running', step: step || null });
+      jsonReply(res, 200, { ok: true });
+      return;
+    }
+
+    if (path === '/jobs/status' && req.method === 'GET') {
+      const now = Date.now();
+      // Expire stale jobs
+      for (const [id, job] of jobs) {
+        if (now - job.updatedAt > JOB_TTL_MS) jobs.delete(id);
+      }
+
+      const filter = url.searchParams.get('filter'); // "active" | "all" (default: active)
+      const activeStatuses = new Set(['running', 'blocked', 'pending']);
+      const jobList = [];
+      for (const [, job] of jobs) {
+        if (filter !== 'all' && !activeStatuses.has(job.status)) {
+          // For "active" filter, also include recently completed (< 60s)
+          if (now - job.updatedAt > 60_000) continue;
+        }
+        jobList.push(job);
+      }
+      jsonReply(res, 200, { jobs: jobList, ts: now });
+      return;
+    }
+
+    if (path === '/jobs/create' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+
+      const { id, title } = body;
+      if (!id) { jsonReply(res, 400, { error: 'id required' }); return; }
+
+      const now = Date.now();
+      jobs.set(id, {
+        id,
+        title: title || id,
+        status: 'pending',
+        step: null,
+        result: null,
+        error: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      logConversation({ event: 'job_created', jobId: id, title: title || id });
+      jsonReply(res, 200, { ok: true, id });
       return;
     }
 
