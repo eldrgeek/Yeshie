@@ -13,7 +13,7 @@ describe('background.js action coverage', () => {
     bgSource = readFileSync(resolve(__dirname, '../../packages/extension/background.js'), 'utf-8');
   });
 
-  const requiredActions = ['navigate','type','click','wait_for','read','assess_state','js','find_row','click_text','delay','hover','scroll','select','probe_affordances','assert','click_preset'];
+  const requiredActions = ['navigate','open_tab','type','click','wait_for','read','assess_state','js','find_row','click_text','delay','hover','scroll','select','probe_affordances','assert','click_preset'];
 
   for (const action of requiredActions) {
     it(`handles action type '${action}'`, () => {
