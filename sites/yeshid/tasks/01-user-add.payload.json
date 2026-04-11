@@ -6,10 +6,10 @@
       "first_name",
       "last_name",
       "company_email",
-      "personal_email"
+      "backup_email"
     ],
     "optionalParams": [
-      "personal_email"
+      "start_date_preset"
     ],
     "selfImproving": true,
     "runCount": 1,
@@ -23,7 +23,7 @@
     "first_name": "{{first_name}}",
     "last_name": "{{last_name}}",
     "company_email": "{{company_email}}",
-    "personal_email": "{{personal_email}}",
+    "backup_email": "{{backup_email}}",
     "base_url": "https://app.yeshid.com",
     "start_date_preset": "{{start_date_preset}}"
   },
@@ -222,8 +222,7 @@
       "stepId": "s6",
       "action": "type",
       "target": "personal-email-input",
-      "value": "{{personal_email}}",
-      "condition": "{{personal_email}}",
+      "value": "{{backup_email}}",
       "guard": {
         "target": "personal-email-input",
         "state": {
@@ -231,7 +230,7 @@
           "enabled": true
         }
       },
-      "note": "Optional step \u2014 only runs if personal_email param is provided."
+      "note": "Personal / recovery email. Required by YeshID. Pass backup_email param."
     },
     {
       "stepId": "s7",
@@ -255,6 +254,25 @@
             {
               "type": "element_visible",
               "selector": ".v-snackbar--active",
+              "textMatch": "success|created|added|onboard",
+              "timeout": 5000
+            }
+          ]
+        }
+      ],
+      "failureSignature": [
+        {
+          "any_of": [
+            {
+              "type": "element_visible",
+              "selector": ".v-snackbar--active",
+              "textMatch": "Error|error|failed|required|invalid",
+              "timeout": 5000
+            },
+            {
+              "type": "element_text",
+              "selector": ".v-messages__message, .v-input--error .v-messages",
+              "textPattern": "required|invalid|must",
               "timeout": 5000
             }
           ]

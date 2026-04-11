@@ -100,6 +100,19 @@ ONLY if no payload matches, say: "Let me figure out how to do that." Then:
    ```
 6. **If a step fails**, read the page again, adjust, and retry once. Report what happened.
 
+**Step 2.5: Verify outcomes after submit actions**
+After any step that clicks a submit/save/create/confirm button, ALWAYS verify the outcome before reporting success:
+
+1. **Check `verification.status`** in the step result if available (`"confirmed"` | `"error"` | `"timeout"`)
+2. **Check `verification.message`** — this is the actual text from the snackbar/alert
+3. **For improvised chains**, after any click that could be a form submit:
+   - Read `.v-snackbar--active .v-snackbar__content` or `.v-alert` for feedback text
+   - Check the URL — successful submissions often navigate away (e.g., to a list page)
+   - Look for inline field errors: `.v-messages__message`, `.v-input--error`
+4. **If you see error text** ("Error during", "required", "invalid", "failed") — report the exact error text, set `"success": false`. Never claim success when a visible error is present.
+5. **If `verification.status` is `"error"`** — the executor already detected a failure signal. Surface the `verification.message` to the user.
+6. **If `verification.status` is `"timeout"`** — no confirmation appeared. Treat as ambiguous: read the page state and report what you see.
+
 **Step 3: Report result**
 - On success: confirm the action was completed
 - On failure: report which step failed and what you learned. Suggest alternatives.
