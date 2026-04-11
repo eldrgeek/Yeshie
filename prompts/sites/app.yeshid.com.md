@@ -27,7 +27,7 @@ Use the inference loop. Logout is hidden behind the user avatar in the top-right
 
 | Payload | Description | Required Params |
 |---------|-------------|-----------------|
-| `01-user-add.payload.json` | Onboard a new user | `first_name`, `last_name`, `company_email`, `base_url` |
+| `01-user-add.payload.json` | Onboard a new user | `first_name`, `last_name`, `company_email`, `backup_email` |
 | `02-user-delete.payload.json` | Offboard/deactivate a user | `user_identifier`, `base_url` |
 | `03-user-modify.payload.json` | Modify user attributes | `user_identifier`, `new_first_name`, `new_last_name`, `base_url` |
 | `04-site-explore.payload.json` | Map all pages and affordances | `base_url` |

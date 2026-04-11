@@ -2,7 +2,7 @@
   "_meta": {
     "task": "user-add",
     "description": "Add (onboard) a new person to YeshID. Navigates to the onboard form, fills all fields, and submits.",
-    "params": [
+    "requiredParams": [
       "first_name",
       "last_name",
       "company_email",
