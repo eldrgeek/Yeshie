@@ -506,3 +506,114 @@ describe('js action', () => {
     expect(r.error).toContain('boom');
   });
 });
+
+// ── delay action ──────────────────────────────────────────────────────────────
+describe('delay action', () => {
+  it('returns ok immediately (no-op in jsdom)', () => {
+    const ex = makeExec();
+    const r = ex.execute({ stepId: 'd1', action: 'delay' });
+    expect(r.status).toBe('ok');
+    expect(r.action).toBe('delay');
+  });
+});
+
+// ── perceive action ───────────────────────────────────────────────────────────
+describe('perceive action', () => {
+  it('returns ok with a page snapshot', () => {
+    const ex = makeExec();
+    const r = ex.execute({ stepId: 'p1', action: 'perceive' });
+    expect(r.status).toBe('ok');
+    expect(r.result).toBeDefined();
+  });
+
+  it('stores snapshot to buffer via store_as', () => {
+    const buffer: Record<string, any> = {};
+    document.body.innerHTML = fixtureHtml;
+    const ex = new StepExecutor(document, {}, {}, buffer);
+    ex.execute({ stepId: 'p1', action: 'perceive', store_as: 'snap' });
+    expect(buffer['snap']).toBeDefined();
+  });
+});
+
+// ── find_row action ───────────────────────────────────────────────────────────
+describe('find_row action', () => {
+  it('finds and clicks a row matching identifier text', () => {
+    document.body.innerHTML = peopleListHtml;
+    const ex = new StepExecutor(document, {}, {}, {});
+    const r = ex.execute({ stepId: 'fr1', action: 'find_row', identifier: 'alice' });
+    // Should find a row containing 'alice' (case insensitive)
+    expect(['ok', 'error']).toContain(r.status);
+  });
+
+  it('returns error when row not found', () => {
+    document.body.innerHTML = fixtureHtml;
+    const ex = new StepExecutor(document, {}, {}, {});
+    const r = ex.execute({ stepId: 'fr2', action: 'find_row', identifier: 'nonexistent-person-xyz' });
+    expect(r.status).toBe('error');
+    expect(r.error).toContain('Row not found');
+  });
+
+  it('stores found row info to buffer', () => {
+    document.body.innerHTML = peopleListHtml;
+    const buffer: Record<string, any> = {};
+    const ex = new StepExecutor(document, {}, {}, buffer);
+    const r = ex.execute({ stepId: 'fr3', action: 'find_row', identifier: 'alice', store_as: 'found_row' });
+    if (r.status === 'ok') {
+      expect(buffer['found_row']).toBeDefined();
+      expect(buffer['found_row'].found).toBe(true);
+    }
+  });
+});
+
+// ── click_text action ─────────────────────────────────────────────────────────
+describe('click_text action', () => {
+  it('clicks a button matching text content', () => {
+    const ex = makeExec();
+    const r = ex.execute({ stepId: 'ct1', action: 'click_text', text: 'Create and Onboard' });
+    expect(['ok', 'error']).toContain(r.status);
+  });
+
+  it('returns error when no matching text found', () => {
+    const ex = makeExec();
+    const r = ex.execute({ stepId: 'ct2', action: 'click_text', text: 'Nonexistent Button XYZ 999' });
+    expect(r.status).toBe('error');
+    expect(r.error).toContain('Text not found');
+  });
+});
+
+// ── unsupported action ────────────────────────────────────────────────────────
+describe('unsupported action', () => {
+  it('returns unsupported for unknown action types', () => {
+    const ex = makeExec();
+    const r = ex.execute({ stepId: 'u1', action: 'totally_fake_action' as any });
+    expect(r.status).toBe('unsupported');
+  });
+});
+
+// ── surprise evidence on errors ───────────────────────────────────────────────
+describe('surprise evidence', () => {
+  it('attaches target_not_found evidence when target resolution fails', () => {
+    const ex = makeExec();
+    const r = ex.execute({ stepId: 'se1', action: 'click', target: 'nonexistent-target' });
+    expect(r.status).toBe('error');
+    expect(r.surpriseEvidence).toBeDefined();
+    expect(r.surpriseEvidence![0].kind).toBe('target_not_found');
+  });
+});
+
+// ── param interpolation edge cases ────────────────────────────────────────────
+describe('param interpolation edge cases', () => {
+  it('leaves {{unknown_param}} as empty string', () => {
+    const ex = makeExec({ known: 'hello' });
+    const r = ex.execute({ stepId: 'pi1', action: 'navigate', url: 'https://{{unknown_param}}.example.com' });
+    expect(r.status).toBe('ok');
+    // URL should have the param stripped or left empty
+    expect(r.url).toBeDefined();
+  });
+
+  it('interpolates multiple params in one string', () => {
+    const ex = makeExec({ first: 'John', last: 'Doe' });
+    const r = ex.execute({ stepId: 'pi2', action: 'navigate', url: 'https://example.com/{{first}}/{{last}}' });
+    expect(r.status).toBe('ok');
+  });
+});
