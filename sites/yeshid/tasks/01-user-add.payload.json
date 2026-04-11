@@ -12,10 +12,9 @@
       "start_date_preset"
     ],
     "selfImproving": true,
-    "runCount": 3,
-    "lastSuccess": "2026-04-11T17:51:02.447Z",
+    "runCount": 4,
+    "lastSuccess": "2026-04-11T20:49:23.131Z",
     "prerequisite": "00-login.payload.json",
-    "lastDurationMs": 12500,
     "auth": {
       "type": "sso_automatable",
       "googleAccountEmail": "mw@mike-wolf.com"
@@ -269,7 +268,7 @@
   ],
   "branches": {
     "not-authenticated": {
-      "description": "Not logged in \u2014 run login flow first.",
+      "description": "Not logged in — run login flow first.",
       "steps": [
         {
           "stepId": "b1",

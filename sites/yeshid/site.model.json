@@ -15,9 +15,9 @@
       "loginPath": "/login",
       "ssoButtonSelector": "button:has-text('Sign in with Google')",
       "authenticatedSignal": ".v-navigation-drawer a[href=\"/overview\"]",
-      "notes": "Google SSO \u2014 extension can click through automatically if google_account_email is configured"
+      "notes": "Google SSO — extension can click through automatically if google_account_email is configured"
     },
-    "lastUpdated": "2026-04-11T17:51:02.448Z"
+    "lastUpdated": "2026-04-11T20:49:23.132Z"
   },
   "stateGraph": {
     "nodes": {
@@ -152,7 +152,7 @@
         }
       },
       "directories": {
-        "description": "Directory management \u2014 sync, filter, view identities.",
+        "description": "Directory management — sync, filter, view identities.",
         "signals": [
           {
             "type": "url_matches",
@@ -175,7 +175,7 @@
         }
       },
       "groups": {
-        "description": "Group management \u2014 create, view, edit groups.",
+        "description": "Group management — create, view, edit groups.",
         "signals": [
           {
             "type": "url_matches",
@@ -193,7 +193,7 @@
         }
       },
       "access-grid": {
-        "description": "Access grid \u2014 cross-reference people \u00d7 applications.",
+        "description": "Access grid — cross-reference people × applications.",
         "signals": [
           {
             "type": "url_matches",
@@ -221,7 +221,7 @@
         ]
       },
       "access-requests": {
-        "description": "Access request queue \u2014 view and action pending requests.",
+        "description": "Access request queue — view and action pending requests.",
         "signals": [
           {
             "type": "url_matches",
@@ -234,7 +234,7 @@
         ]
       },
       "audit-reports": {
-        "description": "Audit management \u2014 start new audits, view reports.",
+        "description": "Audit management — start new audits, view reports.",
         "signals": [
           {
             "type": "url_matches",
@@ -246,7 +246,7 @@
         }
       },
       "shadow-applications": {
-        "description": "Shadow IT \u2014 unmanaged applications detected via SSO logs.",
+        "description": "Shadow IT — unmanaged applications detected via SSO logs.",
         "signals": [
           {
             "type": "url_matches",
@@ -264,7 +264,7 @@
         }
       },
       "identities": {
-        "description": "Identity security \u2014 view application-linked identities.",
+        "description": "Identity security — view application-linked identities.",
         "signals": [
           {
             "type": "url_matches",
@@ -273,7 +273,7 @@
         ]
       },
       "access-drift": {
-        "description": "Access drift detection \u2014 identify unauthorized access changes.",
+        "description": "Access drift detection — identify unauthorized access changes.",
         "signals": [
           {
             "type": "url_matches",
@@ -282,7 +282,7 @@
         ]
       },
       "risk-assessment": {
-        "description": "Risk assessment dashboard \u2014 risk scores and posture.",
+        "description": "Risk assessment dashboard — risk scores and posture.",
         "signals": [
           {
             "type": "url_matches",
@@ -291,7 +291,7 @@
         ]
       },
       "triggers": {
-        "description": "Automation triggers \u2014 event-driven workflow rules.",
+        "description": "Automation triggers — event-driven workflow rules.",
         "signals": [
           {
             "type": "url_matches",
@@ -309,7 +309,7 @@
         }
       },
       "workflow-templates": {
-        "description": "Workflow templates \u2014 onboarding, offboarding, audit templates.",
+        "description": "Workflow templates — onboarding, offboarding, audit templates.",
         "signals": [
           {
             "type": "url_matches",
@@ -326,7 +326,7 @@
         }
       },
       "policies": {
-        "description": "Policies \u2014 compliance rules (BETA).",
+        "description": "Policies — compliance rules (BETA).",
         "signals": [
           {
             "type": "url_matches",
@@ -335,7 +335,7 @@
         ]
       },
       "events": {
-        "description": "Event log \u2014 all activity events across the org.",
+        "description": "Event log — all activity events across the org.",
         "signals": [
           {
             "type": "url_matches",
@@ -352,7 +352,7 @@
         }
       },
       "settings": {
-        "description": "Organization settings \u2014 general, notifications, customize, billing, admins.",
+        "description": "Organization settings — general, notifications, customize, billing, admins.",
         "signals": [
           {
             "type": "url_matches",
@@ -369,7 +369,7 @@
         }
       },
       "offboard-form": {
-        "description": "Offboard form \u2014 remove a person from the organization.",
+        "description": "Offboard form — remove a person from the organization.",
         "signals": [
           {
             "type": "url_matches",
@@ -488,7 +488,7 @@
       },
       "cachedSelector": "#input-v-10",
       "cachedConfidence": 0.88,
-      "resolveHint": "Vuetify input with label 'First name'. ID changes each session \u2014 resolve by label proximity.",
+      "resolveHint": "Vuetify input with label 'First name'. ID changes each session — resolve by label proximity.",
       "resolvedOn": "2026-03-31T00:11:57.745179+00:00",
       "resolvedVia": "vuetify_label_match"
     },
