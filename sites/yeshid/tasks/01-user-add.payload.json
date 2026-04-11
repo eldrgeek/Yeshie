@@ -32,35 +32,6 @@
     "base_url": "https://app.yeshid.com",
     "start_date_preset": "{{start_date_preset}}"
   },
-  "stateGraph": {
-    "currentNode": "authenticated",
-    "nodes": {
-      "authenticated": {
-        "signals": [
-          {
-            "type": "element_visible",
-            "selector": ".v-navigation-drawer a[href='/overview']"
-          }
-        ]
-      },
-      "onboard-form": {
-        "signals": [
-          {
-            "type": "url_matches",
-            "pattern": "/organization/people/onboard"
-          }
-        ]
-      },
-      "people-list": {
-        "signals": [
-          {
-            "type": "url_matches",
-            "pattern": "/organization/people$"
-          }
-        ]
-      }
-    }
-  },
   "abstractTargets": {
     "first-name-input": {
       "match": {
@@ -302,10 +273,87 @@
       "steps": [
         {
           "stepId": "b1",
-          "action": "js",
-          "code": "throw new Error('Not authenticated. Run 00-login.payload.json first, or include credentials in params.')"
+          "action": "assert",
+          "condition": "false",
+          "message": "Not authenticated. The auth flow should handle login automatically."
         }
       ]
+    }
+  },
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "authenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "people-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people$"
+          }
+        ]
+      },
+      "onboard-form": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/onboard"
+          }
+        ]
+      },
+      "person-detail": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/[a-z0-9-]+"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/onboard|/offboard"
+          }
+        ]
+      },
+      "directories": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/directories"
+          }
+        ]
+      },
+      "access-grid": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/grid"
+          }
+        ]
+      },
+      "events": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/events$"
+          }
+        ]
+      }
     }
   }
 }

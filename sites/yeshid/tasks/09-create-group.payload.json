@@ -75,5 +75,81 @@
       },
       "note": "Click Create button and verify snackbar appears"
     }
-  ]
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "authenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "people-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people$"
+          }
+        ]
+      },
+      "onboard-form": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/onboard"
+          }
+        ]
+      },
+      "person-detail": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/[a-z0-9-]+"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/onboard|/offboard"
+          }
+        ]
+      },
+      "directories": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/directories"
+          }
+        ]
+      },
+      "access-grid": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/grid"
+          }
+        ]
+      },
+      "events": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/events$"
+          }
+        ]
+      }
+    }
+  }
 }
