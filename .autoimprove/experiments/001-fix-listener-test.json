@@ -1,0 +1,14 @@
+{
+  "id": 1,
+  "title": "Fix listener test — match actual escalation pattern",
+  "status": "kept",
+  "commit": "25b98cca",
+  "score": 260,
+  "baseline_score": 260,
+  "delta_pct": 0,
+  "duration_s": 15,
+  "reasoning": "The test expected 'claude_code' in base-listener.md but the prompt uses model-tier escalation via 'escalate' flag instead. Updated assertion to match the actual escalation pattern.",
+  "files_changed": ["tests/unit/listener.test.ts"],
+  "supersedes": [],
+  "timestamp": "2026-04-11T00:22:00Z"
+}
