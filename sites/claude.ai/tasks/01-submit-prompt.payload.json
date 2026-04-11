@@ -2,7 +2,19 @@
   "_meta": {
     "task": "submit-prompt",
     "description": "Submit a prompt to Claude.ai and capture the response. Detects auth wall; if not logged in, returns auth_required.",
-    "params": ["prompt", "base_url"],
+    "params": {
+      "prompt": {
+        "required": true,
+        "description": "The prompt/question to send to Claude",
+        "hint": "Can be any length. For multi-line, use newlines in the string."
+      },
+      "base_url": {
+        "required": false,
+        "default": "https://claude.ai/new",
+        "description": "URL to navigate to before submitting. Use default for new conversation.",
+        "hint": "Can point to an existing conversation or a Project URL"
+      }
+    },
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null
@@ -31,11 +43,18 @@
       "action": "assess_state",
       "stateGraph": {
         "nodes": {
-          "auth_required": { "signals": [{ "type": "url_matches", "pattern": "claude\\.ai/login" }] }
+          "auth_required": {
+            "signals": [
+              {
+                "type": "url_matches",
+                "pattern": "claude\\.ai/login"
+              }
+            ]
+          }
         }
       },
       "onMismatch": "continue",
-      "note": "Check for auth wall — if on login page, fail fast"
+      "note": "Check for auth wall \u2014 if on login page, fail fast"
     },
     {
       "stepId": "s2",
@@ -61,9 +80,11 @@
       "stepId": "s5",
       "action": "wait_for",
       "selector": "[aria-label='Stop streaming']",
-      "state": { "visible": false },
+      "state": {
+        "visible": false
+      },
       "timeout": 120000,
-      "note": "Wait until Stop Streaming button disappears — generation complete"
+      "note": "Wait until Stop Streaming button disappears \u2014 generation complete"
     },
     {
       "stepId": "s6",

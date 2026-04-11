@@ -2,7 +2,19 @@
   "_meta": {
     "task": "submit-prompt",
     "description": "Submit a prompt to Google Gemini and capture the response.",
-    "params": ["prompt", "base_url"],
+    "params": {
+      "prompt": {
+        "required": true,
+        "description": "The prompt/question to send to Gemini",
+        "hint": "Can be any length. For multi-line, use newlines in the string."
+      },
+      "base_url": {
+        "required": false,
+        "default": "https://gemini.google.com/app",
+        "description": "URL to navigate to before submitting. Use default for new conversation.",
+        "hint": "Can point to an existing Gemini conversation to continue a thread"
+      }
+    },
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null
@@ -32,7 +44,14 @@
       "action": "assess_state",
       "stateGraph": {
         "nodes": {
-          "auth_required": { "signals": [{ "type": "url_matches", "pattern": "accounts\\.google\\.com" }] }
+          "auth_required": {
+            "signals": [
+              {
+                "type": "url_matches",
+                "pattern": "accounts\\.google\\.com"
+              }
+            ]
+          }
         }
       },
       "onMismatch": "continue",
@@ -61,7 +80,9 @@
       "stepId": "s5",
       "action": "wait_for",
       "selector": "button[aria-label='Stop response']",
-      "state": { "visible": false },
+      "state": {
+        "visible": false
+      },
       "timeout": 120000,
       "note": "Wait until Stop Response button disappears"
     },

@@ -2,18 +2,24 @@
   "_meta": {
     "task": "submit-prompt",
     "description": "Submit a prompt to Grok and capture the response.",
-    "params": ["prompt"],
+    "params": {
+      "prompt": {
+        "required": true,
+        "description": "The prompt/question to send to Grok",
+        "hint": "Can be any length. For multi-line, use newlines in the string."
+      }
+    },
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "notes": "Grok uses Tiptap/ProseMirror contenteditable (not textarea). Use Input.insertText via CDP. Submit button: button[aria-label='Submit'] — stable. Response selector needs calibration after first run."
+    "notes": "Grok uses Tiptap/ProseMirror contenteditable (not textarea). Use Input.insertText via CDP. Submit button: button[aria-label='Submit'] \u2014 stable. Response selector needs calibration after first run."
   },
   "params": {
     "prompt": "Say hello in exactly one sentence."
   },
   "abstractTargets": {
     "prompt_input": {
-      "description": "Tiptap/ProseMirror contenteditable — confirmed on fresh Grok page",
+      "description": "Tiptap/ProseMirror contenteditable \u2014 confirmed on fresh Grok page",
       "fallbackSelectors": [
         "div.tiptap.ProseMirror[contenteditable='true']",
         ".ProseMirror[contenteditable='true']",
@@ -21,8 +27,10 @@
       ]
     },
     "send_button": {
-      "description": "Submit button — stable aria-label='Submit'",
-      "anchors": { "ariaLabel": "Submit" },
+      "description": "Submit button \u2014 stable aria-label='Submit'",
+      "anchors": {
+        "ariaLabel": "Submit"
+      },
       "fallbackSelectors": [
         "button[aria-label='Submit']",
         "button[aria-label*='Submit']"
