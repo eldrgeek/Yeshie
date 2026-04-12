@@ -1,11 +1,19 @@
 {
   "_meta": {
     "task": "login",
-    "description": "Ensure the user is authenticated on app.yeshid.com. If already logged in, exits immediately. If not, fills login form and submits.",
-    "params": [
-      "email",
-      "password"
-    ],
+    "description": "Ensure the user is authenticated on app.yeshid.com via Google SSO. If already logged in, exits immediately.",
+    "params": {
+      "google_account_email": {
+        "required": false,
+        "default": "mw@mike-wolf.com",
+        "description": "Google account email for SSO"
+      },
+      "base_url": {
+        "required": false,
+        "default": "https://app.yeshid.com",
+        "description": "YeshID base URL"
+      }
+    },
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
@@ -17,143 +25,48 @@
   "runId": "yeshid-login-{{timestamp}}",
   "mode": "verification",
   "site": "app.yeshid.com",
-  "params": {
-    "email": "{{email}}",
-    "password": "{{password}}",
-    "base_url": "https://app.yeshid.com"
-  },
-  "abstractTargets": {
-    "email-input": {
-      "match": {
-        "role": "textbox",
-        "vuetify_label": [
-          "email",
-          "username"
-        ]
-      },
-      "cachedSelector": null,
-      "cachedConfidence": 0.0,
-      "fallbackSelectors": [
-        "input[type='email']",
-        "input[name='email']",
-        "input[placeholder*='email' i]"
-      ]
-    },
-    "password-input": {
-      "match": {
-        "role": "textbox",
-        "vuetify_label": [
-          "password"
-        ]
-      },
-      "cachedSelector": null,
-      "cachedConfidence": 0.0,
-      "fallbackSelectors": [
-        "input[type='password']",
-        "input[name='password']"
-      ]
-    },
-    "login-button": {
-      "match": {
-        "role": "button",
-        "name_contains": [
-          "login",
-          "sign in",
-          "log in",
-          "continue"
-        ]
-      },
-      "cachedSelector": null,
-      "cachedConfidence": 0.0,
-      "fallbackSelectors": [
-        "button[type='submit']",
-        "form button"
-      ]
-    }
-  },
   "chain": [
     {
       "stepId": "s1",
       "action": "navigate",
       "url": "{{base_url}}",
-      "guard": {
-        "target": "email-input",
-        "state": {
-          "visible": true
-        },
-        "timeout": 5000
-      },
-      "note": "Navigate to base URL. If already authenticated, will redirect to /overview \u2014 guard will fail, triggering state check."
+      "note": "Navigate to base URL. If already authenticated, will redirect to /overview."
     },
     {
       "stepId": "s2",
       "action": "assess_state",
       "expect": {
-        "state": "unauthenticated"
+        "state": "authenticated"
       },
-      "onMismatch": "branch:already-authenticated"
+      "onMatch": "exit_success",
+      "note": "If already authenticated, exit immediately."
     },
     {
       "stepId": "s3",
-      "action": "type",
-      "target": "email-input",
-      "value": "{{email}}",
-      "guard": {
-        "target": "email-input",
-        "state": {
-          "visible": true,
-          "enabled": true
-        }
-      }
+      "action": "click_text",
+      "text": "Sign in with Google",
+      "note": "Click the Google SSO button on the YeshID login page."
     },
     {
       "stepId": "s4",
-      "action": "type",
-      "target": "password-input",
-      "value": "{{password}}",
-      "guard": {
-        "target": "password-input",
-        "state": {
-          "visible": true,
-          "enabled": true
-        }
-      }
+      "action": "delay",
+      "ms": 3000,
+      "note": "Wait for redirect to accounts.google.com."
     },
     {
       "stepId": "s5",
       "action": "click",
-      "target": "login-button",
-      "guard": {
-        "target": "login-button",
-        "state": {
-          "visible": true,
-          "enabled": true
-        }
-      },
-      "responseSignature": [
-        {
-          "type": "state_reached",
-          "state": "authenticated",
-          "timeout": 10000
-        }
-      ]
+      "selector": "[data-email=\"{{google_account_email}}\"]",
+      "note": "Click the matching Google account on the account chooser page."
+    },
+    {
+      "stepId": "s6",
+      "action": "wait_for",
+      "url_pattern": "app\\.yeshid\\.com(?!/login)",
+      "timeout": 30000,
+      "note": "Wait for redirect back to app.yeshid.com (not /login)."
     }
   ],
-  "branches": {
-    "already-authenticated": {
-      "description": "User is already logged in. Nothing to do.",
-      "steps": [
-        {
-          "stepId": "b1",
-          "action": "assert",
-          "target": "nav-people",
-          "value": "People",
-          "note": "Confirm we're in a known authenticated state by verifying sidebar is present."
-        }
-      ],
-      "onComplete": "exit_success"
-    }
-  },
   "stateGraph": {
     "nodes": {
       "unauthenticated": {
@@ -173,58 +86,6 @@
           {
             "type": "url_not_matches",
             "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
-          }
-        ]
-      },
-      "people-list": {
-        "signals": [
-          {
-            "type": "url_matches",
-            "pattern": "/organization/people$"
-          }
-        ]
-      },
-      "onboard-form": {
-        "signals": [
-          {
-            "type": "url_matches",
-            "pattern": "/organization/people/onboard"
-          }
-        ]
-      },
-      "person-detail": {
-        "signals": [
-          {
-            "type": "url_matches",
-            "pattern": "/organization/people/[a-z0-9-]+"
-          },
-          {
-            "type": "url_not_matches",
-            "pattern": "/onboard|/offboard"
-          }
-        ]
-      },
-      "directories": {
-        "signals": [
-          {
-            "type": "url_matches",
-            "pattern": "/organization/directories"
-          }
-        ]
-      },
-      "access-grid": {
-        "signals": [
-          {
-            "type": "url_matches",
-            "pattern": "/access/grid"
-          }
-        ]
-      },
-      "events": {
-        "signals": [
-          {
-            "type": "url_matches",
-            "pattern": "/events$"
           }
         ]
       }

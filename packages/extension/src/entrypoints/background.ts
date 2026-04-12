@@ -755,6 +755,7 @@ export default defineBackground(() => {
     ) as HTMLElement | undefined;
     if (googleBtn) {
       googleBtn.click();
+      googleBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
       return { clicked: true, text: googleBtn.textContent?.trim() };
     }
     return { clicked: false, available: btns.map(b => b.textContent?.trim()).filter(Boolean).slice(0, 10) };
@@ -762,7 +763,12 @@ export default defineBackground(() => {
 
   function PRE_CLICK_GOOGLE_ACCOUNT(email: string) {
     // On the Google account chooser (accounts.google.com), click the account matching email
-    // Google uses data-identifier attribute on account rows, or we can match by email text
+    // Google uses data-email on the email text div (primary), data-identifier on account rows (fallback)
+    const byEmail = document.querySelector(`[data-email="${email}"]`) as HTMLElement | null;
+    if (byEmail) {
+      byEmail.click();
+      return { clicked: true, method: 'data-email', email };
+    }
     const byIdentifier = document.querySelector(`[data-identifier="${email}"]`) as HTMLElement | null;
     if (byIdentifier) {
       byIdentifier.click();
@@ -1936,7 +1942,7 @@ export default defineBackground(() => {
     let googleAccountClicked = false;
 
     // Poll for Google OAuth page — SSO button click redirects the tab to accounts.google.com
-    while (Date.now() - t0 < 15000 && !googleAccountClicked) {
+    while (Date.now() - t0 < 30000 && !googleAccountClicked) {
       await new Promise(r => setTimeout(r, 1000));
       try {
         // Check current tab URL via chrome.tabs API
