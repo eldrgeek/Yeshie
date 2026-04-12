@@ -67,6 +67,43 @@ export default defineBackground(() => {
       }
     });
 
+    // Relay asks to refresh a tab
+    socket.on('refresh_tab', ({ tabId }: { tabId: number }, ack: (result: any) => void) => {
+      chrome.tabs.reload(tabId, {}, () => {
+        if (chrome.runtime.lastError) { ack({ ok: false, error: chrome.runtime.lastError.message }); return; }
+        ack({ ok: true, tabId });
+      });
+    });
+
+    // Relay asks to navigate a tab to a URL
+    socket.on('navigate_tab', async ({ tabId, url }: { tabId: number; url: string }, ack: (result: any) => void) => {
+      try {
+        await navigateAndWait(tabId, url);
+        ack({ ok: true, tabId, url });
+      } catch (err: any) {
+        ack({ ok: false, error: err.message });
+      }
+    });
+
+    // Relay asks to close a tab
+    socket.on('close_tab', ({ tabId }: { tabId: number }, ack: (result: any) => void) => {
+      chrome.tabs.remove(tabId, () => {
+        if (chrome.runtime.lastError) { ack({ ok: false, error: chrome.runtime.lastError.message }); return; }
+        ack({ ok: true, tabId });
+      });
+    });
+
+    // Relay asks to activate (focus) a tab
+    socket.on('activate_tab', async ({ tabId }: { tabId: number }, ack: (result: any) => void) => {
+      try {
+        const tab = await chrome.tabs.update(tabId, { active: true });
+        if (tab.windowId) await chrome.windows.update(tab.windowId, { focused: true });
+        ack({ ok: true, tabId });
+      } catch (err: any) {
+        ack({ ok: false, error: err.message });
+      }
+    });
+
     // Relay injects a chat message into a specific tab's side-panel conversation.
     // The message appears as if the user typed it, then flows through the normal
     // chat path so the listener receives it just like any user-initiated message.

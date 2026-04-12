@@ -325,6 +325,95 @@ export function createRelay(port = 3333) {
       return;
     }
 
+    if (path === '/tabs/refresh' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const { tabId } = body;
+      if (!tabId) { jsonReply(res, 400, { error: 'tabId required' }); return; }
+      if (!extensionSocket) { jsonReply(res, 503, { error: 'Extension not connected' }); return; }
+      try {
+        const result = await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('Timeout waiting for refresh_tab')), 10_000);
+          extensionSocket.emit('refresh_tab', { tabId }, (result) => {
+            clearTimeout(timer);
+            if (result?.ok === false) reject(new Error(result.error || 'refresh_tab failed'));
+            else resolve(result);
+          });
+        });
+        jsonReply(res, 200, result);
+      } catch (err) {
+        jsonReply(res, 500, { error: err.message });
+      }
+      return;
+    }
+
+    if (path === '/tabs/navigate' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const { tabId, url } = body;
+      if (!tabId) { jsonReply(res, 400, { error: 'tabId required' }); return; }
+      if (!url) { jsonReply(res, 400, { error: 'url required' }); return; }
+      if (!extensionSocket) { jsonReply(res, 503, { error: 'Extension not connected' }); return; }
+      try {
+        const result = await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('Timeout waiting for navigate_tab')), 20_000);
+          extensionSocket.emit('navigate_tab', { tabId, url }, (result) => {
+            clearTimeout(timer);
+            if (result?.ok === false) reject(new Error(result.error || 'navigate_tab failed'));
+            else resolve(result);
+          });
+        });
+        jsonReply(res, 200, result);
+      } catch (err) {
+        jsonReply(res, 500, { error: err.message });
+      }
+      return;
+    }
+
+    if (path === '/tabs/close' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const { tabId } = body;
+      if (!tabId) { jsonReply(res, 400, { error: 'tabId required' }); return; }
+      if (!extensionSocket) { jsonReply(res, 503, { error: 'Extension not connected' }); return; }
+      try {
+        const result = await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('Timeout waiting for close_tab')), 10_000);
+          extensionSocket.emit('close_tab', { tabId }, (result) => {
+            clearTimeout(timer);
+            if (result?.ok === false) reject(new Error(result.error || 'close_tab failed'));
+            else resolve(result);
+          });
+        });
+        jsonReply(res, 200, result);
+      } catch (err) {
+        jsonReply(res, 500, { error: err.message });
+      }
+      return;
+    }
+
+    if (path === '/tabs/activate' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const { tabId } = body;
+      if (!tabId) { jsonReply(res, 400, { error: 'tabId required' }); return; }
+      if (!extensionSocket) { jsonReply(res, 503, { error: 'Extension not connected' }); return; }
+      try {
+        const result = await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('Timeout waiting for activate_tab')), 10_000);
+          extensionSocket.emit('activate_tab', { tabId }, (result) => {
+            clearTimeout(timer);
+            if (result?.ok === false) reject(new Error(result.error || 'activate_tab failed'));
+            else resolve(result);
+          });
+        });
+        jsonReply(res, 200, result);
+      } catch (err) {
+        jsonReply(res, 500, { error: err.message });
+      }
+      return;
+    }
+
     // --- Notify endpoint (Case 2/3: called from bash or cc-bridge) ---
 
     if (path === '/notify' && req.method === 'POST') {
