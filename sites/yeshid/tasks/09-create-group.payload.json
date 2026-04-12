@@ -49,43 +49,43 @@
     {
       "stepId": "s3",
       "action": "delay",
-      "ms": 1500
+      "ms": 2000
     },
     {
       "stepId": "s4",
       "action": "click_text",
       "text": "New Group",
-      "note": "Click New Group button to open dialog"
+      "note": "Open New Group dialog"
     },
     {
       "stepId": "s5",
       "action": "delay",
-      "ms": 1000,
-      "note": "Wait for dialog to open"
+      "ms": 1500,
+      "note": "Wait for dialog to render"
     },
     {
       "stepId": "s6",
       "action": "type",
-      "target": "first-name-input",
+      "selector": "input[placeholder='e.g. Finance Team']",
       "value": "{{group_name}}",
-      "note": "Type group name \u2014 target will need to be resolved via vuetify_label 'group name'"
+      "note": "Type group name"
     },
     {
       "stepId": "s7",
       "action": "type",
-      "selector": "textarea, input[placeholder*='escription']",
+      "selector": "textarea[placeholder='e.g. All US-based finance employees']",
       "value": "{{group_description}}",
       "note": "Type group description"
     },
     {
       "stepId": "s8",
       "action": "click_text",
-      "text": "Create",
+      "text": "Create Group",
       "responseSignature": {
         "type": "snackbar_text",
         "selector": ".v-snackbar--active .v-snackbar__content"
       },
-      "note": "Click Create button and verify snackbar appears"
+      "note": "Click Create Group button"
     }
   ],
   "stateGraph": {

@@ -11,6 +11,12 @@
         "required": true,
         "description": "Email of the technical owner",
         "hint": "Usually an admin \u2014 suggest current user if not specified"
+      },
+      "technical_owner_name": {
+        "required": false,
+        "default": "Mike Wolf",
+        "description": "Display name of technical owner (for dropdown selection)",
+        "hint": "Used to click the right person from search results"
       }
     },
     "selfImproving": true,
@@ -29,7 +35,8 @@
   "params": {
     "base_url": "https://app.yeshid.com",
     "app_name": "",
-    "technical_owner": ""
+    "technical_owner": "",
+    "technical_owner_name": "Mike Wolf"
   },
   "chain": [
     {
@@ -48,48 +55,52 @@
     {
       "stepId": "s3",
       "action": "delay",
-      "ms": 1500
+      "ms": 2000
     },
     {
       "stepId": "s4",
-      "action": "click",
-      "target": "add-application-button",
-      "note": "Click Add application button"
+      "action": "click_text",
+      "text": "Add application",
+      "note": "Open Add Application dialog"
     },
     {
       "stepId": "s5",
       "action": "delay",
-      "ms": 1000,
-      "note": "Wait for dialog to open"
+      "ms": 1500,
+      "note": "Wait for dialog to render"
     },
     {
       "stepId": "s6",
       "action": "type",
-      "target": "application-name-input",
+      "selector": "input[placeholder='Type application name']",
       "value": "{{app_name}}",
       "note": "Type application name"
     },
     {
       "stepId": "s7",
-      "action": "type",
-      "target": "technical-owners-input",
-      "value": "{{technical_owner}}",
-      "note": "Type technical owner"
-    },
-    {
-      "stepId": "s8",
       "action": "delay",
       "ms": 500
     },
     {
+      "stepId": "s8",
+      "action": "select_entity",
+      "selector": "input[placeholder='Select technical owners']",
+      "search": "{{technical_owner}}",
+      "select_text": "{{technical_owner_name}}",
+      "delay_ms": 2500,
+      "note": "Search and select technical owner"
+    },
+    {
       "stepId": "s9",
-      "action": "click",
-      "target": "dialog-add-button",
-      "responseSignature": {
-        "type": "snackbar_text",
-        "selector": ".v-snackbar--active .v-snackbar__content"
-      },
-      "note": "Click Add in dialog and verify success"
+      "action": "delay",
+      "ms": 1000
+    },
+    {
+      "stepId": "s10",
+      "action": "click_text",
+      "text": "Add",
+      "exact": true,
+      "note": "Click Add button in dialog footer"
     }
   ],
   "stateGraph": {
