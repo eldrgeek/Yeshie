@@ -994,13 +994,17 @@ export default defineBackground(() => {
     return { found: true, clicked: true };
   }
 
-  async function PRE_FIND_AND_CLICK_TEXT(text: string, timeoutMs: number = 1500) {
+  async function PRE_FIND_AND_CLICK_TEXT(text: string, timeoutMs: number = 1500, exact: boolean = false) {
     const lower = text.toLowerCase();
     const sel = 'a,button,[role="button"],[role="menuitem"],.v-list-item,[role="option"],[role="link"]';
     const t0 = Date.now();
     while (Date.now() - t0 < timeoutMs) {
       const els = Array.from(document.querySelectorAll(sel));
-      const match = els.find((e: any) => e.offsetParent !== null && e.textContent?.trim().toLowerCase().includes(lower)) as HTMLElement | undefined;
+      const match = els.find((e: any) => {
+        if (e.offsetParent === null) return false;
+        const elText = e.textContent?.trim().toLowerCase() || '';
+        return exact ? elText === lower : elText.includes(lower);
+      }) as HTMLElement | undefined;
       if (match) {
         const rect = match.getBoundingClientRect();
         const cx = rect.x + rect.width / 2;
@@ -1016,6 +1020,99 @@ export default defineBackground(() => {
       await new Promise(r => setTimeout(r, 100));
     }
     return { found: false, waitMs: Date.now() - t0 };
+  }
+
+  async function PRE_SELECT_ENTITY(
+    selector: string,
+    search: string,
+    selectText: string,
+    dropdownSelector: string = '.dropdown-container',
+    delayMs: number = 2000
+  ) {
+    try {
+      const input = document.querySelector(selector) as HTMLInputElement | null;
+      if (!input) {
+        return { found: false, error: `Input not found: ${selector}` };
+      }
+
+      // Focus and clear the input
+      input.focus();
+      input.click();
+      input.select();
+      input.value = '';
+
+      // Type the search text character by character, simulating real input with events
+      for (const char of search) {
+        input.value += char;
+        input.dispatchEvent(new InputEvent('input', { bubbles: true, data: char }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise(r => setTimeout(r, 50));
+      }
+
+      // Wait for dropdown to appear and populate
+      const startWait = Date.now();
+      let dropdown: HTMLElement | null = null;
+      while (Date.now() - startWait < delayMs) {
+        dropdown = document.querySelector(dropdownSelector) as HTMLElement | null;
+        // offsetParent is null for position:fixed elements, so also check dimensions
+        if (dropdown && (dropdown.offsetParent !== null || dropdown.getBoundingClientRect().width > 0)) {
+          // Wait extra for content to load (dropdown may show "Loading..." initially)
+          await new Promise(r => setTimeout(r, 800));
+          break;
+        }
+        await new Promise(r => setTimeout(r, 100));
+      }
+
+      if (!dropdown) {
+        return { found: false, error: `Dropdown not found after ${delayMs}ms: ${dropdownSelector}` };
+      }
+      const dRect = dropdown.getBoundingClientRect();
+      if (dRect.width === 0 && dRect.height === 0) {
+        return { found: false, error: `Dropdown found but hidden (0x0): ${dropdownSelector}` };
+      }
+
+      // Find the matching option in the dropdown
+      const selectLower = selectText.toLowerCase();
+      const options = Array.from(dropdown.querySelectorAll('*')).filter((el: any) => {
+        // Look for elements with text content that could be clickable
+        return el.offsetParent !== null && el.textContent?.trim().toLowerCase().includes(selectLower);
+      });
+
+      if (options.length === 0) {
+        return { found: false, error: `No matching option found in dropdown for: ${selectText}` };
+      }
+
+      // Find the best match (smallest element that contains the text to avoid parent wrappers)
+      const targetOption = options.reduce((best, current) => {
+        const currentText = (current as HTMLElement).textContent?.trim().toLowerCase() || '';
+        const bestText = (best as HTMLElement).textContent?.trim().toLowerCase() || '';
+        if (currentText.length < bestText.length && currentText.includes(selectLower)) {
+          return current;
+        }
+        return best;
+      });
+
+      // Click the matched option with proper event simulation
+      const rect = (targetOption as HTMLElement).getBoundingClientRect();
+      const cx = rect.x + rect.width / 2;
+      const cy = rect.y + rect.height / 2;
+      const eventInit = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy, screenX: cx, screenY: cy };
+
+      targetOption.dispatchEvent(new PointerEvent('pointerdown', { ...eventInit, pointerId: 1, pointerType: 'mouse' }));
+      targetOption.dispatchEvent(new MouseEvent('mousedown', eventInit));
+      targetOption.dispatchEvent(new PointerEvent('pointerup', { ...eventInit, pointerId: 1, pointerType: 'mouse' }));
+      targetOption.dispatchEvent(new MouseEvent('mouseup', eventInit));
+      targetOption.dispatchEvent(new MouseEvent('click', eventInit));
+
+      return {
+        found: true,
+        selectedText: (targetOption as HTMLElement).textContent?.trim(),
+        tag: (targetOption as HTMLElement).tagName,
+        searchQuery: search,
+      };
+    } catch (error: any) {
+      return { found: false, error: error.message || 'Unknown error in PRE_SELECT_ENTITY' };
+    }
   }
 
   function PRE_PAGE_RECON() {
@@ -1810,8 +1907,25 @@ export default defineBackground(() => {
 
       if (a === 'click_text') {
         const text = interpolate(step.text || '', { ...params, ...buffer });
-        const r = await execInTab(tabId, PRE_FIND_AND_CLICK_TEXT, [text]);
+        const exact = step.exact === true;
+        const r = await execInTab(tabId, PRE_FIND_AND_CLICK_TEXT, [text, 1500, exact]);
         if (!r?.found) throw new Error('Text not found: ' + text);
+        return { stepId: step.stepId, action: a, status: 'ok', result: r, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'select_entity') {
+        const selector = step.selector || '';
+        const search = interpolate(step.search || '', { ...params, ...buffer });
+        const selectText = interpolate(step.select_text || '', { ...params, ...buffer });
+        const dropdownSelector = step.dropdown_selector || '.dropdown-container';
+        const delayMs = step.delay_ms || 2000;
+
+        if (!selector) throw new Error('select_entity requires selector parameter');
+        if (!search) throw new Error('select_entity requires search parameter');
+        if (!selectText) throw new Error('select_entity requires select_text parameter');
+
+        const r = await execInTab(tabId, PRE_SELECT_ENTITY, [selector, search, selectText, dropdownSelector, delayMs]);
+        if (!r?.found) throw new Error(r?.error || 'Failed to select entity');
         return { stepId: step.stepId, action: a, status: 'ok', result: r, durationMs: Date.now() - t0 };
       }
 
