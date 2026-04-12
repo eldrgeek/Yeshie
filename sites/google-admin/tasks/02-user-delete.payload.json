@@ -1,0 +1,303 @@
+{
+  "_meta": {
+    "task": "user-delete",
+    "description": "Delete (or suspend) a user from Google Workspace. Searches the users list, opens the user's detail page, and executes the delete or suspend action.",
+    "params": {
+      "user_identifier": {
+        "required": true,
+        "description": "Name or email of the user to delete",
+        "hint": "Can be a full name like 'John Smith' or an email like 'john.smith@mike-wolf.com'"
+      },
+      "action": {
+        "required": false,
+        "description": "Action to perform: 'delete' or 'suspend'",
+        "default": "suspend",
+        "options": ["suspend", "delete"],
+        "hint": "Default is 'suspend' (safer — reversible). Use 'delete' to permanently remove."
+      }
+    },
+    "requiredParams": ["user_identifier"],
+    "optionalParams": ["action"],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "manual_required",
+      "note": "Requires active admin session at admin.google.com."
+    },
+    "warning": "Destructive action. 'delete' is irreversible — use 'suspend' unless permanent removal is intended."
+  },
+  "runId": "google-admin-user-delete-{{timestamp}}",
+  "mode": "verification",
+  "site": "admin.google.com",
+  "params": {
+    "user_identifier": "{{user_identifier}}",
+    "action": "{{action}}",
+    "base_url": "https://admin.google.com"
+  },
+  "abstractTargets": {
+    "search-input": {
+      "match": {
+        "role": "textbox",
+        "name_contains": ["Search", "Filter", "search users"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "input[type='search']",
+        "input[placeholder*='Search' i]",
+        "input[aria-label*='Search' i]"
+      ],
+      "description": "Search/filter input on the users list page"
+    },
+    "user-row": {
+      "match": {
+        "role": "row",
+        "name_contains": ["{{user_identifier}}"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "resolveHint": "Find a table row whose text contains user_identifier (name or email). Click it to open the user detail page.",
+      "description": "User row in the users table"
+    },
+    "more-options-button": {
+      "match": {
+        "role": "button",
+        "name_contains": ["More options", "More", "Actions"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "button[aria-label*='More' i]",
+        "button[aria-haspopup='menu']",
+        "[data-action='moreActions']"
+      ],
+      "description": "More options / actions dropdown button on the user detail page"
+    },
+    "suspend-menu-item": {
+      "match": {
+        "role": "menuitem",
+        "name_contains": ["Suspend user", "Suspend"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "[role='menuitem'][aria-label*='Suspend' i]",
+        "[role='option'][aria-label*='Suspend' i]"
+      ],
+      "description": "Suspend user option in the actions dropdown"
+    },
+    "delete-menu-item": {
+      "match": {
+        "role": "menuitem",
+        "name_contains": ["Delete user", "Delete"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "[role='menuitem'][aria-label*='Delete' i]",
+        "[role='option'][aria-label*='Delete' i]"
+      ],
+      "description": "Delete user option in the actions dropdown"
+    },
+    "confirm-button": {
+      "match": {
+        "role": "button",
+        "name_contains": ["Suspend", "Delete", "Confirm", "OK", "Yes"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "[role='dialog'] button[aria-label*='Suspend' i]",
+        "[role='dialog'] button[aria-label*='Delete' i]",
+        "[role='alertdialog'] button:last-of-type"
+      ],
+      "description": "Confirm button in the suspend/delete confirmation dialog"
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/users",
+      "expect": {
+        "state": "users-list"
+      },
+      "note": "Navigate to the Users list"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "[role='main']",
+      "timeout": 8000,
+      "note": "Wait for the users table to fully render"
+    },
+    {
+      "stepId": "s3",
+      "action": "type",
+      "target": "search-input",
+      "value": "{{user_identifier}}",
+      "note": "Type in the search/filter box to find the user",
+      "responseSignature": [
+        {
+          "type": "element_visible",
+          "selector": "table tbody tr, [role='row']",
+          "timeout": 3000
+        }
+      ]
+    },
+    {
+      "stepId": "s4",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for search results to filter"
+    },
+    {
+      "stepId": "s5",
+      "action": "find_row",
+      "identifier": "{{user_identifier}}",
+      "note": "Click on the user row to open their detail page"
+    },
+    {
+      "stepId": "s6",
+      "action": "wait_for",
+      "selector": "[role='main'] h1, [role='main'] [aria-level='1']",
+      "timeout": 8000,
+      "note": "Wait for the user detail page to load"
+    },
+    {
+      "stepId": "s7",
+      "action": "click",
+      "target": "more-options-button",
+      "note": "Click 'More options' to open the actions dropdown"
+    },
+    {
+      "stepId": "s8",
+      "action": "delay",
+      "ms": 500,
+      "note": "Wait for dropdown menu to open"
+    },
+    {
+      "stepId": "s9-suspend",
+      "action": "click_text",
+      "text": "Suspend user",
+      "condition": "{{action}} == 'suspend' || !{{action}}",
+      "note": "Click 'Suspend user' from the dropdown (if action is suspend or unspecified)"
+    },
+    {
+      "stepId": "s9-delete",
+      "action": "click_text",
+      "text": "Delete user",
+      "condition": "{{action}} == 'delete'",
+      "note": "Click 'Delete user' from the dropdown (only if action is explicitly 'delete')"
+    },
+    {
+      "stepId": "s10",
+      "action": "wait_for",
+      "selector": "[role='dialog'], [role='alertdialog']",
+      "timeout": 5000,
+      "note": "Wait for the confirmation dialog to appear"
+    },
+    {
+      "stepId": "s11",
+      "action": "click",
+      "target": "confirm-button",
+      "note": "Confirm the suspend or delete action in the dialog"
+    },
+    {
+      "stepId": "s12",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for the action to complete"
+    },
+    {
+      "stepId": "s13",
+      "action": "read",
+      "candidates": [
+        "[role='alert']",
+        "[aria-live='assertive']",
+        "[aria-live='polite']",
+        "[role='status']"
+      ],
+      "store_as": "confirmation_message",
+      "note": "Capture the confirmation or error message"
+    },
+    {
+      "stepId": "s14",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/users",
+      "note": "Navigate back to users list to verify the action"
+    },
+    {
+      "stepId": "s15",
+      "action": "wait_for",
+      "selector": "[role='main']",
+      "timeout": 6000,
+      "note": "Wait for users list to render"
+    },
+    {
+      "stepId": "s16",
+      "action": "type",
+      "target": "search-input",
+      "value": "{{user_identifier}}",
+      "note": "Search for the user again to verify their status"
+    },
+    {
+      "stepId": "s17",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for filtered results"
+    },
+    {
+      "stepId": "s18",
+      "action": "read",
+      "candidates": [
+        "table tbody",
+        "[role='grid']",
+        "[role='main'] [role='row']"
+      ],
+      "store_as": "result_state",
+      "note": "Capture final table state — expect row showing 'Suspended' status or absent if deleted"
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "ServiceLogin|/signin|accounts\\.google\\.com/signin"
+          }
+        ]
+      },
+      "authenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "admin\\.google\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "ServiceLogin|/signin"
+          }
+        ]
+      },
+      "users-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "admin\\.google\\.com/ac/users$"
+          }
+        ]
+      },
+      "user-detail": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "admin\\.google\\.com/ac/users/[^/]+"
+          }
+        ]
+      }
+    }
+  }
+}

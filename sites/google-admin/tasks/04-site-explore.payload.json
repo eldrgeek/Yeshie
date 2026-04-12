@@ -1,0 +1,342 @@
+{
+  "_meta": {
+    "task": "site-explore",
+    "description": "Survey the Google Admin Console. Navigates through the key sections and uses read/assess_state actions to catalog what's available on each page.",
+    "params": {
+      "base_url": {
+        "required": false,
+        "description": "Base URL for Google Admin Console",
+        "default": "https://admin.google.com"
+      }
+    },
+    "requiredParams": [],
+    "optionalParams": ["base_url"],
+    "selfImproving": false,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "manual_required",
+      "note": "Requires active admin session at admin.google.com."
+    }
+  },
+  "runId": "google-admin-explore-{{timestamp}}",
+  "mode": "verification",
+  "site": "admin.google.com",
+  "params": {
+    "base_url": "https://admin.google.com"
+  },
+  "abstractTargets": {},
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/users",
+      "note": "Navigate to Users list"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "[role='main']",
+      "timeout": 8000,
+      "note": "Wait for main content to render"
+    },
+    {
+      "stepId": "s3",
+      "action": "assess_state",
+      "store_as": "users_page_state",
+      "note": "Assess the users list page state"
+    },
+    {
+      "stepId": "s4",
+      "action": "read",
+      "candidates": ["[role='main']", "[role='navigation']"],
+      "store_as": "users_page_content",
+      "note": "Read the full users page — capture headers, table columns, action buttons, filters"
+    },
+    {
+      "stepId": "s5",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/groups",
+      "note": "Navigate to Groups list"
+    },
+    {
+      "stepId": "s6",
+      "action": "wait_for",
+      "selector": "[role='main']",
+      "timeout": 8000,
+      "note": "Wait for groups page to render"
+    },
+    {
+      "stepId": "s7",
+      "action": "read",
+      "candidates": ["[role='main']"],
+      "store_as": "groups_page_content",
+      "note": "Read the groups page — catalog existing groups, action buttons"
+    },
+    {
+      "stepId": "s8",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/orgunits",
+      "note": "Navigate to Organizational Units"
+    },
+    {
+      "stepId": "s9",
+      "action": "wait_for",
+      "selector": "[role='main']",
+      "timeout": 8000,
+      "note": "Wait for org units page to render"
+    },
+    {
+      "stepId": "s10",
+      "action": "read",
+      "candidates": ["[role='main']"],
+      "store_as": "orgunits_page_content",
+      "note": "Read the organizational units page — catalog OUs, actions"
+    },
+    {
+      "stepId": "s11",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/security",
+      "note": "Navigate to Security settings"
+    },
+    {
+      "stepId": "s12",
+      "action": "wait_for",
+      "selector": "[role='main']",
+      "timeout": 8000,
+      "note": "Wait for security page to render"
+    },
+    {
+      "stepId": "s13",
+      "action": "read",
+      "candidates": ["[role='main']"],
+      "store_as": "security_page_content",
+      "note": "Read the security page — catalog sections, settings, alerts"
+    },
+    {
+      "stepId": "s14",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/appslist/core",
+      "note": "Navigate to Google Workspace core apps"
+    },
+    {
+      "stepId": "s15",
+      "action": "wait_for",
+      "selector": "[role='main']",
+      "timeout": 8000,
+      "note": "Wait for apps page to render"
+    },
+    {
+      "stepId": "s16",
+      "action": "read",
+      "candidates": ["[role='main']"],
+      "store_as": "apps_core_content",
+      "note": "Read the Google Workspace apps page — service statuses, per-service actions"
+    },
+    {
+      "stepId": "s17",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/billing/subscriptions",
+      "note": "Navigate to Billing subscriptions"
+    },
+    {
+      "stepId": "s18",
+      "action": "wait_for",
+      "selector": "[role='main']",
+      "timeout": 8000,
+      "note": "Wait for billing page to render"
+    },
+    {
+      "stepId": "s19",
+      "action": "read",
+      "candidates": ["[role='main']"],
+      "store_as": "billing_page_content",
+      "note": "Read the billing page — subscriptions, plans, upgrade options"
+    },
+    {
+      "stepId": "s20",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/storage",
+      "note": "Navigate to Storage management"
+    },
+    {
+      "stepId": "s21",
+      "action": "wait_for",
+      "selector": "[role='main']",
+      "timeout": 8000,
+      "note": "Wait for storage page to render"
+    },
+    {
+      "stepId": "s22",
+      "action": "read",
+      "candidates": ["[role='main']"],
+      "store_as": "storage_page_content",
+      "note": "Read the storage page — usage breakdown, top users, available actions"
+    },
+    {
+      "stepId": "s23",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/accountsettings",
+      "note": "Navigate to Account settings"
+    },
+    {
+      "stepId": "s24",
+      "action": "wait_for",
+      "selector": "[role='main']",
+      "timeout": 8000,
+      "note": "Wait for account settings page to render"
+    },
+    {
+      "stepId": "s25",
+      "action": "read",
+      "candidates": ["[role='main']"],
+      "store_as": "account_settings_content",
+      "note": "Read the account settings page — profile, preferences, admin roles sections"
+    },
+    {
+      "stepId": "s26",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/roles",
+      "note": "Navigate to Admin Roles"
+    },
+    {
+      "stepId": "s27",
+      "action": "wait_for",
+      "selector": "[role='main']",
+      "timeout": 8000,
+      "note": "Wait for admin roles page to render"
+    },
+    {
+      "stepId": "s28",
+      "action": "read",
+      "candidates": ["[role='main']"],
+      "store_as": "admin_roles_content",
+      "note": "Read the admin roles page — catalog system roles and available actions"
+    },
+    {
+      "stepId": "s29",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/devices/list",
+      "note": "Navigate to Devices list"
+    },
+    {
+      "stepId": "s30",
+      "action": "wait_for",
+      "selector": "[role='main']",
+      "timeout": 8000,
+      "note": "Wait for devices page to render"
+    },
+    {
+      "stepId": "s31",
+      "action": "read",
+      "candidates": ["[role='main']"],
+      "store_as": "devices_page_content",
+      "note": "Read the devices page — device list columns, bulk actions, filter options"
+    },
+    {
+      "stepId": "s32",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/domains/manage",
+      "note": "Navigate to Domain management"
+    },
+    {
+      "stepId": "s33",
+      "action": "wait_for",
+      "selector": "[role='main']",
+      "timeout": 8000,
+      "note": "Wait for domains page to render"
+    },
+    {
+      "stepId": "s34",
+      "action": "read",
+      "candidates": ["[role='main']"],
+      "store_as": "domains_page_content",
+      "note": "Read the domains page — primary domain, aliases, available actions"
+    },
+    {
+      "stepId": "s35",
+      "action": "assess_state",
+      "store_as": "final_exploration_state",
+      "note": "Final assessment — capture overall exploration summary across all pages visited"
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "ServiceLogin|/signin|accounts\\.google\\.com/signin"
+          }
+        ]
+      },
+      "authenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "admin\\.google\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "ServiceLogin|/signin"
+          }
+        ]
+      },
+      "users-list": {
+        "signals": [
+          {"type": "url_matches", "pattern": "admin\\.google\\.com/ac/users$"}
+        ]
+      },
+      "groups-list": {
+        "signals": [
+          {"type": "url_matches", "pattern": "admin\\.google\\.com/ac/groups"}
+        ]
+      },
+      "org-units": {
+        "signals": [
+          {"type": "url_matches", "pattern": "admin\\.google\\.com/ac/orgunits"}
+        ]
+      },
+      "security": {
+        "signals": [
+          {"type": "url_matches", "pattern": "admin\\.google\\.com/ac/security"}
+        ]
+      },
+      "apps-core": {
+        "signals": [
+          {"type": "url_matches", "pattern": "admin\\.google\\.com/ac/appslist/core"}
+        ]
+      },
+      "billing": {
+        "signals": [
+          {"type": "url_matches", "pattern": "admin\\.google\\.com/ac/billing"}
+        ]
+      },
+      "storage": {
+        "signals": [
+          {"type": "url_matches", "pattern": "admin\\.google\\.com/ac/storage"}
+        ]
+      },
+      "account-settings": {
+        "signals": [
+          {"type": "url_matches", "pattern": "admin\\.google\\.com/ac/accountsettings"}
+        ]
+      },
+      "admin-roles": {
+        "signals": [
+          {"type": "url_matches", "pattern": "admin\\.google\\.com/ac/roles"}
+        ]
+      },
+      "devices": {
+        "signals": [
+          {"type": "url_matches", "pattern": "admin\\.google\\.com/ac/devices"}
+        ]
+      },
+      "domains": {
+        "signals": [
+          {"type": "url_matches", "pattern": "admin\\.google\\.com/ac/domains"}
+        ]
+      }
+    }
+  }
+}

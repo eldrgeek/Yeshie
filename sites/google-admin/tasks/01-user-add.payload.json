@@ -1,0 +1,277 @@
+{
+  "_meta": {
+    "task": "user-add",
+    "description": "Add a new user to Google Workspace via the Google Admin Console. Opens the Add new user side panel, fills in the required fields, and submits.",
+    "params": {
+      "first_name": {
+        "required": true,
+        "description": "First name of the new user"
+      },
+      "last_name": {
+        "required": true,
+        "description": "Last name of the new user"
+      },
+      "primary_email": {
+        "required": true,
+        "description": "Email username — the part before @mike-wolf.com",
+        "hint": "e.g. 'john.doe' — @mike-wolf.com is appended automatically by Google Admin"
+      },
+      "org_unit": {
+        "required": false,
+        "description": "Organizational unit path (e.g. 'Everyone' or 'Test Department')",
+        "default": null,
+        "hint": "Leave blank to use the root org unit (mike-wolf.com)"
+      },
+      "password": {
+        "required": false,
+        "description": "Initial password for the new account. Leave blank to auto-generate.",
+        "default": null
+      }
+    },
+    "requiredParams": ["first_name", "last_name", "primary_email"],
+    "optionalParams": ["org_unit", "password"],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "manual_required",
+      "note": "Google Admin requires manual login with password + optional 2FA. Ensure the admin account (mw@mike-wolf.com) is already signed in at admin.google.com before running."
+    },
+    "warning": "Requires active admin session at admin.google.com."
+  },
+  "runId": "google-admin-user-add-{{timestamp}}",
+  "mode": "verification",
+  "site": "admin.google.com",
+  "params": {
+    "first_name": "{{first_name}}",
+    "last_name": "{{last_name}}",
+    "primary_email": "{{primary_email}}",
+    "org_unit": "{{org_unit}}",
+    "password": "{{password}}",
+    "base_url": "https://admin.google.com"
+  },
+  "abstractTargets": {
+    "add-user-button": {
+      "match": {
+        "role": "button",
+        "name_contains": ["Add new user"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "[data-action*='addUser']",
+        "button[aria-label*='Add new user' i]"
+      ],
+      "description": "Add new user button in the users list bulk actions bar"
+    },
+    "first-name-input": {
+      "match": {
+        "role": "textbox",
+        "name_contains": ["First name"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "input[placeholder*='First name' i]",
+        "input[aria-label*='First name' i]",
+        "input[name='firstName']"
+      ],
+      "description": "First name input in the Add new user side panel"
+    },
+    "last-name-input": {
+      "match": {
+        "role": "textbox",
+        "name_contains": ["Last name"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "input[placeholder*='Last name' i]",
+        "input[aria-label*='Last name' i]",
+        "input[name='lastName']"
+      ],
+      "description": "Last name input in the Add new user side panel"
+    },
+    "primary-email-input": {
+      "match": {
+        "role": "textbox",
+        "name_contains": ["Primary email", "Username", "email address"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "input[placeholder*='username' i]",
+        "input[aria-label*='Primary email' i]",
+        "input[name='primaryEmail']",
+        "input[autocomplete='username']"
+      ],
+      "description": "Primary email username input in the Add new user panel. Only the part before @mike-wolf.com."
+    },
+    "org-unit-selector": {
+      "match": {
+        "role": "button",
+        "name_contains": ["Organizational unit", "org unit"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "button[aria-label*='Organizational unit' i]",
+        "[data-field='orgUnit'] button"
+      ],
+      "description": "Organizational unit selector button in the Add new user panel"
+    },
+    "submit-add-user-button": {
+      "match": {
+        "role": "button",
+        "name_contains": ["Add new user", "Create user", "Add user"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "button[type='submit']",
+        "div[role='button'][aria-label*='Add new user' i]"
+      ],
+      "description": "Submit button inside the Add new user side panel"
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/users",
+      "expect": {
+        "state": "users-list"
+      },
+      "note": "Navigate to the Users list in Google Admin"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "[role='main']",
+      "timeout": 8000,
+      "note": "Wait for the main content area to fully render"
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "target": "add-user-button",
+      "note": "Click 'Add new user' to open the side panel"
+    },
+    {
+      "stepId": "s4",
+      "action": "wait_for",
+      "selector": "input[placeholder*='First name' i], input[aria-label*='First name' i], input[name='firstName']",
+      "timeout": 6000,
+      "note": "Wait for the Add new user side panel to open and form fields to appear"
+    },
+    {
+      "stepId": "s5",
+      "action": "type",
+      "target": "first-name-input",
+      "value": "{{first_name}}",
+      "note": "Enter the first name"
+    },
+    {
+      "stepId": "s6",
+      "action": "type",
+      "target": "last-name-input",
+      "value": "{{last_name}}",
+      "note": "Enter the last name"
+    },
+    {
+      "stepId": "s7",
+      "action": "type",
+      "target": "primary-email-input",
+      "value": "{{primary_email}}",
+      "note": "Enter just the username portion (before @mike-wolf.com). Google Admin appends @domain automatically."
+    },
+    {
+      "stepId": "s8",
+      "action": "click",
+      "target": "submit-add-user-button",
+      "note": "Click 'Add new user' to submit the form and create the account",
+      "responseSignature": [
+        {
+          "any_of": [
+            {
+              "type": "element_visible",
+              "selector": "[role='alert'], [aria-live='assertive'], [aria-live='polite']",
+              "textMatch": "created|added|success|new user",
+              "timeout": 10000
+            },
+            {
+              "type": "element_visible",
+              "selector": "[role='status'], .notification-panel",
+              "timeout": 10000
+            }
+          ]
+        }
+      ],
+      "failureSignature": [
+        {
+          "any_of": [
+            {
+              "type": "element_visible",
+              "selector": "[role='alert'], [aria-live='assertive']",
+              "textMatch": "error|failed|already exists|invalid",
+              "timeout": 8000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "s9",
+      "action": "read",
+      "candidates": [
+        "[role='alert']",
+        "[aria-live='assertive']",
+        "[aria-live='polite']",
+        "[role='status']",
+        ".notification-panel"
+      ],
+      "store_as": "confirmation_message",
+      "note": "Capture the confirmation or error message from Google Admin"
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "ServiceLogin|/signin|accounts\\.google\\.com/signin"
+          }
+        ]
+      },
+      "authenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "admin\\.google\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "ServiceLogin|/signin"
+          }
+        ]
+      },
+      "users-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "admin\\.google\\.com/ac/users"
+          }
+        ]
+      },
+      "user-detail": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "admin\\.google\\.com/ac/users/[^/]+"
+          }
+        ]
+      }
+    }
+  }
+}
