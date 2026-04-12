@@ -1,0 +1,327 @@
+{
+  "_meta": {
+    "task": "user-modify",
+    "description": "Modify a Google Workspace user's name. Searches for the user, opens their detail page, clicks the name section to edit it, updates the fields, and saves.",
+    "params": {
+      "user_identifier": {
+        "required": true,
+        "description": "Current name or email of the user to modify"
+      },
+      "new_first_name": {
+        "required": false,
+        "description": "New first name (leave blank to keep current)"
+      },
+      "new_last_name": {
+        "required": false,
+        "description": "New last name (leave blank to keep current)"
+      },
+      "new_email": {
+        "required": false,
+        "description": "New primary email username (the part before @mike-wolf.com). Uses 'Rename user' flow.",
+        "hint": "Changing primary email triggers the Google Admin 'Rename user' flow. This changes sign-in address."
+      }
+    },
+    "requiredParams": ["user_identifier"],
+    "optionalParams": ["new_first_name", "new_last_name", "new_email"],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "manual_required",
+      "note": "Requires active admin session at admin.google.com."
+    },
+    "warning": "Renaming the primary email (new_email) changes the user's sign-in address. Use with care."
+  },
+  "runId": "google-admin-user-modify-{{timestamp}}",
+  "mode": "verification",
+  "site": "admin.google.com",
+  "params": {
+    "user_identifier": "{{user_identifier}}",
+    "new_first_name": "{{new_first_name}}",
+    "new_last_name": "{{new_last_name}}",
+    "new_email": "{{new_email}}",
+    "base_url": "https://admin.google.com"
+  },
+  "abstractTargets": {
+    "search-input": {
+      "match": {
+        "role": "textbox",
+        "name_contains": ["Search", "Filter", "search users"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "input[type='search']",
+        "input[placeholder*='Search' i]",
+        "input[aria-label*='Search' i]"
+      ],
+      "description": "Search/filter input on the users list page"
+    },
+    "edit-first-name-input": {
+      "match": {
+        "role": "textbox",
+        "name_contains": ["First name"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "input[placeholder*='First name' i]",
+        "input[aria-label*='First name' i]",
+        "input[name='firstName']"
+      ],
+      "description": "First name input in the edit name form on the user detail page"
+    },
+    "edit-last-name-input": {
+      "match": {
+        "role": "textbox",
+        "name_contains": ["Last name"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "input[placeholder*='Last name' i]",
+        "input[aria-label*='Last name' i]",
+        "input[name='lastName']"
+      ],
+      "description": "Last name input in the edit name form on the user detail page"
+    },
+    "edit-email-input": {
+      "match": {
+        "role": "textbox",
+        "name_contains": ["Primary email", "Username", "New email"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "input[placeholder*='username' i]",
+        "input[aria-label*='Primary email' i]",
+        "input[name='primaryEmail']"
+      ],
+      "description": "Primary email username input in the rename user form"
+    },
+    "save-button": {
+      "match": {
+        "role": "button",
+        "name_contains": ["Save", "Update", "Rename", "Done"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "button[type='submit']",
+        "[role='button'][aria-label*='Save' i]",
+        "[role='button'][aria-label*='Rename' i]"
+      ],
+      "description": "Save/update/rename button in the edit form"
+    },
+    "more-options-button": {
+      "match": {
+        "role": "button",
+        "name_contains": ["More options", "More", "Actions"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "button[aria-label*='More' i]",
+        "button[aria-haspopup='menu']"
+      ],
+      "description": "More options button on the user detail page (needed for 'Rename user' flow)"
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/users",
+      "expect": {
+        "state": "users-list"
+      },
+      "note": "Navigate to the Users list"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "[role='main']",
+      "timeout": 8000,
+      "note": "Wait for the page to fully render"
+    },
+    {
+      "stepId": "s3",
+      "action": "type",
+      "target": "search-input",
+      "value": "{{user_identifier}}",
+      "note": "Search for the user"
+    },
+    {
+      "stepId": "s4",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for search results to filter"
+    },
+    {
+      "stepId": "s5",
+      "action": "find_row",
+      "identifier": "{{user_identifier}}",
+      "note": "Click on the user row to open their detail page"
+    },
+    {
+      "stepId": "s6",
+      "action": "wait_for",
+      "selector": "[role='main'] h1, [role='main'] [aria-level='1']",
+      "timeout": 8000,
+      "note": "Wait for the user detail page to load"
+    },
+    {
+      "stepId": "s7",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Let the detail page fully render all sections"
+    },
+    {
+      "stepId": "s8",
+      "action": "read",
+      "candidates": ["[role='main']"],
+      "store_as": "user_detail_snapshot",
+      "note": "Snapshot the user detail page to understand what sections and actions are available"
+    },
+    {
+      "stepId": "s9",
+      "action": "click_text",
+      "text": "Edit",
+      "condition": "{{new_first_name}} || {{new_last_name}}",
+      "note": "Click the 'Edit' button or pencil icon on the user's name section (only when modifying name)"
+    },
+    {
+      "stepId": "s10",
+      "action": "wait_for",
+      "selector": "input[placeholder*='First name' i], input[aria-label*='First name' i], input[name='firstName']",
+      "timeout": 5000,
+      "condition": "{{new_first_name}} || {{new_last_name}}",
+      "note": "Wait for name edit inputs to appear"
+    },
+    {
+      "stepId": "s11",
+      "action": "type",
+      "target": "edit-first-name-input",
+      "value": "{{new_first_name}}",
+      "condition": "{{new_first_name}}",
+      "note": "Update first name if provided"
+    },
+    {
+      "stepId": "s12",
+      "action": "type",
+      "target": "edit-last-name-input",
+      "value": "{{new_last_name}}",
+      "condition": "{{new_last_name}}",
+      "note": "Update last name if provided"
+    },
+    {
+      "stepId": "s13",
+      "action": "click",
+      "target": "save-button",
+      "condition": "{{new_first_name}} || {{new_last_name}}",
+      "note": "Save the name changes"
+    },
+    {
+      "stepId": "s14",
+      "action": "delay",
+      "ms": 2000,
+      "condition": "{{new_first_name}} || {{new_last_name}}",
+      "note": "Wait for save to complete"
+    },
+    {
+      "stepId": "s15",
+      "action": "click",
+      "target": "more-options-button",
+      "condition": "{{new_email}}",
+      "note": "Open More options dropdown to access 'Rename user' (only if changing email)"
+    },
+    {
+      "stepId": "s16",
+      "action": "click_text",
+      "text": "Rename user",
+      "condition": "{{new_email}}",
+      "note": "Click 'Rename user' from the More options dropdown"
+    },
+    {
+      "stepId": "s17",
+      "action": "wait_for",
+      "selector": "input[name='primaryEmail'], input[aria-label*='Primary email' i]",
+      "timeout": 5000,
+      "condition": "{{new_email}}",
+      "note": "Wait for the rename user form to appear"
+    },
+    {
+      "stepId": "s18",
+      "action": "type",
+      "target": "edit-email-input",
+      "value": "{{new_email}}",
+      "condition": "{{new_email}}",
+      "note": "Enter the new email username (part before @mike-wolf.com)"
+    },
+    {
+      "stepId": "s19",
+      "action": "click",
+      "target": "save-button",
+      "condition": "{{new_email}}",
+      "note": "Confirm the rename"
+    },
+    {
+      "stepId": "s20",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for operation to complete"
+    },
+    {
+      "stepId": "s21",
+      "action": "read",
+      "candidates": [
+        "[role='alert']",
+        "[aria-live='assertive']",
+        "[aria-live='polite']",
+        "[role='status']"
+      ],
+      "store_as": "confirmation_message",
+      "note": "Capture the confirmation or error message"
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "ServiceLogin|/signin|accounts\\.google\\.com/signin"
+          }
+        ]
+      },
+      "authenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "admin\\.google\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "ServiceLogin|/signin"
+          }
+        ]
+      },
+      "users-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "admin\\.google\\.com/ac/users$"
+          }
+        ]
+      },
+      "user-detail": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "admin\\.google\\.com/ac/users/[^/]+"
+          }
+        ]
+      }
+    }
+  }
+}
