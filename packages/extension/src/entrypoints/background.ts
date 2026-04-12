@@ -104,6 +104,16 @@ export default defineBackground(() => {
       }
     });
 
+    // Relay asks to survey a tab — runs PRE_SURVEY_PAGE and returns the structured result
+    socket.on('survey_tab', async ({ tabId }: { tabId: number }, ack: (result: any) => void) => {
+      try {
+        const result = await execInTab(tabId, PRE_SURVEY_PAGE, []);
+        ack({ ok: true, ...result });
+      } catch (err: any) {
+        ack({ ok: false, error: err.message });
+      }
+    });
+
     // Relay injects a chat message into a specific tab's side-panel conversation.
     // The message appears as if the user typed it, then flows through the normal
     // chat path so the listener receives it just like any user-initiated message.
@@ -1253,6 +1263,198 @@ export default defineBackground(() => {
     return entities;
   }
 
+  function PRE_SURVEY_PAGE() {
+    // Read-only survey of the current page — foundation for universal site exploration.
+    // Runs via chrome.scripting.executeScript in MAIN world (pre-bundled, no eval).
+    // Output is kept under ~50KB: max 100 elements per category, strings truncated.
+    if (document.readyState !== 'complete' && document.readyState !== 'interactive') {
+      return { error: 'Page not loaded', readyState: document.readyState };
+    }
+
+    const MAX_EL = 100;
+
+    function trunc(s: string | null | undefined, n = 80): string {
+      if (!s) return '';
+      return s.length > n ? s.slice(0, n) : s;
+    }
+
+    function stableSel(el: Element): string {
+      if (el.id) return '#' + el.id.replace(/\s+/g, '_');
+      const tag = el.tagName.toLowerCase();
+      const cls = Array.from(el.classList)
+        .filter(c => c.length > 1 && c.length < 30 && !/^(ng-|_ng|js-)/.test(c))
+        .slice(0, 2);
+      return tag + (cls.length ? '.' + cls.join('.') : '');
+    }
+
+    function getLabelFor(el: Element): string | null {
+      const lb = el.getAttribute('aria-labelledby');
+      if (lb) { const r = document.getElementById(lb); if (r?.textContent?.trim()) return trunc(r.textContent.trim()); }
+      const al = el.getAttribute('aria-label'); if (al) return trunc(al);
+      if (el.id) { const lf = document.querySelector(`label[for="${el.id}"]`); if (lf?.textContent?.trim()) return trunc(lf.textContent.trim()); }
+      const vl = el.closest('.v-input,.v-field')?.querySelector('.v-label,.v-field-label');
+      if (vl?.textContent?.trim()) return trunc(vl.textContent.trim());
+      const pl = el.closest('label'); if (pl?.textContent?.trim()) return trunc(pl.textContent.trim());
+      const sib = el.parentElement?.previousElementSibling;
+      if (sib && ['LABEL', 'P', 'SPAN', 'DIV'].includes(sib.tagName)) {
+        const t = sib.textContent?.trim();
+        if (t && t.length < 60) return t;
+      }
+      return null;
+    }
+
+    // Framework hints
+    const fw: string[] = [];
+    if (document.querySelector('.v-application,.v-app,[data-v-app]')) fw.push('vuetify');
+    if (document.querySelector('[_nghost-],[ng-version]')) fw.push('angular');
+    if (document.querySelector('[data-reactroot],[data-react-]') ||
+        (document as any).getElementById?.('root')?._reactRootContainer) fw.push('react');
+    if (document.querySelector('.mat-app-background,[class*="mat-"]')) fw.push('material-design');
+    if (document.querySelector('[class*="chakra-"]')) fw.push('chakra-ui');
+    if (document.querySelector('[class*="ant-"]')) fw.push('ant-design');
+    if (document.querySelector('[class*="mantine-"]')) fw.push('mantine');
+
+    // Auth signals
+    const authIndicators: string[] = [];
+    const hasLoginForm = !!document.querySelector('input[type="password"]');
+    if (hasLoginForm) authIndicators.push('login_form');
+    if (/\/(login|signin|sign-in|auth)/.test(window.location.pathname)) authIndicators.push('on_login_page');
+    if (document.querySelector('[href*="logout"],[href*="sign-out"],[data-action*="logout"]')) authIndicators.push('logout_link');
+    if (document.querySelector('[class*="avatar"],[class*="user-menu"],[class*="account-menu"],[aria-label*="account" i],[aria-label*="profile" i]')) authIndicators.push('user_avatar');
+    const loggedIn = !hasLoginForm && authIndicators.some(i => i === 'logout_link' || i === 'user_avatar');
+
+    // Nav helper — dedup by href
+    function navLinks(sel: string, limit = 40): Array<{ text: string; href: string; active: boolean }> {
+      const seen = new Set<string>();
+      const out: Array<{ text: string; href: string; active: boolean }> = [];
+      for (const a of Array.from(document.querySelectorAll(sel + ' a[href]'))) {
+        if ((a as HTMLElement).offsetParent === null) continue;
+        const text = trunc((a as HTMLElement).textContent?.trim());
+        const href = a.getAttribute('href') || '';
+        if (!text || seen.has(href)) continue;
+        seen.add(href);
+        out.push({
+          text,
+          href,
+          active: a.getAttribute('aria-current') === 'page' ||
+                  a.classList.contains('v-list-item--active') ||
+                  a.classList.contains('active'),
+        });
+        if (out.length >= limit) break;
+      }
+      return out;
+    }
+
+    const sidebar = navLinks('.v-navigation-drawer,aside,[class*="sidebar"],[class*="side-nav"]');
+    const topnav = navLinks('header nav,.v-app-bar nav,[class*="topnav"],[class*="top-nav"]');
+    const breadcrumbs = Array.from(document.querySelectorAll('[aria-label="breadcrumb"] a,[class*="breadcrumb"] a'))
+      .map(a => ({ text: trunc((a as HTMLElement).textContent?.trim()), href: a.getAttribute('href') || '' }))
+      .slice(0, 10);
+    const expandable = Array.from(document.querySelectorAll('[aria-expanded],[data-state]'))
+      .filter(el => (el as HTMLElement).textContent?.trim())
+      .slice(0, 20)
+      .map(el => ({
+        text: trunc((el as HTMLElement).textContent?.trim()),
+        expanded: el.getAttribute('aria-expanded') === 'true' || el.getAttribute('data-state') === 'open',
+      }))
+      .filter(e => e.text);
+
+    // Buttons
+    const seenBtns = new Set<string>();
+    const buttons: Array<{ text: string; aria_label: string | null; selector: string }> = [];
+    for (const b of Array.from(document.querySelectorAll('button,[role="button"],[role="menuitem"]'))) {
+      if ((b as HTMLElement).offsetParent === null) continue;
+      const text = trunc((b as HTMLElement).textContent?.trim());
+      const ariaLabel = b.getAttribute('aria-label') || null;
+      const key = (text || '') + '|' + (ariaLabel || '');
+      if (!text && !ariaLabel) continue;
+      if (seenBtns.has(key)) continue;
+      seenBtns.add(key);
+      buttons.push({ text, aria_label: ariaLabel, selector: stableSel(b) });
+      if (buttons.length >= MAX_EL) break;
+    }
+
+    // Links
+    const seenLinks = new Set<string>();
+    const links: Array<{ text: string; href: string; selector: string }> = [];
+    for (const a of Array.from(document.querySelectorAll('a[href]'))) {
+      if ((a as HTMLElement).offsetParent === null) continue;
+      const text = trunc((a as HTMLElement).textContent?.trim());
+      const href = a.getAttribute('href') || '';
+      if (!text) continue;
+      const key = text + '|' + href;
+      if (seenLinks.has(key)) continue;
+      seenLinks.add(key);
+      links.push({ text, href, selector: stableSel(a) });
+      if (links.length >= MAX_EL) break;
+    }
+
+    // Inputs
+    const inputs: Array<{ type: string; placeholder: string | null; name: string | null; aria_label: string | null; label: string | null; selector: string }> = [];
+    for (const inp of Array.from(document.querySelectorAll('input:not([type="hidden"]),textarea,select,[contenteditable="true"]'))) {
+      if ((inp as HTMLElement).offsetParent === null) continue;
+      inputs.push({
+        type: (inp as HTMLInputElement).type || inp.tagName.toLowerCase(),
+        placeholder: inp.getAttribute('placeholder') || null,
+        name: inp.getAttribute('name') || null,
+        aria_label: inp.getAttribute('aria-label') || null,
+        label: getLabelFor(inp),
+        selector: stableSel(inp),
+      });
+      if (inputs.length >= MAX_EL) break;
+    }
+
+    // Selects with options (only if ≤30 options to stay small)
+    const selects: Array<{ name: string | null; label: string | null; options: Array<{ value: string; text: string }> | null; option_count: number; selector: string }> =
+      Array.from(document.querySelectorAll('select'))
+        .filter(s => (s as HTMLElement).offsetParent !== null)
+        .map(sel => {
+          const opts = Array.from((sel as HTMLSelectElement).options);
+          return {
+            name: sel.getAttribute('name') || null,
+            label: getLabelFor(sel),
+            options: opts.length <= 30 ? opts.map(o => ({ value: o.value, text: o.text })) : null,
+            option_count: opts.length,
+            selector: stableSel(sel),
+          };
+        });
+
+    // Tables (max 10, header + row count only to stay lean)
+    const tables: Array<{ headers: string[]; row_count: number }> =
+      Array.from(document.querySelectorAll('table,.v-data-table,[role="grid"]'))
+        .slice(0, 10)
+        .map(table => ({
+          headers: Array.from(table.querySelectorAll('thead th,[role="columnheader"]'))
+            .map(th => trunc(th.textContent?.trim()))
+            .filter(Boolean),
+          row_count: table.querySelectorAll('tbody tr,[role="row"]').length,
+        }));
+
+    // Forms
+    const forms: Array<{ action: string | null; method: string; fields: Array<{ type: string; name: string | null; placeholder: string | null; label: string | null }> }> =
+      Array.from(document.querySelectorAll('form')).map(form => ({
+        action: form.getAttribute('action') || null,
+        method: (form.getAttribute('method') || 'get').toLowerCase(),
+        fields: Array.from(form.querySelectorAll('input:not([type="hidden"]),textarea,select')).map(inp => ({
+          type: (inp as HTMLInputElement).type || inp.tagName.toLowerCase(),
+          name: inp.getAttribute('name') || null,
+          placeholder: inp.getAttribute('placeholder') || null,
+          label: getLabelFor(inp),
+        })),
+      }));
+
+    return {
+      url: window.location.href,
+      title: document.title,
+      heading: document.querySelector('h1')?.textContent?.trim() || null,
+      ready_state: document.readyState,
+      framework_hints: [...new Set(fw)],
+      navigation: { sidebar, topnav, breadcrumbs, expandable },
+      interactive: { buttons, links, inputs, selects, tables, forms },
+      auth_signals: { logged_in: loggedIn, indicators: authIndicators },
+    };
+  }
+
   function PRE_RUN_DOMQUERY(code: string, params: Record<string, any>) {
     // This function runs in MAIN world via executeScript (pre-bundled, not eval)
     // It handles common DOM query patterns from payload js steps
@@ -1957,6 +2159,14 @@ export default defineBackground(() => {
         // socket is captured from outer scope via closure
         socket.emit('notify', { message, title });
         return { stepId: step.stepId, action: a, status: 'ok', message, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'survey_page') {
+        // Read-only structural survey of the tab — no navigation, no clicks
+        const surveyTabId: number = step.tabId || tabId;
+        const result = await execInTab(surveyTabId, PRE_SURVEY_PAGE, []);
+        if (step.store_as) buffer[step.store_as] = result;
+        return { stepId: step.stepId, action: a, status: 'ok', result, storedAs: step.store_as, durationMs: Date.now() - t0 };
       }
 
       return { stepId: step.stepId, action: a, status: 'unsupported', durationMs: Date.now() - t0 };

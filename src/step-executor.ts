@@ -6,7 +6,7 @@ export type StepAction =
   | 'assess_state' | 'navigate' | 'open_tab' | 'type' | 'click' | 'click_preset'
   | 'wait_for' | 'read' | 'hover' | 'scroll' | 'assert' | 'js' | 'select'
   | 'probe_affordances' | 'delay' | 'perceive' | 'find_row' | 'click_text'
-  | 'capture_entities' | 'navigate_to_entity';
+  | 'capture_entities' | 'navigate_to_entity' | 'survey_page';
 
 export interface StepResult {
   stepId: string;
@@ -646,6 +646,72 @@ export class StepExecutor {
         }).filter(a => a.text || a.ariaLabel || a.title);
         if (step.store_as) this.buffer[step.store_as] = affordances;
         return { stepId: step.stepId, action: a, status: 'ok', affordances, storedAs: step.store_as, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'survey_page') {
+        // Structural read-only survey — jsdom version for unit testing.
+        // The browser version runs PRE_SURVEY_PAGE via chrome.scripting.executeScript.
+        const survey = {
+          url: window.location.href,
+          title: this.doc.title,
+          heading: this.doc.querySelector('h1')?.textContent?.trim() || null,
+          ready_state: 'complete',
+          framework_hints: [] as string[],
+          navigation: {
+            sidebar: [] as Array<{ text: string; href: string; active: boolean }>,
+            topnav: [] as Array<{ text: string; href: string; active: boolean }>,
+            breadcrumbs: [] as Array<{ text: string; href: string }>,
+            expandable: [] as Array<{ text: string; expanded: boolean }>,
+          },
+          interactive: {
+            buttons: Array.from(this.doc.querySelectorAll('button,[role="button"]'))
+              .slice(0, 100)
+              .map(b => ({
+                text: (b as HTMLElement).textContent?.trim() || '',
+                aria_label: b.getAttribute('aria-label') || null,
+                selector: b.id ? '#' + b.id : b.tagName.toLowerCase(),
+              }))
+              .filter(b => b.text || b.aria_label),
+            links: Array.from(this.doc.querySelectorAll('a[href]'))
+              .slice(0, 100)
+              .map(a => ({
+                text: (a as HTMLElement).textContent?.trim() || '',
+                href: a.getAttribute('href') || '',
+                selector: a.id ? '#' + a.id : 'a',
+              }))
+              .filter(l => l.text),
+            inputs: Array.from(this.doc.querySelectorAll('input:not([type="hidden"]),textarea,select'))
+              .slice(0, 100)
+              .map(inp => ({
+                type: (inp as HTMLInputElement).type || inp.tagName.toLowerCase(),
+                placeholder: inp.getAttribute('placeholder') || null,
+                name: inp.getAttribute('name') || null,
+                aria_label: inp.getAttribute('aria-label') || null,
+                label: null as string | null,
+                selector: inp.id ? '#' + inp.id : inp.tagName.toLowerCase(),
+              })),
+            selects: [] as Array<{ name: string | null; label: string | null; options: Array<{ value: string; text: string }> | null; option_count: number; selector: string }>,
+            tables: Array.from(this.doc.querySelectorAll('table'))
+              .slice(0, 10)
+              .map(t => ({
+                headers: Array.from(t.querySelectorAll('thead th')).map(th => th.textContent?.trim() || ''),
+                row_count: t.querySelectorAll('tbody tr').length,
+              })),
+            forms: Array.from(this.doc.querySelectorAll('form')).map(f => ({
+              action: f.getAttribute('action') || null,
+              method: (f.getAttribute('method') || 'get').toLowerCase(),
+              fields: Array.from(f.querySelectorAll('input:not([type="hidden"]),textarea,select')).map(inp => ({
+                type: (inp as HTMLInputElement).type || inp.tagName.toLowerCase(),
+                name: inp.getAttribute('name') || null,
+                placeholder: inp.getAttribute('placeholder') || null,
+                label: null as string | null,
+              })),
+            })),
+          },
+          auth_signals: { logged_in: false, indicators: [] as string[] },
+        };
+        if (step.store_as) this.buffer[step.store_as] = survey;
+        return { stepId: step.stepId, action: a, status: 'ok', result: survey, storedAs: step.store_as, durationMs: Date.now() - t0 };
       }
 
             return { stepId: step.stepId, action: a, status: 'unsupported', durationMs: Date.now() - t0 };

@@ -806,6 +806,30 @@ h2{color:#58a6ff}hr{border-color:#333}
       return;
     }
 
+    // --- Survey endpoint ---
+
+    if (path === '/survey' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const { tabId } = body;
+      if (!tabId) { jsonReply(res, 400, { error: 'tabId required' }); return; }
+      if (!extensionSocket) { jsonReply(res, 503, { error: 'Extension not connected' }); return; }
+      try {
+        const result = await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('Timeout waiting for survey_tab')), 30_000);
+          extensionSocket.emit('survey_tab', { tabId }, (result) => {
+            clearTimeout(timer);
+            if (result?.ok === false) reject(new Error(result.error || 'survey_tab failed'));
+            else resolve(result);
+          });
+        });
+        jsonReply(res, 200, result);
+      } catch (err) {
+        jsonReply(res, 500, { error: err.message });
+      }
+      return;
+    }
+
     // Fallback
     res.writeHead(404); res.end();
   });
