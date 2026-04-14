@@ -204,6 +204,37 @@ export default defineBackground(() => {
   const runs = new Map<string, any>();
   const abortFlags = new Map<string, boolean>();
 
+  // ── Teach session state ──────────────────────────────────────────────────────
+  // Tracks active teach walkthroughs per tab. Used to recover after SPA navigation.
+  const teachSessions = new Map<number, { steps: any[]; stepIndex: number }>();
+
+  chrome.tabs.onUpdated.addListener((tabId, info) => {
+    if (info.status !== 'complete') return;
+    const session = teachSessions.get(tabId);
+    if (!session) return;
+
+    // Ping the content script — if it responds, the SPA navigation left it intact.
+    // If it doesn't respond, the page was hard-reloaded: re-inject and restore.
+    chrome.tabs.sendMessage(tabId, { type: 'teach_query_step' }, (resp) => {
+      if (chrome.runtime.lastError || !resp?.ok) {
+        // Content script is gone — re-inject and restore teach state
+        chrome.scripting.executeScript({
+          target: { tabId },
+          files: ['content-overlay.js'],
+        }).then(() => {
+          setTimeout(() => {
+            chrome.tabs.sendMessage(tabId, {
+              type: 'teach_restore',
+              steps: session.steps,
+              stepIndex: session.stepIndex,
+            });
+          }, 300);
+        }).catch(() => {});
+      }
+      // else: SPA nav — content script is alive, overlay persists
+    });
+  });
+
   function collectSurpriseEvidence(stepResults: any[] = [], topLevelError?: string) {
     const collected = stepResults.flatMap((r: any) => Array.isArray(r?.surpriseEvidence) ? r.surpriseEvidence : []);
     if (topLevelError && collected.length === 0) {
@@ -2564,10 +2595,36 @@ export default defineBackground(() => {
         if (!result.ok) {
           sendResponse({ ok: false, error: 'Content overlay loaded but message delivery still failed. Try navigating the YeshID tab.' });
         } else {
+          // Checkpoint teach session for SPA navigation recovery
+          if (msg.type === 'teach_start' && targetTabId !== undefined) {
+            const session = { steps: msg.steps, stepIndex: 0 };
+            teachSessions.set(targetTabId, session);
+            chrome.storage.session.set({ [`__yeshieTeach_${targetTabId}`]: session });
+          }
           sendResponse({ ok: true, tabId: targetTabId });
         }
       })();
       return true;
+    }
+    if (msg.type === 'teach_step_complete') {
+      // Content script reports a step completed — checkpoint for SPA recovery
+      const tabId = sender.tab?.id;
+      if (tabId !== undefined) {
+        const session = teachSessions.get(tabId);
+        if (session) {
+          session.stepIndex = msg.stepIndex + 1;
+          chrome.storage.session.set({ [`__yeshieTeach_${tabId}`]: { steps: session.steps, stepIndex: session.stepIndex } });
+        }
+      }
+      return false;
+    }
+    if (msg.type === 'teach_exit' || msg.type === 'teach_skip') {
+      const tabId = sender.tab?.id;
+      if (tabId !== undefined) {
+        teachSessions.delete(tabId);
+        chrome.storage.session.remove(`__yeshieTeach_${tabId}`);
+      }
+      return false;
     }
     if (msg.type === 'content_ready') return false;
   });

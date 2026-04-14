@@ -41,6 +41,14 @@ export default defineContentScript({
       } else if (msg.type === 'teach_end') {
         teach.endTeach();
         sendResponse({ ok: true });
+      } else if (msg.type === 'teach_query_step') {
+        // Background pings this to check if content script is alive after SPA nav
+        sendResponse({ ok: true, stepIndex: teach.getCurrentStep() });
+      } else if (msg.type === 'teach_restore') {
+        // Re-inject overlay after hard navigation; resume at the checkpointed step
+        teach.startTeach(msg.steps);
+        if (msg.stepIndex > 0) teach.gotoStep(msg.stepIndex);
+        sendResponse({ ok: true });
       }
     });
   }

@@ -122,6 +122,32 @@ const TOOLTIP_STYLES = `
   }
 `;
 
+/**
+ * Resolve a CSS selector that may contain Playwright-style `:has-text()` pseudo-selectors
+ * or comma-separated fallback lists — neither of which vanilla querySelector supports.
+ */
+function resolveSelector(selector: string): Element | null {
+  for (const part of selector.split(',').map(s => s.trim())) {
+    const hasTextMatch = part.match(/^(.*?):has-text\(['"](.+?)['"]\)(.*)$/);
+    if (hasTextMatch) {
+      const [, base, text, rest] = hasTextMatch;
+      const candidates = Array.from(
+        document.querySelectorAll((base.trim() || '*') + (rest || ''))
+      );
+      const el = candidates.find(el => el.textContent?.includes(text));
+      if (el) return el;
+    } else {
+      try {
+        const el = document.querySelector(part);
+        if (el) return el;
+      } catch (_) {
+        // invalid selector fragment — skip
+      }
+    }
+  }
+  return null;
+}
+
 export function createTeachTooltip(container: HTMLElement): TeachTooltip {
   let steps: TeachStep[] = [];
   let currentStepIndex = -1;
@@ -267,8 +293,8 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
     createMask();
     createTooltipEl();
 
-    // Find target in main document
-    const target = document.querySelector(step.targetSelector) as HTMLElement | null;
+    // Find target in main document — resolveSelector handles :has-text() and comma fallbacks
+    const target = resolveSelector(step.targetSelector) as HTMLElement | null;
     const targetRect = target ? target.getBoundingClientRect() : null;
     const elementFound = !!target;
 
