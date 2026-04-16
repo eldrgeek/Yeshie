@@ -89,6 +89,7 @@ export function createRelay(port = 3333) {
   const controllerResponses = new Map();  // tabId → [{ response, chatId, ts }]
   const controllerHeartbeats = new Map(); // tabId → { status, step, ts }
   const controllerAwaiters = [];          // [{ tabId, res, timer }]
+  const chatIdToTabId = new Map();        // chatId → tabId (retained after pendingResponder consumed, for second respond calls)
 
   // Job tracking — subprocesses report status here, Dispatch polls on each wake-up
   const jobs = new Map();                 // jobId → { id, title, status, step, result, error, createdAt, updatedAt }
@@ -249,6 +250,27 @@ export function createRelay(port = 3333) {
   httpServer.on('request', async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     const path = url.pathname;
+
+    // --- Auth flow observability log ---
+    // In-memory ring buffer for auth flow events from extension
+    if (!global.__authLog) global.__authLog = [];
+    const authLog = global.__authLog;
+
+    if (path === '/log' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const entry = { ...body, receivedAt: new Date().toISOString() };
+      authLog.push(entry);
+      if (authLog.length > 200) authLog.shift();
+      console.log('[log]', JSON.stringify(entry));
+      jsonReply(res, 200, { ok: true });
+      return;
+    }
+
+    if (path === '/log' && req.method === 'GET') {
+      jsonReply(res, 200, authLog);
+      return;
+    }
 
     // --- Existing endpoints ---
 
@@ -426,6 +448,97 @@ export function createRelay(port = 3333) {
       return;
     }
 
+    // ── HUD panel ──────────────────────────────────────────────────────────────
+
+    if (path === '/hud' && req.method === 'GET') {
+      const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Yeshie HUD</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-size:12px;overflow:hidden;height:100vh;display:flex;flex-direction:column}
+#header{padding:8px 12px;background:#111;border-bottom:1px solid #333;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+#header h1{font-size:13px;font-weight:600;color:#aaa;letter-spacing:.5px}
+#header span{font-size:10px;color:#555}
+#jobs{flex:1;overflow-y:auto;padding:8px}
+.empty{color:#555;text-align:center;padding:40px;font-size:11px}
+.job{background:#242424;border-radius:6px;padding:8px 10px;margin-bottom:6px;border-left:3px solid #444;display:grid;grid-template-columns:1fr auto;gap:4px}
+.job.running{border-color:#f0a500}
+.job.done{border-color:#3fb950}
+.job.error{border-color:#f85149}
+.job.blocked{border-color:#d29922;animation:pulse 1.5s infinite}
+.job.pending{border-color:#555}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+.job-title{font-weight:500;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.job-meta{font-size:10px;color:#777;margin-top:2px}
+.job-status{font-size:10px;text-align:right;font-weight:600}
+.job-status.running{color:#f0a500}
+.job-status.done{color:#3fb950}
+.job-status.error{color:#f85149}
+.job-status.blocked{color:#d29922}
+.job-elapsed{font-size:10px;color:#555;text-align:right}
+</style></head>
+<body>
+<div id="header"><h1>YESHIE HUD</h1><span id="conn">connecting…</span></div>
+<div id="jobs"><div class="empty">No active jobs</div></div>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const jobsEl = document.getElementById('jobs');
+const connEl = document.getElementById('conn');
+const jobs = new Map();
+
+function elapsed(ms) {
+  const s = Math.floor(ms/1000);
+  if (s < 60) return s + 's';
+  const m = Math.floor(s/60);
+  if (m < 60) return m + 'm ' + (s%60) + 's';
+  return Math.floor(m/60) + 'h ' + (m%60) + 'm';
+}
+
+function render() {
+  const now = Date.now();
+  const active = [...jobs.values()].filter(j => {
+    if (['running','blocked','pending'].includes(j.status)) return true;
+    return (now - j.updatedAt) < 60000; // show done/error for 60s
+  });
+  if (!active.length) { jobsEl.innerHTML = '<div class="empty">No active jobs</div>'; return; }
+  jobsEl.innerHTML = active.map(j => {
+    const el = elapsed(now - j.createdAt);
+    const step = j.step ? '<br>' + j.step : '';
+    return \`<div class="job \${j.status}">
+      <div>
+        <div class="job-title">\${j.title || j.id}</div>
+        <div class="job-meta">\${j.id}\${step}</div>
+      </div>
+      <div>
+        <div class="job-status \${j.status}">\${j.status.toUpperCase()}</div>
+        <div class="job-elapsed">\${el}</div>
+      </div>
+    </div>\`;
+  }).join('');
+}
+
+const socket = io({ transports: ['websocket'] });
+socket.on('connect', () => { connEl.textContent = 'live'; connEl.style.color = '#3fb950'; });
+socket.on('disconnect', () => { connEl.textContent = 'offline'; connEl.style.color = '#f85149'; });
+socket.on('job_update', job => { jobs.set(job.id, job); render(); });
+socket.on('jobs_snapshot', list => { jobs.clear(); list.forEach(j => jobs.set(j.id, j)); render(); });
+
+// Fetch initial snapshot on connect
+socket.on('connect', () => {
+  fetch('/jobs/status?filter=all').then(r=>r.json()).then(d => {
+    d.jobs.forEach(j => jobs.set(j.id, j));
+    render();
+  });
+});
+
+setInterval(render, 1000); // tick elapsed times
+</script>
+</body></html>`;
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(html);
+      return;
+    }
+
     // --- Status board ---
 
     if (path === '/status-board' && req.method === 'GET') {
@@ -535,6 +648,11 @@ h2{color:#58a6ff}hr{border-color:#333}
       lastListenerActiveAt = Date.now();
 
       if (!pendingListener) {
+        // In test mode return 503 immediately so tests don't hang on the 5-min timeout.
+        if (process.env.RELAY_TEST_MODE) {
+          jsonReply(res, 503, { type: 'no_listener', message: 'Yeshie is offline' });
+          return;
+        }
         // No listener right now — queue the message instead of rejecting.
         // The listener shell wrapper restarts Haiku after each response,
         // so there's a brief gap between invocations. Queue survives that gap.
@@ -552,6 +670,7 @@ h2{color:#58a6ff}hr{border-color:#333}
       }, 300_000);
 
       pendingResponders.set(chatId, { res, timer: respTimer, tabId: body.tabId || null });
+      if (body.tabId) chatIdToTabId.set(chatId, body.tabId);
 
       req.on('close', () => {
         if (pendingResponders.has(chatId)) {
@@ -569,12 +688,37 @@ h2{color:#58a6ff}hr{border-color:#333}
       const { chatId, response } = body;
       const responder = pendingResponders.get(chatId);
       if (!responder) {
-        jsonReply(res, 404, { error: 'No pending response for this chatId' });
+        // Second respond call (pendingResponder already consumed by interim) — push to controller buffer
+        const orphanTabId = chatIdToTabId.get(chatId);
+        if (orphanTabId) {
+          lastListenerActiveAt = Date.now();
+          logConversation({ event: 'yeshie_response', chatId, response, via: 'second_respond' });
+          if (!controllerResponses.has(orphanTabId)) controllerResponses.set(orphanTabId, []);
+          const obuf = controllerResponses.get(orphanTabId);
+          obuf.push({ response, chatId, ts: Date.now() });
+          if (obuf.length > 50) obuf.splice(0, obuf.length - 50);
+          for (let i = controllerAwaiters.length - 1; i >= 0; i--) {
+            const aw = controllerAwaiters[i];
+            if (aw.tabId === orphanTabId) {
+              clearTimeout(aw.timer);
+              controllerAwaiters.splice(i, 1);
+              jsonReply(aw.res, 200, { type: 'response', response, chatId, tabId: orphanTabId });
+            }
+          }
+          jsonReply(res, 200, { ok: true });
+        } else {
+          jsonReply(res, 404, { error: 'No pending response for this chatId' });
+        }
         return;
       }
 
       clearTimeout(responder.timer);
       pendingResponders.delete(chatId);
+      // Retain chatId→tabId for potential second respond call (final after interim)
+      if (responder.tabId) {
+        chatIdToTabId.set(chatId, responder.tabId);
+        if (chatIdToTabId.size > 500) chatIdToTabId.delete(chatIdToTabId.keys().next().value);
+      }
       lastListenerActiveAt = Date.now();
       // Log the response
       logConversation({ event: 'yeshie_response', chatId, response });
@@ -727,6 +871,12 @@ h2{color:#58a6ff}hr{border-color:#333}
         updatedAt: now,
       });
       logConversation({ event: 'job_update', jobId: id, status: status || 'running', step: step || null });
+      const updatedJob = jobs.get(id);
+      io.emit('job_update', updatedJob);
+      // Reopen HUD on blocked status
+      if (status === 'blocked') {
+        fetch('http://localhost:3334/show').catch(() => {});
+      }
       jsonReply(res, 200, { ok: true });
       return;
     }
@@ -771,6 +921,9 @@ h2{color:#58a6ff}hr{border-color:#333}
         updatedAt: now,
       });
       logConversation({ event: 'job_created', jobId: id, title: title || id });
+      io.emit('job_update', jobs.get(id));
+      // Reopen HUD whenever a new job starts
+      fetch('http://localhost:3334/show').catch(() => {});
       jsonReply(res, 200, { ok: true, id });
       return;
     }
