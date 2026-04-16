@@ -95,6 +95,85 @@ export function createRelay(port = 3333) {
   const jobs = new Map();                 // jobId → { id, title, status, step, result, error, createdAt, updatedAt }
   const JOB_TTL_MS = 30 * 60 * 1000;     // 30 minutes — auto-expire stale jobs
 
+  // ── Smart notification (idle detection + countdown) ─────────────────────────
+  const notifyTimers = new Map();   // jobId → intervalId
+  const COUNTDOWN_S  = 30;          // auto-fire after this many seconds
+  const IDLE_FIRE_S  = 10;          // also auto-fire if user idle >= this long
+  const AX_INJECT    = '/Users/mikewolf/Projects/yeshie/scripts/ax-inject.py';
+
+  function getIdleSecondsAsync() {
+    return new Promise(resolve => {
+      execFile('bash', ['-c', "ioreg -c IOHIDSystem | awk '/HIDIdleTime/ {print int($NF/1000000000)}'"],
+        { timeout: 3000 }, (err, stdout) => resolve(err ? 0 : (parseInt(stdout.trim()) || 0)));
+    });
+  }
+
+  function getFrontmostAppAsync() {
+    return new Promise(resolve => {
+      execFile('osascript',
+        ['-e', 'tell application "System Events" to get name of first process whose frontmost is true'],
+        { timeout: 3000 }, (err, stdout) => resolve(err ? '' : stdout.trim()));
+    });
+  }
+
+  async function isCdBusy() {
+    const [idle, app] = await Promise.all([getIdleSecondsAsync(), getFrontmostAppAsync()]);
+    return app.toLowerCase().includes('claude') && idle < IDLE_FIRE_S;
+  }
+
+  function clearNotifyTimer(jobId) {
+    const t = notifyTimers.get(jobId);
+    if (t !== undefined) { clearInterval(t); notifyTimers.delete(jobId); }
+  }
+
+  function fireInject(job) {
+    clearNotifyTimer(job.id);
+    const pyArgs = ['--session', job.session_title, '--save-restore', job.notify_message];
+    console.log(`[relay] firing inject: job=${job.id} session="${job.session_title}"`);
+    execFile('python3', [AX_INJECT, ...pyArgs], { timeout: 15000 }, (err, stdout, stderr) => {
+      if (err) console.warn(`[relay] inject failed: ${err.message}\n${stderr}`);
+      else console.log(`[relay] inject ok: ${stdout.trim()}`);
+      const cur = jobs.get(job.id) || job;
+      const upd = { ...cur, status: err ? 'error' : 'done', countdown_start: null, countdown_seconds: null, updatedAt: Date.now() };
+      jobs.set(job.id, upd);
+      io.emit('job_update', upd);
+    });
+  }
+
+  function scheduleNotify(job) {
+    clearNotifyTimer(job.id);
+    const countdown_start = Date.now();
+    const pending = { ...job, status: 'notify_pending', countdown_start, countdown_seconds: COUNTDOWN_S, updatedAt: countdown_start };
+    jobs.set(job.id, pending);
+    io.emit('job_update', pending);
+    fetch('http://localhost:3334/show').catch(() => {});
+
+    const iid = setInterval(async () => {
+      const cur = jobs.get(job.id);
+      if (!cur || cur.status !== 'notify_pending') { clearInterval(iid); notifyTimers.delete(job.id); return; }
+      const elapsed_s = (Date.now() - countdown_start) / 1000;
+      const idle      = await getIdleSecondsAsync();
+      if (idle >= IDLE_FIRE_S || elapsed_s >= COUNTDOWN_S) {
+        clearInterval(iid);
+        notifyTimers.delete(job.id);
+        fireInject(cur);
+      }
+    }, 2000);
+    notifyTimers.set(job.id, iid);
+  }
+
+  async function scheduleOrInject(job) {
+    if (!job.notify_message || !job.session_title) {
+      fetch('http://localhost:3334/show').catch(() => {});
+      return;
+    }
+    if (await isCdBusy()) {
+      scheduleNotify(job);
+    } else {
+      fireInject(job);
+    }
+  }
+
   function resetChatState() {
     if (pendingListener) {
       clearTimeout(pendingListener.timer);
@@ -467,6 +546,7 @@ body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-
 .job.error{border-color:#f85149}
 .job.blocked{border-color:#d29922;animation:pulse 1.5s infinite}
 .job.pending{border-color:#555}
+.job.notify_pending{border-color:#8b5cf6;animation:pulse 1.5s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
 .job-title{font-weight:500;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .job-meta{font-size:10px;color:#777;margin-top:2px}
@@ -475,7 +555,13 @@ body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-
 .job-status.done{color:#3fb950}
 .job-status.error{color:#f85149}
 .job-status.blocked{color:#d29922}
+.job-status.notify_pending{color:#8b5cf6}
 .job-elapsed{font-size:10px;color:#555;text-align:right}
+.notify-row{margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.btn{padding:3px 9px;border-radius:4px;border:none;cursor:pointer;font-size:10px;font-weight:600;font-family:inherit}
+.btn-notify{background:#8b5cf6;color:#fff}.btn-notify:hover{background:#7c3aed}
+.btn-stop{background:#383838;color:#999}.btn-stop:hover{background:#444;color:#ccc}
+.countdown{font-size:10px;color:#7c3aed;font-variant-numeric:tabular-nums}
 </style></head>
 <body>
 <div id="header"><h1>YESHIE HUD</h1><span id="conn">connecting…</span></div>
@@ -494,23 +580,49 @@ function elapsed(ms) {
   return Math.floor(m/60) + 'h ' + (m%60) + 'm';
 }
 
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function notifyNow(id) {
+  fetch('/jobs/' + id + '/notify', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'}).catch(()=>{});
+}
+function stopCountdown(id) {
+  fetch('/jobs/' + id + '/notify/cancel', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'}).catch(()=>{});
+}
+
 function render() {
   const now = Date.now();
   const active = [...jobs.values()].filter(j => {
-    if (['running','blocked','pending'].includes(j.status)) return true;
-    return (now - j.updatedAt) < 60000; // show done/error for 60s
+    if (['running','blocked','pending','notify_pending'].includes(j.status)) return true;
+    return (now - j.updatedAt) < 60000;
   });
   if (!active.length) { jobsEl.innerHTML = '<div class="empty">No active jobs</div>'; return; }
   jobsEl.innerHTML = active.map(j => {
-    const el = elapsed(now - j.createdAt);
-    const step = j.step ? '<br>' + j.step : '';
+    const el   = elapsed(now - j.createdAt);
+    const step = j.step ? '<br>' + esc(j.step) : '';
+    const cls  = j.status.replace(/_/g,'-'); // CSS class (notify_pending → notify-pending, but keep both)
+
+    let notifyHtml = '';
+    if (j.status === 'notify_pending' && j.countdown_start != null && j.countdown_seconds != null) {
+      const remaining = Math.max(0, j.countdown_seconds - Math.floor((now - j.countdown_start) / 1000));
+      notifyHtml = \`<div class="notify-row">
+        <button class="btn btn-notify" onclick="notifyNow('\${esc(j.id)}')">Notify Now</button>
+        <button class="btn btn-stop"   onclick="stopCountdown('\${esc(j.id)}')">Stop</button>
+        <span class="countdown">⏱ Auto in \${remaining}s</span>
+      </div>\`;
+    }
+
+    const statusLabel = j.status === 'notify_pending' ? 'NOTIFY PENDING' : j.status.toUpperCase();
+
     return \`<div class="job \${j.status}">
       <div>
-        <div class="job-title">\${j.title || j.id}</div>
-        <div class="job-meta">\${j.id}\${step}</div>
+        <div class="job-title">\${esc(j.title || j.id)}</div>
+        <div class="job-meta">\${esc(j.id)}\${step}</div>
+        \${notifyHtml}
       </div>
       <div>
-        <div class="job-status \${j.status}">\${j.status.toUpperCase()}</div>
+        <div class="job-status \${j.status}">\${statusLabel}</div>
         <div class="job-elapsed">\${el}</div>
       </div>
     </div>\`;
@@ -523,7 +635,6 @@ socket.on('disconnect', () => { connEl.textContent = 'offline'; connEl.style.col
 socket.on('job_update', job => { jobs.set(job.id, job); render(); });
 socket.on('jobs_snapshot', list => { jobs.clear(); list.forEach(j => jobs.set(j.id, j)); render(); });
 
-// Fetch initial snapshot on connect
 socket.on('connect', () => {
   fetch('/jobs/status?filter=all').then(r=>r.json()).then(d => {
     d.jobs.forEach(j => jobs.set(j.id, j));
@@ -531,7 +642,7 @@ socket.on('connect', () => {
   });
 });
 
-setInterval(render, 1000); // tick elapsed times
+setInterval(render, 1000);
 </script>
 </body></html>`;
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -855,27 +966,31 @@ h2{color:#58a6ff}hr{border-color:#333}
       let body;
       try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
 
-      const { id, title, status, step, result, error: jobError } = body;
+      const { id, title, status, step, result, error: jobError, session_title, notify_message } = body;
       if (!id) { jsonReply(res, 400, { error: 'id required' }); return; }
 
       const now = Date.now();
       const existing = jobs.get(id);
       jobs.set(id, {
         id,
-        title: title || existing?.title || id,
-        status: status || existing?.status || 'running',
-        step: step || null,
-        result: result || existing?.result || null,
-        error: jobError || existing?.error || null,
+        title:             title          || existing?.title          || id,
+        status:            status         || existing?.status         || 'running',
+        step:              step           || null,
+        result:            result         || existing?.result         || null,
+        error:             jobError       || existing?.error          || null,
+        session_title:     session_title  || existing?.session_title  || null,
+        notify_message:    notify_message || existing?.notify_message || null,
+        countdown_start:   existing?.countdown_start   || null,
+        countdown_seconds: existing?.countdown_seconds || null,
         createdAt: existing?.createdAt || now,
         updatedAt: now,
       });
       logConversation({ event: 'job_update', jobId: id, status: status || 'running', step: step || null });
       const updatedJob = jobs.get(id);
       io.emit('job_update', updatedJob);
-      // Reopen HUD on blocked status
-      if (status === 'blocked') {
-        fetch('http://localhost:3334/show').catch(() => {});
+      // Smart inject/notify on blocked or done
+      if (status === 'blocked' || status === 'done') {
+        scheduleOrInject(jobs.get(id));
       }
       jsonReply(res, 200, { ok: true });
       return;
@@ -956,6 +1071,31 @@ h2{color:#58a6ff}hr{border-color:#333}
       } catch (e) {
         jsonReply(res, 500, { error: e.message });
       }
+      return;
+    }
+
+    // ── Job notify / cancel endpoints ─────────────────────────────────────────
+    const notifyM = path.match(/^\/jobs\/([^/]+)\/notify$/);
+    if (notifyM && req.method === 'POST') {
+      const jobId = notifyM[1];
+      const job = jobs.get(jobId);
+      if (!job) { jsonReply(res, 404, { error: 'job not found' }); return; }
+      jsonReply(res, 200, { ok: true });
+      fireInject(job);
+      return;
+    }
+
+    const cancelM = path.match(/^\/jobs\/([^/]+)\/notify\/cancel$/);
+    if (cancelM && req.method === 'POST') {
+      const jobId = cancelM[1];
+      clearNotifyTimer(jobId);
+      const job = jobs.get(jobId);
+      if (job && job.status === 'notify_pending') {
+        const upd = { ...job, status: 'blocked', countdown_start: null, countdown_seconds: null, updatedAt: Date.now() };
+        jobs.set(jobId, upd);
+        io.emit('job_update', upd);
+      }
+      jsonReply(res, 200, { ok: true });
       return;
     }
 
