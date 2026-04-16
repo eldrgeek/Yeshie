@@ -1,0 +1,117 @@
+{
+  "_meta": {
+    "task": "delete-group",
+    "description": "Delete a group from YeshID. Navigates to the group detail page and triggers the delete/archive action.",
+    "params": {
+      "group_name": {
+        "required": true,
+        "description": "Name of the group to delete"
+      }
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "prerequisite": "00-login.payload.json",
+    "warning": "Destructive action — permanently deletes the group. Members are NOT deleted, only the group record.",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "requiredParams": ["group_name"],
+    "optionalParams": [],
+    "author": "session-2026-04-14",
+    "verified": false,
+    "anomalies": [
+      "Delete action is likely in a group-detail page action menu (Manage, kebab ⋮, or Settings)",
+      "YeshID may use 'Archive' instead of 'Delete' — check perceive output for actual button text",
+      "Confirmation dialog likely uses group name as a type-to-confirm field"
+    ]
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com",
+    "group_name": ""
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": { "state": "authenticated" },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/groups",
+      "note": "Navigate to groups list"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s4",
+      "action": "click_text",
+      "text": "{{group_name}}",
+      "note": "Click target group to open group detail page"
+    },
+    {
+      "stepId": "s5",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s6",
+      "action": "perceive",
+      "store_as": "group_detail",
+      "note": "Perceive group detail. Look for: 'Delete', 'Archive', 'Manage' dropdown, kebab menu (⋮), or settings icon."
+    },
+    {
+      "stepId": "s7",
+      "action": "click_text",
+      "text": "Manage",
+      "note": "Open Manage/actions dropdown. Fallbacks: '⋮', 'Settings', 'Options', 'Actions'."
+    },
+    {
+      "stepId": "s8",
+      "action": "delay",
+      "ms": 800,
+      "note": "Wait for dropdown to open"
+    },
+    {
+      "stepId": "s9",
+      "action": "click_text",
+      "text": "Delete Group",
+      "note": "Click Delete Group. Fallbacks: 'Archive Group', 'Delete', 'Remove Group'."
+    },
+    {
+      "stepId": "s10",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for confirmation dialog"
+    },
+    {
+      "stepId": "s11",
+      "action": "perceive",
+      "store_as": "confirm_dialog",
+      "note": "Perceive confirmation dialog. Check if type-to-confirm input exists."
+    },
+    {
+      "stepId": "s12",
+      "action": "click_text",
+      "text": "Delete",
+      "note": "Confirm deletion. Fallbacks: 'Confirm', 'Archive', 'Yes'. If type-to-confirm required, use type action on input first."
+    },
+    {
+      "stepId": "s13",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s14",
+      "action": "perceive",
+      "store_as": "post_delete_state",
+      "note": "Verify redirect to groups list and group no longer appears."
+    }
+  ]
+}

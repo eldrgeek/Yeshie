@@ -1,0 +1,38 @@
+{
+  "channels": {
+    "yeshie/site-map/request": {
+      "description": "Published by HEAL agent to trigger site-mapper",
+      "schema": {
+        "correlationId": "string (uuid) — used to match site-map/updated response",
+        "requestedBy": "heal-agent | manual",
+        "siteId": "string",
+        "urls": ["string"],
+        "force": "boolean — bypass TTL check if true",
+        "triggeredByPayload": "string | null"
+      }
+    },
+    "yeshie/site-map/failed": {
+      "description": "Published by site-mapper when mapping fails (auth expiry, browser unavailable, etc.)",
+      "schema": {
+        "correlationId": "string",
+        "siteId": "string",
+        "failureReason": "auth_expired | browser_unavailable | perceive_failed | timeout",
+        "failedUrl": "string",
+        "timestamp": "ISO 8601"
+      }
+    },
+    "yeshie/payload/broken": {
+      "description": "Published by relay when a payload step fails after N retries",
+      "schema": {
+        "siteId": "string",
+        "payloadId": "string",
+        "stepId": "string",
+        "selector": "string",
+        "error": "selector_not_found | timeout | wrong_element | perceive_null",
+        "perceiveSnapshot": "object | null",
+        "retryCount": "number",
+        "timestamp": "ISO 8601"
+      }
+    }
+  }
+}

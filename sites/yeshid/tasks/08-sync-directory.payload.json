@@ -45,9 +45,15 @@
       }
     },
     {
+      "stepId": "s4b",
+      "action": "read",
+      "store_as": "page_state_before_sync",
+      "note": "Snapshot page state before attempting sync \u2014 so if the sync button can't be found, the failure message includes what elements are visible"
+    },
+    {
       "stepId": "s5",
-      "action": "click_text",
-      "text": "Sync directory",
+      "action": "click",
+      "target": "sync-button",
       "note": "Click the sync directory button"
     },
     {
@@ -137,6 +143,29 @@
           }
         ]
       }
+    }
+  },
+  "abstractTargets": {
+    "sync-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "sync",
+          "sync now",
+          "sync directory",
+          "refresh"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "button[aria-label*='sync' i]",
+        "button[aria-label*='Sync' i]",
+        ".v-btn:has-text('Sync')",
+        "button.v-btn--variant-flat",
+        "[data-testid*='sync']"
+      ],
+      "resolveHint": "Look for a button with text containing 'sync' anywhere on the /organization/directories page. It may be in a toolbar, header, or card action area."
     }
   }
 }

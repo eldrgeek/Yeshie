@@ -1,0 +1,164 @@
+{
+  "_meta": {
+    "name": "okta-user-profile-actions",
+    "site": "trial-8689388-admin.okta.com",
+    "description": "Navigate to a user's profile page and execute lifecycle actions: perceive state, then optionally suspend, deactivate, or reset authenticators. Parameterized by userId.",
+    "version": "1.0.0",
+    "verified": true,
+    "verifiedDate": "2026-04-13",
+    "verificationNotes": "Full end-to-end verified on test user Yeshie Test (00u11x5jinoSKzBC5698). Add-user VERIFIED. Deactivate flow VERIFIED: More Actions -> Deactivate -> OK. NOTE: confirmation button is \"OK\" not \"Deactivate\".",
+    "anomalies": [
+      "Admin's own profile shows NO action buttons (Okta self-deactivation protection) \u2014 'More Actions' click_text will fail for the authenticated admin",
+      "STAGED users show 'Set Password & Activate' and 'Resend Activation Email' instead of 'Reset Password'",
+      "STAGED users also have: Reset Authenticators, Suspend, Deactivate in More Actions dropdown",
+      "Unlocked/active users may show 'Reset Password' as a top-level button (unverified)",
+      "Profile H1 contains name + email concatenated with newline: 'First Last\\n            email@domain.com'",
+      "Tabs visible: Applications, Groups, Profile, Devices, Pre-enrolled authenticators (Admin users also get 'Admin roles' tab)",
+      "Deactivate confirmation modal uses \"OK\" button \u2014 NOT \"Deactivate\". click_text(\"Deactivate\") on the modal will fail (text not found).",
+      "Old selector [data-se='deactivate-user-btn'] does NOT exist in Okta OIE. Classic UI only."
+    ]
+  },
+  "params": {
+    "userId": "REQUIRED \u2014 Okta user ID, format 00u{alphanumeric}698. Get from /admin/users perceive mainActions.",
+    "base_url": "https://trial-8689388-admin.okta.com"
+  },
+  "knownUserIds": {
+    "hermes-ai": "00u11likbm4T5fUIc698",
+    "perplexity-ai": "00u11li6wefRTyiKx698",
+    "chatgpt-openai": "00u11li2jqqGOd3Lm698",
+    "grok-xai": "00u11lib65eeRAt0h698",
+    "gemini-google": "00u11libzk14aJVmO698",
+    "claude-anthropic": "00u11li1n9nsGaoiX698",
+    "michael-wolf-admin": "00u11lcq3lk8XQjBt698"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://trial-8689388-admin.okta.com/admin/user/profile/view/{{userId}}",
+      "note": "{{userId}} resolved from API-level params. Pattern: 00u{alphanumeric}698"
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 3000
+    },
+    {
+      "stepId": "s3",
+      "action": "perceive",
+      "store_as": "profile_snap",
+      "note": "Read initial state. Check headings[0].text for name+email. Check mainActions for available actions."
+    },
+    {
+      "stepId": "s4-deactivate",
+      "action": "click_text",
+      "text": "More Actions",
+      "disabled": true,
+      "note": "ENABLE to start deactivation. Opens dropdown with: Reset Authenticators, Suspend, Deactivate."
+    },
+    {
+      "stepId": "s5-deactivate",
+      "action": "delay",
+      "ms": 700,
+      "disabled": true
+    },
+    {
+      "stepId": "s6-deactivate",
+      "action": "click_text",
+      "text": "Deactivate",
+      "disabled": true,
+      "note": "Opens confirmation modal. H2 will be 'Deactivate Person'."
+    },
+    {
+      "stepId": "s7-deactivate",
+      "action": "delay",
+      "ms": 1500,
+      "disabled": true
+    },
+    {
+      "stepId": "s8-deactivate",
+      "action": "click_text",
+      "text": "OK",
+      "disabled": true,
+      "note": "VERIFIED: confirm button is 'OK', NOT 'Deactivate'. click_text('Deactivate') fails here."
+    },
+    {
+      "stepId": "s9-verify",
+      "action": "delay",
+      "ms": 2000,
+      "disabled": true
+    },
+    {
+      "stepId": "s10-verify",
+      "action": "perceive",
+      "store_as": "post_action_snap",
+      "disabled": true,
+      "note": "Verify deactivation. User should now show DEACTIVATED status."
+    }
+  ],
+  "abstractTargets": {
+    "more-actions-dropdown": {
+      "description": "Dropdown containing lifecycle actions",
+      "trigger": {
+        "action": "click_text",
+        "text": "More Actions"
+      },
+      "options": [
+        "Reset Authenticators",
+        "Suspend",
+        "Deactivate"
+      ]
+    },
+    "user-logs-link": {
+      "description": "Link to user's events in system log",
+      "hrefPattern": "/report/system_log_2?search=actor.id+eq+%22{userId}%22+or+target.id+eq+%22{userId}%22"
+    },
+    "profile-tabs": {
+      "description": "Tab navigation within user profile",
+      "tabs": [
+        {
+          "href": "#tab-apps",
+          "text": "Applications"
+        },
+        {
+          "href": "#tab-groups",
+          "text": "Groups"
+        },
+        {
+          "href": "#tab-account",
+          "text": "Profile"
+        },
+        {
+          "href": "#tab-user-devices",
+          "text": "Devices"
+        },
+        {
+          "href": "#tab-pre-enrolled-authenticators",
+          "text": "Pre-enrolled authenticators"
+        }
+      ]
+    }
+  },
+  "stateGraph": {
+    "initial": "profile-loaded",
+    "states": {
+      "profile-loaded": {
+        "description": "User profile page loaded",
+        "transitions": {
+          "click More Actions then Deactivate": "deactivate-confirmation",
+          "click More Actions then Suspend": "suspended",
+          "click More Actions then Reset Authenticators": "authenticators-reset"
+        }
+      },
+      "deactivate-confirmation": {
+        "description": "Confirmation dialog open",
+        "transitions": {
+          "click Deactivate (confirm)": "deactivated"
+        }
+      },
+      "deactivated": {
+        "description": "User is now DEACTIVATED status"
+      }
+    }
+  }
+}

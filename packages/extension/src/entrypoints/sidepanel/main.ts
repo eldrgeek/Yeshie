@@ -55,7 +55,7 @@ function tryGetDomain(url: string): string {
 // ── DOM elements ─────────────────────────────────────────────────────────────
 const messagesEl = document.getElementById('messages')!;
 const statusEl = document.getElementById('status')!;
-const inputEl = document.getElementById('chat-input') as HTMLInputElement;
+const inputEl = document.getElementById('chat-input') as HTMLTextAreaElement;
 const sendBtn = document.getElementById('send-btn') as HTMLButtonElement;
 const headerEl = document.getElementById('header')!;
 
@@ -228,6 +228,7 @@ async function sendMessage() {
   if (sendingTabId === null) return;
 
   inputEl.value = '';
+  autoResize();
   sendBtn.disabled = true;
 
   addMessageToTab(sendingTabId, 'user', text);
@@ -325,7 +326,25 @@ async function init() {
   }
 }
 
-inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+function autoResize() {
+  inputEl.style.height = 'auto';
+  inputEl.style.overflowY = 'hidden';
+  const maxHeight = window.innerHeight * 0.25;
+  if (inputEl.scrollHeight > maxHeight) {
+    inputEl.style.height = maxHeight + 'px';
+    inputEl.style.overflowY = 'scroll';
+  } else {
+    inputEl.style.height = inputEl.scrollHeight + 'px';
+  }
+}
+
+inputEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+inputEl.addEventListener('input', autoResize);
 sendBtn.addEventListener('click', sendMessage);
 checkStatus();
 setInterval(checkStatus, 30000);

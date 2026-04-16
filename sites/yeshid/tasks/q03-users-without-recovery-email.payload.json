@@ -1,0 +1,183 @@
+{
+  "_meta": {
+    "task": "q03-users-without-recovery-email",
+    "queryType": "read_only",
+    "description": "Find all active users who are missing a personal/recovery email. Recovery email is not visible in the people list table — this payload iterates through each active user's detail page and checks whether the 'Personal / recovery email' field is populated. Returns a list of users missing it.",
+    "selfImproving": false,
+    "runCount": 0,
+    "lastSuccess": null,
+    "requiredParams": [],
+    "optionalParams": [],
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "notes": [
+      "Recovery email is labeled 'Personal / recovery email' on the onboard form and person detail edit form.",
+      "It is NOT a column in the people list table — iteration through detail pages is required.",
+      "This payload uses for_each_row to visit each active user's detail page.",
+      "With 28 active users and ~3s per detail page, expect ~90s total runtime.",
+      "The column-picker button (mdi-view-column-outline) may support adding a recovery-email column — not yet confirmed. If confirmed, simplify to a single perceive step."
+    ]
+  },
+  "runId": "yeshid-q03-users-without-recovery-email-{{timestamp}}",
+  "mode": "query",
+  "site": "app.yeshid.com",
+  "params": {
+    "base_url": "https://app.yeshid.com"
+  },
+  "abstractTargets": {
+    "pagination-footer": {
+      "match": { "css": ".v-data-table-footer" },
+      "cachedSelector": ".v-data-table-footer",
+      "cachedConfidence": 0.97
+    },
+    "items-per-page-select": {
+      "match": { "css": ".v-data-table-footer .v-select" },
+      "cachedSelector": ".v-data-table-footer .v-select",
+      "cachedConfidence": 0.80,
+      "resolveHint": "The items-per-page dropdown in the table footer. Currently shows '10'. Click to open and select the highest available option (e.g. 100 or All)."
+    },
+    "people-table-body": {
+      "match": { "css": ".v-data-table tbody" },
+      "cachedSelector": ".v-data-table tbody",
+      "cachedConfidence": 0.95
+    },
+    "recovery-email-field": {
+      "match": { "role": "textbox", "vuetify_label": ["personal", "recovery", "backup"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "resolveHint": "On the person detail page, find the field labeled 'Personal / recovery email'. It appears in the Details tab of the person profile. May require clicking 'Edit' to reveal. Look for input with label containing 'personal', 'recovery', or 'backup'."
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": { "state": "authenticated" },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people?filters=status=ACTIVE",
+      "note": "Start with active users only — deactivated users missing recovery email are less actionable."
+    },
+    {
+      "stepId": "s3",
+      "action": "wait_for",
+      "selector": ".v-data-table-footer",
+      "timeout": 6000
+    },
+    {
+      "stepId": "s4",
+      "action": "click",
+      "target": "items-per-page-select",
+      "note": "Open items-per-page dropdown to load all users on one page."
+    },
+    {
+      "stepId": "s4b",
+      "action": "click_text",
+      "text": "100",
+      "fallback_text": "All",
+      "context": ".v-overlay--active .v-list, .v-menu--active .v-list",
+      "note": "Select 100 items per page (or 'All' if available). This loads all ~28 active users without pagination."
+    },
+    {
+      "stepId": "s4c",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Wait for table to reload with expanded item count."
+    },
+    {
+      "stepId": "s5",
+      "action": "perceive",
+      "selector": ".v-data-table tbody",
+      "store_as": "all_active_people",
+      "extract": "table_rows",
+      "columns": ["name", "primary_email"],
+      "note": "Capture all active user rows (name, email). This list drives the iteration in s6."
+    },
+    {
+      "stepId": "s6",
+      "action": "for_each_row",
+      "source": "all_active_people",
+      "accumulator": "missing_recovery_email",
+      "sub_chain": [
+        {
+          "stepId": "iter_s1",
+          "action": "find_row",
+          "identifier": "{{row.primary_email}}",
+          "note": "Click the person's row to navigate to their detail page."
+        },
+        {
+          "stepId": "iter_s2",
+          "action": "wait_for",
+          "state": "person-detail",
+          "timeout": 6000
+        },
+        {
+          "stepId": "iter_s3",
+          "action": "perceive",
+          "target": "recovery-email-field",
+          "store_as": "recovery_email_value",
+          "note": "Read the personal/recovery email field value. Empty string or null means it's missing."
+        },
+        {
+          "stepId": "iter_s4",
+          "action": "if_empty",
+          "check": "recovery_email_value",
+          "then": {
+            "action": "accumulate",
+            "target": "missing_recovery_email",
+            "value": { "name": "{{row.name}}", "email": "{{row.primary_email}}" }
+          }
+        },
+        {
+          "stepId": "iter_s5",
+          "action": "navigate",
+          "url": "{{base_url}}/organization/people?filters=status=ACTIVE",
+          "note": "Return to people list for next iteration."
+        },
+        {
+          "stepId": "iter_s6",
+          "action": "wait_for",
+          "selector": ".v-data-table tbody",
+          "timeout": 5000
+        }
+      ],
+      "note": "Iterate each active person. Navigate to detail, check recovery email field, record if empty, return to list."
+    },
+    {
+      "stepId": "s7",
+      "action": "respond",
+      "data": {
+        "missing_recovery_email": { "source": "missing_recovery_email" },
+        "total_active_checked": { "source": "all_active_people", "extract": "count" }
+      },
+      "note": "Return list of active users with no recovery email. Each entry: { name, email }."
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [{ "type": "url_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }]
+      },
+      "authenticated": {
+        "signals": [
+          { "type": "url_matches", "pattern": "app\\.yeshid\\.com" },
+          { "type": "url_not_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }
+        ]
+      },
+      "people-list": {
+        "signals": [{ "type": "url_matches", "pattern": "/organization/people" }]
+      },
+      "person-detail": {
+        "signals": [
+          { "type": "url_matches", "pattern": "/organization/people/[a-z0-9-]+" },
+          { "type": "url_not_matches", "pattern": "/onboard|/offboard" }
+        ]
+      }
+    }
+  }
+}

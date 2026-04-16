@@ -1,0 +1,70 @@
+{
+  "_meta": {
+    "id": "import-apps-ai-paste",
+    "version": "1.0",
+    "title": "Bulk Import Apps via AI Paste",
+    "description": "Paste a list of app names into YeshID's AI Paste importer to add multiple apps at once",
+    "baseUrl": "https://app.yeshid.com",
+    "requiresAuth": true,
+    "params": {
+      "app_list": "Newline-separated list of app names to import"
+    }
+  },
+  "chain": [
+    {
+      "stepId": "navigate-applications",
+      "action": "navigate",
+      "url": "/applications"
+    },
+    {
+      "stepId": "perceive-apps-count",
+      "action": "perceive",
+      "store_as": "apps_before",
+      "description": "Read current application count before import"
+    },
+    {
+      "stepId": "click-add-apps",
+      "action": "click_text",
+      "text": "Add Apps",
+      "target": {
+        "anchors": {
+          "ariaLabel": "Add Apps"
+        },
+        "cachedSelector": "button:has-text('Add Apps'), [data-cy='add-apps']"
+      }
+    },
+    {
+      "stepId": "click-ai-paste",
+      "action": "click_text",
+      "text": "AI Paste",
+      "target": {
+        "cachedSelector": "[data-cy='ai-paste'], li:has-text('AI Paste'), button:has-text('AI Paste')"
+      }
+    },
+    {
+      "stepId": "type-app-list",
+      "action": "type",
+      "value": "{{app_list}}",
+      "target": {
+        "anchors": {
+          "ariaLabel": "Paste app names"
+        },
+        "cachedSelector": "textarea, [data-cy='ai-paste-input']"
+      }
+    },
+    {
+      "stepId": "click-process",
+      "action": "click_text",
+      "text": "Process",
+      "target": {
+        "cachedSelector": "button:has-text('Process'), button:has-text('Import'), [data-cy='process-paste']"
+      }
+    },
+    {
+      "stepId": "verify-success",
+      "action": "perceive",
+      "store_as": "import_result",
+      "description": "Read the list of matched apps and confirmation banner \u2014 independent success check"
+    }
+  ]
+}

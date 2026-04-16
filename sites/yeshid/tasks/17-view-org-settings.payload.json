@@ -1,0 +1,77 @@
+{
+  "_meta": {
+    "task": "view-org-settings",
+    "description": "Navigate to YeshID organization settings and capture current configuration: org name, domain, SCIM settings, seat count, and plan information.",
+    "params": {
+      "base_url": {
+        "required": false,
+        "default": "https://app.yeshid.com",
+        "description": "YeshID base URL"
+      }
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "prerequisite": "00-login.payload.json",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "requiredParams": [],
+    "optionalParams": ["base_url"],
+    "author": "session-2026-04-14",
+    "verified": false,
+    "anomalies": [
+      "Settings path is likely /organization/settings or /settings — try both if first returns 404",
+      "May require admin role — standard users may see a 403 or redirect",
+      "Plan/billing info may be on a separate /billing or /subscription subpath"
+    ]
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": { "state": "authenticated" },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/settings",
+      "note": "Navigate to org settings. Primary path attempt."
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s4",
+      "action": "perceive",
+      "store_as": "org_settings",
+      "note": "Perceive org settings page. Capture: org name, domain(s), SCIM base URL, API tokens, seat limit, plan tier. If page shows 404/403, try /settings or /admin/settings."
+    },
+    {
+      "stepId": "s5",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/settings/general",
+      "disabled": true,
+      "note": "ENABLE if /organization/settings is a redirect — try the general subpath directly."
+    },
+    {
+      "stepId": "s6",
+      "action": "delay",
+      "ms": 1500
+    },
+    {
+      "stepId": "s7",
+      "action": "perceive",
+      "store_as": "general_settings",
+      "disabled": true,
+      "note": "Perceive general settings subpage if navigated here."
+    }
+  ]
+}

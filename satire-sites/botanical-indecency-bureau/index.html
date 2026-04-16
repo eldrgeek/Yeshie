@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Botanical Indecency Bureau | Official Government Website</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Georgia', serif;
+            color: #333;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+
+        header {
+            background-color: #1a3a52;
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+            border-bottom: 4px solid #d4af37;
+        }
+
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 30px;
+        }
+
+        .seal {
+            width: 80px;
+            height: 80px;
+            border: 3px solid #d4af37;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            text-align: center;
+            padding: 10px;
+            background: linear-gradient(135deg, #1a3a52 0%, #0f2236 100%);
+            flex-shrink: 0;
+        }
+
+        .header-text h1 {
+            font-size: 2.5em;
+            margin-bottom: 5px;
+            letter-spacing: 2px;
+        }
+
+        .header-text p {
+            font-size: 0.95em;
+            font-style: italic;
+            color: #d4af37;
+            margin-bottom: 5px;
+        }
+
+        .header-text .established {
+            font-size: 0.85em;
+            color: #aaa;
+        }
+
+        nav {
+            background-color: #2c3e50;
+            padding: 0;
+        }
+
+        nav ul {
+            list-style: none;
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        nav li {
+            flex: 1;
+            min-width: 150px;
+        }
+
+        nav a {
+            display: block;
+            color: white;
+            padding: 15px;
+            text-decoration: none;
+            text-align: center;
+            border-right: 1px solid #1a3a52;
+            font-size: 0.9em;
+            transition: background-color 0.3s;
+        }
+
+        nav li:last-child a {
+            border-right: none;
+        }
+
+        nav a:hover {
+            background-color: #d4af37;
+            color: #1a3a52;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+
+        section {
+            background-color: white;
+            margin-bottom: 30px;
+            padding: 30px;
+            border-left: 5px solid #1a3a52;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        section h2 {
+            color: #1a3a52;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #d4af37;
+            padding-bottom: 10px;
+        }
+
+        section h3 {
+            color: #2c3e50;
+            font-size: 1.2em;
+            margin-top: 20px;
+            margin-bottom: 15px;
+        }
+
+        .mission-statement {
+            background-color: #f9f9f9;
+            border: 2px dashed #1a3a52;
+            padding: 20px;
+            margin-bottom: 20px;
+            font-style: italic;
+            color: #555;
+        }
+
+        .violation-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .violation-card {
+            background-color: #f9f9f9;
+            border: 2px solid #1a3a52;
+            padding: 20px;
+            border-radius: 3px;
+        }
+
+        .violation-card h4 {
+            color: white;
+            padding: 10px;
+            margin: -20px -20px 15px -20px;
+            font-size: 1.1em;
+            font-weight: bold;
+        }
+
+        .class-1 h4 {
+            background-color: #2ecc71;
+        }
+
+        .class-2 h4 {
+            background-color: #f39c12;
+        }
+
+        .class-3 h4 {
+            background-color: #e74c3c;
+        }
+
+        .class-4 h4 {
+            background-color: #8b0000;
+        }
+
+        .violation-card p {
+            font-size: 0.95em;
+            margin-bottom: 10px;
+        }
+
+        .violation-examples {
+            background-color: white;
+            padding: 10px;
+            border-left: 3px solid #999;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+
+        .violation-examples strong {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+        }
+
+        .citation-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .citation-table th {
+            background-color: #2c3e50;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+            border-bottom: 3px solid #1a3a52;
+        }
+
+        .citation-table td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .citation-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        .citation-table tr:hover {
+            background-color: #f0f0f0;
+        }
+
+        .citation-table .case-number {
+            font-family: 'Courier New', monospace;
+            color: #1a3a52;
+            font-weight: bold;
+        }
+
+        .citation-table .violation-type {
+            font-size: 0.9em;
+            color: #555;
+        }
+
+        .citation-table .fine {
+            color: #c0392b;
+            font-weight: bold;
+        }
+
+        form {
+            max-width: 600px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #1a3a52;
+            font-weight: bold;
+            font-size: 0.95em;
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="date"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #bbb;
+            border-radius: 3px;
+            font-family: 'Arial', sans-serif;
+            font-size: 0.95em;
+            background-color: #fafafa;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: #1a3a52;
+            background-color: white;
+            box-shadow: 0 0 5px rgba(26, 58, 82, 0.3);
+        }
+
+        .checkbox-group {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 3px;
+            margin-bottom: 15px;
+        }
+
+        .checkbox-item {
+            margin-bottom: 12px;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            margin-right: 8px;
+            cursor: pointer;
+        }
+
+        .checkbox-item label {
+            display: inline;
+            margin-bottom: 0;
+            font-weight: normal;
+            cursor: pointer;
+        }
+
+        button {
+            background-color: #1a3a52;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 3px;
+            font-size: 1em;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #0f2236;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .advisory-box {
+            background-color: #fff3cd;
+            border-left: 5px solid #f39c12;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 3px;
+        }
+
+        .advisory-box strong {
+            color: #c0392b;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .advisory-box p {
+            margin-bottom: 8px;
+            font-size: 0.95em;
+        }
+
+        .warning-level {
+            font-weight: bold;
+            padding: 3px 8px;
+            border-radius: 3px;
+            display: inline-block;
+            font-size: 0.85em;
+            margin-top: 8px;
+        }
+
+        .warning-elevated {
+            background-color: #f39c12;
+            color: white;
+        }
+
+        .warning-critical {
+            background-color: #c0392b;
+            color: white;
+        }
+
+        footer {
+            background-color: #1a3a52;
+            color: #999;
+            padding: 30px 20px;
+            text-align: center;
+            font-size: 0.85em;
+            border-top: 4px solid #d4af37;
+            margin-top: 40px;
+        }
+
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .footer-content p {
+            margin-bottom: 10px;
+        }
+
+        .footer-links {
+            margin-top: 15px;
+        }
+
+        .footer-links a {
+            color: #d4af37;
+            text-decoration: none;
+            margin: 0 15px;
+        }
+
+        .footer-links a:hover {
+            text-decoration: underline;
+        }
+
+        .official-notice {
+            background-color: #e8e8e8;
+            border: 2px solid #333;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+            line-height: 1.8;
+        }
+
+        .official-notice strong {
+            display: block;
+            margin-bottom: 10px;
+            text-decoration: underline;
+        }
+
+        .statute-ref {
+            font-family: 'Courier New', monospace;
+            color: #1a3a52;
+            font-size: 0.9em;
+        }
+
+        .statistics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            background-color: #f9f9f9;
+            border: 2px solid #2c3e50;
+            padding: 20px;
+            text-align: center;
+            border-radius: 3px;
+        }
+
+        .stat-box .number {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #1a3a52;
+            margin-bottom: 5px;
+        }
+
+        .stat-box .label {
+            color: #555;
+            font-size: 0.9em;
+        }
+
+        @media (max-width: 768px) {
+            .header-container {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .header-text h1 {
+                font-size: 1.8em;
+            }
+
+            nav ul {
+                flex-direction: column;
+            }
+
+            nav a {
+                border-right: none;
+                border-bottom: 1px solid #1a3a52;
+            }
+
+            nav li:last-child a {
+                border-bottom: none;
+            }
+
+            .violation-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .citation-table {
+                font-size: 0.85em;
+            }
+
+            .citation-table th,
+            .citation-table td {
+                padding: 8px;
+            }
+
+            section {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <div class="seal">BIB</div>
+            <div class="header-text">
+                <h1>BOTANICAL INDECENCY BUREAU</h1>
+                <p>Protecting Public Decency Since 1923</p>
+                <p class="established">United States Department of Floral Morality</p>
+            </div>
+        </div>
+    </header>
+
+    <nav>
+        <ul>
+            <li><a href="#about">About BIB</a></li>
+            <li><a href="#mission">Our Mission</a></li>
+            <li><a href="#classifications">Violation Classes</a></li>
+            <li><a href="#citations">Recent Citations</a></li>
+            <li><a href="#report">Report Violations</a></li>
+            <li><a href="#advisories">Public Advisories</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <!-- ABOUT SECTION -->
+        <section id="about">
+            <h2>About the Botanical Indecency Bureau</h2>
+
+            <div class="official-notice">
+                <strong>OFFICIAL STATEMENT</strong>
+                The Botanical Indecency Bureau (BIB) was established in 1923 under the Public Decency and Floral Conduct Act (49 U.S.C. § 8721-8899) to regulate the display, sale, and distribution of botanically explicit plant matter in public spaces. All flowering plants are, by biological definition, the reproductive organs of plants—a reality that demands careful government oversight.
+            </div>
+
+            <h3>Statutory Authority</h3>
+            <p>The Bureau operates under <span class="statute-ref">Title 49, Subtitle D, Chapter 8721</span> (The Public Floral Decency Protection Act of 1923, as amended) and enforces compliance through:</p>
+            <ul style="margin-left: 20px; margin-bottom: 20px;">
+                <li><strong>Classification Standards:</strong> Determination of botanical explicitness levels</li>
+                <li><strong>Display Regulations:</strong> Rules governing public exhibition of reproductive organs</li>
+                <li><strong>Sale Restrictions:</strong> Age verification for high-risk floral purchases</li>
+                <li><strong>Distribution Controls:</strong> Licensing requirements for florists and garden centers</li>
+                <li><strong>Enforcement Actions:</strong> Citations, fines, and temporary business closures</li>
+            </ul>
+
+            <h3>Our Authority</h3>
+            <p>As of 2024, the Botanical Indecency Bureau maintains regulatory jurisdiction over all 50 states, US territories, and federal lands. Field agents operate from regional offices in every major metropolitan area. The Bureau's annual budget of $487 million funds enforcement operations, public education campaigns, and botanical research initiatives.</p>
+
+            <div class="statistics-grid">
+                <div class="stat-box">
+                    <div class="number">12,847</div>
+                    <div class="label">Citations Issued (2023)</div>
+                </div>
+                <div class="stat-box">
+                    <div class="number">$42.3M</div>
+                    <div class="label">Total Fines Collected</div>
+                </div>
+                <div class="stat-box">
+                    <div class="number">384</div>
+                    <div class="label">Licensed Field Agents</div>
+                </div>
+                <div class="stat-box">
+                    <div class="number">8,291</div>
+                    <div class="label">Public Complaints Processed</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- MISSION SECTION -->
+        <section id="mission">
+            <h2>Our Mission</h2>
+
+            <div class="mission-statement">
+                "To safeguard the American public from unauthorized exposure to botanical reproduction, ensuring that all floral materials are properly classified, labeled, and displayed with appropriate content warnings. The BIB is committed to reducing childhood exposure to explicit stamens, mitigating pollen-related health risks, and maintaining botanical decency standards consistent with community values."
+            </div>
+
+            <h3>Core Principles</h3>
+            <p><strong>Transparency:</strong> All botanical products must clearly disclose their reproductive status and explicitly visible anatomical structures.</p>
+            <p><strong>Age-Appropriateness:</strong> The public display and sale of botanically explicit flowers to minors is strictly regulated. Orchids, lilies, and other Class III-IV specimens require age verification (18+ in most jurisdictions).</p>
+            <p><strong>Public Health:</strong> High-pollen flowers (roses, lilies, sunflowers) pose genuine respiratory hazards. The BIB monitors pollen counts and issues seasonal advisories.</p>
+            <p><strong>Community Standards:</strong> Local BIB field offices work with municipalities to enforce regulations consistent with regional comfort levels regarding botanical exposure.</p>
+
+            <h3>Historical Context</h3>
+            <p>The Bureau was founded in 1923 following the "Tulip Crisis of 1922," when uncovered tulip bulbs in a Philadelphia warehouse resulted in widespread pollen exposure affecting over 40,000 residents. This watershed moment prompted Congress to act, establishing regulatory oversight of botanically reproductive materials. Since then, the Bureau has evolved to address emerging floral threats, including hybrid ornamentals, rare tropical species, and internet-based seed distribution networks.</p>
+        </section>
+
+        <!-- VIOLATION CLASSIFICATIONS -->
+        <section id="classifications">
+            <h2>Violation Classification System</h2>
+
+            <p>The Bureau categorizes botanical specimens into four classes based on reproductive explicitness, anatomical visibility, and potential for indecent exposure. Each class carries distinct regulatory requirements and violation penalties.</p>
+
+            <div class="violation-grid">
+                <div class="violation-card class-1">
+                    <h4>CLASS I — MILD INDECENCY</h4>
+                    <p><strong>Definition:</strong> Flowers with minimal visible reproductive structures; stamens and pistils largely enclosed within sepals or petals.</p>
+                    <p><strong>Explicitness Level:</strong> Low (10-25% visible anatomical exposure)</p>
+                    <p><strong>Examples:</strong> Daisies, sunflowers, carnations, marigolds, zinnias</p>
+                    <div class="violation-examples">
+                        <strong>Regulatory Requirements:</strong>
+                        <ul style="margin-left: 20px;">
+                            <li>Basic age restriction (sale to 12+)</li>
+                            <li>Point-of-sale disclosure label required</li>
+                            <li>Public display must include warning placard</li>
+                            <li>Pollen containment measures recommended</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="violation-card class-2">
+                    <h4>CLASS II — MODERATE INDECENCY</h4>
+                    <p><strong>Definition:</strong> Flowers with partially exposed stamens and pistils; moderate anatomical detail visible to casual observers.</p>
+                    <p><strong>Explicitness Level:</strong> Moderate (25-60% visible anatomical exposure)</p>
+                    <p><strong>Examples:</strong> Tulips, poppies, hibiscus, peonies, anemones</p>
+                    <div class="violation-examples">
+                        <strong>Regulatory Requirements:</strong>
+                        <ul style="margin-left: 20px;">
+                            <li>Age restriction for purchase (sale to 14+)</li>
+                            <li>Prominent warning labels on all stems</li>
+                            <li>Mandatory pollen shields on public display</li>
+                            <li>Florist training certification required</li>
+                            <li>Distance restrictions near schools/libraries</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="violation-card class-3">
+                    <h4>CLASS III — EXPLICIT INDECENCY</h4>
+                    <p><strong>Definition:</strong> Flowers with highly exposed reproductive organs; stamens and pistils prominently displayed with minimal botanical clothing.</p>
+                    <p><strong>Explicitness Level:</strong> High (60-85% visible anatomical exposure)</p>
+                    <p><strong>Examples:</strong> Lilies, gladiolus, zinnias, dahlias, proteas</p>
+                    <div class="violation-examples">
+                        <strong>Regulatory Requirements:</strong>
+                        <ul style="margin-left: 20px;">
+                            <li>Strict age verification (18+ only)</li>
+                            <li>Sealed/opaque packaging required</li>
+                            <li>Public display strictly prohibited</li>
+                            <li>Pollen extraction or containment mandatory</li>
+                            <li>Licensed botanical distributor status required</li>
+                            <li>Monthly compliance inspections</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="violation-card class-4">
+                    <h4>CLASS IV — EXTREME INDECENCY</h4>
+                    <p><strong>Definition:</strong> Flowers of maximum botanical explicitness with fully exposed reproductive organs; no petal coverage; flagrant anatomical display.</p>
+                    <p><strong>Explicitness Level:</strong> Extreme (85-100% visible anatomical exposure)</p>
+                    <p><strong>Examples:</strong> Orchids, anthuriums, specific tropical hybrids, experimental cultivars</p>
+                    <div class="violation-examples">
+                        <strong>Regulatory Requirements:</strong>
+                        <ul style="margin-left: 20px;">
+                            <li>Federal license required for possession</li>
+                            <li>Strict containment protocols mandated</li>
+                            <li>Public display entirely prohibited</li>
+                            <li>Interstate transport requires permits</li>
+                            <li>Quarterly federal inspection required</li>
+                            <li>Special pollen hazmat training mandated</li>
+                            <li>Potential criminal charges for violations</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <h3>Classification Disputes</h3>
+            <p>Proprietors who believe their botanical materials have been incorrectly classified may file an appeal with the regional BIB office within 30 days. Reclassification requests trigger a formal botanical review process involving certified florists and government botanists. The typical appeal resolution takes 45-90 days.</p>
+        </section>
+
+        <!-- RECENT CITATIONS -->
+        <section id="citations">
+            <h2>Recent Enforcement Actions</h2>
+
+            <p>The Bureau actively monitors compliance across all commercial and public display spaces. Below is a representative sample of enforcement actions from the past 12 months:</p>
+
+            <table class="citation-table">
+                <thead>
+                    <tr>
+                        <th>Case Number</th>
+                        <th>Business/Individual</th>
+                        <th>Location</th>
+                        <th>Violation</th>
+                        <th>Fine</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="case-number">BIB-2024-018743</td>
+                        <td>Petals & Stems Floral</td>
+                        <td>Portland, OR</td>
+                        <td class="violation-type">Unlicensed display of Class III lilies in street-facing window (200+ exposed stamens); accessible to minors</td>
+                        <td class="fine">$8,500</td>
+                        <td>March 14, 2024</td>
+                    </tr>
+                    <tr>
+                        <td class="case-number">BIB-2024-009521</td>
+                        <td>Green Thumb Garden Center</td>
+                        <td>Austin, TX</td>
+                        <td class="violation-type">Sale of unpackaged Class IV orchids to 16-year-old; no age verification attempted</td>
+                        <td class="fine">$12,000</td>
+                        <td>February 28, 2024</td>
+                    </tr>
+                    <tr>
+                        <td class="case-number">BIB-2024-027654</td>
+                        <td>Downtown Park District</td>
+                        <td>Denver, CO</td>
+                        <td class="violation-type">Public botanical garden with 47 Class II and III specimens inadequately labeled; pollen hazard signage missing</td>
+                        <td class="fine">$5,200</td>
+                        <td>March 3, 2024</td>
+                    </tr>
+                    <tr>
+                        <td class="case-number">BIB-2024-031098</td>
+                        <td>Marcus Dahlia Nursery</td>
+                        <td>Sacramento, CA</td>
+                        <td class="violation-type">Interstate shipment of Class III dahlias without proper federal transport permits; improper pollen containment</td>
+                        <td class="fine">$15,750</td>
+                        <td>March 8, 2024</td>
+                    </tr>
+                    <tr>
+                        <td class="case-number">BIB-2024-014267</td>
+                        <td>Riverside Wedding Florist</td>
+                        <td>Riverside, CA</td>
+                        <td class="violation-type">Use of 89 Class IV anthuriums in wedding installation visible from public street</td>
+                        <td class="fine">$18,900</td>
+                        <td>March 1, 2024</td>
+                    </tr>
+                    <tr>
+                        <td class="case-number">BIB-2024-005819</td>
+                        <td>Sarah Chen (Individual)</td>
+                        <td>Chicago, IL</td>
+                        <td class="violation-type">Residential window display of 12 Class III tropical hybrids in clear vases; visible to pedestrians and minors on public sidewalk</td>
+                        <td class="fine">$3,400</td>
+                        <td>February 15, 2024</td>
+                    </tr>
+                    <tr>
+                        <td class="case-number">BIB-2024-022441</td>
+                        <td>Online Seed Distributor (BloomBox Inc.)</td>
+                        <td>Seattle, WA</td>
+                        <td class="violation-type">Unregulated online sales of Class III hybrid seeds; no age gate system; shipped to minors</td>
+                        <td class="fine">$22,500</td>
+                        <td>March 11, 2024</td>
+                    </tr>
+                    <tr>
+                        <td class="case-number">BIB-2024-008876</td>
+                        <td>City Hall Grounds Department</td>
+                        <td>Boston, MA</td>
+                        <td class="violation-type">Spring planting of 340 pollen-heavy Class II tulips; insufficient public advisory signage; 22 pollen-related complaints received</td>
+                        <td class="fine">$6,750</td>
+                        <td>February 20, 2024</td>
+                    </tr>
+                    <tr>
+                        <td class="case-number">BIB-2024-033765</td>
+                        <td>The Orchid Greenhouse (unlicensed)</td>
+                        <td>Miami, FL</td>
+                        <td class="violation-type">Operation of Class IV breeding facility without federal license; 247 Class IV specimens in inadequate containment</td>
+                        <td class="fine">$34,200</td>
+                        <td>March 7, 2024</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Penalties</h3>
+            <p><strong>First Offense:</strong> Warning and remediation requirement</p>
+            <p><strong>Second Offense:</strong> $500-$15,000 fine depending on severity and class of botanical material</p>
+            <p><strong>Third Offense:</strong> $5,000-$50,000 fine and possible business license suspension</p>
+            <p><strong>Fourth Offense:</strong> Criminal charges may be filed; business closure and federal licensing revocation</p>
+        </section>
+
+        <!-- REPORT VIOLATIONS -->
+        <section id="report">
+            <h2>Report Botanical Indecency</h2>
+
+            <p>Concerned citizens can report suspected violations of the Public Floral Decency Protection Act using the form below. All reports are investigated by field agents within 48 hours. Information may be provided anonymously.</p>
+
+            <form onsubmit="event.preventDefault(); alert('Thank you for your report. Case number BIB-2024-' + Math.floor(Math.random() * 999999) + ' has been assigned. A field agent will contact you within 48 hours.');">
+                <div class="form-group">
+                    <label for="reporter-name">Your Name (Optional):</label>
+                    <input type="text" id="reporter-name" name="reporter-name" placeholder="Enter your name for follow-up contact">
+                </div>
+
+                <div class="form-group">
+                    <label for="reporter-email">Email Address:</label>
+                    <input type="email" id="reporter-email" name="reporter-email" placeholder="your.email@example.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="report-date">Date of Violation:</label>
+                    <input type="date" id="report-date" name="report-date" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="location">Location of Violation:</label>
+                    <input type="text" id="location" name="location" placeholder="Address or business name" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="city-state">City and State:</label>
+                    <input type="text" id="city-state" name="city-state" placeholder="City, ST" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Type of Violation:</label>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="violation-display" name="violation-type" value="public-display">
+                            <label for="violation-display">Inappropriate public display of botanical materials</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="violation-sale" name="violation-type" value="unauthorized-sale">
+                            <label for="violation-sale">Sale to minors without age verification</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="violation-pollen" name="violation-type" value="pollen-hazard">
+                            <label for="violation-pollen">High pollen hazard; inadequate safety signage</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="violation-unlicensed" name="violation-type" value="unlicensed">
+                            <label for="violation-unlicensed">Unlicensed sale/distribution of Class III or IV specimens</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="violation-other" name="violation-type" value="other">
+                            <label for="violation-other">Other botanical indecency concern</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="botanical-species">Botanical Species Involved (if known):</label>
+                    <input type="text" id="botanical-species" name="botanical-species" placeholder="e.g., orchids, lilies, roses">
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Detailed Description of Violation:</label>
+                    <textarea id="description" name="description" placeholder="Please provide specific details about the violation, including number of flowers, their visibility to the public, and any aggravating circumstances." required></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="witness-count">Number of Potential Witnesses:</label>
+                    <input type="text" id="witness-count" name="witness-count" placeholder="If applicable">
+                </div>
+
+                <div class="form-group">
+                    <label for="prior-reports">Have you reported this location previously?</label>
+                    <select id="prior-reports" name="prior-reports">
+                        <option value="">Select...</option>
+                        <option value="no">No, this is my first report</option>
+                        <option value="yes-bib">Yes, I've reported to BIB before</option>
+                        <option value="yes-other">Yes, I've contacted local authorities</option>
+                    </select>
+                </div>
+
+                <button type="submit">Submit Report</button>
+            </form>
+
+            <h3 style="margin-top: 30px;">Anonymous Report Hotline</h3>
+            <p><strong>Phone:</strong> 1-800-BIB-LEAF (1-800-242-5323)</p>
+            <p><strong>Hours:</strong> Monday–Friday, 8:00 AM–6:00 PM EST</p>
+            <p>Reports may also be submitted in writing to your regional BIB office. See the footer for regional office addresses.</p>
+        </section>
+
+        <!-- PUBLIC ADVISORIES -->
+        <section id="advisories">
+            <h2>Public Advisories & Seasonal Warnings</h2>
+
+            <div class="advisory-box">
+                <strong>SPRING 2024 BOTANICAL ALERT</strong>
+                <p>Pollen levels are currently ELEVATED across most of the continental United States. Spring bloom season brings significantly increased reproductive activity among Class II and III specimens. The Bureau recommends:</p>
+                <ul style="margin-left: 20px;">
+                    <li>Exercise caution when approaching public gardens and parks</li>
+                    <li>Wear respiratory protection in high-pollen areas</li>
+                    <li>Avoid purchasing unpackaged flowers during peak bloom season</li>
+                    <li>Monitor local BIB advisories for specific botanical species warnings</li>
+                </ul>
+                <span class="warning-level warning-elevated">ELEVATED</span>
+            </div>
+
+            <div class="advisory-box">
+                <strong>TROPICAL ORCHID IMPORT ADVISORY</strong>
+                <p>The Bureau has identified a recent surge in unregulated Class IV orchid imports from Southeast Asian suppliers. These specimens have been detected in garden centers, flower shops, and online retailers without proper federal licensing documentation. Consumers are advised that unauthorized possession of Class IV specimens is a federal violation. Report suspicious orchid sales to the BIB immediately.</p>
+                <span class="warning-level warning-critical">CRITICAL</span>
+            </div>
+
+            <div class="advisory-box">
+                <strong>WEDDING SEASON COMPLIANCE REMINDER</strong>
+                <p>With wedding season approaching, the Bureau reminds florists and event planners that floral arrangements visible in public spaces (ceremony venues with windows, outdoor receptions, parking lot displays) must comply with all classification regulations. Class III and IV specimens are strictly prohibited in any publicly visible installation. Violators face significant fines and potential business licensing suspension.</p>
+                <span class="warning-level warning-elevated">ELEVATED</span>
+            </div>
+
+            <div class="advisory-box">
+                <strong>ONLINE SEED VENDOR ALERT</strong>
+                <p>Multiple unregulated online retailers are currently selling Class II and III seeds without proper age verification gateways. The Bureau is conducting a federal investigation. Consumers who have received unpackaged seeds from vendors without official BIB licensing should file a report immediately. This is a matter of critical regulatory importance.</p>
+                <span class="warning-level warning-critical">CRITICAL</span>
+            </div>
+
+            <h3>Historical Advisory Archive</h3>
+            <p><strong>Winter 2023–24:</strong> Forced-bloom holiday flowers (poinsettias, amaryllis) posed elevated pollen hazards in December and January. Over 1,200 pollen-related complaints were filed with regional offices.</p>
+            <p><strong>Fall 2023:</strong> Chrysanthemum season brought moderate pollen levels. Three garden centers were cited for inadequate warning signage.</p>
+            <p><strong>Summer 2023:</strong> Dahlias and hybrid roses presented acceptable pollen profiles. No major compliance issues reported.</p>
+
+            <h3>Pollen Forecast Tool</h3>
+            <p>Check your local BIB office website for the regional botanical pollen forecast, updated daily during spring and fall bloom seasons. The forecast identifies high-risk botanical species in your area and provides public health recommendations.</p>
+        </section>
+    </div>
+
+    <footer>
+        <div class="footer-content">
+            <p><strong>Botanical Indecency Bureau (BIB)</strong></p>
+            <p>An agency of the United States Department of Floral Morality</p>
+            <p style="margin-top: 15px;">This is an official U.S. government website. For questions or to report suspected violations, contact your regional BIB office.</p>
+
+            <div class="official-notice" style="margin-top: 20px; color: #333;">
+                <strong>OFFICIAL DISCLAIMER:</strong> The information provided on this website is for educational and regulatory compliance purposes only. The Botanical Indecency Bureau makes no warranties, express or implied, regarding the accuracy or completeness of this information. Citizens are responsible for understanding and complying with all applicable federal, state, and local botanical decency regulations. Violation of the Public Floral Decency Protection Act (49 U.S.C. § 8721-8899) may result in civil penalties, criminal charges, and business licensing revocation.
+            </div>
+
+            <div class="footer-links">
+                <a href="#about">About</a>
+                <a href="#report">Report Violations</a>
+                <a href="#advisories">Advisories</a>
+                <a href="#">Regional Offices</a>
+                <a href="#">Employment</a>
+            </div>
+
+            <p style="margin-top: 20px; font-size: 0.8em;">This website is maintained by the Botanical Indecency Bureau. Last updated: March 14, 2024. For accessibility assistance, contact our ADA compliance office.</p>
+        </div>
+    </footer>
+</body>
+</html>

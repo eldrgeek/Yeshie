@@ -1,0 +1,227 @@
+{
+  "_meta": {
+    "description": "Import users via CSV upload on /organization/people. Clicks Import → CSV option → attaches inline CSV content via DataTransfer → uploads.",
+    "requiresAuth": true,
+    "baseUrl": "https://app.yeshid.com",
+    "requiredParams": [
+      "csv_content"
+    ],
+    "optionalParams": [
+      "csv_filename"
+    ],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "prerequisite": "00-login.payload.json",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "homeBookend": true,
+    "verificationStrategy": {
+      "post": "read confirmation banner/snackbar showing import count",
+      "primaryVerification": "import_result contains success or count"
+    },
+    "notes": [
+      "URL is /organization/people (NOT /people).",
+      "csv_content is the RAW CSV string — no file path needed.",
+      "File input is attached via DataTransfer+Blob in MAIN world. Uses find(r =>) pattern for whitelist.",
+      "Import button opens a dropdown with options: CSV, Screenshot, AI Paste.",
+      "Payloads 01/02/03 all import to the same /organization/people page."
+    ],
+    "id": "import-users-csv",
+    "title": "Import Users via CSV",
+    "params": {
+      "csv_content": {
+        "required": true,
+        "description": "CSV content string with user records to import (header row required)"
+      }
+    }
+  },
+  "runId": "yeshid-import-users-csv-{{timestamp}}",
+  "mode": "learning",
+  "site": "app.yeshid.com",
+  "params": {
+    "csv_content": "{{csv_content}}",
+    "csv_filename": "{{csv_filename}}",
+    "base_url": "https://app.yeshid.com"
+  },
+  "abstractTargets": {
+    "import-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "Import"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.5,
+      "name_contains": [
+        "Import"
+      ]
+    },
+    "csv-option": {
+      "match": {
+        "role": "menuitem",
+        "name_contains": [
+          "CSV"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.5,
+      "name_contains": [
+        "CSV"
+      ]
+    },
+    "upload-confirm-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "Upload",
+          "Import",
+          "Confirm"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.5,
+      "name_contains": [
+        "Upload",
+        "Import",
+        "Confirm"
+      ]
+    }
+  },
+  "chain": [
+    {
+      "stepId": "h0",
+      "action": "navigate",
+      "url": "/overview",
+      "note": "HOME START"
+    },
+    {
+      "stepId": "h0b",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 5000
+    },
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "/organization/people",
+      "note": "Navigate to People page."
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 6000
+    },
+    {
+      "stepId": "p1",
+      "action": "perceive",
+      "description": "Verify People page. Note Import button selector and current person count.",
+      "store_as": "people_state"
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "target": "import-button",
+      "note": "Click Import to open dropdown menu."
+    },
+    {
+      "stepId": "s3b",
+      "action": "delay",
+      "ms": 800,
+      "note": "Wait for dropdown to appear."
+    },
+    {
+      "stepId": "p2",
+      "action": "perceive",
+      "description": "Capture the Import dropdown options. List all menu items and their text.",
+      "store_as": "import_menu"
+    },
+    {
+      "stepId": "s4",
+      "action": "click_text",
+      "text": "CSV",
+      "note": "Select CSV import option from dropdown."
+    },
+    {
+      "stepId": "s4b",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Wait for CSV upload modal/dialog to appear."
+    },
+    {
+      "stepId": "p3",
+      "action": "perceive",
+      "description": "Capture the CSV upload modal. Note file input selector, any data-cy attributes, and submit button text.",
+      "store_as": "csv_modal"
+    },
+    {
+      "stepId": "s5",
+      "action": "js",
+      "code": "Array.from(document.querySelectorAll('input')).find(r => r.type==='file' || r.accept?.includes('csv') || r.accept?.includes('text')) && (function(){const inp=Array.from(document.querySelectorAll('input')).find(r=>r.type==='file');if(!inp)return{error:'no file input found'};const content='{{csv_content}}';const fname='{{csv_filename}}'||'import.csv';const file=new File([content],fname,{type:'text/csv'});const dt=new DataTransfer();dt.items.add(file);inp.files=dt.files;inp.dispatchEvent(new Event('change',{bubbles:true}));inp.dispatchEvent(new Event('input',{bubbles:true}));return{ok:true,filename:fname,size:content.length};})() || {error:'file input not found'}",
+      "note": "Attach inline CSV content to file input using DataTransfer. Uses find(r =>) pattern (whitelisted). Creates File from csv_content string — no disk access needed."
+    },
+    {
+      "stepId": "s5b",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Wait for file to register and upload button to activate."
+    },
+    {
+      "stepId": "s6",
+      "action": "click",
+      "target": "upload-confirm-button",
+      "note": "Click Upload/Import/Confirm to submit the CSV."
+    },
+    {
+      "stepId": "s7",
+      "action": "read",
+      "candidates": [
+        ".v-snackbar--active .v-snackbar__content",
+        "[role=\"alert\"]",
+        ".v-snackbar .v-snackbar__content"
+      ],
+      "store_as": "import_result",
+      "optional": true
+    },
+    {
+      "stepId": "v1",
+      "action": "navigate",
+      "url": "/organization/people",
+      "note": "VERIFICATION: Return to people list to confirm import."
+    },
+    {
+      "stepId": "v2",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 5000
+    },
+    {
+      "stepId": "v3",
+      "action": "perceive",
+      "description": "Verify person count changed or new people visible after CSV import.",
+      "store_as": "post_import_state"
+    },
+    {
+      "stepId": "hZ",
+      "action": "navigate",
+      "url": "/overview",
+      "note": "HOME END"
+    },
+    {
+      "stepId": "hZb",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 5000
+    },
+    {
+      "stepId": "verify-success",
+      "action": "perceive",
+      "store_as": "import_verification",
+      "description": "Independent confirmation: verify import result banner or People table confirms users were imported successfully"
+    }
+  ]
+}

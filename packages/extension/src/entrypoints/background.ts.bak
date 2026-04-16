@@ -1,0 +1,2670 @@
+import { io } from 'socket.io-client';
+import { createResolvedTargetUpdate, createSurpriseEvidence } from '../../../../src/runtime-contract.js';
+
+export default defineBackground(() => {
+  console.log('[Yeshie] Background worker started');
+  const DEFAULT_BASE_URL = 'https://app.yeshid.com';
+  const RELAY_URL = import.meta.env.WXT_RELAY_URL || 'http://localhost:3333';
+  const WATCHER_URL = import.meta.env.WXT_WATCHER_URL || 'http://localhost:27182';
+  const CHAT_URL = `${RELAY_URL}/chat`;
+  const CHAT_FEEDBACK_URL = `${RELAY_URL}/chat/feedback`;
+  const CHAT_STATUS_URL = `${RELAY_URL}/chat/status`;
+
+  // ── Relay socket connection ──────────────────────────────────────────────────
+  // Delay initial connection slightly — after a hot-reload, the relay needs
+  // a moment to clean up the previous socket before accepting a new one.
+  // Without this, the first connect attempt fails with a WebSocket error
+  // (Chrome logs it even though Socket.IO auto-retries and succeeds).
+  let socket: ReturnType<typeof io>;
+  setTimeout(() => {
+    socket = io(RELAY_URL, {
+      auth: { role: 'extension' },
+      transports: ['websocket'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+    });
+
+    socket.on('connect', () => {
+      console.log('[Yeshie] Connected to relay', socket.id);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('[Yeshie] Disconnected from relay');
+    });
+
+    // Relay sends skill_run commands
+    socket.on('skill_run', ({ commandId, payload, params, tabId }: any) => {
+      console.log('[Yeshie] skill_run from relay', commandId);
+      const runId = crypto.randomUUID();
+      chrome.storage.session.set({ __yeshieLastRunId: runId });
+      startRun(runId, payload, params || {}, tabId).then(() => {
+        const run = runs.get(runId);
+        const result = run?.result;
+        // Always send full result (includes stepResults for diagnostics)
+        socket.emit('chain_result', { commandId, result: result || { success: false, error: 'no result' } });
+      }).catch((err: any) => {
+        socket.emit('chain_error', { commandId, error: err.message });
+      });
+    });
+
+    // Relay asks for all open tabs
+    socket.on('list_tabs', (ack: (result: any) => void) => {
+      chrome.tabs.query({}, (tabs) => {
+        ack(tabs.map(t => ({ tabId: t.id, url: t.url, title: t.title })));
+      });
+    });
+
+    // Relay asks to open a new tab
+    socket.on('open_tab', async ({ url }: { url: string }, ack: (result: any) => void) => {
+      try {
+        const result = await openTabAndWait(url);
+        let title = '';
+        try { const tab = await chrome.tabs.get(result.tabId); title = tab.title || ''; } catch { /* ignore */ }
+        ack({ ok: true, tabId: result.tabId, url: result.url, title });
+      } catch (err: any) {
+        ack({ ok: false, error: err.message });
+      }
+    });
+
+    // Relay asks to refresh a tab
+    socket.on('refresh_tab', ({ tabId }: { tabId: number }, ack: (result: any) => void) => {
+      chrome.tabs.reload(tabId, {}, () => {
+        if (chrome.runtime.lastError) { ack({ ok: false, error: chrome.runtime.lastError.message }); return; }
+        ack({ ok: true, tabId });
+      });
+    });
+
+    // Relay asks to navigate a tab to a URL
+    socket.on('navigate_tab', async ({ tabId, url }: { tabId: number; url: string }, ack: (result: any) => void) => {
+      try {
+        await navigateAndWait(tabId, url);
+        ack({ ok: true, tabId, url });
+      } catch (err: any) {
+        ack({ ok: false, error: err.message });
+      }
+    });
+
+    // Relay asks to close a tab
+    socket.on('close_tab', ({ tabId }: { tabId: number }, ack: (result: any) => void) => {
+      chrome.tabs.remove(tabId, () => {
+        if (chrome.runtime.lastError) { ack({ ok: false, error: chrome.runtime.lastError.message }); return; }
+        ack({ ok: true, tabId });
+      });
+    });
+
+    // Relay asks to activate (focus) a tab
+    socket.on('activate_tab', async ({ tabId }: { tabId: number }, ack: (result: any) => void) => {
+      try {
+        const tab = await chrome.tabs.update(tabId, { active: true });
+        if (tab.windowId) await chrome.windows.update(tab.windowId, { focused: true });
+        ack({ ok: true, tabId });
+      } catch (err: any) {
+        ack({ ok: false, error: err.message });
+      }
+    });
+
+    // Relay injects a chat message into a specific tab's side-panel conversation.
+    // The message appears as if the user typed it, then flows through the normal
+    // chat path so the listener receives it just like any user-initiated message.
+    socket.on('inject_chat', async ({ tabId, message }: any) => {
+      console.log('[Yeshie] inject_chat for tab', tabId, message);
+
+      // Step 1: ask the side panel for the current history of this tab
+      let history: any[] = [];
+      try {
+        const histResp: any = await new Promise((resolve) => {
+          chrome.runtime.sendMessage({ type: 'get_tab_history', tabId }, (r) => resolve(r));
+        });
+        if (Array.isArray(histResp?.history)) history = histResp.history;
+      } catch { /* proceed with empty history */ }
+
+      // Step 2: tell the side panel to display the user message immediately
+      try { chrome.runtime.sendMessage({ type: 'show_user_message', tabId, message }); } catch { /* ignore */ }
+
+      // Step 3: resolve tab URL for context
+      let currentUrl = '';
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        currentUrl = tab.url || '';
+      } catch { /* ignore */ }
+
+      // Step 4: forward to relay /chat (same path as user-initiated messages)
+      try {
+        const resp = await fetch(CHAT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, currentUrl, tabId, history })
+        });
+        const data = await resp.json();
+        const chatId = data?.chatId || data?.id || null;
+        // Step 5: push the response back to the side panel for that tab
+        try { chrome.runtime.sendMessage({ type: 'show_response', tabId, response: data, chatId }); } catch { /* ignore */ }
+      } catch (e: any) {
+        try { chrome.runtime.sendMessage({ type: 'show_response', tabId, response: { type: 'error', text: e.message }, chatId: null }); } catch { /* ignore */ }
+      }
+    });
+  }, 800);
+
+  // ── Tab activation: broadcast to side panel so conversations switch ──────────
+  chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      if (tab.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://')) {
+        chrome.runtime.sendMessage({ type: 'tab_activated', tabId, url: tab.url }).catch(() => {});
+      }
+    } catch { /* ignore */ }
+  });
+
+  // Window focus changes also change the active tab visible to the side panel
+  chrome.windows.onFocusChanged.addListener(async (windowId) => {
+    if (windowId === chrome.windows.WINDOW_ID_NONE) return;
+    try {
+      const tabs = await chrome.tabs.query({ active: true, windowId });
+      const tab = tabs[0];
+      if (tab?.id && tab.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://')) {
+        chrome.runtime.sendMessage({ type: 'tab_activated', tabId: tab.id, url: tab.url }).catch(() => {});
+      }
+    } catch { /* ignore */ }
+  });
+
+  // Clean up conversation memory when a tab is closed
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    chrome.runtime.sendMessage({ type: 'tab_removed', tabId }).catch(() => {});
+  });
+
+
+
+  // ── Hot reload: poll watcher server, reload extension when build changes ──────
+  let _lastBuild = -1;
+  async function checkForReload() {
+    try {
+      const r = await fetch(`${WATCHER_URL}/`);
+      const { build, ready } = await r.json();
+      if (_lastBuild === -1) { _lastBuild = build; return; }
+      // Only reload when build number changed AND watcher confirms build is complete
+      if (build !== _lastBuild && ready) {
+        // Defer reload if a chain is actively running — reloading mid-chain kills the run
+        if (abortFlags.size > 0) {
+          console.log('[Yeshie] New build ready but chain is running — deferring reload');
+          return; // Don't update _lastBuild so next poll catches it after chain completes
+        }
+        _lastBuild = build;
+        console.log('[Yeshie] New build detected (ready), reloading extension...');
+        chrome.runtime.reload();
+      }
+    } catch (_) {}
+  }
+  setInterval(checkForReload, 2000);
+
+
+  // onInstalled: no tab reload (kills sessions). Content scripts inject naturally on next page load.
+
+  // ── Run state ────────────────────────────────────────────────────────────────
+  const runs = new Map<string, any>();
+  const abortFlags = new Map<string, boolean>();
+
+  function collectSurpriseEvidence(stepResults: any[] = [], topLevelError?: string) {
+    const collected = stepResults.flatMap((r: any) => Array.isArray(r?.surpriseEvidence) ? r.surpriseEvidence : []);
+    if (topLevelError && collected.length === 0) {
+      collected.push(createSurpriseEvidence('unexpected_ui', { details: topLevelError }));
+    }
+    return collected;
+  }
+
+  function collectObservedSignatures(stepResults: any[] = []) {
+    const observed: Record<string, any[]> = {};
+    for (const result of stepResults) {
+      const stepId = result?.stepId;
+      if (!stepId) continue;
+      const matches = [result?.failureSignature, result?.responseSignature]
+        .filter((sig: any) => sig?.matched)
+        .map((sig: any) => ({
+          kind: sig.type,
+          selector: sig.selector,
+          text: sig.text,
+          attribute: sig.attribute,
+          value: sig.value,
+          url: sig.url,
+          outcome: result?.outcome,
+        }));
+      if (matches.length > 0) observed[stepId] = matches;
+    }
+    return observed;
+  }
+
+  function normalizeResolvedTargets(resolvedTargets: any[] = []) {
+    const normalized: Record<string, any> = {};
+    for (const target of resolvedTargets) {
+      if (!target?.abstractName) continue;
+      normalized[target.abstractName] = createResolvedTargetUpdate(
+        target.selector ?? null,
+        target.confidence ?? 0,
+        target.resolvedVia ?? 'escalate',
+        target.resolvedAt || target.resolvedOn || new Date().toISOString()
+      );
+    }
+    return normalized;
+  }
+
+  function buildChainResult(run: any, startedAt: number, success: boolean, error?: string) {
+    const surpriseEvidence = collectSurpriseEvidence(run.stepResults, error);
+    const resolvedTargets = normalizeResolvedTargets(run.resolvedTargets);
+    const modelUpdates = {
+      resolvedTargets,
+      newTargetsDiscovered: [],
+      statesObserved: run.stepResults
+        .map((r: any) => r?.state)
+        .filter(Boolean),
+      signaturesObserved: collectObservedSignatures(run.stepResults),
+      surpriseEvidence,
+    };
+    return {
+      event: 'chain_complete',
+      goalReached: success,
+      success,
+      error,
+      payloadName: run.payload?._meta?.task || run.payload?.runId || 'unknown',
+      site: run.payload?.site || run.params?.base_url || 'unknown',
+      stepsExecuted: run.stepResults.length,
+      stepResults: run.stepResults,
+      buffer: run.buffer,
+      durationMs: Date.now() - startedAt,
+      resolvedTargets: run.resolvedTargets,
+      modelUpdates,
+      surpriseEvidence,
+    };
+  }
+
+  // Keep-alive: prevent service worker suspension ALWAYS (relay needs persistent connection)
+  // MV3 workers sleep after ~30s idle — the alarm fires every 24s to keep the worker alive
+  chrome.alarms.create('yeshie-keepalive', { periodInMinutes: 0.4 });
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'yeshie-keepalive') {
+      // Accessing any chrome API keeps the service worker awake
+      chrome.storage.session.get('__yeshiePing');
+    }
+  });
+
+  // Register side panel behavior
+  chrome.sidePanel.setOptions({ enabled: true });
+  chrome.sidePanel.setPanelBehavior?.({ openPanelOnActionClick: true }).catch(() => {});
+
+  function startKeepalive() { /* no-op: always-on keepalive handles this */ }
+  function stopKeepalive() { /* no-op: keep alive even when idle for relay connection */ }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+  function interpolate(str: string, params: Record<string, any>): string {
+    if (typeof str !== 'string') return str;
+    return str.replace(/\{\{(\w+)\}\}/g, (_, k) => params[k] ?? '');
+  }
+
+  // ── Pre-bundled functions ────────────────────────────────────────────────────
+  // Self-contained — passed as func to executeScript (MAIN world, no imports)
+
+  function PRE_FIND_BY_LABEL(labelText: string) {
+    const lower = labelText.toLowerCase();
+    for (const lb of document.querySelectorAll('.v-label')) {
+      if (lb.textContent?.trim().toLowerCase().includes(lower)) {
+        const inp = lb.closest('.v-input')?.querySelector('input,textarea') as HTMLInputElement | null;
+        if (inp) return { id: inp.id, selector: inp.id ? '#' + inp.id : null, found: true };
+      }
+    }
+    for (const div of document.querySelectorAll('.mb-2,.text-body-2')) {
+      if (div.textContent?.trim().toLowerCase().includes(lower) && !div.querySelector('input')) {
+        let sib = div.nextElementSibling;
+        while (sib) {
+          const inp = sib.querySelector('input,textarea') as HTMLInputElement | null;
+          if (inp) return { id: inp.id, selector: inp.id ? '#' + inp.id : null, found: true };
+          sib = sib.nextElementSibling;
+        }
+        const inp = div.parentElement?.nextElementSibling?.querySelector('input,textarea') as HTMLInputElement | null;
+        if (inp) return { id: inp.id, selector: inp.id ? '#' + inp.id : null, found: true };
+      }
+    }
+    const el = document.querySelector(`input[aria-label*="${labelText}" i],input[placeholder*="${labelText}" i]`) as HTMLInputElement | null;
+    if (el) return { id: el.id, selector: el.id ? '#' + el.id : null, found: true };
+    return { found: false, selector: null };
+  }
+
+  function PRE_RESOLVE_TARGET(abstractTarget: any) {
+    const CACHE_MS = 30 * 24 * 60 * 60 * 1000;
+
+    // Produce a reload-stable selector — prefers a11y attributes over generated IDs
+    function stableSelector(el: Element): string | null {
+      const tag = el.tagName.toLowerCase();
+      const ariaLabel = el.getAttribute('aria-label');
+      if (ariaLabel) return `[aria-label="${ariaLabel}"]`;
+      const placeholder = (el as HTMLInputElement).placeholder;
+      if (placeholder) return `${tag}[placeholder="${placeholder}"]`;
+      const name = el.getAttribute('name');
+      if (name) return `${tag}[name="${name}"]`;
+      const testid = el.getAttribute('data-testid');
+      if (testid) return `[data-testid="${testid}"]`;
+      // Only use ID if it looks stable (not a generated Vuetify/React ID)
+      if (el.id && !/^(input-v-|_react_|:r)/.test(el.id)) return '#' + el.id;
+      return null;
+    }
+
+    function resolveFromAnchors(anchors: any) {
+      if (!anchors) return null;
+
+      const selectorCandidates = [
+        anchors.ariaLabel ? `[aria-label="${anchors.ariaLabel}"]` : null,
+        anchors.placeholder ? `input[placeholder="${anchors.placeholder}"], textarea[placeholder="${anchors.placeholder}"], [placeholder="${anchors.placeholder}"], [data-placeholder="${anchors.placeholder}"]` : null,
+        anchors.name ? `input[name="${anchors.name}"], textarea[name="${anchors.name}"], select[name="${anchors.name}"]` : null,
+        anchors.dataTestId ? `[data-testid="${anchors.dataTestId}"]` : null,
+        anchors.id && !/^(input-v-\d+|checkbox-v-\d+|_react_|react-\d+|:r)/.test(anchors.id) ? `#${anchors.id}` : null,
+      ];
+
+      for (const selector of selectorCandidates) {
+        if (!selector) continue;
+        const el = document.querySelector(selector);
+        if (el) {
+          return {
+            selector: stableSelector(el) || selector,
+            confidence: 0.89,
+            resolvedVia: 'auto_heal',
+            found: true,
+          };
+        }
+      }
+
+      if (anchors.labelText) {
+        const res = PRE_FIND_BY_LABEL(anchors.labelText);
+        if (res?.found) {
+          return {
+            selector: res.selector,
+            confidence: 0.87,
+            resolvedVia: 'auto_heal',
+            found: true,
+          };
+        }
+      }
+
+      if (anchors.text) {
+        const lowered = String(anchors.text).toLowerCase();
+        const el = Array.from(document.querySelectorAll('a[href],a,button,[role="button"],[role="menuitem"],[role="option"]'))
+          .find((candidate: any) =>
+            candidate.textContent?.trim().toLowerCase().includes(lowered) ||
+            candidate.getAttribute('aria-label')?.toLowerCase().includes(lowered)
+          ) as HTMLElement | undefined;
+        if (el) {
+          return {
+            selector: stableSelector(el) || null,
+            confidence: 0.86,
+            resolvedVia: 'auto_heal',
+            found: true,
+            buttonText: el.textContent?.trim() || null,
+          };
+        }
+      }
+
+      return null;
+    }
+
+    // Step 1: cached selector (verify still valid in DOM)
+    if (abstractTarget.cachedSelector && (abstractTarget.cachedConfidence || 0) >= 0.85 && abstractTarget.resolvedOn) {
+      const age = Date.now() - new Date(abstractTarget.resolvedOn).getTime();
+      if (age < CACHE_MS) {
+        const el = document.querySelector(abstractTarget.cachedSelector);
+        if (el) return { selector: abstractTarget.cachedSelector, confidence: abstractTarget.cachedConfidence, resolvedVia: 'cached', found: true };
+      }
+    }
+
+    const healed = resolveFromAnchors(abstractTarget.anchors);
+    if (healed) return healed;
+
+    const labelKeys: string[] = abstractTarget.match?.vuetify_label || abstractTarget.semanticKeys || [];
+    const nameKeys: string[] = abstractTarget.match?.name_contains || [];
+    const allKeys = [...new Set([...labelKeys, ...nameKeys])];
+
+    // Step 2: A11y tree resolution — framework-agnostic, stable across page reloads
+    // Resolution order mirrors how browsers compute accessible names (ARIA spec)
+    for (const key of allKeys) {
+      const k = key.toLowerCase();
+      // 2a: aria-label attribute
+      const byAria = document.querySelector(`[aria-label*="${key}" i]`) as HTMLElement | null;
+      if (byAria) {
+        const sel = stableSelector(byAria) || `[aria-label*="${key}" i]`;
+        return { selector: sel, confidence: 0.92, resolvedVia: 'a11y_aria_label', found: true };
+      }
+      // 2b: aria-labelledby → follow reference to label text
+      for (const el of Array.from(document.querySelectorAll('[aria-labelledby]'))) {
+        const labelId = el.getAttribute('aria-labelledby')!;
+        const label = document.getElementById(labelId);
+        if (label?.textContent?.toLowerCase().includes(k)) {
+          const sel = stableSelector(el) || `[aria-labelledby="${labelId}"]`;
+          return { selector: sel, confidence: 0.92, resolvedVia: 'a11y_labelledby', found: true };
+        }
+      }
+      // 2c: <label for="X"> text contains key → resolve to target input
+      for (const label of Array.from(document.querySelectorAll('label[for]'))) {
+        if (label.textContent?.toLowerCase().includes(k)) {
+          const target = document.getElementById((label as HTMLLabelElement).htmlFor);
+          if (target) {
+            const sel = stableSelector(target) || `#${(label as HTMLLabelElement).htmlFor}`;
+            return { selector: sel, confidence: 0.90, resolvedVia: 'a11y_label_for', found: true };
+          }
+        }
+      }
+      // 2d: placeholder text
+      const byPlaceholder = document.querySelector(`[placeholder*="${key}" i]`) as HTMLElement | null;
+      if (byPlaceholder) {
+        const sel = stableSelector(byPlaceholder) || `[placeholder*="${key}" i]`;
+        return { selector: sel, confidence: 0.88, resolvedVia: 'a11y_placeholder', found: true };
+      }
+    }
+
+    // Step 3: Vuetify-specific patterns (framework fallback — uses stableSelector now)
+    for (const labelText of labelKeys) {
+      const l = labelText.toLowerCase();
+      for (const lb of document.querySelectorAll('.v-label')) {
+        if (lb.textContent?.trim().toLowerCase().includes(l)) {
+          const inp = lb.closest('.v-input')?.querySelector('input,textarea') as HTMLInputElement | null;
+          if (inp) { const sel = stableSelector(inp); if (sel) return { selector: sel, confidence: 0.85, resolvedVia: 'vuetify_label_match', found: true }; }
+        }
+      }
+      for (const div of document.querySelectorAll('.mb-2,.text-body-2')) {
+        if (div.textContent?.trim().toLowerCase().includes(l) && !div.querySelector('input')) {
+          let sib = div.nextElementSibling;
+          while (sib) {
+            const inp = sib.querySelector('input,textarea') as HTMLInputElement | null;
+            if (inp) { const sel = stableSelector(inp); if (sel) return { selector: sel, confidence: 0.85, resolvedVia: 'vuetify_label_match', found: true }; }
+            sib = sib.nextElementSibling;
+          }
+        }
+      }
+    }
+
+    // Step 3b: table-row label pattern (YeshID edit form uses <td> labels next to inputs)
+    for (const labelText of allKeys) {
+      const l = labelText.toLowerCase();
+      for (const row of document.querySelectorAll('tr, [role="row"]')) {
+        const cells = row.querySelectorAll('td, th, [role="cell"]');
+        for (let ci = 0; ci < cells.length; ci++) {
+          if (cells[ci].textContent?.trim().toLowerCase().includes(l) && !cells[ci].querySelector('input')) {
+            // Check subsequent cells in this row for an input
+            for (let cj = ci + 1; cj < cells.length; cj++) {
+              const inp = cells[cj].querySelector('input,textarea') as HTMLInputElement | null;
+              if (inp) {
+                const sel = stableSelector(inp);
+                if (sel) return { selector: sel, confidence: 0.82, resolvedVia: 'table_row_label', found: true };
+                // If no stable selector, use the generated ID as last resort
+                if (inp.id) return { selector: '#' + inp.id, confidence: 0.70, resolvedVia: 'table_row_label_id', found: true };
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Step 4: clickable targets by text/aria (buttons, links, menu items)
+    for (const nm of nameKeys) {
+      const btn = Array.from(document.querySelectorAll('a[href],[role="button"],button,[role="menuitem"]')).find((b: any) =>
+        b.textContent?.trim().toLowerCase().includes(nm.toLowerCase()) ||
+        b.getAttribute('aria-label')?.toLowerCase().includes(nm.toLowerCase())
+      ) as HTMLElement | undefined;
+      if (btn) {
+        const sel = stableSelector(btn) || null;
+        return { selector: sel, confidence: 0.85, resolvedVia: 'text_match', found: true, buttonText: btn.textContent?.trim() };
+      }
+    }
+
+    // Step 5: explicit fallback CSS selectors (last resort)
+    for (const sel of (abstractTarget.fallbackSelectors || [])) {
+      const el = document.querySelector(sel);
+      if (el) return { selector: sel, confidence: 0.6, resolvedVia: 'css_cascade', found: true };
+    }
+
+    return { found: false, selector: null, confidence: 0, resolvedVia: 'escalate' };
+  }
+
+  function PRE_GUARDED_CLICK(selector: string | null, buttonText: string | null) {
+    let el: Element | null = selector ? document.querySelector(selector) : null;
+    if (!el && buttonText) {
+      el = Array.from(document.querySelectorAll('button,[role="button"],a,[role="menuitem"]'))
+        .find((b: any) => b.textContent?.trim().toLowerCase().includes(buttonText.toLowerCase())) || null;
+    }
+    if (!el) return { ok: false, error: 'Not found: ' + (selector || buttonText) };
+    // Dispatch full pointer/mouse event sequence (Vuetify menus need this, not just .click())
+    const rect = (el as HTMLElement).getBoundingClientRect();
+    const cx = rect.x + rect.width / 2;
+    const cy = rect.y + rect.height / 2;
+    const eventInit = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy, screenX: cx, screenY: cy };
+    el.dispatchEvent(new PointerEvent('pointerdown', { ...eventInit, pointerId: 1, pointerType: 'mouse' }));
+    el.dispatchEvent(new MouseEvent('mousedown', eventInit));
+    el.dispatchEvent(new PointerEvent('pointerup', { ...eventInit, pointerId: 1, pointerType: 'mouse' }));
+    el.dispatchEvent(new MouseEvent('mouseup', eventInit));
+    el.dispatchEvent(new MouseEvent('click', eventInit));
+    return { ok: true, tag: el.tagName, text: (el as HTMLElement).textContent?.trim() };
+  }
+
+  function PRE_CAPTURE_SIGNATURE_BASELINE(signatures: any[] = []) {
+    const expanded: any[] = [];
+    function flatten(sig: any) {
+      if (!sig) return;
+      if (Array.isArray(sig.any_of) && sig.any_of.length > 0) {
+        sig.any_of.forEach(flatten);
+      } else {
+        expanded.push(sig);
+      }
+    }
+    signatures.forEach(flatten);
+
+    const baseline: Record<string, string | null> = {};
+    for (const sig of expanded) {
+      if ((sig.type === 'attribute_change' || sig.type === 'attr_change') && sig.selector && sig.attribute) {
+        const el = document.querySelector(sig.selector);
+        baseline[`${sig.selector}::${sig.attribute}`] = el?.getAttribute(sig.attribute) ?? null;
+      }
+    }
+    return baseline;
+  }
+
+  function PRE_MATCH_RESPONSE_SIGNATURES(signatures: any[] = [], initialUrl: string, baseline: Record<string, string | null> = {}, stateGraph: any = null) {
+    const expanded: any[] = [];
+    function flatten(sig: any) {
+      if (!sig) return;
+      if (Array.isArray(sig.any_of) && sig.any_of.length > 0) {
+        sig.any_of.forEach(flatten);
+      } else {
+        expanded.push(sig);
+      }
+    }
+    signatures.forEach(flatten);
+
+    for (const sig of expanded) {
+      if (sig.type === 'url_change' && window.location.href !== initialUrl) {
+        return { matched: true, type: sig.type, url: window.location.href };
+      }
+
+      if (sig.type === 'url_matches' && sig.pattern && new RegExp(sig.pattern).test(window.location.href)) {
+        return { matched: true, type: sig.type, url: window.location.href };
+      }
+
+      if (sig.type === 'url_not_matches' && sig.pattern && !new RegExp(sig.pattern).test(window.location.href)) {
+        return { matched: true, type: sig.type, url: window.location.href };
+      }
+
+      if (sig.type === 'element_absent' && sig.selector && !document.querySelector(sig.selector)) {
+        return { matched: true, type: sig.type, selector: sig.selector };
+      }
+
+      if (sig.type === 'element_visible' && sig.selector) {
+        const el = document.querySelector(sig.selector) as HTMLElement | null;
+        if (el) {
+          const text = el.textContent?.trim() || '';
+          // If textMatch specified, only match when text satisfies the regex
+          if (sig.textMatch && !new RegExp(sig.textMatch, 'i').test(text)) {
+            // element present but text doesn't match yet — keep polling
+          } else {
+            return {
+              matched: true,
+              type: sig.type,
+              selector: sig.selector,
+              text: text || undefined,
+            };
+          }
+        }
+      }
+
+      if (sig.type === 'element_text' && sig.selector) {
+        const el = document.querySelector(sig.selector);
+        const text = el?.textContent?.trim() || '';
+        // Support textPattern (regex) in addition to plain text.includes
+        const isMatch = sig.textPattern
+          ? new RegExp(sig.textPattern, 'i').test(text)
+          : sig.text ? text.includes(sig.text) : false;
+        if (isMatch) {
+          return { matched: true, type: sig.type, selector: sig.selector, text };
+        }
+      }
+
+      if (sig.type === 'state_reached' && sig.state && stateGraph?.nodes) {
+        const state = PRE_ASSESS_STATE(stateGraph).state;
+        if (state === sig.state) {
+          return { matched: true, type: sig.type, state };
+        }
+      }
+
+      if ((sig.type === 'attribute_change' || sig.type === 'attr_change') && sig.selector && sig.attribute) {
+        const el = document.querySelector(sig.selector);
+        if (!el) continue;
+        const value = el.getAttribute(sig.attribute);
+        const prev = baseline[`${sig.selector}::${sig.attribute}`] ?? null;
+        const matches =
+          sig.value !== undefined ? value === String(sig.value)
+          : sig.pattern ? new RegExp(sig.pattern).test(value ?? '')
+          : value !== prev;
+        if (matches) {
+          return {
+            matched: true,
+            type: sig.type,
+            selector: sig.selector,
+            attribute: sig.attribute,
+            value,
+          };
+        }
+      }
+    }
+
+    const snackbar = document.querySelector('.v-snackbar__content');
+    const alert = document.querySelector('.v-alert');
+    return {
+      matched: false,
+      timeout: true,
+      snackbarText: snackbar?.textContent?.trim() || undefined,
+      alertText: alert?.textContent?.trim() || undefined,
+      urlNow: window.location.href,
+    };
+  }
+
+  function PRE_GUARDED_READ(candidates: string[]) {
+    for (const sel of (candidates || [])) {
+      const el = document.querySelector(sel);
+      if (el) return { text: el.textContent?.trim() || null, selector: sel, found: true };
+    }
+    return { text: null, found: false };
+  }
+
+  function PRE_PAGE_SNAPSHOT() {
+    const pageUrl = window.location.pathname;
+    function getLabel(input: Element) {
+      const c = input.closest('.v-input, .v-field, .v-text-field');
+      if (!c) return null;
+      const l = c.querySelector('.v-label, .v-field-label');
+      if (l) return l.textContent?.trim() || null;
+      const prev = c.previousElementSibling;
+      if (prev && prev.classList.contains('mb-2')) return prev.textContent?.trim() || null;
+      return null;
+    }
+    const headings = [...document.querySelectorAll('main h1, main h2, main h3, .v-toolbar-title')]
+      .map(h => ({ level: h.tagName, text: h.textContent?.trim() }));
+    const inputs = [...document.querySelectorAll('input, textarea, select, [contenteditable="true"], [contenteditable="plaintext-only"]')]
+      .filter(el => (el as HTMLElement).offsetParent !== null)
+      .map(el => {
+        const inp = el as HTMLInputElement;
+        const isContentEditable = el.getAttribute('contenteditable') != null;
+        return {
+          tag: el.tagName, type: isContentEditable ? 'contenteditable' : inp.type,
+          id: inp.id, placeholder: inp.placeholder || el.getAttribute('data-placeholder') || null,
+          label: getLabel(el), ariaLabel: el.getAttribute('aria-label'),
+          role: el.getAttribute('role') || null,
+          dataTestId: el.getAttribute('data-testid') || null,
+        };
+      });
+    const buttons = [...document.querySelectorAll('button, [role=button], a.v-btn')]
+      .filter(el => (el as HTMLElement).offsetParent !== null)
+      .map(el => ({ tag: el.tagName, text: (el.textContent || '').trim().slice(0, 60), ariaLabel: el.getAttribute('aria-label'), href: el.getAttribute('href'), disabled: (el as HTMLButtonElement).disabled, classes: [...el.classList].slice(0, 5).join(' ') }))
+      .filter((b, i, arr) => arr.findIndex(x => x.text === b.text && x.href === b.href) === i)
+      .slice(0, 50);
+    const links = [...document.querySelectorAll('a[href]')]
+      .filter(el => (el as HTMLElement).offsetParent !== null && el.textContent?.trim())
+      .map(el => ({ text: el.textContent?.trim()?.slice(0, 60), href: el.getAttribute('href') }))
+      .filter((l, i, arr) => arr.findIndex(x => x.text === l.text && x.href === l.href) === i)
+      .slice(0, 30);
+    const tables = [...document.querySelectorAll('table, .v-data-table')].map(table => ({
+      headers: [...table.querySelectorAll('thead th')].map(th => th.textContent?.trim()),
+      rowCount: table.querySelectorAll('tbody tr').length,
+      sampleRows: [...table.querySelectorAll('tbody tr')].slice(0, 3).map(tr =>
+        [...tr.querySelectorAll('td')].map(td => td.textContent?.trim()?.slice(0, 50))
+      )
+    }));
+    const navLinks = [...document.querySelectorAll('.v-navigation-drawer a[href]')]
+      .map(a => ({ text: a.textContent?.trim(), href: a.getAttribute('href'), active: a.classList.contains('v-list-item--active') }));
+    return { pageUrl, headings, inputs, buttons, links, tables, navLinks };
+  }
+
+  // ── Auth detection functions ─────────────────────────────────────────────────
+
+  function PRE_CHECK_AUTH() {
+    // Quick check: is the user authenticated?
+    // YeshID shows /login when unauthenticated, and a navigation drawer when authenticated
+    const onLoginPage = /\/login/.test(window.location.pathname);
+    const hasNavDrawer = !!document.querySelector('.v-navigation-drawer a[href="/overview"]');
+    return {
+      authenticated: !onLoginPage && hasNavDrawer,
+      onLoginPage,
+      hasNavDrawer,
+      currentUrl: window.location.href
+    };
+  }
+
+  async function PRE_WAIT_FOR_AUTH(timeoutMs: number = 120000) {
+    // Poll for authentication — waits for the nav drawer to appear
+    // Returns when authenticated or when timeout expires
+    const t0 = Date.now();
+    while (Date.now() - t0 < timeoutMs) {
+      const onLogin = /\/login/.test(window.location.pathname);
+      const hasNav = !!document.querySelector('.v-navigation-drawer a[href="/overview"]');
+      if (!onLogin && hasNav) {
+        return { authenticated: true, waitMs: Date.now() - t0 };
+      }
+      await new Promise(r => setTimeout(r, 2000));
+    }
+    return { authenticated: false, waitMs: Date.now() - t0, timedOut: true };
+  }
+
+  function PRE_CLICK_SSO_BUTTON() {
+    // Click "Sign in with Google" on the YeshID login page
+    const btns = Array.from(document.querySelectorAll('button, a, [role="button"]'));
+    const googleBtn = btns.find(b =>
+      b.textContent?.toLowerCase().includes('sign in with google') ||
+      b.textContent?.toLowerCase().includes('google')
+    ) as HTMLElement | undefined;
+    if (googleBtn) {
+      googleBtn.click();
+      googleBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+      return { clicked: true, text: googleBtn.textContent?.trim() };
+    }
+    return { clicked: false, available: btns.map(b => b.textContent?.trim()).filter(Boolean).slice(0, 10) };
+  }
+
+  function PRE_CLICK_GOOGLE_ACCOUNT(email: string) {
+    // On the Google account chooser (accounts.google.com), click the account matching email
+    // Google uses data-email on the email text div (primary), data-identifier on account rows (fallback)
+    const byEmail = document.querySelector(`[data-email="${email}"]`) as HTMLElement | null;
+    if (byEmail) {
+      byEmail.click();
+      return { clicked: true, method: 'data-email', email };
+    }
+    const byIdentifier = document.querySelector(`[data-identifier="${email}"]`) as HTMLElement | null;
+    if (byIdentifier) {
+      byIdentifier.click();
+      return { clicked: true, method: 'data-identifier', email };
+    }
+    // Fallback: find by visible email text in list items
+    const items = Array.from(document.querySelectorAll('li, div[role="link"], div[data-email]'));
+    const match = items.find(el => el.textContent?.includes(email)) as HTMLElement | undefined;
+    if (match) {
+      match.click();
+      return { clicked: true, method: 'text-match', email };
+    }
+    return { clicked: false, available: items.map(el => el.textContent?.trim()).filter(Boolean).slice(0, 10) };
+  }
+
+  function PRE_ASSESS_STATE(stateGraph: any) {
+    function matchesSignal(sig: any) {
+      if (sig.type === 'url_matches') return !!sig.pattern && new RegExp(sig.pattern).test(window.location.href);
+      if (sig.type === 'url_not_matches') return !!sig.pattern && !new RegExp(sig.pattern).test(window.location.href);
+      if (sig.type === 'element_visible') return !!sig.selector && !!document.querySelector(sig.selector);
+      if (sig.type === 'element_absent') return !!sig.selector && !document.querySelector(sig.selector);
+      if (sig.type === 'element_text') return !!sig.selector && (document.querySelector(sig.selector)?.textContent?.includes(sig.text) ?? false);
+      if ((sig.type === 'attribute_change' || sig.type === 'attr_change') && sig.selector && sig.attribute) {
+        const el = document.querySelector(sig.selector);
+        return !!el && el.getAttribute(sig.attribute) === String(sig.value ?? '');
+      }
+      return false;
+    }
+    if (!stateGraph?.nodes) return { state: 'unknown' };
+    for (const [name, node] of Object.entries(stateGraph.nodes) as any) {
+      if (!node.signals?.length) continue;
+      const allMatch = node.signals.every((sig: any) => matchesSignal(sig));
+      if (allMatch) return { state: name };
+    }
+    return { state: 'unknown' };
+  }
+
+  function PRE_ARM_MUTATION_OBSERVER() {
+    const w = window as any;
+    try {
+      w.__yeshieObserver?.disconnect?.();
+    } catch (_) {}
+
+    w.__yeshieMutations = [];
+
+    function summarizeNode(node: Node | null) {
+      if (!node) return null;
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent?.trim();
+        return text ? { type: 'text', text: text.slice(0, 120) } : { type: 'text', text: '' };
+      }
+      if (!(node instanceof Element)) return { type: 'node', tag: node.nodeName };
+      return {
+        type: 'element',
+        tag: node.tagName.toLowerCase(),
+        id: node.id || null,
+        className: node.className || null,
+        text: node.textContent?.trim().slice(0, 120) || null,
+      };
+    }
+
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        const target = record.target instanceof Element ? record.target : null;
+        w.__yeshieMutations.push({
+          type: record.type,
+          tag: target?.tagName?.toLowerCase() || null,
+          id: target?.id || null,
+          className: target?.className || null,
+          text: target?.textContent?.trim().slice(0, 120) || null,
+          attribute: record.attributeName || null,
+          oldValue: record.oldValue || null,
+          added: Array.from(record.addedNodes || []).slice(0, 5).map(summarizeNode),
+          removed: Array.from(record.removedNodes || []).slice(0, 5).map(summarizeNode),
+          timestamp: Date.now(),
+        });
+      }
+      if (w.__yeshieMutations.length > 250) {
+        w.__yeshieMutations = w.__yeshieMutations.slice(-250);
+      }
+    });
+
+    const root = document.body || document.documentElement;
+    if (!root) return { armed: false, reason: 'no_root' };
+
+    observer.observe(root, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeOldValue: true,
+      characterData: true,
+      characterDataOldValue: true,
+    });
+
+    w.__yeshieObserver = observer;
+    return { armed: true, startedAt: Date.now() };
+  }
+
+  function PRE_READ_MUTATIONS(disconnect: boolean = true) {
+    const w = window as any;
+    const records = Array.isArray(w.__yeshieMutations) ? w.__yeshieMutations.slice() : [];
+    if (disconnect) {
+      try {
+        w.__yeshieObserver?.disconnect?.();
+      } catch (_) {}
+      w.__yeshieObserver = null;
+    }
+    return {
+      count: records.length,
+      records,
+    };
+  }
+
+  async function PRE_FLUSH_UI() {
+    await Promise.resolve();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    return { flushed: true };
+  }
+
+  async function PRE_CLICK_PRESET(selector: string | null, buttonText: string | null, preset: string) {
+    // Step 1: find and click the picker trigger button
+    let el: Element | null = selector ? document.querySelector(selector) : null;
+    if (!el && buttonText) {
+      el = Array.from(document.querySelectorAll('button,[role="button"],[data-testid]'))
+        .find((b: any) => b.textContent?.trim().toLowerCase().includes(buttonText.toLowerCase())) || null;
+    }
+    if (!el) return { ok: false, error: 'Picker trigger not found: ' + (selector || buttonText) };
+    const triggerEl = el as HTMLElement;
+    const rect = triggerEl.getBoundingClientRect();
+    const cx = rect.x + rect.width / 2;
+    const cy = rect.y + rect.height / 2;
+    const eventInit = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy, screenX: cx, screenY: cy };
+    triggerEl.dispatchEvent(new PointerEvent('pointerdown', { ...eventInit, pointerId: 1, pointerType: 'mouse' }));
+    triggerEl.dispatchEvent(new MouseEvent('mousedown', eventInit));
+    triggerEl.dispatchEvent(new PointerEvent('pointerup', { ...eventInit, pointerId: 1, pointerType: 'mouse' }));
+    triggerEl.dispatchEvent(new MouseEvent('mouseup', eventInit));
+    triggerEl.dispatchEvent(new MouseEvent('click', eventInit));
+
+    // Step 2: wait for overlay/picker to appear
+    const t0 = Date.now();
+    while (Date.now() - t0 < 3000) {
+      if (document.querySelector('.v-overlay--active.v-menu .v-list-item, .v-overlay--active [role="option"], .v-overlay--active [role="menuitem"]')) break;
+      await new Promise(r => setTimeout(r, 100));
+    }
+
+    // Step 3: find the preset option by text
+    const lowerPreset = preset.toLowerCase();
+    const optionSel = '.v-overlay--active.v-menu .v-list-item, .v-overlay--active .v-list-item, [role="option"], [role="menuitem"]';
+    const option = Array.from(document.querySelectorAll(optionSel))
+      .find((e: any) => e.textContent?.trim().toLowerCase().startsWith(lowerPreset)) as HTMLElement | undefined;
+    if (!option) {
+      // Collect available options for better error messages
+      const available = Array.from(document.querySelectorAll(optionSel))
+        .map((e: any) => e.textContent?.trim()).filter(Boolean).join(', ');
+      return { ok: false, error: `Preset option "${preset}" not found. Available: ${available || '(none visible)'}` };
+    }
+
+    // Step 4: click the option
+    const oRect = option.getBoundingClientRect();
+    const ox = oRect.x + oRect.width / 2;
+    const oy = oRect.y + oRect.height / 2;
+    const oInit = { bubbles: true, cancelable: true, view: window, clientX: ox, clientY: oy, screenX: ox, screenY: oy };
+    option.dispatchEvent(new PointerEvent('pointerdown', { ...oInit, pointerId: 1, pointerType: 'mouse' }));
+    option.dispatchEvent(new MouseEvent('mousedown', oInit));
+    option.dispatchEvent(new PointerEvent('pointerup', { ...oInit, pointerId: 1, pointerType: 'mouse' }));
+    option.dispatchEvent(new MouseEvent('mouseup', oInit));
+    option.dispatchEvent(new MouseEvent('click', oInit));
+
+    // Step 5: wait for overlay to close
+    const t1 = Date.now();
+    while (Date.now() - t1 < 3000) {
+      if (!document.querySelector('.v-overlay--active')) break;
+      await new Promise(r => setTimeout(r, 100));
+    }
+
+    return { ok: true, preset, optionText: option.textContent?.trim() };
+  }
+
+  function PRE_MATCH_WAIT_FOR(step: any, selector: string | null, stateGraph: any) {
+    if (step.url_pattern) {
+      return {
+        matched: new RegExp(step.url_pattern).test(window.location.href),
+        url: window.location.href,
+      };
+    }
+
+    if (step.stateGraph?.nodes || step.state?.stateGraph?.nodes || stateGraph?.nodes) {
+      const graph = step.state?.stateGraph || step.stateGraph || stateGraph;
+      const currentState = PRE_ASSESS_STATE(graph).state;
+      const expectedState = step.state?.name || step.expect?.state;
+      return {
+        matched: expectedState ? currentState === expectedState : currentState !== 'unknown',
+        state: currentState,
+      };
+    }
+
+    const el = selector ? document.querySelector(selector) as HTMLElement | null : null;
+    if (step.state) {
+      if (step.state.visible !== undefined) return { matched: step.state.visible ? !!el : !el };
+      if (step.state.enabled !== undefined) {
+        const enabled = !!el && !(el as HTMLInputElement | HTMLButtonElement).disabled && el.getAttribute('aria-disabled') !== 'true';
+        return { matched: step.state.enabled ? enabled : !enabled };
+      }
+      if (step.state.attribute) {
+        const matched = !!el && Object.entries(step.state.attribute).every(([key, expected]) => el?.getAttribute(key) === String(expected));
+        return { matched };
+      }
+    }
+
+    return { matched: !!el };
+  }
+
+  function PRE_FIND_ROW_AND_CLICK(identifier: string) {
+    const rows = Array.from(document.querySelectorAll('.v-data-table__tr,tbody tr'));
+    const match = rows.find(r => r.textContent?.toLowerCase().includes(identifier.toLowerCase()));
+    if (!match) return { found: false, rowCount: rows.length };
+    // Try link with href first, then any <a> tag (Vue/SPA apps use <a> without href)
+    const link = match.querySelector('a[href]') as HTMLAnchorElement | null;
+    if (link) { link.click(); return { found: true, href: link.href }; }
+    const anyLink = match.querySelector('a') as HTMLAnchorElement | null;
+    if (anyLink) { anyLink.click(); return { found: true, clickedLink: true, text: anyLink.textContent?.trim() }; }
+    (match as HTMLElement).click();
+    return { found: true, clicked: true };
+  }
+
+  async function PRE_FIND_AND_CLICK_TEXT(text: string, timeoutMs: number = 1500, exact: boolean = false) {
+    const lower = text.toLowerCase();
+    const sel = 'a,button,[role="button"],[role="menuitem"],.v-list-item,[role="option"],[role="link"]';
+    const t0 = Date.now();
+    while (Date.now() - t0 < timeoutMs) {
+      const els = Array.from(document.querySelectorAll(sel));
+      const match = els.find((e: any) => {
+        if (e.offsetParent === null) return false;
+        const elText = e.textContent?.trim().toLowerCase() || '';
+        return exact ? elText === lower : elText.includes(lower);
+      }) as HTMLElement | undefined;
+      if (match) {
+        const rect = match.getBoundingClientRect();
+        const cx = rect.x + rect.width / 2;
+        const cy = rect.y + rect.height / 2;
+        const eventInit = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy, screenX: cx, screenY: cy };
+        match.dispatchEvent(new PointerEvent('pointerdown', { ...eventInit, pointerId: 1, pointerType: 'mouse' }));
+        match.dispatchEvent(new MouseEvent('mousedown', eventInit));
+        match.dispatchEvent(new PointerEvent('pointerup', { ...eventInit, pointerId: 1, pointerType: 'mouse' }));
+        match.dispatchEvent(new MouseEvent('mouseup', eventInit));
+        match.dispatchEvent(new MouseEvent('click', eventInit));
+        return { found: true, tag: match.tagName, text: match.textContent?.trim(), waitMs: Date.now() - t0 };
+      }
+      await new Promise(r => setTimeout(r, 100));
+    }
+    return { found: false, waitMs: Date.now() - t0 };
+  }
+
+  async function PRE_SELECT_ENTITY(
+    selector: string,
+    search: string,
+    selectText: string,
+    dropdownSelector: string = '.dropdown-container',
+    delayMs: number = 2000
+  ) {
+    try {
+      const input = document.querySelector(selector) as HTMLInputElement | null;
+      if (!input) {
+        return { found: false, error: `Input not found: ${selector}` };
+      }
+
+      // Focus and clear the input
+      input.focus();
+      input.click();
+      input.select();
+      input.value = '';
+
+      // Type the search text character by character, simulating real input with events
+      for (const char of search) {
+        input.value += char;
+        input.dispatchEvent(new InputEvent('input', { bubbles: true, data: char }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise(r => setTimeout(r, 50));
+      }
+
+      // Wait for dropdown to appear and populate
+      const startWait = Date.now();
+      let dropdown: HTMLElement | null = null;
+      while (Date.now() - startWait < delayMs) {
+        dropdown = document.querySelector(dropdownSelector) as HTMLElement | null;
+        // offsetParent is null for position:fixed elements, so also check dimensions
+        if (dropdown && (dropdown.offsetParent !== null || dropdown.getBoundingClientRect().width > 0)) {
+          // Wait extra for content to load (dropdown may show "Loading..." initially)
+          await new Promise(r => setTimeout(r, 800));
+          break;
+        }
+        await new Promise(r => setTimeout(r, 100));
+      }
+
+      if (!dropdown) {
+        return { found: false, error: `Dropdown not found after ${delayMs}ms: ${dropdownSelector}` };
+      }
+      const dRect = dropdown.getBoundingClientRect();
+      if (dRect.width === 0 && dRect.height === 0) {
+        return { found: false, error: `Dropdown found but hidden (0x0): ${dropdownSelector}` };
+      }
+
+      // Find the matching option in the dropdown
+      const selectLower = selectText.toLowerCase();
+      const options = Array.from(dropdown.querySelectorAll('*')).filter((el: any) => {
+        // Look for elements with text content that could be clickable
+        return el.offsetParent !== null && el.textContent?.trim().toLowerCase().includes(selectLower);
+      });
+
+      if (options.length === 0) {
+        return { found: false, error: `No matching option found in dropdown for: ${selectText}` };
+      }
+
+      // Find the best match (smallest element that contains the text to avoid parent wrappers)
+      const targetOption = options.reduce((best, current) => {
+        const currentText = (current as HTMLElement).textContent?.trim().toLowerCase() || '';
+        const bestText = (best as HTMLElement).textContent?.trim().toLowerCase() || '';
+        if (currentText.length < bestText.length && currentText.includes(selectLower)) {
+          return current;
+        }
+        return best;
+      });
+
+      // Click the matched option with proper event simulation
+      const rect = (targetOption as HTMLElement).getBoundingClientRect();
+      const cx = rect.x + rect.width / 2;
+      const cy = rect.y + rect.height / 2;
+      const eventInit = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy, screenX: cx, screenY: cy };
+
+      targetOption.dispatchEvent(new PointerEvent('pointerdown', { ...eventInit, pointerId: 1, pointerType: 'mouse' }));
+      targetOption.dispatchEvent(new MouseEvent('mousedown', eventInit));
+      targetOption.dispatchEvent(new PointerEvent('pointerup', { ...eventInit, pointerId: 1, pointerType: 'mouse' }));
+      targetOption.dispatchEvent(new MouseEvent('mouseup', eventInit));
+      targetOption.dispatchEvent(new MouseEvent('click', eventInit));
+
+      return {
+        found: true,
+        selectedText: (targetOption as HTMLElement).textContent?.trim(),
+        tag: (targetOption as HTMLElement).tagName,
+        searchQuery: search,
+      };
+    } catch (error: any) {
+      return { found: false, error: error.message || 'Unknown error in PRE_SELECT_ENTITY' };
+    }
+  }
+
+  function PRE_PAGE_RECON() {
+    // Perceive the current page: collect navigation, affordances, inputs, tables, actions
+    const seen: Record<string, boolean> = {};
+
+    // Navigation links from sidebar/nav
+    const navEls = document.querySelectorAll('nav a[href], [role="navigation"] a[href], .v-navigation-drawer a[href], aside a[href]');
+    const navLinks: any[] = [];
+    for (let i = 0; i < navEls.length && i < 30; i++) {
+      const a = navEls[i] as HTMLAnchorElement;
+      const text = a.textContent?.trim().split('\n')[0]?.trim();
+      const href = a.getAttribute('href');
+      if (text && text.length < 50 && href && !seen[href]) {
+        seen[href] = true;
+        navLinks.push({ text, href, active: a.classList.contains('v-list-item--active') || a.getAttribute('aria-current') === 'page' });
+      }
+    }
+
+    // Visible buttons
+    const btnEls = document.querySelectorAll('button, [role="button"], [role="menuitem"]');
+    const buttons: any[] = [];
+    for (let j = 0; j < btnEls.length && buttons.length < 20; j++) {
+      const b = btnEls[j] as HTMLElement;
+      const text = b.textContent?.trim().split('\n')[0]?.trim();
+      if (text && text.length < 50 && b.offsetParent !== null) {
+        buttons.push({ text, ariaLabel: b.getAttribute('aria-label'), tag: b.tagName });
+      }
+    }
+
+    // Input fields
+    const inputEls = document.querySelectorAll('input, textarea, select');
+    const fields: any[] = [];
+    for (let k = 0; k < inputEls.length && fields.length < 15; k++) {
+      const inp = inputEls[k] as HTMLInputElement;
+      if (inp.offsetParent !== null) {
+        fields.push({
+          tag: inp.tagName, type: inp.type,
+          placeholder: inp.placeholder || null,
+          ariaLabel: inp.getAttribute('aria-label') || null,
+          name: inp.getAttribute('name') || null
+        });
+      }
+    }
+
+    // Tables
+    const tableEls = document.querySelectorAll('table');
+    const tables: any[] = [];
+    for (let t = 0; t < tableEls.length; t++) {
+      const hdrs = tableEls[t].querySelectorAll('thead th');
+      const hdrTexts: string[] = [];
+      for (let h = 0; h < hdrs.length; h++) hdrTexts.push(hdrs[h].textContent?.trim() || '');
+      tables.push({ headers: hdrTexts, rowCount: tableEls[t].querySelectorAll('tbody tr').length });
+    }
+
+    // Action links in main content area
+    const mainEls = document.querySelectorAll('main a, [role="main"] a');
+    const mainActions: any[] = [];
+    const seenActions: Record<string, boolean> = {};
+    for (let m = 0; m < mainEls.length && mainActions.length < 20; m++) {
+      const al = mainEls[m] as HTMLAnchorElement;
+      const text = al.textContent?.trim();
+      if (text && text.length > 2 && text.length < 60 && al.offsetParent !== null && !seenActions[text]) {
+        seenActions[text] = true;
+        mainActions.push({ text, href: al.getAttribute('href') });
+      }
+    }
+
+    // Page headings
+    const headingEls = document.querySelectorAll('h1, h2, h3, [role="heading"]');
+    const headings: any[] = [];
+    for (let p = 0; p < headingEls.length && headings.length < 10; p++) {
+      const text = headingEls[p].textContent?.trim();
+      if (text) headings.push({ level: headingEls[p].tagName, text: text.slice(0, 80) });
+    }
+
+    return {
+      url: window.location.href,
+      title: document.title,
+      headings,
+      navLinks,
+      buttons,
+      fields,
+      tables,
+      mainActions
+    };
+  }
+
+  function PRE_CAPTURE_ENTITIES(config: any = {}) {
+    const rowSelector = String(config.rowSelector || '.v-data-table__tr, tbody tr, [role="row"]');
+    const linkSelector = String(config.linkSelector || 'a[href], a');
+    const idPattern = config.idPattern ? new RegExp(String(config.idPattern)) : null;
+    const rows = Array.from(document.querySelectorAll(rowSelector));
+    const entities: Record<string, { id: string | null; href: string | null; text: string }> = {};
+
+    function firstMatchingAttr(el: Element | null) {
+      if (!el) return { href: null, id: null, attrs: {} as Record<string, string | null> };
+      const attrNames = ['href', 'to', 'data-href', 'data-to', 'data-route', 'router-link', 'aria-label', 'title'];
+      const attrs: Record<string, string | null> = {};
+      for (const name of attrNames) attrs[name] = el.getAttribute(name);
+      const values = Object.values(attrs).filter(Boolean) as string[];
+      const href = values.find(v => v.startsWith('/')) || attrs.href || attrs['data-href'] || attrs['data-to'] || attrs['data-route'] || attrs.to || null;
+      const id = href
+        ? (idPattern ? (href.match(idPattern)?.[1] ?? null) : (href.match(/\/([A-Za-z0-9-]+)(?:\/details)?\/?$/)?.[1] ?? null))
+        : null;
+      return { href, id, attrs };
+    }
+
+    for (const row of rows) {
+      const link = row.querySelector(linkSelector) as HTMLAnchorElement | null;
+      const cell = row.querySelector('td, th, [role="cell"]');
+      const text = link?.textContent?.trim() || cell?.textContent?.trim() || '';
+      if (!text) continue;
+      const clickable = row.querySelector('a[href], a, button, [role="button"], [tabindex], [aria-label], [title]') as HTMLElement | null;
+      const match = firstMatchingAttr(link || clickable || row);
+      entities[text] = {
+        id: match.id,
+        href: match.href,
+        text,
+      };
+      if (config.debug) {
+        (entities[text] as any).debug = {
+          rowClass: (row as HTMLElement).className || null,
+          rowRole: row.getAttribute('role'),
+          rowAttrs: firstMatchingAttr(row).attrs,
+          clickableTag: clickable?.tagName || null,
+          clickableText: clickable?.textContent?.trim() || null,
+          clickableAttrs: clickable ? firstMatchingAttr(clickable).attrs : {},
+          clickableKeys: clickable ? Object.keys(clickable).filter((k) => k.startsWith('__v') || k.startsWith('_vei')).slice(0, 20) : [],
+          clickableVueProps: clickable && (clickable as any).__vnode?.props
+            ? Object.fromEntries(Object.entries((clickable as any).__vnode.props).filter(([k, v]) => typeof v !== 'function').slice(0, 20))
+            : null,
+          rowHtml: (row as HTMLElement).outerHTML.slice(0, 1200),
+        };
+      }
+    }
+
+    return entities;
+  }
+
+  function PRE_RUN_DOMQUERY(code: string, params: Record<string, any>) {
+    // This function runs in MAIN world via executeScript (pre-bundled, not eval)
+    // It handles common DOM query patterns from payload js steps
+    // Pattern: find row containing identifier and click it
+    try {
+      const identifier = params.user_identifier || params[Object.keys(params)[0]] || '';
+      
+      // Row find + click pattern
+      if (code.includes('find(r =>') || code.includes('find(row') || code.includes('rows.find')) {
+        const rows = Array.from(document.querySelectorAll('.v-data-table__tr,tbody tr'));
+        const match = rows.find((r: any) => r.textContent?.toLowerCase().includes(identifier.toLowerCase()));
+        if (!match) return { found: false, rowCount: rows.length };
+        const link = (match as HTMLElement).querySelector('a[href]') as HTMLAnchorElement | null;
+        if (link) { link.click(); return { found: true, href: link.href }; }
+        const anyLink = (match as HTMLElement).querySelector('a') as HTMLAnchorElement | null;
+        if (anyLink) { anyLink.click(); return { found: true, clickedLink: true, text: anyLink.textContent?.trim() }; }
+        (match as HTMLElement).click();
+        return { found: true, clicked: true };
+      }
+      
+      // Button find + click pattern (Manage, Offboard, Confirm etc)
+      if (code.includes('btns') || code.includes('button')) {
+        const btns = Array.from(document.querySelectorAll('button,[role="menuitem"],[role="option"]'));
+        const keywords = ['offboard', 'deactivate', 'remove', 'confirm', 'yes', 'manage'];
+        for (const kw of keywords) {
+          if (!code.toLowerCase().includes(kw)) continue;
+          const btn = btns.find((b: any) => b.textContent?.trim().toLowerCase().includes(kw)) as HTMLElement | undefined;
+          if (btn) { btn.click(); return { clicked: true, text: btn.textContent?.trim(), keyword: kw }; }
+        }
+        return { found: false, available: btns.map((b: any) => b.textContent?.trim()).filter(Boolean).slice(0, 15) };
+      }
+      
+      // Checkbox select pattern
+      if (code.includes('checkbox') || code.includes('input[type')) {
+        const rows = Array.from(document.querySelectorAll('.v-data-table__tr,tbody tr,[class*="row"]'));
+        const match = rows.find((r: any) => r.textContent?.toLowerCase().includes(identifier.toLowerCase()));
+        if (!match) return { found: false };
+        const cb = (match as HTMLElement).querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+        if (cb) { cb.click(); return { found: true, selectedCheckbox: true }; }
+        (match as HTMLElement).click();
+        return { found: true, clicked: true };
+      }
+      
+      // Field modification pattern (clearAndType, findVuetifyInput, nativeInputValueSetter)
+      if (code.includes('clearAndType') || code.includes('findVuetifyInput') || code.includes('nativeInputValueSetter')) {
+        // Inline field modification — can't call external functions from executeScript context
+        function _findInput(labelTerms: string[]): HTMLInputElement | null {
+          for (const c of Array.from(document.querySelectorAll('.v-input, .v-field'))) {
+            const l = c.querySelector('.v-label, .v-field-label');
+            const inp = c.querySelector('input, textarea') as HTMLInputElement | null;
+            if (!l || !inp) continue;
+            const t = l.textContent?.trim().toLowerCase() || '';
+            if (labelTerms.some(term => t.includes(term.toLowerCase()))) return inp;
+          }
+          for (const div of Array.from(document.querySelectorAll('.mb-2, .text-body-2'))) {
+            const t = div.textContent?.trim().toLowerCase() || '';
+            if (!labelTerms.some(term => t.includes(term.toLowerCase()))) continue;
+            let sib = div.nextElementSibling;
+            while (sib) {
+              const inp = sib.querySelector('input, textarea') as HTMLInputElement | null;
+              if (inp) return inp;
+              sib = sib.nextElementSibling;
+            }
+          }
+          return null;
+        }
+        function _setVal(input: HTMLInputElement, value: string) {
+          input.focus();
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+          if (setter) setter.call(input, value); else input.value = value;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        const updates: Record<string, boolean> = {};
+        const fieldMap: [string, string[]][] = [
+          ['new_first_name', ['first name']],
+          ['new_last_name', ['last name']],
+          ['new_personal_email', ['personal', 'recovery']],
+          ['new_company_email', ['company email']],
+          ['new_phone', ['phone']],
+          ['new_title', ['title', 'job title']],
+          ['new_department', ['department']],
+        ];
+        for (const [paramKey, labels] of fieldMap) {
+          const value = params[paramKey];
+          if (!value) continue;
+          const input = _findInput(labels);
+          if (input) { _setVal(input, value); updates[paramKey] = true; }
+          else { updates[paramKey + '_not_found'] = true; }
+        }
+        return { updated: updates, fieldsModified: Object.keys(updates).filter(k => !k.includes('_not_found')).length };
+      }
+
+      return { __error: 'No matching pattern for js step' };
+    } catch(e: any) {
+      return { __error: e.message };
+    }
+  }
+
+
+
+  // ── Trusted type via chrome.debugger ─────────────────────────────────────────
+  // submit=true: sends Enter after text (for chat UIs) instead of Tab (for form fields)
+  // For native <textarea> elements React uses controlled inputs — Input.insertText writes to
+  // the DOM but bypasses React's synthetic event system (state stays empty, Enter is ignored).
+  // We detect textarea vs contenteditable and use nativeInputValueSetter for textarea so React
+  // sees the value before we press Enter.
+  async function trustedType(tabId: number, selector: string, text: string, submit: boolean = false) {
+    await ensureDebugger(tabId);
+    const target = { tabId };
+
+    // Detect whether the target is a native textarea (React-controlled) or contenteditable
+    const { result: tagResult } = await chrome.debugger.sendCommand(target, 'Runtime.evaluate', {
+      expression: `(function(){const el=document.querySelector(${JSON.stringify(selector)});return el?el.tagName.toLowerCase():null;})()`,
+      returnByValue: true
+    }) as { result: { value: string | null } };
+    const isTextarea = tagResult?.value === 'textarea';
+
+    // Focus + select-all
+    await chrome.debugger.sendCommand(target, 'Runtime.evaluate', {
+      expression: `(function(){const el=document.querySelector(${JSON.stringify(selector)});if(!el)return false;el.focus();el.click();el.select&&el.select();return true;})()`,
+      returnByValue: true
+    });
+    await new Promise(r => setTimeout(r, 80));
+
+    if (isTextarea) {
+      // React-controlled textarea: use nativeInputValueSetter + _valueTracker mismatch trick
+      // so React's change detection fires and the submit handler sees the new value.
+      await chrome.debugger.sendCommand(target, 'Runtime.evaluate', {
+        expression: `(function(){
+          const el=document.querySelector(${JSON.stringify(selector)});
+          if(!el)return false;
+          const nativeSetter=Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value')?.set;
+          const prev=el.value;
+          if(nativeSetter){nativeSetter.call(el,${JSON.stringify(text)});}else{el.value=${JSON.stringify(text)};}
+          if(el._valueTracker){el._valueTracker.setValue(prev);}
+          el.dispatchEvent(new Event('input',{bubbles:true}));
+          el.dispatchEvent(new Event('change',{bubbles:true}));
+          return true;
+        })()`,
+        returnByValue: true
+      });
+    } else {
+      // contenteditable: use CDP insertText (produces isTrusted input events)
+      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65 });
+      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65 });
+      await chrome.debugger.sendCommand(target, 'Input.insertText', { text });
+    }
+
+    if (submit) {
+      await new Promise(r => setTimeout(r, 80));
+      if (isTextarea) {
+        // For textarea-based chat UIs (DeepSeek, Grok): the send button is a div[role="button"]
+        // with no stable aria-label or ID. Find the rightmost visible clickable element near the
+        // textarea and click it. Falls back to Enter key if no button found.
+        const { result: clickResult } = await chrome.debugger.sendCommand(target, 'Runtime.evaluate', {
+          expression: `(function(){
+            const ta=document.querySelector(${JSON.stringify(selector)});
+            if(!ta)return false;
+            const tr=ta.getBoundingClientRect();
+            const candidates=[...document.querySelectorAll('div[role="button"],button')]
+              .filter(el=>{
+                const r=el.getBoundingClientRect();
+                return r.right>tr.right-120 && Math.abs(r.top-tr.top)<120 && r.width>10 && r.width<80;
+              })
+              .sort((a,b)=>b.getBoundingClientRect().left-a.getBoundingClientRect().left);
+            if(candidates[0]){candidates[0].click();return true;}
+            return false;
+          })()`,
+          returnByValue: true
+        }) as { result: { value: boolean } };
+        if (!clickResult?.value) {
+          // Fallback: Enter key if no send button found
+          await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Return', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+          await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Return', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+        }
+      } else {
+        // contenteditable chat UIs (Claude.ai, ChatGPT, Gemini): Enter key submits
+        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Return', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Return', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+      }
+    } else {
+      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+    }
+    return { ok: true };
+  }
+
+  // ── Debugger session management ─────────────────────────────────────────────
+  // Keep debugger attached for the duration of a chain to avoid viewport resize
+  // flicker from attach/detach (the info bar causes layout shifts that can close menus).
+  let _debuggerTabId: number | null = null;
+
+  async function ensureDebugger(tabId: number) {
+    if (_debuggerTabId === tabId) return; // already attached
+    if (_debuggerTabId !== null) {
+      try { await chrome.debugger.detach({ tabId: _debuggerTabId }); } catch (_) {}
+    }
+    try { await chrome.debugger.attach({ tabId }, '1.3'); } catch (e: any) {
+      if (!e.message?.includes('already attached')) throw e;
+    }
+    _debuggerTabId = tabId;
+  }
+
+  async function releaseDebugger() {
+    if (_debuggerTabId !== null) {
+      try { await chrome.debugger.detach({ tabId: _debuggerTabId }); } catch (_) {}
+      _debuggerTabId = null;
+    }
+  }
+
+  // ── Trusted click via chrome.debugger Runtime.evaluate ───────────────────────
+  // CDP Runtime.evaluate click events work with Vuetify menus (chrome.scripting.executeScript doesn't).
+  // Debugger stays attached across the chain to prevent viewport resize closing menus.
+  async function trustedClick(tabId: number, selector: string, buttonText: string | null = null) {
+    await ensureDebugger(tabId);
+    const expr = `(function(){
+      let el = ${JSON.stringify(selector)} ? document.querySelector(${JSON.stringify(selector)}) : null;
+      if (!el && ${JSON.stringify(buttonText)}) {
+        el = Array.from(document.querySelectorAll('button,[role="button"],a,[role="menuitem"]'))
+          .find(b => b.textContent?.trim().toLowerCase().includes(${JSON.stringify(buttonText?.toLowerCase() || '')})) || null;
+      }
+      if (!el) return { ok: false, error: 'Not found: ' + (${JSON.stringify(selector)} || ${JSON.stringify(buttonText)}) };
+      el.click();
+      return { ok: true, tag: el.tagName, text: el.textContent?.trim() };
+    })()`;
+    const result: any = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
+      expression: expr,
+      returnByValue: true
+    });
+    return result?.result?.value || { ok: false, error: 'No result from Runtime.evaluate' };
+  }
+
+  // ── Trusted mouse click via Input.dispatchMouseEvent (isTrusted:true) ────────
+  // Unlike el.click() via Runtime.evaluate, this produces real browser events
+  // Required for OAuth buttons and Google account chooser
+  async function trustedMouseClick(tabId: number, findElementExpr: string): Promise<{ clicked: boolean; x?: number; y?: number; reason?: string }> {
+    const debuggerTarget = { tabId };
+    try {
+      try {
+        await chrome.debugger.attach(debuggerTarget, '1.3');
+      } catch (attachErr: any) {
+        if (!attachErr?.message?.includes('Already attached')) throw attachErr;
+      }
+
+      // Find element and get its bounding rect center
+      const evalResult = await chrome.debugger.sendCommand(debuggerTarget, 'Runtime.evaluate', {
+        expression: findElementExpr,
+        returnByValue: true,
+        awaitPromise: true,
+        userGesture: true
+      });
+      const rect = (evalResult as any)?.result?.value;
+      if (!rect || !rect.x) {
+        return { clicked: false, reason: rect?.reason || 'element not found' };
+      }
+
+      const x = Math.round(rect.x);
+      const y = Math.round(rect.y);
+
+      // Dispatch real mouse events
+      await chrome.debugger.sendCommand(debuggerTarget, 'Input.dispatchMouseEvent', {
+        type: 'mousePressed', x, y, button: 'left', clickCount: 1
+      });
+      await chrome.debugger.sendCommand(debuggerTarget, 'Input.dispatchMouseEvent', {
+        type: 'mouseReleased', x, y, button: 'left', clickCount: 1
+      });
+
+      return { clicked: true, x, y };
+    } catch (err: any) {
+      return { clicked: false, reason: err?.message || 'trustedMouseClick failed' };
+    } finally {
+      try { await chrome.debugger.detach(debuggerTarget); } catch (_) {}
+    }
+  }
+
+  // ── Observability: log auth flow events to relay ─────────────────────────────
+  async function logToRelay(event: string, data: any) {
+    try {
+      await fetch('http://localhost:3333/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event, ts: new Date().toISOString(), ...data })
+      });
+    } catch (_) {} // fire and forget
+  }
+
+  // ── Navigation ────────────────────────────────────────────────────────────────
+  function navigateAndWait(tabId: number, url: string): Promise<{ ok: boolean; url: string }> {
+    return new Promise((resolve) => {
+      chrome.tabs.update(tabId, { url });
+      function listener(updatedTabId: number, info: chrome.tabs.TabChangeInfo) {
+        if (updatedTabId === tabId && info.status === 'complete') {
+          chrome.tabs.onUpdated.removeListener(listener);
+          setTimeout(() => resolve({ ok: true, url }), 600);
+        }
+      }
+      chrome.tabs.onUpdated.addListener(listener);
+      setTimeout(() => { chrome.tabs.onUpdated.removeListener(listener); resolve({ ok: true, url }); }, 15000);
+    });
+  }
+
+  function openTabAndWait(url: string): Promise<{ ok: boolean; tabId: number; url: string }> {
+    return new Promise((resolve) => {
+      chrome.tabs.create({ url, active: true }, (tab) => {
+        const newTabId = tab.id!;
+        function listener(updatedTabId: number, info: chrome.tabs.TabChangeInfo) {
+          if (updatedTabId === newTabId && info.status === 'complete') {
+            chrome.tabs.onUpdated.removeListener(listener);
+            setTimeout(() => resolve({ ok: true, tabId: newTabId, url }), 600);
+          }
+        }
+        chrome.tabs.onUpdated.addListener(listener);
+        setTimeout(() => { chrome.tabs.onUpdated.removeListener(listener); resolve({ ok: true, tabId: newTabId, url }); }, 15000);
+      });
+    });
+  }
+
+  // ── executeScript helper ──────────────────────────────────────────────────────
+  async function execInTab(tabId: number, func: Function, args: any[]) {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: func as any,
+      args,
+      world: 'MAIN'
+    });
+    return results?.[0]?.result;
+  }
+
+  function getSignatureTimeout(signatures: any[] = [], fallback = 2000) {
+    const values: number[] = [];
+    function visit(sig: any) {
+      if (!sig) return;
+      if (typeof sig.timeout === 'number') values.push(sig.timeout);
+      if (Array.isArray(sig.any_of)) sig.any_of.forEach(visit);
+    }
+    signatures.forEach(visit);
+    return values.length > 0 ? Math.max(...values) : fallback;
+  }
+
+  function resolveEntityNavigation(step: any, buffer: Record<string, any>) {
+    const identifier = interpolate(step.identifier || step.value || '', buffer);
+    const entityMapName = String(step.entity_map || 'entities');
+    const entityMap = buffer[entityMapName] || {};
+    const entry = Object.entries(entityMap).find(([key]) => key.toLowerCase() === String(identifier).toLowerCase())?.[1] as any;
+
+    if (!entry) throw new Error(`Entity not found: ${identifier} in ${entityMapName}`);
+
+    const schema = step.urlSchema?.[step.urlSchemaKey || step.entity] || step.urlSchema?.[step.urlSchemaKey] || null;
+    const urlTemplate = step.urlTemplate || schema?.template || '';
+    if (urlTemplate) {
+      const entityId = entry.id || null;
+      if (entityId) {
+        return {
+          identifier,
+          entityId,
+          url: String(urlTemplate).replace(/\{(?:entityId|id|uuid)\}/g, entityId),
+          strategy: 'direct',
+        };
+      }
+    }
+
+    if (entry.href) {
+      return {
+        identifier,
+        entityId: entry.id || null,
+        url: entry.href,
+        strategy: 'href',
+      };
+    }
+
+    return {
+      identifier,
+      entityId: entry.id || null,
+      url: null,
+      strategy: 'row_click_fallback',
+      listUrl: step.listUrl || schema?.list || null,
+    };
+  }
+
+  async function evaluateActionOutcome(tabId: number, step: any, initialUrl: string, failureBaseline: Record<string, string | null>, responseBaseline: Record<string, string | null>, stateGraph: any = null) {
+    const hasFailure = Array.isArray(step.failureSignature) && step.failureSignature.length > 0;
+    const hasResponse = Array.isArray(step.responseSignature) && step.responseSignature.length > 0;
+    await execInTab(tabId, PRE_FLUSH_UI, []);
+
+    const failureTimeout = getSignatureTimeout(step.failureSignature, 0);
+    const responseTimeout = getSignatureTimeout(step.responseSignature, 0);
+    const timeout = hasFailure || hasResponse
+      ? Math.max(failureTimeout, responseTimeout, 2000)
+      : 600;
+    const startedAt = Date.now();
+
+    let failureSignature = hasFailure ? await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.failureSignature, initialUrl, failureBaseline, stateGraph]) : undefined;
+    let responseSignature = hasResponse ? await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.responseSignature, initialUrl, responseBaseline, stateGraph]) : undefined;
+    while ((hasFailure || hasResponse) && Date.now() - startedAt < timeout) {
+      if (failureSignature?.matched || responseSignature?.matched) break;
+      await new Promise(r => setTimeout(r, 200));
+      if (hasFailure) failureSignature = await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.failureSignature, initialUrl, failureBaseline, stateGraph]);
+      if (hasResponse) responseSignature = await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.responseSignature, initialUrl, responseBaseline, stateGraph]);
+    }
+
+    const mutationDiagnostics = await execInTab(tabId, PRE_READ_MUTATIONS, [true]);
+
+    const outcome =
+      failureSignature?.matched ? 'failure'
+      : responseSignature?.matched ? 'success'
+      : hasFailure || hasResponse ? 'ambiguous' : undefined;
+
+    const verificationStatus =
+      failureSignature?.matched ? 'error'
+      : responseSignature?.matched ? 'confirmed'
+      : (hasFailure || hasResponse) ? 'timeout' : undefined;
+    const verificationMessage =
+      failureSignature?.matched ? (failureSignature.text || 'Failure signal detected')
+      : responseSignature?.matched ? (responseSignature.text || 'Action confirmed')
+      : (hasFailure || hasResponse) ? 'No confirmation received within timeout' : undefined;
+    const verification = verificationStatus
+      ? { status: verificationStatus, message: verificationMessage }
+      : undefined;
+
+    return {
+      failureSignature,
+      responseSignature,
+      outcome,
+      verification,
+      diagnostics: {
+        mutationCount: mutationDiagnostics?.count || 0,
+        mutations: mutationDiagnostics?.records || [],
+      },
+    };
+  }
+
+  // ── Step executor ─────────────────────────────────────────────────────────────
+  async function executeStep(step: any, run: any) {
+    const t0 = Date.now();
+    const { tabId, params, buffer, abstractTargets } = run;
+    const a = step.action;
+
+    if (step.condition) {
+      const val = interpolate(step.condition, { ...params, ...buffer });
+      if (!val || val === 'false' || val === '0' || val === 'undefined') {
+        return { stepId: step.stepId, action: a, status: 'skipped', durationMs: 0 };
+      }
+    }
+
+    try {
+      if (a === 'navigate') {
+        const url = interpolate(step.url, { ...params, ...buffer });
+        const r = await navigateAndWait(tabId, url);
+        // Mid-chain auth detection: check if navigate landed on /login
+        const currentUrl = await execInTab(tabId, () => window.location.href, []);
+        if (currentUrl && isLoginUrl(currentUrl) && !isLoginUrl(url)) {
+          // We asked for a real page but got redirected to login — session expired
+          return {
+            stepId: step.stepId,
+            action: a,
+            status: 'auth_required',
+            url: currentUrl,
+            requestedUrl: url,
+            surpriseEvidence: [
+              createSurpriseEvidence('url_mismatch', {
+                stepId: step.stepId,
+                expected: url,
+                observed: currentUrl,
+                details: 'Navigation redirected to login',
+              }),
+            ],
+            durationMs: Date.now() - t0,
+          };
+        }
+        return { stepId: step.stepId, action: a, status: 'ok', url: r.url, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'open_tab') {
+        const url = interpolate(step.url, { ...params, ...buffer });
+        const r = await openTabAndWait(url);
+        if (step.store_tab_id) buffer[step.store_tab_id] = r.tabId;
+        return { stepId: step.stepId, action: a, status: 'ok', url: r.url, tabId: r.tabId, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'capture_entities') {
+        const entities = await execInTab(tabId, PRE_CAPTURE_ENTITIES, [step]);
+        if (step.store_as) buffer[step.store_as] = entities;
+        return { stepId: step.stepId, action: a, status: 'ok', result: entities, storedAs: step.store_as, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'navigate_to_entity') {
+        const resolved = resolveEntityNavigation(step, { ...params, ...buffer });
+        if (resolved.url) {
+          const r = await navigateAndWait(tabId, resolved.url);
+          return { stepId: step.stepId, action: a, status: 'ok', url: r.url, value: r.url, result: resolved, durationMs: Date.now() - t0 };
+        }
+
+        const initialUrl = await execInTab(tabId, () => window.location.href, []);
+        let clickResult = await execInTab(tabId, PRE_FIND_ROW_AND_CLICK, [resolved.identifier]);
+
+        if (!clickResult?.found && resolved.listUrl) {
+          const absoluteListUrl = String(resolved.listUrl).startsWith('http')
+            ? resolved.listUrl
+            : new URL(String(resolved.listUrl), params?.base_url || step.base_url || 'https://app.yeshid.com').toString();
+          const currentUrl = await execInTab(tabId, () => window.location.href, []);
+          if (currentUrl !== absoluteListUrl) {
+            await navigateAndWait(tabId, absoluteListUrl);
+          }
+
+          const rowStartedAt = Date.now();
+          while (Date.now() - rowStartedAt < 5000) {
+            const rowReady = await execInTab(tabId, () => !!document.querySelector('.v-data-table__tr, tbody tr, [role="row"]'), []);
+            if (rowReady) break;
+            await new Promise(r => setTimeout(r, 200));
+          }
+
+          clickResult = await execInTab(tabId, PRE_FIND_ROW_AND_CLICK, [resolved.identifier]);
+        }
+
+        if (!clickResult?.found) throw new Error('Row not found: ' + resolved.identifier);
+
+        const startedAt = Date.now();
+        let currentUrl = initialUrl;
+        while (Date.now() - startedAt < 5000) {
+          await new Promise(r => setTimeout(r, 200));
+          currentUrl = await execInTab(tabId, () => window.location.href, []);
+          if (currentUrl && currentUrl !== initialUrl) break;
+        }
+
+        return {
+          stepId: step.stepId,
+          action: a,
+          status: 'ok',
+          url: currentUrl,
+          value: currentUrl,
+          result: { ...resolved, url: currentUrl, clickResult },
+          durationMs: Date.now() - t0,
+        };
+      }
+
+      if (a === 'type') {
+        const value = interpolate(step.value || '', { ...params, ...buffer });
+        const initialUrl = await execInTab(tabId, () => window.location.href, []);
+        await execInTab(tabId, PRE_ARM_MUTATION_OBSERVER, []);
+        const failureBaseline = step.failureSignature?.length
+          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.failureSignature])
+          : {};
+        const responseBaseline = step.responseSignature?.length
+          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.responseSignature])
+          : {};
+        const tgt = step.target ? abstractTargets?.[step.target] : null;
+        let resolvedSelector = step.selector || null;
+        let resolvedVia = 'direct';
+        let confidence = 1.0;
+        if (tgt) {
+          const res = await execInTab(tabId, PRE_RESOLVE_TARGET, [tgt]);
+          if (!res?.found) throw new Error('Cannot resolve: ' + step.target);
+          resolvedSelector = res.selector;
+          resolvedVia = res.resolvedVia;
+          confidence = res.confidence;
+          if (resolvedSelector && res.resolvedVia !== 'cached') {
+            tgt.cachedSelector = resolvedSelector;
+            tgt.cachedConfidence = res.confidence;
+            tgt.resolvedOn = new Date().toISOString();
+          }
+        }
+        if (!resolvedSelector) throw new Error('No selector for: ' + (step.target || step.selector));
+        await trustedType(tabId, resolvedSelector, value, !!step.submit);
+        const outcomeFields = await evaluateActionOutcome(tabId, step, initialUrl, failureBaseline, responseBaseline, run.payload?.stateGraph || null);
+        if (outcomeFields.outcome === 'failure') {
+          const msg = outcomeFields.failureSignature?.text || 'Form action rejected by the page';
+          return { stepId: step.stepId, action: a, status: 'error', error: msg, value, selector: resolvedSelector, resolvedVia, confidence, target: step.target, ...outcomeFields, durationMs: Date.now() - t0 };
+        }
+        return { stepId: step.stepId, action: a, status: 'ok', value, selector: resolvedSelector, resolvedVia, confidence, target: step.target, ...outcomeFields, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'click') {
+        const initialUrl = await execInTab(tabId, () => window.location.href, []);
+        await execInTab(tabId, PRE_ARM_MUTATION_OBSERVER, []);
+        const failureBaseline = step.failureSignature?.length
+          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.failureSignature])
+          : {};
+        const responseBaseline = step.responseSignature?.length
+          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.responseSignature])
+          : {};
+        const tgt = step.target ? abstractTargets?.[step.target] : null;
+        let resolvedSelector = step.selector || null;
+        let resolvedVia = 'direct';
+        let buttonText = null;
+        if (tgt) {
+          const res = await execInTab(tabId, PRE_RESOLVE_TARGET, [tgt]);
+          if (!res?.found) throw new Error('Cannot resolve: ' + step.target);
+          resolvedSelector = res.selector;
+          resolvedVia = res.resolvedVia;
+          buttonText = res.buttonText || null;
+        }
+        const r = await execInTab(tabId, PRE_GUARDED_CLICK, [resolvedSelector, buttonText]);
+        if (!r?.ok) throw new Error(r?.error || 'Click failed');
+        const outcomeFields = await evaluateActionOutcome(tabId, step, initialUrl, failureBaseline, responseBaseline, run.payload?.stateGraph || null);
+        if (outcomeFields.outcome === 'failure') {
+          const msg = outcomeFields.failureSignature?.text || 'Action rejected by the page';
+          return { stepId: step.stepId, action: a, status: 'error', error: msg, selector: resolvedSelector, resolvedVia, target: step.target, clickDiag: r, ...outcomeFields, durationMs: Date.now() - t0 };
+        }
+        return { stepId: step.stepId, action: a, status: 'ok', selector: resolvedSelector, resolvedVia, target: step.target, clickDiag: r, ...outcomeFields, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'wait_for') {
+        const timeout = step.timeout || 8000;
+        const start = Date.now();
+
+        // URL pattern mode: poll until window.location matches
+        if (step.url_pattern) {
+          const pat = interpolate(step.url_pattern, { ...params, ...buffer });
+          while (Date.now() - start < timeout) {
+            const match = await execInTab(tabId, PRE_MATCH_WAIT_FOR, [{ ...step, url_pattern: pat }, null, run.payload?.stateGraph || null]);
+            if (match?.matched) return { stepId: step.stepId, action: a, status: 'ok', url: match.url, durationMs: Date.now() - t0 };
+            await new Promise(r => setTimeout(r, 200));
+          }
+          throw new Error('wait_for url timeout: ' + pat);
+        }
+
+        // Element selector mode
+        let sel: string | null = step.selector || null;
+        if (!sel && step.target && abstractTargets?.[step.target]) {
+          const res = await execInTab(tabId, PRE_RESOLVE_TARGET, [abstractTargets[step.target]]);
+          sel = res?.selector || null;
+          if (!sel) sel = abstractTargets[step.target].fallbackSelectors?.[0] || null;
+        }
+        if (!sel) sel = interpolate(step.target || '', params); // last resort: literal
+        while (Date.now() - start < timeout) {
+          const match = await execInTab(tabId, PRE_MATCH_WAIT_FOR, [step, sel as string, run.payload?.stateGraph || null]);
+          if (match?.matched) return { stepId: step.stepId, action: a, status: 'ok', selector: sel, state: match.state, durationMs: Date.now() - t0 };
+          await new Promise(r => setTimeout(r, 300));
+        }
+        throw new Error('wait_for timeout: ' + sel);
+      }
+
+      if (a === 'read') {
+        const candidates = step.candidates || (step.selector ? [step.selector] : []);
+        if (candidates.length === 0) {
+          // No selectors — do a full page snapshot
+          const snapshot = await execInTab(tabId, PRE_PAGE_SNAPSHOT, []);
+          if (step.store_as) buffer[step.store_as] = snapshot;
+          return { stepId: step.stepId, action: a, status: 'ok', text: JSON.stringify(snapshot), snapshot, durationMs: Date.now() - t0 };
+        }
+        const r = await execInTab(tabId, PRE_GUARDED_READ, [candidates]);
+        if (step.store_as) buffer[step.store_as] = r?.text || null;
+        return { stepId: step.stepId, action: a, status: 'ok', text: r?.text || null, selector: r?.selector, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'assess_state') {
+        const sg = step.stateGraph || run.payload?.stateGraph || { nodes: {} };
+        const r = await execInTab(tabId, PRE_ASSESS_STATE, [sg]);
+        const matched = !step.expect?.state || r?.state === step.expect.state;
+        const surpriseEvidence = matched ? undefined : [
+          createSurpriseEvidence('state_mismatch', {
+            stepId: step.stepId,
+            expected: step.expect?.state,
+            observed: r?.state || 'unknown',
+            details: 'assess_state did not match expected state',
+          }),
+        ];
+        return { stepId: step.stepId, action: a, status: 'ok', state: r?.state, matched, surpriseEvidence, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'js') {
+        // Execute pre-bundled function directly — avoids CSP unsafe-eval
+        // The code is passed as a template; we use PRE_FIND_ROW_AND_CLICK for row ops
+        // and PRE_FIND_AND_CLICK_TEXT for text clicks.
+        // For arbitrary js steps, detect the pattern and dispatch to the right fn.
+        const code = interpolate(step.code || '', { ...params, ...buffer });
+        let r: any;
+        if (code.includes('querySelector') || code.includes('querySelectorAll')) {
+          // Run as a self-contained IIFE via pre-bundled wrapper
+          // Pass code as string but execute in ISOLATED world via content script message
+          // For now: use PRE_FIND_ROW_AND_CLICK if it looks like a row-find operation
+          const identifier = params[Object.keys(params)[0]] || '';
+          if (code.includes('find(r =>') || code.includes('find(row')) {
+            r = await execInTab(tabId, PRE_FIND_ROW_AND_CLICK, [identifier]);
+          } else {
+            // Generic DOM query — wrap in a safe pre-bundled executor
+            r = await execInTab(tabId, PRE_RUN_DOMQUERY, [code, { ...params, ...buffer }]);
+          }
+        } else {
+          r = await execInTab(tabId, PRE_RUN_DOMQUERY, [code, { ...params, ...buffer }]);
+        }
+        if (r?.__error) throw new Error(r.__error);
+        if (step.store_as) buffer[step.store_as] = r;
+        return { stepId: step.stepId, action: a, status: 'ok', result: r, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'delay') {
+        const ms = step.ms || step.timeout || 1000;
+        await new Promise(r => setTimeout(r, ms));
+        return { stepId: step.stepId, action: a, status: 'ok', delayMs: ms, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'perceive') {
+        const r = await execInTab(tabId, PRE_PAGE_RECON, []);
+        if (step.store_as) buffer[step.store_as] = r;
+        return { stepId: step.stepId, action: a, status: 'ok', result: r, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'find_row') {
+        const identifier = interpolate(step.identifier || step.value || '', { ...params, ...buffer });
+        const r = await execInTab(tabId, PRE_FIND_ROW_AND_CLICK, [identifier]);
+        if (!r?.found) throw new Error('Row not found: ' + identifier);
+        return { stepId: step.stepId, action: a, status: 'ok', result: r, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'click_text') {
+        const text = interpolate(step.text || '', { ...params, ...buffer });
+        const exact = step.exact === true;
+        const r = await execInTab(tabId, PRE_FIND_AND_CLICK_TEXT, [text, 1500, exact]);
+        if (!r?.found) throw new Error('Text not found: ' + text);
+        return { stepId: step.stepId, action: a, status: 'ok', result: r, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'select_entity') {
+        const selector = step.selector || '';
+        const search = interpolate(step.search || '', { ...params, ...buffer });
+        const selectText = interpolate(step.select_text || '', { ...params, ...buffer });
+        const dropdownSelector = step.dropdown_selector || '.dropdown-container';
+        const delayMs = step.delay_ms || 2000;
+
+        if (!selector) throw new Error('select_entity requires selector parameter');
+        if (!search) throw new Error('select_entity requires search parameter');
+        if (!selectText) throw new Error('select_entity requires select_text parameter');
+
+        const r = await execInTab(tabId, PRE_SELECT_ENTITY, [selector, search, selectText, dropdownSelector, delayMs]);
+        if (!r?.found) throw new Error(r?.error || 'Failed to select entity');
+        return { stepId: step.stepId, action: a, status: 'ok', result: r, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'click_preset') {
+        const tgt = step.target ? abstractTargets?.[step.target] : null;
+        let resolvedSelector = step.selector || null;
+        let buttonText: string | null = null;
+        if (tgt) {
+          const res = await execInTab(tabId, PRE_RESOLVE_TARGET, [tgt]);
+          if (res?.found) {
+            resolvedSelector = res.selector;
+            buttonText = res.buttonText || null;
+          } else {
+            // Fall back to name_contains text matching
+            const nameContains = tgt?.match?.name_contains;
+            buttonText = Array.isArray(nameContains) ? nameContains[0] : (nameContains || null);
+          }
+        }
+        const preset = interpolate(step.preset || step.defaultPreset || 'Immediately', { ...params, ...buffer }) || step.defaultPreset || 'Immediately';
+        const r = await execInTab(tabId, PRE_CLICK_PRESET, [resolvedSelector, buttonText, preset]);
+        if (!r?.ok) throw new Error(r?.error || 'click_preset failed');
+        return { stepId: step.stepId, action: a, status: 'ok', selector: resolvedSelector, target: step.target, preset, clickDiag: r, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'notify') {
+        // Case 1: chain-end notification — send to relay, relay runs osascript on host
+        const message = interpolate(step.message || 'Step complete', { ...params, ...buffer });
+        const title = interpolate(step.title || 'Yeshie', { ...params, ...buffer });
+        // socket is captured from outer scope via closure
+        socket.emit('notify', { message, title });
+        return { stepId: step.stepId, action: a, status: 'ok', message, durationMs: Date.now() - t0 };
+      }
+
+      return { stepId: step.stepId, action: a, status: 'unsupported', durationMs: Date.now() - t0 };
+
+    } catch (err: any) {
+      const message = err.message;
+      let surpriseEvidence: any[] | undefined;
+      if (message.includes('Cannot resolve') || message.includes('No selector for') || message.includes('Row not found') || message.includes('Text not found') || message.includes('Not found:')) {
+        surpriseEvidence = [createSurpriseEvidence('target_not_found', {
+          stepId: step.stepId,
+          target: step.target || step.selector || step.text || step.identifier,
+          details: message,
+        })];
+      } else if (message.includes('wait_for url timeout')) {
+        surpriseEvidence = [createSurpriseEvidence('url_mismatch', {
+          stepId: step.stepId,
+          expected: interpolate(step.url_pattern || '', { ...params, ...buffer }),
+          observed: await execInTab(tabId, () => window.location.href, []),
+          details: message,
+        })];
+      } else if (message.includes('wait_for timeout')) {
+        surpriseEvidence = [createSurpriseEvidence('guard_timeout', {
+          stepId: step.stepId,
+          target: step.selector || step.target,
+          details: message,
+        })];
+      } else {
+        surpriseEvidence = [createSurpriseEvidence('unexpected_ui', {
+          stepId: step.stepId,
+          details: message,
+        })];
+      }
+      return { stepId: step.stepId, action: a, status: 'error', error: message, surpriseEvidence, durationMs: Date.now() - t0 };
+    }
+  }
+
+  // ── Overlay messaging helper ────────────────────────────────────────────────
+  function sendOverlay(tabId: number, msg: any) {
+    try { chrome.tabs.sendMessage(tabId, msg); } catch (_) {}
+  }
+
+  // Auth types:
+  //   'sso_automatable' — Google/GitHub SSO, extension can click through (YeshID, many SaaS apps)
+  //   'manual_required' — MFA/phone push, user must complete login (Okta, Azure AD, Duo-protected)
+  //   'none'            — no auth needed or auth handled externally
+  function getAuthConfig(payload: any, params: Record<string, any>) {
+    return {
+      baseUrl: params?.base_url || payload?.defaults?.base_url || DEFAULT_BASE_URL,
+      // Auth type from site model, payload, or params — defaults to sso_automatable for backward compat
+      authType:
+        params?.auth_type ||
+        payload?._meta?.auth?.type ||
+        'sso_automatable',
+      googleAccountEmail:
+        params?.google_account_email ||
+        params?.sso_email ||
+        payload?._meta?.auth?.googleAccountEmail ||
+        payload?.auth?.googleAccountEmail ||
+        null,
+    };
+  }
+
+  // ── Auth recovery ─────────────────────────────────────────────────────────────
+  // Pauses chain execution, clicks SSO, selects Google account, waits for redirect back
+  async function waitForAuth(tabId: number, runId: string, authConfig: { baseUrl?: string; googleAccountEmail?: string | null } = {}, authTimeoutMs: number = 120000): Promise<{ authenticated: boolean; waitMs: number }> {
+    console.log('[Yeshie] Auth required — entering auth wait flow');
+    const baseUrl = authConfig.baseUrl || DEFAULT_BASE_URL;
+    const loginUrl = new URL('/login', baseUrl).toString();
+    const googleAccountEmail = authConfig.googleAccountEmail || null;
+
+    // Show overlay to user
+    sendOverlay(tabId, {
+      type: 'overlay_show',
+      runId,
+      taskName: '🔐 Session expired — logging in…',
+      steps: [
+        { stepId: 'auth-detect', label: 'Session expired detected', status: 'ok' },
+        { stepId: 'auth-sso', label: 'Clicking Sign in with Google…', status: 'running' },
+        { stepId: 'auth-account', label: 'Selecting Google account…', status: 'pending' },
+        { stepId: 'auth-wait', label: 'Waiting for redirect back…', status: 'pending' }
+      ]
+    });
+
+    // Step 1: Get to the YeshID login page and click Google SSO
+    const authCheck = await execInTab(tabId, PRE_CHECK_AUTH, []);
+    logToRelay('auth_check', { tabId, authCheck });
+    if (!authCheck?.onLoginPage) {
+      logToRelay('auth_navigate_to_login', { tabId, loginUrl });
+      await navigateAndWait(tabId, loginUrl);
+      await new Promise(r => setTimeout(r, 1000));
+    }
+    // Use Input.dispatchMouseEvent for isTrusted:true click (required for OAuth redirect)
+    const findSsoExpr = `(function(){
+      const btns = Array.from(document.querySelectorAll('button, a, [role="button"]'));
+      const b = btns.find(b => b.textContent?.toLowerCase().includes('sign in with google') || b.textContent?.toLowerCase().includes('google'));
+      if (!b) return { reason: 'no google button', available: btns.map(b => b.textContent?.trim()).filter(Boolean).slice(0, 10) };
+      const r = b.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, text: b.textContent?.trim(), tag: b.tagName };
+    })()`;
+    const ssoResult = await trustedMouseClick(tabId, findSsoExpr);
+    logToRelay('auth_sso_click', { tabId, ssoResult, method: 'trustedMouseClick' });
+    console.log('[Yeshie] SSO trusted click result:', ssoResult);
+    if (!ssoResult.clicked) {
+      // Fallback to el.click() via Runtime.evaluate
+      const fallback = await execInTab(tabId, PRE_CLICK_SSO_BUTTON, []);
+      logToRelay('auth_sso_click_fallback', { tabId, fallback });
+      console.log('[Yeshie] SSO fallback result:', fallback);
+    }
+    sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-sso', status: 'ok' });
+
+    // Step 2: Wait for Google account chooser page to load, then click the right account
+    sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-account', status: 'running' });
+    const t0 = Date.now();
+    let googleAccountClicked = false;
+
+    // Poll for Google OAuth page — SSO button click redirects the tab to accounts.google.com
+    logToRelay('auth_poll_start', { tabId, googleAccountEmail });
+    while (Date.now() - t0 < 30000 && !googleAccountClicked) {
+      await new Promise(r => setTimeout(r, 1000));
+      try {
+        // Check current tab URL via chrome.tabs API
+        const tab = await chrome.tabs.get(tabId);
+        const tabUrl = tab?.url || '';
+        logToRelay('auth_poll_url', { tabId, tabUrl: tabUrl.substring(0, 100), elapsed: Date.now() - t0 });
+        console.log('[Yeshie] Auth polling, tab URL:', tabUrl);
+
+        if (tabUrl.includes('accounts.google.com')) {
+          logToRelay('auth_google_detected', { tabId, tabUrl });
+          if (googleAccountEmail) {
+            await new Promise(r => setTimeout(r, 1500)); // let the page render
+            // Use trustedMouseClick for Google account selection (isTrusted required, cross-origin)
+            const findAccountExpr = `(function(){
+              let el = document.querySelector('[data-email="${googleAccountEmail}"]');
+              if (!el) el = document.querySelector('[data-identifier="${googleAccountEmail}"]');
+              if (!el) {
+                const all = Array.from(document.querySelectorAll('div, span, li'));
+                el = all.find(e => e.textContent?.includes('${googleAccountEmail}'));
+              }
+              if (!el) return { reason: 'account not found for ${googleAccountEmail}' };
+              const r = el.getBoundingClientRect();
+              return { x: r.left + r.width / 2, y: r.top + r.height / 2, method: el.dataset?.email ? 'data-email' : el.dataset?.identifier ? 'data-identifier' : 'text-match' };
+            })()`;
+            logToRelay('auth_click_attempt', { tabId, email: googleAccountEmail, method: 'trustedMouseClick' });
+            const clickResult = await trustedMouseClick(tabId, findAccountExpr);
+            logToRelay('auth_click_result', { tabId, clickResult });
+            console.log('[Yeshie] Google account trusted click result:', clickResult);
+            googleAccountClicked = clickResult?.clicked || false;
+            if (!googleAccountClicked) {
+              // Fallback to CDP Runtime.evaluate el.click()
+              logToRelay('auth_click_fallback', { tabId, email: googleAccountEmail });
+              const fallback = await execViaCDP(tabId, PRE_CLICK_GOOGLE_ACCOUNT, [googleAccountEmail]);
+              logToRelay('auth_click_fallback_result', { tabId, fallback });
+              googleAccountClicked = fallback?.clicked || false;
+            }
+            if (googleAccountClicked) {
+              sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-account', status: 'ok' });
+            }
+          } else {
+            console.log('[Yeshie] No google_account_email configured — waiting for manual account selection');
+            sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-account', status: 'pending', detail: 'Select your Google account manually' });
+          }
+        } else if (tabUrl.startsWith(baseUrl) && !isLoginUrl(tabUrl)) {
+          // Already redirected back — SSO was auto-completed (cached session)
+          googleAccountClicked = true;
+          sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-account', status: 'ok', detail: 'Auto-login' });
+        }
+      } catch (e: any) {
+        console.log('[Yeshie] Auth poll error:', e.message);
+      }
+    }
+
+    if (!googleAccountClicked) {
+      console.log('[Yeshie] Could not click Google account — waiting for manual login');
+    }
+
+    // Step 3: Wait for the tab to return to YeshID authenticated
+    sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-wait', status: 'running' });
+    while (Date.now() - t0 < authTimeoutMs) {
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        const tabUrl = tab?.url || '';
+        // Check if we're back on the configured app (not login page)
+        if (tabUrl.startsWith(baseUrl) && !isLoginUrl(tabUrl)) {
+          // Verify DOM is ready with nav drawer
+          const check = await execInTab(tabId, PRE_CHECK_AUTH, []);
+          if (check?.authenticated) {
+            console.log('[Yeshie] Auth recovered after', Date.now() - t0, 'ms');
+            sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-wait', status: 'ok' });
+            await new Promise(r => setTimeout(r, 1500));
+            return { authenticated: true, waitMs: Date.now() - t0 };
+          }
+        }
+      } catch (e: any) {
+        console.log('[Yeshie] Auth wait poll error:', e.message);
+      }
+      await new Promise(r => setTimeout(r, 2000));
+    }
+
+    console.log('[Yeshie] Auth timeout after', authTimeoutMs, 'ms');
+    sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-wait', status: 'error', detail: 'Login timed out' });
+    return { authenticated: false, waitMs: Date.now() - t0 };
+  }
+
+  // Check if a URL indicates the user has been redirected to a login/auth page.
+  // Covers multiple patterns:
+  //   - YeshID: /login
+  //   - Okta: /oauth2/v1/authorize (OAuth2 PKCE redirect)
+  //   - Generic: /signin, /sign-in, /auth/*, /sso/*
+  function isLoginUrl(url: string): boolean {
+    try {
+      const u = new URL(url);
+      const p = u.pathname;
+      return (
+        p === '/login' || p === '/login/' ||
+        p === '/signin' || p === '/signin/' ||
+        p === '/sign-in' || p === '/sign-in/' ||
+        /^\/oauth2\/.*\/authorize\/?$/.test(p) ||  // Okta OAuth2 authorize
+        /^\/oauth2\/v[12]\/authorize\/?$/.test(p) || // Okta /oauth2/v1/authorize
+        /^\/auth\//.test(p) ||                       // Generic /auth/* paths
+        /^\/sso\//.test(p)                           // Generic /sso/* paths
+      );
+    } catch { return false; }
+  }
+
+  // ── Chain runner ──────────────────────────────────────────────────────────────
+  async function startRun(runId: string, payload: any, params: Record<string, any>, tabId: number) {
+    // Auto-discover active tab if none provided
+    if (!tabId) {
+      const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      if (tabs[0]?.id) {
+        tabId = tabs[0].id;
+        console.log('[Yeshie] Auto-discovered active tab:', tabId, tabs[0].url);
+      } else {
+        // Fallback: find any tab with the base_url or any http tab
+        const baseUrl = params?.base_url;
+        const allTabs = await chrome.tabs.query({ url: baseUrl ? `${baseUrl}/*` : 'https://*/*' });
+        if (allTabs[0]?.id) {
+          tabId = allTabs[0].id;
+          console.log('[Yeshie] Found matching tab:', tabId, allTabs[0].url);
+        } else {
+          throw new Error('No active tab found. Open a browser tab first.');
+        }
+      }
+    }
+    const chain = payload.chain || [];
+    const abstractTargets = JSON.parse(JSON.stringify(payload.abstractTargets || {}));
+    const run = { runId, payload, params, tabId, abstractTargets, buffer: {} as any, stepIndex: 0, status: 'running', result: null as any, stepResults: [] as any[], resolvedTargets: [] as any[] };
+    runs.set(runId, run);
+    abortFlags.set(runId, false);
+    const t0 = Date.now();
+    logToRelay('chain_start', { runId, tabId, chainLength: chain.length, hasTrustedClick: typeof trustedClick === 'function', buildVersion: chrome.runtime.getManifest().version });
+
+    // ── Pre-chain auth check ──────────────────────────────────────────────────
+    // Before executing any steps, verify the user is authenticated.
+    // Skip this check if:
+    //   - the first step is already an assess_state (payload handles it)
+    //   - the payload sets _meta.skipAuthCheck
+    //   - authType is 'none' or 'manual_required' (no pre-chain auto-auth)
+    //   - the current tab URL is on a different domain than the auth baseUrl
+    //     (the chain's first navigate step will take us to the right site)
+    const firstStepIsAssess = chain[0]?.action === 'assess_state';
+    const skipAuthCheck = payload._meta?.skipAuthCheck === true;
+    const authConfig = getAuthConfig(payload, params);
+
+    // Site-aware auth: only run automated pre-chain auth for sso_automatable sites
+    // where the current tab is on the auth domain
+    const canAutoAuth = authConfig.authType === 'sso_automatable';
+    let tabOnAuthDomain = true;
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      const tabHost = tab.url ? new URL(tab.url).hostname : '';
+      const authHost = new URL(authConfig.baseUrl || DEFAULT_BASE_URL).hostname;
+      tabOnAuthDomain = tabHost === authHost;
+      if (!tabOnAuthDomain) {
+        console.log(`[Yeshie] Tab domain (${tabHost}) differs from auth domain (${authHost}) — skipping pre-chain auth check`);
+      }
+    } catch (e) {
+      console.log('[Yeshie] Could not determine tab URL for auth check, skipping:', e);
+      tabOnAuthDomain = false;
+    }
+
+    if (!canAutoAuth && !firstStepIsAssess) {
+      console.log(`[Yeshie] Auth type is '${authConfig.authType}' — skipping pre-chain automated auth (mid-chain detection still active)`);
+    }
+
+    if (!firstStepIsAssess && !skipAuthCheck && canAutoAuth && tabOnAuthDomain) {
+      const preAuth = await execInTab(tabId, PRE_CHECK_AUTH, []);
+      if (preAuth && !preAuth.authenticated) {
+        const authResult = await waitForAuth(tabId, runId, authConfig);
+        if (!authResult.authenticated) {
+          run.status = 'failed';
+          run.result = buildChainResult(run, t0, false, 'Authentication failed — user did not complete login within timeout');
+          await chrome.storage.session.set({ [runId]: run.result });
+          return;
+        }
+        // After auth recovery, we may need to navigate back to the right page
+        // The first navigate step in the chain will handle this
+      }
+    }
+
+    // Send overlay_show with step list
+    sendOverlay(tabId, {
+      type: 'overlay_show',
+      runId,
+      taskName: payload._meta?.description || 'Running task',
+      steps: chain.map((s: any) => ({
+        stepId: s.stepId,
+        label: s.note || s.action + ' ' + (s.target || s.selector || s.text || ''),
+        status: 'pending'
+      }))
+    });
+
+    try {
+      for (let i = 0; i < chain.length; i++) {
+        // Abort check
+        if (abortFlags.get(runId)) {
+          // Mark remaining steps as skipped
+          for (let j = i; j < chain.length; j++) {
+            sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: chain[j].stepId, status: 'skipped' });
+          }
+          run.status = 'aborted';
+          run.result = buildChainResult(run, t0, false, 'Aborted by user');
+          await chrome.storage.session.set({ [runId]: run.result });
+          break;
+        }
+
+        run.stepIndex = i;
+        const step = chain[i];
+
+        // Overlay: step running
+        sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: step.stepId, status: 'running' });
+
+        let res = await executeStep(step, run);
+
+        // Mid-chain auth recovery: if a step reports auth_required, pause, recover, and retry
+        // Only attempt auth recovery if the tab is on the auth domain (e.g. YeshID).
+        // On non-YeshID sites, report the failure and let the caller handle it.
+        if (res.status === 'auth_required') {
+          let midChainAuthDomainMatch = false;
+          try {
+            const midTab = await chrome.tabs.get(tabId);
+            const midTabHost = midTab.url ? new URL(midTab.url).hostname : '';
+            const midAuthHost = new URL(authConfig.baseUrl || DEFAULT_BASE_URL).hostname;
+            midChainAuthDomainMatch = midTabHost === midAuthHost;
+          } catch { midChainAuthDomainMatch = false; }
+
+          if (!midChainAuthDomainMatch) {
+            // Non-YeshID-domain auth required — wait for user to manually authenticate
+            // instead of running the YeshID SSO flow
+            const requestedUrl = res.requestedUrl || res.url || '';
+            let expectedHost = '';
+            try { expectedHost = new URL(requestedUrl).hostname; } catch {}
+            console.log(`[Yeshie] Mid-chain auth_required on non-auth domain (${expectedHost}) — waiting for manual login`);
+            run.stepResults.push({ ...res, note: 'auth_required_manual_wait' });
+            sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: step.stepId, status: 'running', detail: 'Session expired — please log in to continue…' });
+
+            // Poll for user to complete login: tab should return to the expected domain
+            const manualAuthTimeout = 120000;
+            const manualAuthStart = Date.now();
+            let manualAuthSuccess = false;
+            while (Date.now() - manualAuthStart < manualAuthTimeout) {
+              if (abortFlags.get(runId)) break;
+              await new Promise(r => setTimeout(r, 2000));
+              try {
+                const pollTab = await chrome.tabs.get(tabId);
+                const pollHost = pollTab.url ? new URL(pollTab.url).hostname : '';
+                // User has logged in and returned to the expected domain (not on auth/login page)
+                if (expectedHost && pollHost === expectedHost && !isLoginUrl(pollTab.url || '')) {
+                  manualAuthSuccess = true;
+                  break;
+                }
+              } catch { /* tab might be navigating */ }
+            }
+
+            if (!manualAuthSuccess) {
+              run.status = 'failed';
+              run.result = buildChainResult(run, t0, false, 'Manual authentication timed out — please log in and retry');
+              await chrome.storage.session.set({ [runId]: run.result });
+              sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: step.stepId, status: 'error', detail: 'Login timed out' });
+              return;
+            }
+
+            console.log(`[Yeshie] Manual auth completed — resuming chain`);
+            // Re-show the task overlay and retry the step
+            sendOverlay(tabId, {
+              type: 'overlay_show',
+              runId,
+              taskName: (payload._meta?.description || 'Running task') + ' (resumed after login)',
+              steps: chain.map((s: any, idx: number) => ({
+                stepId: s.stepId,
+                label: s.note || s.action + ' ' + (s.target || s.selector || s.text || ''),
+                status: idx < i ? 'ok' : idx === i ? 'running' : 'pending'
+              }))
+            });
+            res = await executeStep(step, run);
+            // Fall through to normal result handling below
+          } else {
+            // YeshID-domain auth recovery — use automated SSO flow
+            run.stepResults.push({ ...res, note: 'auth_recovery_triggered' });
+            sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: step.stepId, status: 'running', detail: 'Session expired — waiting for login…' });
+
+            const authResult = await waitForAuth(tabId, runId, authConfig);
+            if (!authResult.authenticated) {
+              run.status = 'failed';
+              run.result = buildChainResult(run, t0, false, 'Authentication failed mid-chain — login timed out');
+              await chrome.storage.session.set({ [runId]: run.result });
+              sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: step.stepId, status: 'error', detail: 'Login timed out' });
+              return;
+            }
+
+            // Re-show the task overlay (auth overlay replaced it)
+            sendOverlay(tabId, {
+              type: 'overlay_show',
+              runId,
+              taskName: (payload._meta?.description || 'Running task') + ' (resumed)',
+              steps: chain.map((s: any, idx: number) => ({
+                stepId: s.stepId,
+                label: s.note || s.action + ' ' + (s.target || s.selector || s.text || ''),
+                status: idx < i ? 'ok' : idx === i ? 'running' : 'pending'
+              }))
+            });
+
+            // Retry the step after auth recovery
+            res = await executeStep(step, run);
+          }
+        }
+
+        run.stepResults.push(res);
+
+        // Overlay: step result
+        sendOverlay(tabId, {
+          type: 'overlay_step_update',
+          runId,
+          stepId: step.stepId,
+          status: res.status === 'ok' || res.status === 'skipped' ? res.status : 'error',
+          detail: res.error || null,
+          durationMs: res.durationMs
+        });
+
+        if (res.selector && res.resolvedVia && step.target) {
+          run.resolvedTargets.push({ abstractName: step.target, selector: res.selector, confidence: res.confidence || 0, resolvedVia: res.resolvedVia, resolvedAt: new Date().toISOString() });
+        }
+
+        if (step.action === 'assess_state' && !res.matched && step.onMismatch) {
+          const branchName = step.onMismatch.replace('branch:', '');
+          const branchSteps = payload.branches?.[branchName]?.steps || payload.branches?.[branchName] || [];
+          for (const bStep of branchSteps) {
+            const bRes = await executeStep(bStep, run);
+            run.stepResults.push(bRes);
+            if (bRes.status === 'error') {
+              run.status = 'failed';
+              run.result = buildChainResult(run, t0, false, bRes.error);
+              await chrome.storage.session.set({ [runId]: run.result });
+              return;
+            }
+          }
+        }
+
+        if (res.status === 'error') {
+          run.status = 'failed';
+          run.result = buildChainResult(run, t0, false, res.error);
+          await chrome.storage.session.set({ [runId]: run.result });
+          return;
+        }
+      }
+
+      if (run.status !== 'aborted') {
+        run.status = 'complete';
+        run.result = buildChainResult(run, t0, true);
+        await chrome.storage.session.set({ [runId]: run.result });
+      }
+
+    } catch (err: any) {
+      run.status = 'failed';
+      run.result = buildChainResult(run, t0, false, err.message);
+      await chrome.storage.session.set({ [runId]: run.result });
+    } finally {
+      // Release debugger at end of chain (info bar disappears)
+      await releaseDebugger();
+      // Hide overlay after 3s delay
+      abortFlags.delete(runId);
+      setTimeout(() => sendOverlay(tabId, { type: 'overlay_hide', runId }), 3000);
+    }
+  }
+
+  // ── Message handler ───────────────────────────────────────────────────────────
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.type === 'skill_run') {
+      const runId = crypto.randomUUID();
+      const tabId = msg.tabId || sender.tab?.id;
+      if (!tabId) { sendResponse({ error: 'No tabId' }); return true; }
+      // Store lastRunId so page can recover it after navigation
+      chrome.storage.session.set({ __yeshieLastRunId: runId });
+      startKeepalive();
+      startRun(runId, msg.payload, msg.params || {}, tabId);
+      sendResponse({ runId, status: 'started' });
+      return true;
+    }
+    if (msg.type === 'get_active_runs') {
+      const active = Array.from(runs.entries()).map(([id, r]) => ({ runId: id, status: r.status, stepIndex: r.stepIndex, totalSteps: r.payload?.chain?.length || 0 }));
+      (async () => {
+        const data = await chrome.storage.session.get('__yeshieLastRunId');
+        sendResponse({ active, lastRunId: data.__yeshieLastRunId || null });
+      })();
+      return true;  // keep port open for async sendResponse
+    }
+    if (msg.type === 'get_status') {
+      const run = runs.get(msg.runId);
+      if (run) {
+        sendResponse({ status: run.status, stepIndex: run.stepIndex, totalSteps: run.payload?.chain?.length || 0, result: run.result });
+      } else {
+        (async () => {
+          const data = await chrome.storage.session.get(msg.runId);
+          const result = data[msg.runId];
+          sendResponse(result ? { status: 'complete', result } : { status: 'not_found' });
+        })();
+      }
+      return true;
+    }
+    if (msg.type === 'abort') {
+      const run = runs.get(msg.runId);
+      if (run) { run.status = 'aborted'; runs.delete(msg.runId); }
+      sendResponse({ aborted: true });
+      return true;
+    }
+    if (msg.type === 'cancel_run') {
+      const runId = msg.runId;
+      if (runId && abortFlags.has(runId)) {
+        abortFlags.set(runId, true);
+      }
+      sendResponse({ cancelled: true });
+      return true;
+    }
+    if (msg.type === 'user_suggestion') {
+      // Forward suggestion to relay for Claude to see
+      if (socket && msg.runId && msg.suggestion) {
+        socket.emit('user_suggestion', { runId: msg.runId, suggestion: msg.suggestion });
+      }
+      sendResponse({ received: true });
+      return true;
+    }
+    if (msg.type === 'chat_message') {
+      const { message, currentUrl, tabId, history } = msg;
+      (async () => {
+        try {
+          const resp = await fetch(CHAT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message, currentUrl, tabId, history: history || [] })
+          });
+          const data = await resp.json();
+          sendResponse(data);
+        } catch (e: any) {
+          sendResponse({ type: 'error', error: e.message });
+        }
+      })();
+      return true;
+    }
+    if (msg.type === 'chat_feedback') {
+      (async () => {
+        try {
+          const resp = await fetch(CHAT_FEEDBACK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chatId: msg.chatId, rating: msg.rating, comment: msg.comment })
+          });
+          sendResponse(await resp.json());
+        } catch (e: any) {
+          sendResponse({ error: e.message });
+        }
+      })();
+      return true;
+    }
+    if (msg.type === 'chat_status') {
+      (async () => {
+        try {
+          const resp = await fetch(CHAT_STATUS_URL);
+          sendResponse(await resp.json());
+        } catch (e: any) {
+          sendResponse({ listenerConnected: false, error: e.message });
+        }
+      })();
+      return true;
+    }
+    if (msg.type === 'teach_start' || msg.type === 'teach_goto' || msg.type === 'teach_end') {
+      // Forward teach messages to the correct tab.
+      // Preference order: (1) targetTabId from side panel (originating tab's conversation),
+      // (2) currently active real tab, (3) YeshID tab, (4) any https tab.
+      (async () => {
+        // Find best tab
+        let targetTabId: number | undefined;
+        // If the side panel specified a tab (from the conversation that triggered this), use it
+        if (msg.targetTabId) {
+          targetTabId = msg.targetTabId;
+        } else {
+          const focused = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+          const realTab = focused.find(t => t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('chrome-extension://'));
+          if (realTab?.id) {
+            targetTabId = realTab.id;
+          } else {
+            const yeshidTabs = await chrome.tabs.query({ url: 'https://app.yeshid.com/*' });
+            if (yeshidTabs[0]?.id) targetTabId = yeshidTabs[0].id;
+            else {
+              const allTabs = await chrome.tabs.query({ url: 'https://*/*' });
+              if (allTabs[0]?.id) targetTabId = allTabs[0].id;
+            }
+          }
+        }
+
+        if (!targetTabId) {
+          sendResponse({ ok: false, error: 'No suitable tab found. Open the YeshID page first.' });
+          return;
+        }
+
+        const teachMsg: any = { type: msg.type };
+        if (msg.type === 'teach_start') teachMsg.steps = msg.steps;
+        if (msg.type === 'teach_goto') teachMsg.stepIndex = msg.stepIndex;
+
+        // Attempt to send; if content script not loaded, inject it and retry once
+        const trySend = async (): Promise<{ ok: boolean; error?: string }> => {
+          try {
+            await chrome.tabs.sendMessage(targetTabId!, teachMsg);
+            return { ok: true };
+          } catch (_) {
+            return { ok: false };
+          }
+        };
+
+        let result = await trySend();
+        if (!result.ok) {
+          // Content overlay not injected — inject it now (happens after hot-reload)
+          console.log('[Yeshie] Content overlay not loaded in tab', targetTabId, '— injecting');
+          try {
+            await chrome.scripting.executeScript({
+              target: { tabId: targetTabId! },
+              files: ['content-overlay.js']
+            });
+            await new Promise(r => setTimeout(r, 300)); // let it initialise
+            result = await trySend();
+          } catch (injectErr: any) {
+            console.warn('[Yeshie] Failed to inject content overlay:', injectErr.message);
+            sendResponse({ ok: false, error: `Could not inject overlay into tab ${targetTabId}: ${injectErr.message}` });
+            return;
+          }
+        }
+
+        if (!result.ok) {
+          sendResponse({ ok: false, error: 'Content overlay loaded but message delivery still failed. Try navigating the YeshID tab.' });
+        } else {
+          sendResponse({ ok: true, tabId: targetTabId });
+        }
+      })();
+      return true;
+    }
+    if (msg.type === 'content_ready') return false;
+  });
+});

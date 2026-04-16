@@ -1,0 +1,232 @@
+{
+  "_meta": {
+    "description": "Bulk import applications via CSV on /access/applications. Clicks 'Import application list' → CSV option → attaches inline CSV → uploads.",
+    "requiresAuth": true,
+    "baseUrl": "https://app.yeshid.com",
+    "requiredParams": [
+      "csv_content"
+    ],
+    "optionalParams": [
+      "csv_filename"
+    ],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "prerequisite": "00-login.payload.json",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "homeBookend": true,
+    "verificationStrategy": {
+      "post": "read snackbar, then read applications table and confirm new apps appear",
+      "primaryVerification": "import_result contains success or count"
+    },
+    "notes": [
+      "URL is /access/applications (NOT /applications).",
+      "Button is 'Import application list' (bulk), NOT 'Add application' (single).",
+      "csv_content is the RAW CSV string — no file path needed.",
+      "File input attached via DataTransfer+Blob using find(r =>) whitelisted pattern."
+    ],
+    "id": "import-apps-csv",
+    "title": "Import Applications via CSV",
+    "params": {
+      "csv_content": {
+        "required": true,
+        "description": "CSV content string with application records to import (header row required)"
+      }
+    }
+  },
+  "runId": "yeshid-import-apps-csv-{{timestamp}}",
+  "mode": "learning",
+  "site": "app.yeshid.com",
+  "params": {
+    "csv_content": "{{csv_content}}",
+    "csv_filename": "{{csv_filename}}",
+    "base_url": "https://app.yeshid.com"
+  },
+  "abstractTargets": {
+    "import-application-list-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "Import application list",
+          "Import application",
+          "Import"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.5,
+      "name_contains": [
+        "Import application list"
+      ]
+    },
+    "csv-option": {
+      "match": {
+        "role": "menuitem",
+        "name_contains": [
+          "CSV"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.5,
+      "name_contains": [
+        "CSV"
+      ]
+    },
+    "upload-confirm-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "Upload",
+          "Import",
+          "Confirm"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.5,
+      "name_contains": [
+        "Upload",
+        "Import",
+        "Confirm"
+      ]
+    },
+    "applications-table": {
+      "match": {
+        "role": "table"
+      },
+      "cachedSelector": "[data-cy=\"access-table\"], table",
+      "cachedConfidence": 0.85
+    }
+  },
+  "chain": [
+    {
+      "stepId": "h0",
+      "action": "navigate",
+      "url": "/overview",
+      "note": "HOME START"
+    },
+    {
+      "stepId": "h0b",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 5000
+    },
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "/access/applications"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 6000
+    },
+    {
+      "stepId": "p1",
+      "action": "perceive",
+      "description": "Verify Applications page. Note 'Import application list' button selector and current app count.",
+      "store_as": "apps_state"
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "target": "import-application-list-button",
+      "note": "Click 'Import application list' to open import flow."
+    },
+    {
+      "stepId": "s3b",
+      "action": "delay",
+      "ms": 800
+    },
+    {
+      "stepId": "p2",
+      "action": "perceive",
+      "description": "Capture the import modal/menu. Any CSV option? Describe all visible choices and data-cy attributes.",
+      "store_as": "import_modal"
+    },
+    {
+      "stepId": "s4",
+      "action": "click_text",
+      "text": "CSV",
+      "note": "Select CSV option."
+    },
+    {
+      "stepId": "s4b",
+      "action": "delay",
+      "ms": 1000
+    },
+    {
+      "stepId": "p3",
+      "action": "perceive",
+      "description": "CSV upload modal: file input present? data-cy attributes? submit button text?",
+      "store_as": "csv_modal"
+    },
+    {
+      "stepId": "s5",
+      "action": "js",
+      "code": "Array.from(document.querySelectorAll('input')).find(r => r.type==='file') && (function(){const inp=Array.from(document.querySelectorAll('input')).find(r=>r.type==='file');if(!inp)return{error:'no file input found'};const content='{{csv_content}}';const fname='{{csv_filename}}'||'import.csv';const file=new File([content],fname,{type:'text/csv'});const dt=new DataTransfer();dt.items.add(file);inp.files=dt.files;inp.dispatchEvent(new Event('change',{bubbles:true}));inp.dispatchEvent(new Event('input',{bubbles:true}));return{ok:true,filename:fname,size:content.length};})() || {error:'file input not found'}",
+      "note": "Attach inline CSV to file input via DataTransfer. find(r =>) pattern is whitelisted."
+    },
+    {
+      "stepId": "s5b",
+      "action": "delay",
+      "ms": 1000
+    },
+    {
+      "stepId": "s6",
+      "action": "click",
+      "target": "upload-confirm-button"
+    },
+    {
+      "stepId": "s7",
+      "action": "read",
+      "candidates": [
+        ".v-snackbar--active .v-snackbar__content",
+        "[role=\"alert\"]"
+      ],
+      "store_as": "import_result",
+      "optional": true
+    },
+    {
+      "stepId": "v1",
+      "action": "navigate",
+      "url": "/access/applications",
+      "note": "VERIFICATION"
+    },
+    {
+      "stepId": "v2",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 5000
+    },
+    {
+      "stepId": "v3",
+      "action": "read",
+      "candidates": [
+        "[data-cy=\"access-table\"]",
+        "table tbody"
+      ],
+      "store_as": "apps_table"
+    },
+    {
+      "stepId": "hZ",
+      "action": "navigate",
+      "url": "/overview",
+      "note": "HOME END"
+    },
+    {
+      "stepId": "hZb",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 5000
+    },
+    {
+      "stepId": "verify-success",
+      "action": "perceive",
+      "store_as": "import_apps_verification",
+      "description": "Independent confirmation: verify apps_table or success banner confirms applications were imported successfully"
+    }
+  ]
+}

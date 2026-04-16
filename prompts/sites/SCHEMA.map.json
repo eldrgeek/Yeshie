@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "yeshie/site-mapper/schema/1.0",
+  "title": "Yeshie Site Map",
+  "description": "Structured site context produced by the site-mapper skill. Consumed by Yeshie agents to find stable selectors and understand page structure.",
+  "type": "object",
+  "required": ["siteId", "mappedAt", "mappedBy", "pages"],
+  "properties": {
+    "siteId": {
+      "type": "string",
+      "description": "Short identifier for the site",
+      "examples": ["yeshid", "okta", "rippling"]
+    },
+    "mappedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the mapping run completed"
+    },
+    "mappedBy": {
+      "type": "string",
+      "description": "Skill version that produced this file",
+      "examples": ["site-mapper/1.0"]
+    },
+    "docSources": {
+      "type": "array",
+      "description": "Help/doc URLs fetched during mapping",
+      "items": { "type": "string", "format": "uri" }
+    },
+    "pages": {
+      "type": "object",
+      "description": "Keyed by URL pathname (e.g. '/people', '/settings/sso')",
+      "additionalProperties": {
+        "$ref": "#/$defs/page"
+      }
+    }
+  },
+  "$defs": {
+    "page": {
+      "type": "object",
+      "required": ["title", "url"],
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "document.title or primary h1 text"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Full URL of the mapped page"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["ok", "auth-required", "error"],
+          "default": "ok"
+        },
+        "selectors": {
+          "type": "object",
+          "description": "Logical name → selector descriptor. Use kebab-case logical names.",
+          "additionalProperties": {
+            "$ref": "#/$defs/selectorEntry"
+          }
+        },
+        "fields": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/field" }
+        },
+        "actions": {
+          "type": "array",
+          "description": "Top-level page actions (buttons, links)",
+          "items": { "$ref": "#/$defs/action" }
+        },
+        "multiStepControls": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/multiStepControl" }
+        },
+        "headings": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "selectorEntry": {
+      "type": "object",
+      "required": ["selector", "stabilityTier"],
+      "properties": {
+        "selector": {
+          "type": "string",
+          "description": "Primary CSS selector (highest stability tier available)"
+        },
+        "stabilityTier": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6,
+          "description": "1=[data-testid], 2=[aria-label], 3=[name], 4=stable-class, 5=#id, 6=dynamic"
+        },
+        "fallbacks": {
+          "type": "array",
+          "maxItems": 3,
+          "description": "Lower-tier alternative selectors, in preference order",
+          "items": { "type": "string" }
+        },
+        "verifiedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last time this selector was confirmed to exist in the DOM"
+        }
+      }
+    },
+    "field": {
+      "type": "object",
+      "required": ["name", "selector"],
+      "properties": {
+        "name": { "type": "string" },
+        "type": {
+          "type": "string",
+          "examples": ["text", "email", "password", "select", "checkbox", "textarea", "date"]
+        },
+        "selector": { "type": "string" },
+        "stabilityTier": { "type": "integer", "minimum": 1, "maximum": 6 },
+        "required": { "type": "boolean", "default": false },
+        "placeholder": { "type": "string" },
+        "ariaLabel": { "type": "string" }
+      }
+    },
+    "action": {
+      "type": "object",
+      "required": ["label", "selector"],
+      "properties": {
+        "label": { "type": "string" },
+        "selector": { "type": "string" },
+        "stabilityTier": { "type": "integer", "minimum": 1, "maximum": 6 },
+        "opensModal": { "type": "boolean", "default": false }
+      }
+    },
+    "multiStepControl": {
+      "type": "object",
+      "required": ["type", "triggerSelector", "steps"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["date-picker", "search-then-select", "modal-trigger", "tooltip-trigger"]
+        },
+        "triggerSelector": { "type": "string" },
+        "pickerSelector": { "type": "string" },
+        "steps": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "siteId": "yeshid",
+      "mappedAt": "2026-04-14T15:00:00Z",
+      "mappedBy": "site-mapper/1.0",
+      "docSources": ["https://help.yeshid.com/en/articles/people"],
+      "pages": {
+        "/people": {
+          "title": "People list",
+          "url": "https://app.yeshid.com/people",
+          "status": "ok",
+          "headings": ["People", "Add Person"],
+          "selectors": {
+            "search-input": {
+              "selector": "[aria-label='Search people']",
+              "stabilityTier": 2,
+              "fallbacks": ["input[placeholder*='Search']", ".search-input"],
+              "verifiedAt": "2026-04-14T15:00:00Z"
+            },
+            "add-person-button": {
+              "selector": "[data-testid='add-person-btn']",
+              "stabilityTier": 1,
+              "fallbacks": ["button[aria-label='Add person']", "button:has-text('Add')"],
+              "verifiedAt": "2026-04-14T15:00:00Z"
+            }
+          },
+          "fields": [],
+          "actions": [
+            {
+              "label": "Add Person",
+              "selector": "[data-testid='add-person-btn']",
+              "stabilityTier": 1,
+              "opensModal": true
+            }
+          ],
+          "multiStepControls": [
+            {
+              "type": "search-then-select",
+              "triggerSelector": "[aria-label='Search people']",
+              "pickerSelector": "[role='listbox']",
+              "steps": ["click search input", "type query", "click result from listbox"]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

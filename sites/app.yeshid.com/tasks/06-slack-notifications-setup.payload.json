@@ -1,0 +1,69 @@
+{
+  "_meta": {
+    "id": "slack-notifications-setup",
+    "version": "1.0",
+    "title": "Set Up Slack Notifications",
+    "description": "Connect Slack to YeshID and configure a notification channel",
+    "baseUrl": "https://app.yeshid.com",
+    "requiresAuth": true,
+    "params": {
+      "channel_name": "Slack channel name to receive YeshID notifications (e.g. #yeshid-alerts)"
+    }
+  },
+  "chain": [
+    {
+      "stepId": "navigate-settings",
+      "action": "navigate",
+      "url": "/settings/notifications"
+    },
+    {
+      "stepId": "perceive-notifications-page",
+      "action": "perceive",
+      "store_as": "notifications_state",
+      "description": "Read notification settings \u2014 check if Slack is already connected"
+    },
+    {
+      "stepId": "click-connect-slack",
+      "action": "click_text",
+      "text": "Connect Slack",
+      "target": {
+        "anchors": {
+          "ariaLabel": "Connect Slack"
+        },
+        "cachedSelector": "button:has-text('Connect Slack'), [data-cy='connect-slack']"
+      }
+    },
+    {
+      "stepId": "wait-for-oauth",
+      "action": "wait_for",
+      "condition": "url_contains",
+      "value": "slack.com/oauth",
+      "description": "Wait for Slack OAuth window \u2014 user may need to approve in popup"
+    },
+    {
+      "stepId": "type-channel",
+      "action": "type",
+      "value": "{{channel_name}}",
+      "target": {
+        "anchors": {
+          "ariaLabel": "Notification channel"
+        },
+        "cachedSelector": "input[placeholder*='channel'], [data-cy='slack-channel-input']"
+      }
+    },
+    {
+      "stepId": "click-save",
+      "action": "click_text",
+      "text": "Save",
+      "target": {
+        "cachedSelector": "button:has-text('Save'), [data-cy='save-notifications']"
+      }
+    },
+    {
+      "stepId": "verify-success",
+      "action": "perceive",
+      "store_as": "slack_setup_result",
+      "description": "Read Slack connection status and channel confirmation \u2014 independent success check"
+    }
+  ]
+}

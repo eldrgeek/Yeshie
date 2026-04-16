@@ -1,0 +1,274 @@
+{
+  "_meta": {
+    "task": "group-manage",
+    "description": "Add or remove members from an existing group in Google Workspace.",
+    "params": {
+      "group_name": {
+        "required": true,
+        "description": "Name or email of the group to manage"
+      },
+      "action": {
+        "required": true,
+        "description": "Action to perform: 'add' or 'remove'",
+        "enum": ["add", "remove"]
+      },
+      "members": {
+        "required": true,
+        "description": "Comma-separated list of member email addresses to add or remove",
+        "hint": "e.g. 'john.doe@mike-wolf.com, jane.smith@mike-wolf.com'"
+      }
+    },
+    "requiredParams": ["group_name", "action", "members"],
+    "optionalParams": [],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "manual_required",
+      "note": "Google Admin requires manual login with password + optional 2FA. Ensure the admin account is already signed in at admin.google.com before running."
+    },
+    "warning": "Requires active admin session at admin.google.com.",
+    "verificationStrategy": {
+      "pre": "Navigate to Groups page, find the target group, and open the Manage members dialog",
+      "post": "Read confirmation message and verify member appears in or is removed from the group's member list",
+      "primaryVerification": "confirmation_message contains 'added|removed|success|updated'"
+    }
+  },
+  "runId": "google-admin-group-manage-{{timestamp}}",
+  "mode": "verification",
+  "site": "admin.google.com",
+  "params": {
+    "group_name": "{{group_name}}",
+    "action": "{{action}}",
+    "members": "{{members}}",
+    "base_url": "https://admin.google.com"
+  },
+  "abstractTargets": {
+    "group-search-input": {
+      "match": {
+        "role": "searchbox",
+        "name_contains": ["Search", "Find groups"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "input[type='search']",
+        "input[placeholder*='Search' i]",
+        "[role='searchbox']"
+      ],
+      "description": "Search input on the Groups page"
+    },
+    "group-row": {
+      "match": {
+        "role": "row",
+        "name_contains": "{{group_name}}"
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "tr:has-text('{{group_name}}')",
+        "[role='row'] span:has-text('{{group_name}}')"
+      ],
+      "description": "The target group row in the groups table"
+    },
+    "manage-members-button": {
+      "match": {
+        "role": "button",
+        "name_contains": ["Manage members", "Add members", "Members"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "button[aria-label*='Manage members' i]",
+        "div[role='button']:has-text('Manage members')",
+        "button:has-text('Add members')"
+      ],
+      "description": "Manage members button for the group"
+    },
+    "add-member-button": {
+      "match": {
+        "role": "button",
+        "name_contains": ["Add member", "Add members"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "button[aria-label*='Add' i]",
+        "div[role='button']:has-text('Add')"
+      ],
+      "description": "Button to add a member to the group"
+    },
+    "member-email-input": {
+      "match": {
+        "role": "textbox",
+        "name_contains": ["Member", "Email", "address"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "input[placeholder*='Member' i]",
+        "input[aria-label*='Member' i]",
+        "input[type='email']",
+        "input[name='memberEmail']"
+      ],
+      "description": "Member email input in the Add member form"
+    },
+    "add-submit-button": {
+      "match": {
+        "role": "button",
+        "name_contains": ["Add", "Submit"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "button[type='submit']",
+        "div[role='button']:has-text('Add')"
+      ],
+      "description": "Submit button in the Add member form"
+    },
+    "remove-member-button": {
+      "match": {
+        "role": "button",
+        "name_contains": ["Remove", "Delete", "X"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "button[aria-label*='Remove' i]",
+        "button:has-text('Remove')"
+      ],
+      "description": "Remove button for a group member"
+    }
+  },
+  "chain": [
+    {
+      "stepId": "nav-1",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/groups",
+      "expect": {
+        "state": "groups-list"
+      },
+      "note": "Navigate to the Groups list in Google Admin Console"
+    },
+    {
+      "stepId": "nav-2",
+      "action": "wait_for",
+      "selector": "[role='main']",
+      "timeout": 8000,
+      "note": "Wait for the main content area to fully render"
+    },
+    {
+      "stepId": "perceive-1",
+      "action": "perceive",
+      "note": "Identify the target group in the groups list and locate the manage members action"
+    },
+    {
+      "stepId": "click-1",
+      "action": "click",
+      "target": "group-row",
+      "note": "Click on the target group row to open group details or actions"
+    },
+    {
+      "stepId": "wait-1",
+      "action": "wait_for",
+      "selector": "button[aria-label*='Manage' i], button:has-text('Manage'), button:has-text('Members')",
+      "timeout": 6000,
+      "note": "Wait for group details to load or action menu to appear"
+    },
+    {
+      "stepId": "perceive-2",
+      "action": "perceive",
+      "note": "Identify the Manage members button or Add/Remove member options"
+    },
+    {
+      "stepId": "click-2",
+      "action": "click",
+      "target": "manage-members-button",
+      "note": "Click 'Manage members' or 'Add members' button to open the member management interface"
+    },
+    {
+      "stepId": "wait-2",
+      "action": "wait_for",
+      "selector": "input[placeholder*='Member' i], input[aria-label*='Member' i], [role='dialog']",
+      "timeout": 6000,
+      "note": "Wait for the member management dialog or form to appear"
+    },
+    {
+      "stepId": "perceive-3",
+      "action": "perceive",
+      "note": "Review the member management interface to understand the current members and action options"
+    },
+    {
+      "stepId": "type-1",
+      "action": "type",
+      "target": "member-email-input",
+      "value": "{{members}}",
+      "note": "Enter the member email address(es) to {{action}}"
+    },
+    {
+      "stepId": "click-3",
+      "action": "click",
+      "target": "add-submit-button",
+      "note": "Click the button to submit the member {{action}} action",
+      "responseSignature": [
+        {
+          "any_of": [
+            {
+              "type": "element_visible",
+              "selector": "[role='alert'], [aria-live='assertive'], [aria-live='polite']",
+              "textMatch": "added|removed|updated|success|member",
+              "timeout": 10000
+            },
+            {
+              "type": "element_visible",
+              "selector": "[role='status']",
+              "timeout": 10000
+            }
+          ]
+        }
+      ],
+      "failureSignature": [
+        {
+          "any_of": [
+            {
+              "type": "element_visible",
+              "selector": "[role='alert'], [aria-live='assertive']",
+              "textMatch": "error|failed|not found|invalid",
+              "timeout": 8000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "read-1",
+      "action": "read",
+      "candidates": [
+        "[role='alert']",
+        "[aria-live='assertive']",
+        "[aria-live='polite']",
+        "[role='status']"
+      ],
+      "store_as": "confirmation_message",
+      "note": "Capture the confirmation or error message"
+    },
+    {
+      "stepId": "nav-home",
+      "action": "navigate",
+      "url": "{{base_url}}/",
+      "note": "Return to home page to complete the group management workflow"
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "groups-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "admin\\.google\\.com/ac/groups"
+          }
+        ]
+      }
+    }
+  }
+}

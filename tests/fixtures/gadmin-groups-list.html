@@ -1,0 +1,50 @@
+<!-- Google Admin Groups list page mock -->
+<!-- Anomaly: no H1/H2, doubled table headers, per-row buttons in perceive.buttons -->
+<div class="gadmin-page">
+  <div class="gadmin-toolbar">
+    <button aria-label="Create group">Create group</button>
+    <button aria-label="Inspect groups">Inspect groups</button>
+  </div>
+  <table id="groups-table">
+    <thead>
+      <tr>
+        <th></th>
+        <th>Group nameGroup name Group name. Sorted in ascending order.</th>
+        <th>Email addressEmail address</th>
+        <th>MembersMembers</th>
+        <th>Access typeAccess type</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="group-row" id="group-row-1">
+        <td><input type="checkbox" /></td>
+        <td>Engineering</td>
+        <td>engineering@company.com</td>
+        <td>12</td>
+        <td>Team</td>
+        <td>
+          <button>View</button>
+          <button>Add members</button>
+          <button>Manage members</button>
+          <button>Edit settings</button>
+          <button>More options ↓DELETE GROUP</button>
+        </td>
+      </tr>
+      <tr class="group-row" id="group-row-2">
+        <td><input type="checkbox" /></td>
+        <td>All Staff</td>
+        <td>all-staff@company.com</td>
+        <td>24</td>
+        <td>Announcement-only</td>
+        <td>
+          <button>View</button>
+          <button>Add members</button>
+          <button>Manage members</button>
+          <button>Edit settings</button>
+          <button>More options ↓DELETE GROUP</button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>

@@ -1,0 +1,65 @@
+{
+  "_meta": {
+    "id": "import-users-screenshot",
+    "version": "1.0",
+    "title": "Import Users via Screenshot OCR",
+    "description": "Navigate to People \u2192 Import \u2192 upload a screenshot, let YeshID OCR extract users",
+    "baseUrl": "https://app.yeshid.com",
+    "requiresAuth": true,
+    "params": {
+      "screenshot_path": "Absolute local path to the screenshot image file"
+    }
+  },
+  "chain": [
+    {
+      "stepId": "navigate-people",
+      "action": "navigate",
+      "url": "/people"
+    },
+    {
+      "stepId": "click-import",
+      "action": "click_text",
+      "text": "Import",
+      "target": {
+        "anchors": {
+          "ariaLabel": "Import"
+        },
+        "cachedSelector": "button:has-text('Import')"
+      }
+    },
+    {
+      "stepId": "click-screenshot-option",
+      "action": "click_text",
+      "text": "Screenshot",
+      "target": {
+        "cachedSelector": "[data-cy='import-screenshot'], li:has-text('Screenshot')"
+      }
+    },
+    {
+      "stepId": "upload-screenshot",
+      "action": "js",
+      "code": "const inp = document.querySelector('input[type=file][accept*=image]') || document.querySelector('input[type=file]'); const dt = new DataTransfer(); dt.items.add(new File([''], '{{screenshot_path}}')); inp.files = dt.files; inp.dispatchEvent(new Event('change', {bubbles:true}));",
+      "description": "Attach screenshot to the image file input"
+    },
+    {
+      "stepId": "perceive-extracted-users",
+      "action": "perceive",
+      "store_as": "ocr_preview",
+      "description": "Read the list of users YeshID extracted from the screenshot \u2014 verify before confirming"
+    },
+    {
+      "stepId": "click-confirm-import",
+      "action": "click_text",
+      "text": "Import",
+      "target": {
+        "cachedSelector": "button:has-text('Import'), [data-cy='confirm-import']"
+      }
+    },
+    {
+      "stepId": "verify-success",
+      "action": "perceive",
+      "store_as": "import_result",
+      "description": "Read success confirmation or error \u2014 independent outcome verification"
+    }
+  ]
+}

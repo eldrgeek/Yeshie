@@ -1,0 +1,273 @@
+{
+  "_meta": {
+    "description": "Add a single new application to YeshID by clicking 'Add application' on the Applications page and completing the picker modal.",
+    "requiresAuth": true,
+    "baseUrl": "https://app.yeshid.com",
+    "requiredParams": [
+      "app_name"
+    ],
+    "optionalParams": [
+      "login_url"
+    ],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "prerequisite": "00-login.payload.json",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "params": {
+      "app_name": {
+        "required": true,
+        "description": "Name of the application to add (e.g. 'Notion', 'Figma'). Typed into the app picker search field."
+      },
+      "login_url": {
+        "required": false,
+        "description": "Login URL for the application (optional). Only used if the modal prompts for it."
+      }
+    },
+    "homeBookend": true,
+    "verificationStrategy": {
+      "pre": "perceive /access/applications; confirm 'Add application' button visible",
+      "post": "read snackbar, then navigate to /access/applications and confirm app_name appears in the managed applications table",
+      "primaryVerification": "app_in_applications_table contains app_name"
+    },
+    "notes": [
+      "Applications page URL: /access/applications (shows as 'Access Accounts | YeshID').",
+      "Two import-related buttons: 'Import application list' (bulk) and 'Add application' (single).",
+      "Add application modal has two paths: (1) Search pre-built catalog (2) Type custom app name.",
+      "We use the custom path: type into [placeholder='Type application name'], then click 'Add'.",
+      "No dropdown needed — avoids click_text polling issues with catalog search.",
+      "Confirmed via live diag-12c run 2026-04-16."
+    ],
+    "id": "add-application",
+    "title": "Add Application"
+  },
+  "runId": "yeshid-add-application-{{timestamp}}",
+  "mode": "learning",
+  "site": "app.yeshid.com",
+  "params": {
+    "app_name": "{{app_name}}",
+    "login_url": "{{login_url}}",
+    "base_url": "https://app.yeshid.com"
+  },
+  "abstractTargets": {
+    "add-application-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "Add application"
+        ]
+      },
+      "cachedSelector": "button:has-text('Add application')",
+      "cachedConfidence": 0.8,
+      "resolvedOn": "2026-04-16",
+      "resolvedVia": "live-survey button text (no data-cy on /access/applications)"
+    },
+    "app-search-input": {
+      "match": {
+        "role": "searchbox",
+        "label_contains": [
+          "search",
+          "application",
+          "app"
+        ]
+      },
+      "cachedSelector": ".v-dialog input[type=\"text\"]",
+      "cachedConfidence": 0.6,
+      "resolvedOn": "2026-04-16",
+      "resolvedVia": "inference — modal search field not surveyed; pattern from Vuetify dialog",
+      "fallbackSelectors": [
+        ".v-dialog input[type=\"text\"]",
+        ".v-dialog input",
+        ".v-overlay--active input[type=\"text\"]",
+        ".v-overlay--active input"
+      ],
+      "_note": "fallbackSelectors used because confidence < 0.85; modal contents not surveyed"
+    },
+    "app-list-item": {
+      "match": {
+        "role": "option",
+        "text_contains": "{{app_name}}"
+      },
+      "cachedSelector": ".v-dialog .v-list-item:has-text('{{app_name}}')",
+      "cachedConfidence": 0.65,
+      "resolvedOn": "2026-04-16",
+      "resolvedVia": "inference — modal list items not surveyed"
+    },
+    "applications-table": {
+      "match": {
+        "role": "table",
+        "ancestor": "applications-page"
+      },
+      "cachedSelector": "[data-cy=\"access-table\"], table",
+      "cachedConfidence": 0.85,
+      "resolvedOn": "2026-04-16",
+      "resolvedVia": "live-survey (access-table data-cy seen on applications page)"
+    },
+    "app-name-input": {
+      "match": {
+        "role": "textbox",
+        "placeholder": "Type application name"
+      },
+      "cachedSelector": "[placeholder='Type application name']",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-16",
+      "resolvedVia": "live-survey diag-12c — confirmed placeholder text",
+      "fallbackSelectors": [
+        "[placeholder='Type application name']",
+        ".v-overlay--active [placeholder='Type application name']"
+      ]
+    },
+    "add-modal-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "Add"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.5,
+      "name_contains": [
+        "Add"
+      ]
+    }
+  },
+  "chain": [
+    {
+      "stepId": "h0",
+      "action": "navigate",
+      "url": "/overview",
+      "note": "HOME START: Navigate to overview dashboard before performing action."
+    },
+    {
+      "stepId": "h0b",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 5000,
+      "note": "Confirm authenticated — username widget must be visible."
+    },
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "/access/applications",
+      "note": "Navigate to Applications page (displays as 'Access Accounts')."
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "timeout": 6000,
+      "selector": "[data-cy=\"username\"]",
+      "note": " [fixed: was condition/url_contains for '/access/applications']"
+    },
+    {
+      "stepId": "p1",
+      "action": "perceive",
+      "description": "Verify applications page is loaded; confirm 'Add application' button is visible in header",
+      "store_as": "applications_page_state",
+      "note": "Also captures current app list for post-action comparison."
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "target": "add-application-button",
+      "note": "Click 'Add application' to open the app picker modal.",
+      "responseSignature": [
+        {
+          "any_of": [
+            {
+              "type": "element_visible",
+              "selector": ".v-dialog",
+              "timeout": 5000
+            },
+            {
+              "type": "element_visible",
+              "selector": ".v-overlay--active",
+              "timeout": 5000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "p2",
+      "action": "perceive",
+      "description": "Capture the 'Add application' modal — record search field, app list, any data-cy attributes, and available buttons",
+      "store_as": "add_app_modal_state",
+      "note": "LEARNING STEP: Modal contents not surveyed. Use this to discover search input selector and app list structure."
+    },
+    {
+      "stepId": "s4",
+      "action": "type",
+      "target": "app-name-input",
+      "value": "{{app_name}}",
+      "note": "Type custom app name into 'Type application name' input. cachedSelector=[placeholder='Type application name'] confidence=0.95."
+    },
+    {
+      "stepId": "s4b",
+      "action": "delay",
+      "ms": 500,
+      "note": "Brief settle after typing app name."
+    },
+    {
+      "stepId": "s5",
+      "action": "click_text",
+      "text": "Add",
+      "note": "Click 'Add' button in modal to save the custom application. click_text polls buttons for exact text 'Add'."
+    },
+    {
+      "stepId": "s6",
+      "action": "read",
+      "candidates": [
+        ".v-snackbar--active .v-snackbar__content",
+        ".v-snackbar .v-snackbar__content",
+        "[role=\"alert\"]"
+      ],
+      "store_as": "confirmation_message",
+      "optional": true,
+      "note": "Capture success or error message from snackbar."
+    },
+    {
+      "stepId": "v1",
+      "action": "navigate",
+      "url": "/access/applications",
+      "note": "VERIFICATION: Navigate to managed Applications list to confirm {{app_name}} now appears."
+    },
+    {
+      "stepId": "v2",
+      "action": "wait_for",
+      "timeout": 5000,
+      "selector": "[data-cy=\"username\"]",
+      "note": " [fixed: was condition/url_contains for '/access/applications']"
+    },
+    {
+      "stepId": "v3",
+      "action": "read",
+      "candidates": [
+        "[data-cy=\"access-table\"]",
+        "table tbody"
+      ],
+      "store_as": "app_in_applications_table",
+      "note": "Read the applications table. Verify {{app_name}} appears as a row in the managed applications list."
+    },
+    {
+      "stepId": "hZ",
+      "action": "navigate",
+      "url": "/overview",
+      "note": "HOME END: Return to overview after action completes."
+    },
+    {
+      "stepId": "hZb",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 5000
+    },
+    {
+      "stepId": "verify-success",
+      "action": "perceive",
+      "store_as": "add_application_verification",
+      "description": "Independent confirmation: verify app_in_applications_table contains app_name indicating successful addition"
+    }
+  ]
+}

@@ -1,17 +1,18 @@
 {
   "_meta": {
     "task": "view-access-grid",
-    "description": "Navigate to the access grid and capture the people \u00d7 applications matrix.",
+    "description": "Navigate to the access grid and capture the people × applications matrix.",
     "params": [
       "base_url"
     ],
     "selfImproving": true,
-    "runCount": 0,
-    "lastSuccess": null,
+    "runCount": 6,
+    "lastSuccess": "2026-04-13T03:37:58.515Z",
     "auth": {
       "type": "sso_automatable",
       "googleAccountEmail": "mw@mike-wolf.com"
-    }
+    },
+    "lastDurationMs": 3167
   },
   "params": {
     "base_url": "https://app.yeshid.com"
@@ -34,7 +35,7 @@
       "stepId": "s3",
       "action": "delay",
       "ms": 2000,
-      "note": "Access grid loads slowly \u2014 extra wait"
+      "note": "Access grid loads slowly — extra wait"
     },
     {
       "stepId": "s4",

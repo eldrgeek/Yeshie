@@ -1,4 +1,5 @@
 export const RESOLUTION_METHODS = [
+  'data_se',
   'cached',
   'auto_heal',
   'aria',

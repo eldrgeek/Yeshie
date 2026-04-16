@@ -1,0 +1,140 @@
+{
+  "_meta": {
+    "description": "Manually trigger a new workflow from the Workflows page by clicking 'Start a Workflow'.",
+    "requiresAuth": true,
+    "baseUrl": "https://app.yeshid.com",
+    "requiredParams": [],
+    "optionalParams": [],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "prerequisite": "00-login.payload.json",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "homeBookend": true,
+    "verificationStrategy": {
+      "pre": "perceive workflows page; confirm 'Start a Workflow' button is visible",
+      "post": "perceive modal or next form that opens after clicking 'Start a Workflow'",
+      "primaryVerification": "element_visible '.v-dialog' OR url_contains '/workflows'"
+    },
+    "notes": [
+      "This payload opens the 'Start a Workflow' modal. The modal contents were not surveyed.",
+      "A perceive step after clicking the button captures the modal form for subsequent self-improvement.",
+      "The /workflows page redirects to a filtered URL: /workflows/?filters=(workflow-status = 'STAGED' OR ...)",
+      "No data-cy selectors were confirmed on this page — button text selectors used at 0.8 confidence."
+    ],
+    "id": "start-workflow",
+    "title": "Start a Workflow",
+    "params": {
+      "base_url": {
+        "required": false,
+        "description": "Base URL for the YeshID instance",
+        "default": "https://app.yeshid.com"
+      }
+    }
+  },
+  "runId": "yeshid-start-workflow-{{timestamp}}",
+  "mode": "learning",
+  "site": "app.yeshid.com",
+  "params": {
+    "base_url": "https://app.yeshid.com"
+  },
+  "abstractTargets": {
+    "start-workflow-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "Start a Workflow"
+        ]
+      },
+      "cachedSelector": "button:has-text('Start a Workflow')",
+      "cachedConfidence": 0.8,
+      "resolvedOn": "2026-04-16",
+      "resolvedVia": "live-survey button text (no data-cy on /workflows page)"
+    }
+  },
+  "chain": [
+    {
+      "stepId": "h0",
+      "action": "navigate",
+      "url": "/overview",
+      "note": "HOME START: Navigate to overview dashboard before performing action."
+    },
+    {
+      "stepId": "h0b",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 5000,
+      "note": "Confirm authenticated — username widget must be visible."
+    },
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "/workflows",
+      "note": "Navigate to Workflows page. Page redirects to filtered URL automatically."
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "timeout": 6000,
+      "selector": "[data-cy=\"username\"]",
+      "note": " [fixed: was condition/url_contains for '/workflows']"
+    },
+    {
+      "stepId": "p1",
+      "action": "perceive",
+      "description": "Verify workflows page is loaded; confirm 'Start a Workflow' button is present in header",
+      "store_as": "workflows_page_state",
+      "note": "Perceive to confirm page load and locate button if cachedSelector fails."
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "target": "start-workflow-button",
+      "note": "Click 'Start a Workflow' to open the workflow creation modal.",
+      "responseSignature": [
+        {
+          "any_of": [
+            {
+              "type": "element_visible",
+              "selector": ".v-dialog",
+              "timeout": 5000
+            },
+            {
+              "type": "element_visible",
+              "selector": ".v-overlay--active",
+              "timeout": 5000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "p2",
+      "action": "perceive",
+      "description": "Capture the contents of the 'Start a Workflow' modal — record all fields, dropdowns, buttons, and data-cy attributes present",
+      "store_as": "start_workflow_modal_state",
+      "note": "LEARNING STEP: This modal was not surveyed. Perceive captures its structure for self-improvement and future payload authoring."
+    },
+    {
+      "stepId": "hZ",
+      "action": "navigate",
+      "url": "/overview",
+      "note": "HOME END: Return to overview. Modal is dismissed by navigation."
+    },
+    {
+      "stepId": "hZb",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 5000
+    },
+    {
+      "stepId": "verify-success",
+      "action": "perceive",
+      "store_as": "start_workflow_verification",
+      "description": "Independent confirmation: verify workflow creation modal or form is visible after clicking Start a Workflow"
+    }
+  ]
+}

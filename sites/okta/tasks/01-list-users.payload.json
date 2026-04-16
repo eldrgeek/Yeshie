@@ -1,0 +1,79 @@
+{
+  "_meta": {
+    "task": "list-users",
+    "description": "List all users in the Okta admin console. Navigates to /admin/users and reads the full user table. Returns name, email, and status for all users.",
+    "skipAuthCheck": true,
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "manual_required",
+      "note": "Okta OAuth PKCE \u2014 session must already be active. If redirected to /oauth2/v1/authorize, tell the user to log in and retry."
+    },
+    "params": {
+      "base_url": {
+        "required": false,
+        "description": "Okta admin console base URL",
+        "default": "https://trial-8689388-admin.okta.com"
+      },
+      "search_term": {
+        "required": false,
+        "description": "Optional: filter by name or email. Leave blank for all users.",
+        "default": ""
+      }
+    },
+    "note_params": "IMPORTANT: {{base_url}} in chain steps is resolved from API-call params, NOT from payload.params. When calling via /run directly, pass params={\"base_url\": \"https://trial-8689388-admin.okta.com\"} explicitly, OR use the hardcoded URL (chains already use hardcoded URL as of this version)."
+  },
+  "params": {
+    "base_url": "https://trial-8689388-admin.okta.com",
+    "search_term": ""
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://trial-8689388-admin.okta.com/admin/users",
+      "note": "Navigate to Okta admin users page"
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 3000,
+      "note": "Wait for MUI table to fully render"
+    },
+    {
+      "stepId": "s3",
+      "action": "read",
+      "store_as": "user_list",
+      "note": "Read the users table. Confirmed schema: headers=[Person & username, Primary email, Status], rowCount=7. Known users: Hermes AI, Perplexity AI, ChatGPT OpenAI, Grok xAI, Gemini Google, Claude Anthropic, Michael Wolf. NOTE: If read returns empty, the MUI table may not have re-rendered after same-URL navigation. Consider navigating to /admin/users from a different page first, or use a wait_for on the table element."
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "users-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/admin/users$"
+          }
+        ]
+      },
+      "login": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/oauth2/v1/authorize"
+          }
+        ]
+      },
+      "user-profile": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/admin/user/profile/view/"
+          }
+        ]
+      }
+    }
+  }
+}

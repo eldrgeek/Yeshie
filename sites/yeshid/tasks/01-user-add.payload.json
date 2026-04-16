@@ -5,15 +5,13 @@
     "requiredParams": [
       "first_name",
       "last_name",
-      "company_email",
-      "backup_email"
-    ],
-    "optionalParams": [
+      "backup_email",
       "start_date_preset"
     ],
+    "optionalParams": [],
     "selfImproving": true,
-    "runCount": 4,
-    "lastSuccess": "2026-04-11T20:49:23.131Z",
+    "runCount": 5,
+    "lastSuccess": "2026-04-14T00:00:00Z",
     "prerequisite": "00-login.payload.json",
     "auth": {
       "type": "sso_automatable",
@@ -29,10 +27,13 @@
         "description": "Last name"
       },
       "company_email": {
-        "required": true,
-        "description": "Company email (@mike-wolf.com)",
-        "pattern": "^.+@mike-wolf\\.com$",
-        "hint": "Usually firstname.lastname@mike-wolf.com"
+        "required": false,
+        "description": "Company email \u2014 auto-derived from first and last name",
+        "derived": true,
+        "derivationTemplate": "{first_name_lower}.{last_name_lower}@embeddedsystemsresearch.org",
+        "confirmDerived": true,
+        "pattern": "^[a-z]+\\.[a-z]+@embeddedsystemsresearch\\.org$",
+        "hint": "Auto-derived as firstname.lastname@embeddedsystemsresearch.org \u2014 confirm or correct before running"
       },
       "backup_email": {
         "required": true,
@@ -40,15 +41,27 @@
         "hint": "Ask if not provided \u2014 this is required by YeshID"
       },
       "start_date_preset": {
-        "required": false,
-        "default": "Immediately",
-        "description": "When to start onboarding",
+        "required": true,
+        "description": "When should this person start?",
+        "promptLabel": "When should they start?",
         "options": [
           "Immediately",
           "Monday morning",
           "Pick date & time"
-        ]
+        ],
+        "hint": "Always ask \u2014 never default silently to Immediately"
       }
+    },
+    "homeBookend": true,
+    "verificationStrategy": {
+      "pre": "h0c stores initial_active_people",
+      "post": "hZc stores final_active_people",
+      "assertion": "final_active_people.numericValue == initial_active_people.numericValue + 1",
+      "note": "NEEDS UPDATE: 'Active people in YeshID' label does not exist on current overview page. Use 'Total Applications' for statByLabel smoke test. True people count verification requires /organization/people or /organization/directories page.",
+      "mechanism": "statByLabel \u2014 prev-sibling and ancestor-depth walk. 'Total Applications' confirmed working (returns 4). 'Initial directory' label found but numeric neighbor not reachable within 3 ancestor levels.",
+      "workingLabel": "Total Applications",
+      "workingLabelValue": 4,
+      "primaryVerification": "confirmation_message == 'Onboarding workflow created' AND workflow_confirmation contains 'Workflow Run'"
     }
   },
   "runId": "yeshid-user-add-{{timestamp}}",
@@ -70,11 +83,11 @@
           "first name"
         ]
       },
-      "cachedSelector": "#input-v-10",
-      "cachedConfidence": 0.88,
-      "resolveHint": "Find .v-input whose .v-label text contains 'First name'. Get the input inside.",
-      "resolvedOn": "2026-03-31T00:11:57.745179+00:00",
-      "resolvedVia": "vuetify_label_match"
+      "cachedSelector": "[data-cy=\"first-name-input\"] input",
+      "cachedConfidence": 1.0,
+      "resolveHint": "data-cy wrapper confirmed stable. Inner input via [data-cy=\"first-name-input\"] input.",
+      "resolvedOn": "2026-04-15T00:00:00Z",
+      "resolvedVia": "data-cy"
     },
     "last-name-input": {
       "match": {
@@ -83,11 +96,11 @@
           "last name"
         ]
       },
-      "cachedSelector": "#input-v-12",
-      "cachedConfidence": 0.88,
-      "resolveHint": "Find .v-input whose .v-label text contains 'Last name'.",
-      "resolvedOn": "2026-03-31T00:11:57.745179+00:00",
-      "resolvedVia": "vuetify_label_match"
+      "cachedSelector": "[data-cy=\"last-name-input\"] input",
+      "cachedConfidence": 1.0,
+      "resolveHint": "data-cy wrapper. data-cy=\"last-name-input\" confirmed present on the last name div.",
+      "resolvedOn": "2026-04-15T00:00:00Z",
+      "resolvedVia": "data-cy"
     },
     "company-email-input": {
       "match": {
@@ -96,11 +109,11 @@
           "company email"
         ]
       },
-      "cachedSelector": "#input-v-14",
-      "cachedConfidence": 0.88,
-      "resolveHint": "Find .v-input whose .v-label text contains 'Company email'.",
-      "resolvedOn": "2026-03-31T00:11:57.745179+00:00",
-      "resolvedVia": "vuetify_label_match"
+      "cachedSelector": "[data-cy=\"company-email-input\"] input",
+      "cachedConfidence": 1.0,
+      "resolveHint": "data-cy wrapper. [data-cy=\"company-email-input\"] input confirmed.",
+      "resolvedOn": "2026-04-15T00:00:00Z",
+      "resolvedVia": "data-cy"
     },
     "personal-email-input": {
       "match": {
@@ -110,11 +123,11 @@
           "recovery"
         ]
       },
-      "cachedSelector": "#input-v-18",
-      "cachedConfidence": 0.88,
-      "resolveHint": "Find .v-input whose .v-label text contains 'Personal' or 'recovery'.",
-      "resolvedOn": "2026-03-31T00:11:57.745179+00:00",
-      "resolvedVia": "vuetify_label_match"
+      "cachedSelector": "[data-cy=\"recovery-email-input\"] input",
+      "cachedConfidence": 1.0,
+      "resolveHint": "YeshID uses data-cy=\"recovery-email-input\" (not personal). Inner input via [data-cy=\"recovery-email-input\"] input.",
+      "resolvedOn": "2026-04-15T00:00:00Z",
+      "resolvedVia": "data-cy"
     },
     "create-onboard-button": {
       "match": {
@@ -141,19 +154,53 @@
           "start date"
         ]
       },
-      "cachedSelector": null,
-      "cachedConfidence": 0,
-      "resolveHint": "Button with text \"Select start date\". Click opens preset picker with options: Immediately, ASAP, Monday morning, Pick date & time.",
+      "cachedSelector": "[data-cy=\"schedule-user-activator\"]",
+      "cachedConfidence": 1.0,
+      "resolveHint": "data-cy=\"schedule-user-activator\" is the start date button directly. Click opens preset picker.",
       "pickerOptions": [
         "Immediately",
         "ASAP",
         "Monday morning",
         "Pick date & time"
       ],
-      "discoveredOn": "2026-03-31T00:11:57.745179+00:00"
+      "resolvedOn": "2026-04-15T00:00:00Z",
+      "resolvedVia": "data-cy"
+    },
+    "search-input": {
+      "match": {
+        "role": "textbox",
+        "name_contains": [
+          "search"
+        ]
+      },
+      "cachedSelector": ".search-input",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-14T00:00:00Z",
+      "resolvedVia": "class_match",
+      "resolveHint": "Input with class search-input and placeholder Search on the people list page."
     }
   },
   "chain": [
+    {
+      "stepId": "h0",
+      "action": "navigate",
+      "url": "https://app.yeshid.com/overview",
+      "note": "HOME START: Navigate to overview dashboard before performing action."
+    },
+    {
+      "stepId": "h0b",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 5000,
+      "note": "Wait for page to render \u2014 username data-cy is present on every authenticated page."
+    },
+    {
+      "stepId": "h0c",
+      "action": "js",
+      "code": "statByLabel('Total Applications')",
+      "store_as": "initial_active_people",
+      "note": "BOOKEND PLACEHOLDER: 'Active people in YeshID' not on overview. Using Total Applications (does not change on user-add). Real verification is snackbar + /workflows/ redirect."
+    },
     {
       "stepId": "s1",
       "action": "assess_state",
@@ -254,14 +301,20 @@
           "any_of": [
             {
               "type": "url_change",
+              "matches": "/workflows/",
+              "timeout": 12000,
+              "note": "YeshID redirects to /workflows/UUID on successful onboard"
+            },
+            {
+              "type": "url_change",
               "matches": "/organization/people$",
-              "timeout": 8000
+              "timeout": 12000
             },
             {
               "type": "element_visible",
               "selector": ".v-snackbar--active",
               "textMatch": "success|created|added|onboard",
-              "timeout": 5000
+              "timeout": 8000
             }
           ]
         }
@@ -276,14 +329,58 @@
               "timeout": 5000
             },
             {
+              "type": "element_visible",
+              "selector": ".v-input--error",
+              "timeout": 3000,
+              "note": "Inline field validation error \u2014 one or more fields failed"
+            },
+            {
               "type": "element_text",
               "selector": ".v-messages__message, .v-input--error .v-messages",
-              "textPattern": "required|invalid|must",
-              "timeout": 5000
+              "textPattern": "required|invalid|must|fill",
+              "timeout": 3000
             }
           ]
         }
       ]
+    },
+    {
+      "stepId": "s7b",
+      "action": "read",
+      "candidates": [
+        ".v-input--error .v-label",
+        ".v-input--error label",
+        ".v-messages__message"
+      ],
+      "store_as": "validation_errors",
+      "optional": true,
+      "note": "Read which fields have inline validation errors after submit. Only populated if s7 triggered failureSignature."
+    },
+    {
+      "stepId": "s8b",
+      "action": "assess_state",
+      "expect": {
+        "state_any": [
+          "people-list",
+          "onboard-workflow"
+        ]
+      },
+      "note": "Verify redirect \u2014 success lands on /workflows/UUID (workflow kicked off) or /organization/people",
+      "onMismatch": "report_failure"
+    },
+    {
+      "stepId": "s8c",
+      "action": "read",
+      "candidates": [
+        "h1",
+        ".workflow-title",
+        "title",
+        ".v-snackbar--active .v-snackbar__content",
+        ".v-toolbar__title"
+      ],
+      "store_as": "workflow_confirmation",
+      "optional": true,
+      "note": "VERIFY: Read page title or snackbar on workflow/people page to confirm user name was created."
     },
     {
       "stepId": "s8",
@@ -295,6 +392,26 @@
       "store_as": "confirmation_message",
       "minLength": 1,
       "note": "Capture the success/error message from the snackbar."
+    },
+    {
+      "stepId": "hZ",
+      "action": "navigate",
+      "url": "https://app.yeshid.com/overview",
+      "note": "HOME END: Return to overview dashboard after action completes."
+    },
+    {
+      "stepId": "hZb",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 5000,
+      "note": "Wait for page to render \u2014 username data-cy is present on every authenticated page."
+    },
+    {
+      "stepId": "hZc",
+      "action": "js",
+      "code": "statByLabel('Total Applications')",
+      "store_as": "final_active_people",
+      "note": "BOOKEND PLACEHOLDER: Same as h0c. For true user-count bookend, navigate to /organization/directories and parse 'Identities (N)' button text."
     }
   ],
   "branches": {
@@ -381,6 +498,22 @@
           {
             "type": "url_matches",
             "pattern": "/events$"
+          }
+        ]
+      },
+      "onboard-workflow": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/workflows/[a-z0-9-]+"
+          }
+        ]
+      },
+      "overview": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/overview$"
           }
         ]
       }

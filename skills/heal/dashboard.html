@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HEAL Monitor</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e1e4e8; min-height: 100vh; padding: 24px; }
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+    .subtitle { font-size: 12px; color: #8b949e; margin-top: 4px; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+    .badge.up { background: #1a3a2a; color: #3fb950; }
+    .badge.down { background: #3a1a1a; color: #f85149; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot.up { background: #3fb950; }
+    .dot.down { background: #f85149; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+    .kpi { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; }
+    .kpi-label { font-size: 12px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .kpi-value { font-size: 32px; font-weight: 700; line-height: 1; }
+    .kpi-value.warn { color: #f0883e; }
+    .kpi-value.good { color: #3fb950; }
+    .kpi-value.danger { color: #f85149; }
+    .section { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    .section h2 { font-size: 15px; font-weight: 600; margin-bottom: 16px; color: #c9d1d9; }
+    .chart-wrap { height: 200px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th { text-align: left; padding: 8px 12px; color: #8b949e; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #30363d; }
+    tbody tr { border-bottom: 1px solid #21262d; transition: background 0.1s; }
+    tbody tr:hover { background: #1c2128; }
+    tbody td { padding: 10px 12px; }
+    .verdict-l1 { color: #f0883e; }
+    .verdict-l2 { color: #d29922; }
+    .verdict-l3 { color: #f85149; font-weight: 600; }
+    tr.row-l3 { border-left: 3px solid #f85149; }
+    tr.row-healed-recent { border-left: 3px solid #3fb950; }
+    .failures { font-weight: 600; color: #f85149; }
+    .no-failures { color: #8b949e; }
+    .error-state { text-align: center; padding: 60px; color: #8b949e; }
+    .error-state code { display: block; margin-top: 12px; padding: 8px 16px; background: #21262d; border-radius: 6px; font-size: 13px; color: #e1e4e8; }
+    #search { background: #21262d; border: 1px solid #30363d; color: #e1e4e8; padding: 6px 12px; border-radius: 6px; font-size: 13px; width: 220px; margin-bottom: 12px; }
+    #search:focus { outline: none; border-color: #58a6ff; }
+    .refresh-btn { background: #21262d; border: 1px solid #30363d; color: #e1e4e8; padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+    .refresh-btn:hover { background: #30363d; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="error-state" id="loading">Loading status cache…</div>
+</div>
+
+<script>
+async function load() {
+  let data;
+  try {
+    const res = await fetch('./status-cache.json?' + Date.now());
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    data = await res.json();
+  } catch (e) {
+    document.getElementById('app').innerHTML = `
+      <div class="error-state">
+        <div style="font-size:24px;margin-bottom:16px;">⚠️ No status cache found</div>
+        <div>Run this command to generate it:</div>
+        <code>node skills/heal/heal-status.js</code>
+        <div style="margin-top:16px;font-size:12px">Then open this file again or <a href="#" onclick="location.reload()" style="color:#58a6ff">refresh</a>.</div>
+      </div>`;
+    return;
+  }
+  render(data);
+}
+
+function render(data) {
+  const { generatedAt, relayUp, payloads, summary } = data;
+  const now = Date.now();
+  const recentMs = 24 * 60 * 60 * 1000;
+  const hourMs = 60 * 60 * 1000;
+
+  const genDate = new Date(generatedAt);
+  const genStr = genDate.toLocaleString();
+
+  document.getElementById('app').innerHTML = `
+    <header>
+      <div>
+        <h1>HEAL Monitor</h1>
+        <div class="subtitle">Generated ${genStr} &nbsp;·&nbsp; ${payloads.length} payloads scanned</div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center">
+        <span class="badge ${relayUp ? 'up' : 'down'}">
+          <span class="dot ${relayUp ? 'up' : 'down'}"></span>
+          Relay ${relayUp ? 'UP' : 'DOWN'}
+        </span>
+        <button class="refresh-btn" onclick="load()">↻ Refresh</button>
+      </div>
+    </header>
+
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="kpi-label">Total Payloads</div>
+        <div class="kpi-value">${summary.total}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Never Healed</div>
+        <div class="kpi-value warn">${summary.neverHealed}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Healed (24h)</div>
+        <div class="kpi-value good">${summary.healedRecently}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Escalated (L3)</div>
+        <div class="kpi-value danger">${summary.escalated}</div>
+      </div>
+    </div>
+
+    <div class="section" id="chart-section">
+      <h2>Recent Failures (top 5 by 24h count)</h2>
+      <div class="chart-wrap"><canvas id="failureChart"></canvas></div>
+    </div>
+
+    <div class="section">
+      <h2>All Payloads</h2>
+      <input id="search" placeholder="Filter payloads…" oninput="filterTable(this.value)">
+      <table id="payload-table">
+        <thead>
+          <tr>
+            <th>Payload ID</th>
+            <th>Last Healed</th>
+            <th>Last Verdict</th>
+            <th>Failures (24h)</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  `;
+
+  // Build table rows
+  const tbody = document.getElementById('tbody');
+  for (const p of payloads) {
+    const healedAt = p.lastHealedAt ? new Date(p.lastHealedAt) : null;
+    const healedRecent = healedAt && (now - healedAt.getTime()) < hourMs;
+    const rowClass = p.lastVerdict === 'L3' ? 'row-l3' : healedRecent ? 'row-healed-recent' : '';
+    const verdictClass = p.lastVerdict === 'L3' ? 'verdict-l3' : p.lastVerdict === 'L2' ? 'verdict-l2' : p.lastVerdict === 'L1' ? 'verdict-l1' : '';
+    const tr = document.createElement('tr');
+    tr.className = rowClass;
+    tr.dataset.id = p.id;
+    tr.innerHTML = `
+      <td>${p.id}</td>
+      <td>${healedAt ? healedAt.toLocaleString() : '<span style="color:#8b949e">—</span>'}</td>
+      <td class="${verdictClass}">${p.lastVerdict || '<span style="color:#8b949e">—</span>'}</td>
+      <td class="${p.recentFailures > 0 ? 'failures' : 'no-failures'}">${p.recentFailures || '—'}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  // Chart — top 5 by failures
+  const top5 = [...payloads].sort((a,b) => b.recentFailures - a.recentFailures).slice(0,5).filter(p => p.recentFailures > 0);
+  if (top5.length > 0) {
+    new Chart(document.getElementById('failureChart'), {
+      type: 'bar',
+      data: {
+        labels: top5.map(p => p.id.split('/').pop()),
+        datasets: [{
+          label: 'Failures (24h)',
+          data: top5.map(p => p.recentFailures),
+          backgroundColor: '#f85149cc',
+          borderColor: '#f85149',
+          borderWidth: 1,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { color: '#8b949e', stepSize: 1 }, grid: { color: '#21262d' } },
+          x: { ticks: { color: '#8b949e' }, grid: { display: false } }
+        }
+      }
+    });
+  } else {
+    document.getElementById('chart-section').innerHTML = '<h2>Recent Failures</h2><div style="text-align:center;padding:40px;color:#8b949e">No failures in the last 24 hours 🎉</div>';
+  }
+}
+
+window.filterTable = function(q) {
+  const rows = document.querySelectorAll('#tbody tr');
+  const lq = q.toLowerCase();
+  rows.forEach(r => {
+    r.style.display = r.dataset.id.toLowerCase().includes(lq) ? '' : 'none';
+  });
+};
+
+load();
+</script>
+</body>
+</html>

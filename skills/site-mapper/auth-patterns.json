@@ -1,0 +1,4 @@
+{
+  "patterns": ["/login", "/sign-in", "/auth", "/sso", "/session", "accounts.google.com", "okta.com/login", "login.microsoftonline.com"],
+  "description": "URL substrings that indicate auth redirect. If current URL contains any of these after navigation, halt mapping and emit site-map/failed."
+}

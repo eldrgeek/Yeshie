@@ -1,0 +1,34 @@
+{
+  "_meta": {
+    "name": "gadmin-list-apps",
+    "site": "admin.google.com",
+    "description": "Navigate to Google Admin Apps section and perceive all configured apps. Includes SAML apps and OAuth apps.",
+    "version": "1.0.0",
+    "verified": false,
+    "verifiedDate": null,
+    "author": "session-2026-04-14",
+    "anomalies": [
+      "Google Admin SPA — perceive required",
+      "Apps section has sub-sections: Web and mobile apps, Google Workspace, Additional Google services",
+      "SAML apps appear under Web and mobile apps — look for YeshID here to confirm SSO integration"
+    ]
+  },
+  "params": { "base_url": "https://admin.google.com" },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://admin.google.com/ac/apps/unified", "note": "Navigate to Web and mobile apps — SAML apps are here" },
+    { "stepId": "s2", "action": "delay", "ms": 3500 },
+    { "stepId": "s3", "action": "perceive", "store_as": "apps_snap", "note": "Perceive apps list. Look for YeshID SAML app, Okta, or other SSO providers. Report all app names, types (SAML/OIDC/OAuth), and status." }
+  ],
+  "stateGraph": {
+    "initial": "apps-list",
+    "states": {
+      "apps-list": {
+        "description": "Web and mobile apps list",
+        "transitions": {
+          "click Add app": "add-app-flow",
+          "click app row": "app-detail"
+        }
+      }
+    }
+  }
+}

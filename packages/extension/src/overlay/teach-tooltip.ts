@@ -11,7 +11,7 @@ export interface TeachStep {
 }
 
 export interface TeachTooltip {
-  startTeach(steps: TeachStep[]): void;
+  startTeach(steps: TeachStep[], startIndex?: number): void;
   advanceStep(): void;
   gotoStep(index: number): void;
   endTeach(): void;
@@ -122,6 +122,32 @@ const TOOLTIP_STYLES = `
   }
 `;
 
+/**
+ * Resolve a CSS selector that may contain Playwright-style `:has-text()` pseudo-selectors
+ * or comma-separated fallback lists — neither of which vanilla querySelector supports.
+ */
+function resolveSelector(selector: string): Element | null {
+  for (const part of selector.split(',').map(s => s.trim())) {
+    const hasTextMatch = part.match(/^(.*?):has-text\(['"](.+?)['"]\)(.*)$/);
+    if (hasTextMatch) {
+      const [, base, text, rest] = hasTextMatch;
+      const candidates = Array.from(
+        document.querySelectorAll((base.trim() || '*') + (rest || ''))
+      );
+      const el = candidates.find(el => el.textContent?.includes(text));
+      if (el) return el;
+    } else {
+      try {
+        const el = document.querySelector(part);
+        if (el) return el;
+      } catch (_) {
+        // invalid selector fragment — skip
+      }
+    }
+  }
+  return null;
+}
+
 export function createTeachTooltip(container: HTMLElement): TeachTooltip {
   let steps: TeachStep[] = [];
   let currentStepIndex = -1;
@@ -184,26 +210,11 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
     container.appendChild(tooltipEl);
   }
 
-  function pickPosition(targetRect: DOMRect, preferred: TeachStep['position']): 'top' | 'bottom' | 'left' | 'right' {
-    if (preferred !== 'auto') return preferred;
-
-    const spaceTop = targetRect.top;
-    const spaceBottom = window.innerHeight - targetRect.bottom;
-    const spaceLeft = targetRect.left;
-    const spaceRight = window.innerWidth - targetRect.right;
-
-    const max = Math.max(spaceTop, spaceBottom, spaceLeft, spaceRight);
-    if (max === spaceBottom) return 'bottom';
-    if (max === spaceTop) return 'top';
-    if (max === spaceRight) return 'right';
-    return 'left';
-  }
-
-  function positionTooltip(targetRect: DOMRect | null, step: TeachStep) {
+  function positionTooltip(target: HTMLElement | null) {
     if (!tooltipEl) return;
 
-    if (!targetRect) {
-      // Center in viewport
+    if (!target) {
+      // Center in viewport if no target element found
       tooltipEl.style.top = '50%';
       tooltipEl.style.left = '50%';
       tooltipEl.style.transform = 'translate(-50%, -50%)';
@@ -211,44 +222,30 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
     }
 
     tooltipEl.style.transform = '';
+    const rect = target.getBoundingClientRect();
     const gap = 12;
-    const pos = pickPosition(targetRect, step.position);
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const tooltipWidth = tooltipEl.offsetWidth || 280;
+    const tooltipHeight = tooltipEl.offsetHeight || 120;
 
-    // Remove old arrow classes
-    const arrow = tooltipEl.querySelector('.tooltip-arrow') as HTMLElement;
-    if (arrow) {
-      arrow.className = 'tooltip-arrow';
+    // Default: place below target
+    let top = rect.bottom + gap;
+    let left = rect.left;
+
+    // Flip above if bottom of tooltip would exceed viewport height
+    if (top + tooltipHeight > vh - 8) {
+      top = rect.top - tooltipHeight - gap;
     }
 
-    switch (pos) {
-      case 'bottom':
-        tooltipEl.style.top = `${targetRect.bottom + gap}px`;
-        tooltipEl.style.left = `${targetRect.left + targetRect.width / 2 - 140}px`;
-        if (arrow) arrow.classList.add('arrow-bottom');
-        break;
-      case 'top':
-        tooltipEl.style.top = '';
-        tooltipEl.style.bottom = `${window.innerHeight - targetRect.top + gap}px`;
-        tooltipEl.style.left = `${targetRect.left + targetRect.width / 2 - 140}px`;
-        if (arrow) arrow.classList.add('arrow-top');
-        break;
-      case 'right':
-        tooltipEl.style.top = `${targetRect.top + targetRect.height / 2 - 40}px`;
-        tooltipEl.style.left = `${targetRect.right + gap}px`;
-        if (arrow) arrow.classList.add('arrow-right');
-        break;
-      case 'left':
-        tooltipEl.style.top = `${targetRect.top + targetRect.height / 2 - 40}px`;
-        tooltipEl.style.left = '';
-        tooltipEl.style.right = `${window.innerWidth - targetRect.left + gap}px`;
-        if (arrow) arrow.classList.add('arrow-left');
-        break;
+    // Clamp left so tooltip doesn't go off right edge
+    if (left + tooltipWidth > vw - 8) {
+      left = vw - tooltipWidth - 8;
     }
+    if (left < 8) left = 8;
 
-    // Clamp within viewport
-    const left = parseInt(tooltipEl.style.left || '0', 10);
-    if (left < 8) tooltipEl.style.left = '8px';
-    if (left > window.innerWidth - 290) tooltipEl.style.left = `${window.innerWidth - 290}px`;
+    tooltipEl.style.top = `${top}px`;
+    tooltipEl.style.left = `${left}px`;
   }
 
   function removeEventListeners() {
@@ -266,9 +263,12 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
     ensureStyle();
     createMask();
     createTooltipEl();
+    // Expose current step's target selector as a data attribute for Playwright tests
+    tooltipEl!.setAttribute('data-target-selector', step.targetSelector);
 
     // Find target in main document
-    const target = document.querySelector(step.targetSelector) as HTMLElement | null;
+    // resolveSelector handles :has-text() pseudo-selectors and comma-separated fallback lists
+    const target = resolveSelector(step.targetSelector) as HTMLElement | null;
     const targetRect = target ? target.getBoundingClientRect() : null;
     const elementFound = !!target;
 
@@ -279,6 +279,7 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
       ? `<div class="element-not-found">Element not found</div>`
       : '';
 
+    tooltipEl!.setAttribute('data-target-selector', step.targetSelector || '');
     tooltipEl!.innerHTML = `
       <div class="tooltip-content">
         <div class="step-counter">Step ${step.stepIndex + 1} of ${step.totalSteps}</div>
@@ -286,23 +287,36 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
         <div class="instruction">${step.instruction}</div>
         <div class="tooltip-controls">
           <button class="skip-btn">Skip</button>
-          <button class="next-btn">Next</button>
+          <button class="next-btn">Next Step</button>
         </div>
       </div>
       <div class="tooltip-arrow"></div>
     `;
 
-    positionTooltip(targetRect, step);
+    positionTooltip(target);
 
     // Wire controls
     const skipBtn = tooltipEl!.querySelector('.skip-btn')!;
-    const nextBtn = tooltipEl!.querySelector('.next-btn')!;
+    const nextBtn = tooltipEl!.querySelector('.next-btn') as HTMLButtonElement;
 
     const onSkipClick = () => {
       skipCallback?.();
     };
+
     const onNextClick = () => {
-      advanceStep();
+      const currentTarget = resolveSelector(step.targetSelector) as HTMLElement | null;
+      if (currentTarget) {
+        // Behavior 2: click the target for the user, then advance
+        nextBtn.textContent = "I'll click that for you…";
+        nextBtn.disabled = true;
+        currentTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        setTimeout(() => {
+          advanceStep();
+        }, 1500);
+      } else {
+        // No target — just advance
+        advanceStep();
+      }
     };
 
     skipBtn.addEventListener('click', onSkipClick);
@@ -312,10 +326,9 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
       nextBtn.removeEventListener('click', onNextClick);
     });
 
-    // Auto-advance listeners
-    if (step.waitForAction === 'click' && target) {
+    // Behavior 1: auto-advance when user clicks the target element (unconditional)
+    if (target) {
       const onTargetClick = () => {
-        stepCompleteCallback?.(step.stepIndex);
         advanceStep();
       };
       target.addEventListener('click', onTargetClick, { once: true });
@@ -324,7 +337,6 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
 
     if (step.waitForAction === 'navigate') {
       const onNav = () => {
-        stepCompleteCallback?.(step.stepIndex);
         advanceStep();
       };
       window.addEventListener('popstate', onNav, { once: true });
@@ -337,6 +349,8 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
   }
 
   function advanceStep() {
+    // Always notify background so session.currentStepIndex stays current (Next btn, click, navigate)
+    stepCompleteCallback?.(currentStepIndex);
     if (currentStepIndex >= steps.length - 1) {
       endTeach();
       exitCallback?.();
@@ -355,10 +369,10 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
   }
 
   return {
-    startTeach(newSteps: TeachStep[]) {
+    startTeach(newSteps: TeachStep[], startIndex = 0) {
       steps = newSteps;
       if (steps.length > 0) {
-        renderStep(0);
+        renderStep(Math.min(startIndex, steps.length - 1));
       }
     },
 

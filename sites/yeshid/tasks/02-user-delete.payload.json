@@ -13,8 +13,8 @@
       "user_identifier": "Name or email of the user to delete. Used to search the people table."
     },
     "selfImproving": true,
-    "runCount": 1,
-    "lastSuccess": "2026-04-01T21:46:34.307Z",
+    "runCount": 2,
+    "lastSuccess": "2026-04-14T00:00:00Z",
     "prerequisite": "00-login.payload.json",
     "warning": "Destructive action. Verify user_identifier before running in production mode.",
     "auth": {
@@ -45,10 +45,12 @@
           "search"
         ]
       },
-      "cachedSelector": "#input-v-26",
-      "cachedConfidence": 0.88,
-      "resolvedOn": "2026-03-31T00:00:00Z",
-      "description": "Search input on people list page"
+      "cachedSelector": ".search-input",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-14T00:00:00Z",
+      "description": "Search input on people list page",
+      "resolvedVia": "class_match",
+      "resolveHint": "Input with class search-input and placeholder Search. Vuetify ID (#input-v-XX) changes per session \u2014 use .search-input instead."
     },
     "person-row": {
       "match": {
@@ -175,8 +177,8 @@
     {
       "stepId": "s6",
       "action": "click_text",
-      "text": "Offboard",
-      "note": "Click 'Offboard' from the Manage dropdown menu."
+      "text": "Offboard User",
+      "note": "Click 'Offboard User' from the Manage dropdown menu. Confirmed option text is 'Offboard User' (not 'Offboard')."
     },
     {
       "stepId": "s7",
@@ -204,6 +206,13 @@
       "note": "Confirm offboarding."
     },
     {
+      "stepId": "s10b",
+      "action": "wait_for",
+      "url_pattern": "/workflows/",
+      "timeout": 8000,
+      "note": "CONFIRMED: After clicking Offboard person, YeshID creates an offboarding workflow and immediately redirects to /workflows/{uuid}. Snackbar shows Workflow created."
+    },
+    {
       "stepId": "s11",
       "action": "delay",
       "ms": 2000,
@@ -227,7 +236,7 @@
       "action": "type",
       "target": "search-input",
       "value": "{{user_identifier}}",
-      "note": "Search for the user again to verify status."
+      "note": "Re-search for user to verify offboard status. Uses .search-input selector."
     },
     {
       "stepId": "s13b",
@@ -237,9 +246,12 @@
     },
     {
       "stepId": "s14",
-      "action": "perceive",
-      "store_as": "result_state",
-      "note": "Capture final state \u2014 expect user row showing 'Deactivated' status."
+      "action": "find_row",
+      "identifier": "{{user_identifier}}",
+      "store_as": "verify_offboarded",
+      "assert_cell_contains": "Deactivated",
+      "assert_cell_column": "YeshID status",
+      "note": "VERIFY: Find user row and assert YeshID status column shows Deactivated (not Active). Confirmed: offboarding immediately sets status to Deactivated."
     }
   ],
   "stateGraph": {

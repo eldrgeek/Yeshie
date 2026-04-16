@@ -146,7 +146,7 @@ describe('YeshID offboard behavior', () => {
     let confirmClicked = false;
 
     document.querySelector('button[aria-haspopup="menu"]')?.addEventListener('click', () => { manageClicked = true; });
-    Array.from(document.querySelectorAll('.v-list-item')).find(el => el.textContent?.includes('Offboard'))?.addEventListener('click', () => { offboardClicked = true; });
+    Array.from(document.querySelectorAll('.v-list-item')).find(el => el.textContent?.includes('Offboard User'))?.addEventListener('click', () => { offboardClicked = true; });
     Array.from(document.querySelectorAll('[role="option"]')).find(el => el.textContent?.includes('Immediately'))?.addEventListener('click', () => { immediateClicked = true; });
     Array.from(document.querySelectorAll('button')).find(el => el.textContent?.includes('Offboard person'))?.addEventListener('click', () => { confirmClicked = true; });
 
@@ -162,14 +162,13 @@ describe('YeshID offboard behavior', () => {
     expect(immediateClicked).toBe(true);
     expect(confirmClicked).toBe(true);
 
-    const finalPerception = ex.execute(payload.chain[17]);
-    expect(finalPerception.status).toBe('ok');
-    expect(ex.getBuffer()['result_state']).toEqual(expect.objectContaining({
-      tables: expect.arrayContaining([
-        expect.objectContaining({ rowCount: 1 }),
-      ]),
-    }));
-    expect(JSON.stringify(finalPerception.result)).toContain('Deactivated');
+    // chain[17]=delay, chain[18]=find_row verification (asserts Deactivated status)
+    expect(ex.execute(payload.chain[17]).status).toBe('ok');
+    const verifyStep = ex.execute(payload.chain[18]);
+    expect(verifyStep.status).toBe('ok');
+    const verifyResult = ex.getBuffer()['verify_offboarded'];
+    expect(verifyResult).toBeDefined();
+    expect((verifyResult as any)?.found).toBe(true);
   });
 });
 

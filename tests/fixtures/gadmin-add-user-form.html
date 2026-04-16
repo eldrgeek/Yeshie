@@ -1,0 +1,33 @@
+<!-- Google Admin Add new user dialog mock -->
+<!-- H1 is "User Information" not "Add user" — confirmed anomaly -->
+<!-- All inputs use aria-label, not name attribute -->
+<div class="gadmin-page">
+  <div class="gadmin-toolbar">
+    <button title="Add new user" aria-label="Add new user">Add new user</button>
+  </div>
+  <div role="dialog" class="gadmin-slide-panel" aria-label="Add new user panel">
+    <div class="panel-header">
+      <div class="breadcrumb">Add new user</div>
+      <h1>User Information</h1>
+    </div>
+    <div class="panel-body">
+      <div class="form-group">
+        <input aria-label="First name *" type="text" id="gadmin-first-name" />
+      </div>
+      <div class="form-group">
+        <input aria-label="Last name *" type="text" id="gadmin-last-name" />
+      </div>
+      <div class="form-group">
+        <input aria-label="Primary email *" type="text" id="gadmin-primary-email" />
+        <span class="domain-suffix">@company.com</span>
+      </div>
+      <div class="form-group">
+        <input aria-label="Secondary email" type="text" id="gadmin-secondary-email" />
+      </div>
+      <div class="panel-footer">
+        <button class="submit-btn">Add new user</button>
+        <button class="cancel-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>

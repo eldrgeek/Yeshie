@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.yeshie.listener-haiku</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/mikewolf/Projects/yeshie/scripts/yeshie-listen-tier.sh</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>YESHIE_TIER</key>
+    <string>haiku</string>
+    <key>YESHIE_MODEL</key>
+    <string>claude-haiku-4-5-20251001</string>
+  </dict>
+  <key>WorkingDirectory</key>
+  <string>/Users/mikewolf/Projects/yeshie</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/yeshie-listener-haiku.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/yeshie-listener-haiku.log</string>
+</dict>
+</plist>

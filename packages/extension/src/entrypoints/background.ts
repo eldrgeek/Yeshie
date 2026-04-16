@@ -171,6 +171,52 @@ export default defineBackground(() => {
   // Clean up conversation memory when a tab is closed
   chrome.tabs.onRemoved.addListener((tabId) => {
     chrome.runtime.sendMessage({ type: 'tab_removed', tabId }).catch(() => {});
+    teachSessions.delete(tabId);
+  });
+
+  // Restore teach session after tab navigation (SPA or full reload)
+  // Fire on status==='complete' (hard nav) OR when changeInfo.url is set (SPA pushState nav)
+  chrome.tabs.onUpdated.addListener(async (tabId, info) => {
+    if (info.status !== 'complete' && !info.url) return;
+    const session = teachSessions.get(tabId);
+    if (!session) return;
+
+    // First, ping the content script to see if it survived (SPA navigation)
+    // If alive, trust its current step — don't override with potentially stale session state
+    try {
+      const ping = await chrome.tabs.sendMessage(tabId, { type: 'teach_query_step' });
+      if (ping?.active) {
+        // Content script is alive — update our record from it and skip restoration
+        if (ping.stepIndex > session.currentStepIndex) {
+          session.currentStepIndex = ping.stepIndex;
+        }
+        console.log('[Yeshie] SPA nav: content script alive at step', ping.stepIndex, '— skipping restoration');
+        return;
+      }
+    } catch {
+      // Content script not responding — full page navigation, fall through to restore
+    }
+
+    // Full navigation: content script is dead, restore the session
+    console.log('[Yeshie] Tab navigation complete, restoring teach session at step', session.currentStepIndex, 'for tab', tabId);
+    const teachMsg = { type: 'teach_start', steps: session.steps, startIndex: session.currentStepIndex };
+    const trySend = async (): Promise<boolean> => {
+      try { await chrome.tabs.sendMessage(tabId, teachMsg); return true; } catch { return false; }
+    };
+    let ok = await trySend();
+    if (!ok) {
+      try {
+        await chrome.scripting.executeScript({ target: { tabId }, files: ['content-overlay.js'] });
+        // Poll for readiness instead of fixed delay (content script may take >300ms to init)
+        for (let i = 0; i < 5 && !ok; i++) {
+          await new Promise(r => setTimeout(r, 200));
+          ok = await trySend();
+        }
+        if (!ok) console.warn('[Yeshie] Failed to restore teach session after navigation: content script not responding');
+      } catch (e: any) {
+        console.warn('[Yeshie] Failed to restore teach session after navigation:', e.message);
+      }
+    }
   });
 
 
@@ -203,6 +249,9 @@ export default defineBackground(() => {
   // ── Run state ────────────────────────────────────────────────────────────────
   const runs = new Map<string, any>();
   const abortFlags = new Map<string, boolean>();
+
+  // ── Teach session state (survives SPA navigation) ────────────────────────────
+  const teachSessions = new Map<number, { steps: any[]; currentStepIndex: number }>();
 
   function collectSurpriseEvidence(stepResults: any[] = [], topLevelError?: string) {
     const collected = stepResults.flatMap((r: any) => Array.isArray(r?.surpriseEvidence) ? r.surpriseEvidence : []);
@@ -330,17 +379,26 @@ export default defineBackground(() => {
   function PRE_RESOLVE_TARGET(abstractTarget: any) {
     const CACHE_MS = 30 * 24 * 60 * 60 * 1000;
 
-    // Produce a reload-stable selector — prefers a11y attributes over generated IDs
+    // Produce a reload-stable selector — prefers test/a11y attributes over generated IDs
     function stableSelector(el: Element): string | null {
       const tag = el.tagName.toLowerCase();
+      // Prefer data-cy (Cypress test attributes) — highest stability, explicit dev intent
+      const dataCy = el.getAttribute('data-cy');
+      if (dataCy) return `[data-cy="${dataCy}"]`;
+      // If the element itself has no data-cy, check if it lives inside a data-cy wrapper
+      const cyParent = el.closest('[data-cy]');
+      if (cyParent) {
+        const parentCy = cyParent.getAttribute('data-cy')!;
+        return `[data-cy="${parentCy}"] ${tag}`;
+      }
+      const testid = el.getAttribute('data-testid');
+      if (testid) return `[data-testid="${testid}"]`;
       const ariaLabel = el.getAttribute('aria-label');
       if (ariaLabel) return `[aria-label="${ariaLabel}"]`;
       const placeholder = (el as HTMLInputElement).placeholder;
       if (placeholder) return `${tag}[placeholder="${placeholder}"]`;
       const name = el.getAttribute('name');
       if (name) return `${tag}[name="${name}"]`;
-      const testid = el.getAttribute('data-testid');
-      if (testid) return `[data-testid="${testid}"]`;
       // Only use ID if it looks stable (not a generated Vuetify/React ID)
       if (el.id && !/^(input-v-|_react_|:r)/.test(el.id)) return '#' + el.id;
       return null;
@@ -350,10 +408,11 @@ export default defineBackground(() => {
       if (!anchors) return null;
 
       const selectorCandidates = [
+        anchors.dataCy ? `[data-cy="${anchors.dataCy}"]` : null,
+        anchors.dataTestId ? `[data-testid="${anchors.dataTestId}"]` : null,
         anchors.ariaLabel ? `[aria-label="${anchors.ariaLabel}"]` : null,
         anchors.placeholder ? `input[placeholder="${anchors.placeholder}"], textarea[placeholder="${anchors.placeholder}"], [placeholder="${anchors.placeholder}"], [data-placeholder="${anchors.placeholder}"]` : null,
         anchors.name ? `input[name="${anchors.name}"], textarea[name="${anchors.name}"], select[name="${anchors.name}"]` : null,
-        anchors.dataTestId ? `[data-testid="${anchors.dataTestId}"]` : null,
         anchors.id && !/^(input-v-\d+|checkbox-v-\d+|_react_|react-\d+|:r)/.test(anchors.id) ? `#${anchors.id}` : null,
       ];
 
@@ -401,6 +460,32 @@ export default defineBackground(() => {
       }
 
       return null;
+    }
+
+    // Step 0: data-cy / data-testid resolution — explicit test attributes, most stable
+    // Try to match match keys against [data-cy] or [data-testid] attributes in the DOM
+    {
+      const labelKeys0: string[] = abstractTarget.match?.vuetify_label || abstractTarget.semanticKeys || [];
+      const nameKeys0: string[] = abstractTarget.match?.name_contains || [];
+      const allKeys0 = [...new Set([...labelKeys0, ...nameKeys0])];
+      for (const key of allKeys0) {
+        // Normalize: "first name" → "first-name", try both forms
+        const variants = [key, key.replace(/\s+/g, '-'), key.replace(/\s+/g, '_')];
+        for (const v of variants) {
+          for (const attr of ['data-cy', 'data-testid']) {
+            const wrapper = document.querySelector(`[${attr}="${v}"]`);
+            if (wrapper) {
+              const inp = wrapper.querySelector('input,textarea,select') as HTMLElement | null;
+              if (inp) {
+                const innerTag = inp.tagName.toLowerCase();
+                return { selector: `[${attr}="${v}"] ${innerTag}`, confidence: 1.0, resolvedVia: attr, found: true };
+              }
+              // Element itself is the target (button, etc.)
+              return { selector: `[${attr}="${v}"]`, confidence: 1.0, resolvedVia: attr, found: true };
+            }
+          }
+        }
+      }
     }
 
     // Step 1: cached selector (verify still valid in DOM)
@@ -858,9 +943,9 @@ export default defineBackground(() => {
       subtree: true,
       childList: true,
       attributes: true,
-      attributeOldValue: true,
+      attributeOldValue: false,   // removed: storing old attr values is expensive on Vue SPAs
       characterData: true,
-      characterDataOldValue: true,
+      characterDataOldValue: false, // removed: storing old char data values is expensive on Vue SPAs
     });
 
     w.__yeshieObserver = observer;
@@ -884,7 +969,13 @@ export default defineBackground(() => {
 
   async function PRE_FLUSH_UI() {
     await Promise.resolve();
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    // Timeout fallback: if rAF is starved by a Vue/Vuetify reactive cascade
+    // (e.g. CDP debugger attach causes viewport shift → ResizeObserver → many mutations),
+    // resolve after 1000ms so the chain doesn't hang indefinitely.
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(() => resolve(), 1000);
+      requestAnimationFrame(() => { clearTimeout(timer); resolve(); });
+    });
     return { flushed: true };
   }
 
@@ -1346,6 +1437,146 @@ export default defineBackground(() => {
         return { updated: updates, fieldsModified: Object.keys(updates).filter(k => !k.includes('_not_found')).length };
       }
 
+      // Text-anchored stat read: statByLabel('Active people in YeshID')
+      // Finds the element with that exact label text, then returns its nearest numeric sibling.
+      // Stable across style/class changes — anchors on visible text, not CSS class names.
+      if (code.includes('statByLabel') || code.includes('labelNeighbor')) {
+        const labelMatch = code.match(/(?:statByLabel|labelNeighbor)\(['"](.+?)['"]\)/);
+        const labelText = labelMatch?.[1] || '';
+        if (!labelText) return { __error: 'statByLabel: no label text found in code' };
+
+        // Find element whose text exactly matches the label (case-insensitive)
+        // Try leaf first (no children), then any element with exactly that text
+        const allEls = Array.from(document.querySelectorAll('*'));
+        const labelEl = (
+          allEls.find(el => el.children.length === 0 && el.textContent?.trim().toLowerCase() === labelText.toLowerCase()) ||
+          allEls.find(el => el.textContent?.trim().toLowerCase() === labelText.toLowerCase() && (el as HTMLElement).offsetHeight > 0)
+        ) as HTMLElement | null;
+        if (!labelEl) {
+          // Diagnostic: return elements containing the label substring
+          const containing = allEls
+            .filter(el => el.children.length === 0 && el.textContent?.trim().toLowerCase().includes(labelText.toLowerCase().split(' ')[0]))
+            .map(el => el.textContent?.trim().substring(0, 60))
+            .slice(0, 10);
+          return { found: false, label: labelText, reason: 'label element not found', diagnostic_contains: containing };
+        }
+
+        // Walk next siblings looking for a pure numeric text node
+        let sib = labelEl.nextElementSibling;
+        while (sib) {
+          const t = sib.textContent?.trim() || '';
+          if (/^\d+$/.test(t)) {
+            return { found: true, value: t, numericValue: parseInt(t, 10), label: labelText, resolvedVia: 'next-sibling' };
+          }
+          sib = sib.nextElementSibling;
+        }
+
+        // Walk PREVIOUS siblings (count might appear before label in DOM)
+        let prevSib = labelEl.previousElementSibling;
+        while (prevSib) {
+          const t = prevSib.textContent?.trim() || '';
+          if (/^\d+$/.test(t)) {
+            return { found: true, value: t, numericValue: parseInt(t, 10), label: labelText, resolvedVia: 'prev-sibling' };
+          }
+          prevSib = prevSib.previousElementSibling;
+        }
+
+        // Walk parent and grandparent siblings (count might be in adjacent element of ancestor)
+        let ancestor: HTMLElement | null = labelEl.parentElement;
+        for (let depth = 0; depth < 3 && ancestor; depth++) {
+          for (const child of Array.from(ancestor.children)) {
+            if (child === labelEl || ancestor.contains(child) && child.contains(labelEl)) continue;
+            const t = child.textContent?.trim() || '';
+            if (/^\d+$/.test(t)) {
+              return { found: true, value: t, numericValue: parseInt(t, 10), label: labelText, resolvedVia: 'ancestor-depth-' + depth };
+            }
+          }
+          ancestor = ancestor.parentElement;
+        }
+
+        return { found: false, label: labelText, reason: 'no numeric neighbor found' };
+      }
+
+      // Page survey scan: pageScan() — returns everything needed to survey a page
+      // One call per page: data-cy targets, buttons, labels+inputs, nav links, page type hint.
+      // Used by the site-survey skill so it only needs the Yeshie relay, not a separate browser tool.
+      if (code.includes('pageScan')) {
+        const dataCyEls = Array.from(document.querySelectorAll('[data-cy],[data-testid]')).map((el: any) => ({
+          attr: el.getAttribute('data-cy') ? 'data-cy' : 'data-testid',
+          value: el.getAttribute('data-cy') || el.getAttribute('data-testid'),
+          tag: el.tagName.toLowerCase(),
+          innerTag: el.querySelector('input,textarea,select') ? el.querySelector('input,textarea,select')!.tagName.toLowerCase() : null,
+          text: el.textContent?.trim().substring(0, 50) || null,
+        }));
+
+        const buttons = Array.from(new Set(
+          Array.from(document.querySelectorAll('button,[role="button"]'))
+            .map((el: any) => el.textContent?.trim())
+            .filter((t: any) => t && t.length > 0 && t.length < 60)
+        ));
+
+        // Labels paired with their nearest input
+        const fields: any[] = [];
+        for (const label of Array.from(document.querySelectorAll('label, [class*="label"], .mb-2'))) {
+          const text = (label as HTMLElement).textContent?.trim();
+          if (!text || text.length > 60) continue;
+          // Find associated input
+          const forId = (label as HTMLLabelElement).htmlFor;
+          const inputById = forId ? document.getElementById(forId) : null;
+          const inputSibling = label.nextElementSibling?.querySelector?.('input,textarea,select') ||
+                               label.nextElementSibling as HTMLElement | null;
+          const input = inputById || (inputSibling?.tagName && ['INPUT','TEXTAREA','SELECT'].includes(inputSibling.tagName) ? inputSibling : null);
+          const dataCy = input?.closest('[data-cy]')?.getAttribute('data-cy') ||
+                         label.closest('[data-cy]')?.getAttribute('data-cy');
+          fields.push({
+            label: text,
+            inputType: input ? (input as HTMLInputElement).type || input.tagName.toLowerCase() : null,
+            dataCy: dataCy || null,
+            placeholder: (input as HTMLInputElement)?.placeholder || null,
+          });
+        }
+
+        // Nav links (top-level only)
+        const navLinks = Array.from(document.querySelectorAll('nav a, [role="navigation"] a, aside a'))
+          .map((a: any) => ({ text: a.textContent?.trim(), href: a.getAttribute('href') }))
+          .filter((l: any) => l.text && l.href && !l.href.startsWith('http'));
+
+        // Page type hint
+        const url = location.href;
+        const pageType = url.includes('/onboard') || url.includes('/create') ? 'form'
+          : url.includes('/overview') || url.includes('/dashboard') ? 'dashboard'
+          : document.querySelector('table, .v-data-table') ? 'list'
+          : document.querySelector('form') ? 'form'
+          : 'detail';
+
+        return {
+          url,
+          title: document.title,
+          pageType,
+          dataCy: dataCyEls,
+          buttons,
+          fields,
+          navLinks: navLinks.slice(0, 30),
+        };
+      }
+
+      // Dump all visible leaf text — diagnostic tool to find label text
+      if (code.includes('dumpText')) {
+        const keyword = code.match(/dumpText\(['"](.+?)['"]\)/)?.[1] || '';
+        const leaves = Array.from(document.querySelectorAll('*'))
+          .filter(el => {
+            if (el.children.length > 0) return false;
+            const t = el.textContent?.trim() || '';
+            if (!t || t.length < 2 || t.length > 100) return false;
+            if (keyword && !t.toLowerCase().includes(keyword.toLowerCase())) return false;
+            return true;
+          })
+          .map(el => el.textContent?.trim())
+          .filter((v, i, a) => a.indexOf(v) === i) // dedupe
+          .slice(0, 50);
+        return { leaves, keyword };
+      }
+
       return { __error: 'No matching pattern for js step' };
     } catch(e: any) {
       return { __error: e.message };
@@ -1370,6 +1601,7 @@ export default defineBackground(() => {
       returnByValue: true
     }) as { result: { value: string | null } };
     const isTextarea = tagResult?.value === 'textarea';
+    const isNativeInput = tagResult?.value === 'input';
 
     // Focus + select-all
     await chrome.debugger.sendCommand(target, 'Runtime.evaluate', {
@@ -1378,14 +1610,16 @@ export default defineBackground(() => {
     });
     await new Promise(r => setTimeout(r, 80));
 
-    if (isTextarea) {
-      // React-controlled textarea: use nativeInputValueSetter + _valueTracker mismatch trick
-      // so React's change detection fires and the submit handler sees the new value.
+    if (isTextarea || isNativeInput) {
+      // For textarea (React) and native input (Vue 3): use prototype value setter so the
+      // framework's reactivity system sees the change. Input.insertText doesn't trigger
+      // Vue 3 v-model because Vue listens to the native input event on the real element.
+      const protoGetter = isTextarea ? 'HTMLTextAreaElement' : 'HTMLInputElement';
       await chrome.debugger.sendCommand(target, 'Runtime.evaluate', {
         expression: `(function(){
           const el=document.querySelector(${JSON.stringify(selector)});
           if(!el)return false;
-          const nativeSetter=Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value')?.set;
+          const nativeSetter=Object.getOwnPropertyDescriptor(window.${protoGetter}.prototype,'value')?.set;
           const prev=el.value;
           if(nativeSetter){nativeSetter.call(el,${JSON.stringify(text)});}else{el.value=${JSON.stringify(text)};}
           if(el._valueTracker){el._valueTracker.setValue(prev);}
@@ -1447,8 +1681,13 @@ export default defineBackground(() => {
   let _debuggerTabId: number | null = null;
 
   async function ensureDebugger(tabId: number) {
-    if (_debuggerTabId === tabId) return; // already attached
-    if (_debuggerTabId !== null) {
+    if (_debuggerTabId === tabId) return; // already attached in this service-worker session
+    // Force-detach any stale CDP session on the target tab. After an MV3 service worker
+    // sleep/restart _debuggerTabId resets to null, but the old session can still be live.
+    // Without this, attach() returns "already attached" (swallowed), then sendCommand
+    // routes to the broken old session and hangs indefinitely.
+    try { await chrome.debugger.detach({ tabId }); } catch (_) {}
+    if (_debuggerTabId !== null && _debuggerTabId !== tabId) {
       try { await chrome.debugger.detach({ tabId: _debuggerTabId }); } catch (_) {}
     }
     try { await chrome.debugger.attach({ tabId }, '1.3'); } catch (e: any) {
@@ -1484,6 +1723,60 @@ export default defineBackground(() => {
       returnByValue: true
     });
     return result?.result?.value || { ok: false, error: 'No result from Runtime.evaluate' };
+  }
+
+  // ── Trusted mouse click via Input.dispatchMouseEvent (isTrusted:true) ────────
+  // Unlike el.click() via Runtime.evaluate, this produces real browser events
+  // Required for OAuth buttons and Google account chooser
+  async function trustedMouseClick(tabId: number, findElementExpr: string): Promise<{ clicked: boolean; x?: number; y?: number; reason?: string }> {
+    const debuggerTarget = { tabId };
+    try {
+      try {
+        await chrome.debugger.attach(debuggerTarget, '1.3');
+      } catch (attachErr: any) {
+        if (!attachErr?.message?.includes('Already attached')) throw attachErr;
+      }
+
+      // Find element and get its bounding rect center
+      const evalResult = await chrome.debugger.sendCommand(debuggerTarget, 'Runtime.evaluate', {
+        expression: findElementExpr,
+        returnByValue: true,
+        awaitPromise: true,
+        userGesture: true
+      });
+      const rect = (evalResult as any)?.result?.value;
+      if (!rect || !rect.x) {
+        return { clicked: false, reason: rect?.reason || 'element not found' };
+      }
+
+      const x = Math.round(rect.x);
+      const y = Math.round(rect.y);
+
+      // Dispatch real mouse events
+      await chrome.debugger.sendCommand(debuggerTarget, 'Input.dispatchMouseEvent', {
+        type: 'mousePressed', x, y, button: 'left', clickCount: 1
+      });
+      await chrome.debugger.sendCommand(debuggerTarget, 'Input.dispatchMouseEvent', {
+        type: 'mouseReleased', x, y, button: 'left', clickCount: 1
+      });
+
+      return { clicked: true, x, y };
+    } catch (err: any) {
+      return { clicked: false, reason: err?.message || 'trustedMouseClick failed' };
+    } finally {
+      try { await chrome.debugger.detach(debuggerTarget); } catch (_) {}
+    }
+  }
+
+  // ── Observability: log auth flow events to relay ─────────────────────────────
+  async function logToRelay(event: string, data: any) {
+    try {
+      await fetch('http://localhost:3333/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event, ts: new Date().toISOString(), ...data })
+      });
+    } catch (_) {} // fire and forget
   }
 
   // ── Navigation ────────────────────────────────────────────────────────────────
@@ -1825,7 +2118,7 @@ export default defineBackground(() => {
         }
         if (!sel) sel = interpolate(step.target || '', params); // last resort: literal
         while (Date.now() - start < timeout) {
-          const match = await execInTab(tabId, PRE_MATCH_WAIT_FOR, [step, sel as string, run.payload?.stateGraph || null]);
+          const match = await execInTab(tabId, PRE_MATCH_WAIT_FOR, [step, sel as string, null]); // null: stateGraph causes PRE_ASSESS_STATE ref error in MAIN world
           if (match?.matched) return { stepId: step.stepId, action: a, status: 'ok', selector: sel, state: match.state, durationMs: Date.now() - t0 };
           await new Promise(r => setTimeout(r, 300));
         }
@@ -2042,12 +2335,29 @@ export default defineBackground(() => {
 
     // Step 1: Get to the YeshID login page and click Google SSO
     const authCheck = await execInTab(tabId, PRE_CHECK_AUTH, []);
+    logToRelay('auth_check', { tabId, authCheck });
     if (!authCheck?.onLoginPage) {
+      logToRelay('auth_navigate_to_login', { tabId, loginUrl });
       await navigateAndWait(tabId, loginUrl);
       await new Promise(r => setTimeout(r, 1000));
     }
-    const ssoResult = await execInTab(tabId, PRE_CLICK_SSO_BUTTON, []);
-    console.log('[Yeshie] SSO click result:', ssoResult);
+    // Use Input.dispatchMouseEvent for isTrusted:true click (required for OAuth redirect)
+    const findSsoExpr = `(function(){
+      const btns = Array.from(document.querySelectorAll('button, a, [role="button"]'));
+      const b = btns.find(b => b.textContent?.toLowerCase().includes('sign in with google') || b.textContent?.toLowerCase().includes('google'));
+      if (!b) return { reason: 'no google button', available: btns.map(b => b.textContent?.trim()).filter(Boolean).slice(0, 10) };
+      const r = b.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, text: b.textContent?.trim(), tag: b.tagName };
+    })()`;
+    const ssoResult = await trustedMouseClick(tabId, findSsoExpr);
+    logToRelay('auth_sso_click', { tabId, ssoResult, method: 'trustedMouseClick' });
+    console.log('[Yeshie] SSO trusted click result:', ssoResult);
+    if (!ssoResult.clicked) {
+      // Fallback to el.click() via Runtime.evaluate
+      const fallback = await execInTab(tabId, PRE_CLICK_SSO_BUTTON, []);
+      logToRelay('auth_sso_click_fallback', { tabId, fallback });
+      console.log('[Yeshie] SSO fallback result:', fallback);
+    }
     sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-sso', status: 'ok' });
 
     // Step 2: Wait for Google account chooser page to load, then click the right account
@@ -2056,20 +2366,44 @@ export default defineBackground(() => {
     let googleAccountClicked = false;
 
     // Poll for Google OAuth page — SSO button click redirects the tab to accounts.google.com
+    logToRelay('auth_poll_start', { tabId, googleAccountEmail });
     while (Date.now() - t0 < 30000 && !googleAccountClicked) {
       await new Promise(r => setTimeout(r, 1000));
       try {
         // Check current tab URL via chrome.tabs API
         const tab = await chrome.tabs.get(tabId);
         const tabUrl = tab?.url || '';
+        logToRelay('auth_poll_url', { tabId, tabUrl: tabUrl.substring(0, 100), elapsed: Date.now() - t0 });
         console.log('[Yeshie] Auth polling, tab URL:', tabUrl);
 
         if (tabUrl.includes('accounts.google.com')) {
+          logToRelay('auth_google_detected', { tabId, tabUrl });
           if (googleAccountEmail) {
             await new Promise(r => setTimeout(r, 1500)); // let the page render
-            const clickResult = await execInTab(tabId, PRE_CLICK_GOOGLE_ACCOUNT, [googleAccountEmail]);
-            console.log('[Yeshie] Google account click result:', clickResult);
+            // Use trustedMouseClick for Google account selection (isTrusted required, cross-origin)
+            const findAccountExpr = `(function(){
+              let el = document.querySelector('[data-email="${googleAccountEmail}"]');
+              if (!el) el = document.querySelector('[data-identifier="${googleAccountEmail}"]');
+              if (!el) {
+                const all = Array.from(document.querySelectorAll('div, span, li'));
+                el = all.find(e => e.textContent?.includes('${googleAccountEmail}'));
+              }
+              if (!el) return { reason: 'account not found for ${googleAccountEmail}' };
+              const r = el.getBoundingClientRect();
+              return { x: r.left + r.width / 2, y: r.top + r.height / 2, method: el.dataset?.email ? 'data-email' : el.dataset?.identifier ? 'data-identifier' : 'text-match' };
+            })()`;
+            logToRelay('auth_click_attempt', { tabId, email: googleAccountEmail, method: 'trustedMouseClick' });
+            const clickResult = await trustedMouseClick(tabId, findAccountExpr);
+            logToRelay('auth_click_result', { tabId, clickResult });
+            console.log('[Yeshie] Google account trusted click result:', clickResult);
             googleAccountClicked = clickResult?.clicked || false;
+            if (!googleAccountClicked) {
+              // Fallback to CDP Runtime.evaluate el.click()
+              logToRelay('auth_click_fallback', { tabId, email: googleAccountEmail });
+              const fallback = await execViaCDP(tabId, PRE_CLICK_GOOGLE_ACCOUNT, [googleAccountEmail]);
+              logToRelay('auth_click_fallback_result', { tabId, fallback });
+              googleAccountClicked = fallback?.clicked || false;
+            }
             if (googleAccountClicked) {
               sendOverlay(tabId, { type: 'overlay_step_update', runId, stepId: 'auth-account', status: 'ok' });
             }
@@ -2166,6 +2500,7 @@ export default defineBackground(() => {
     runs.set(runId, run);
     abortFlags.set(runId, false);
     const t0 = Date.now();
+    logToRelay('chain_start', { runId, tabId, chainLength: chain.length, hasTrustedClick: typeof trustedClick === 'function', buildVersion: chrome.runtime.getManifest().version });
 
     // ── Pre-chain auth check ──────────────────────────────────────────────────
     // Before executing any steps, verify the user is authenticated.
@@ -2552,8 +2887,11 @@ export default defineBackground(() => {
               target: { tabId: targetTabId! },
               files: ['content-overlay.js']
             });
-            await new Promise(r => setTimeout(r, 300)); // let it initialise
-            result = await trySend();
+            // Poll for readiness: up to 5 × 200ms = 1s instead of a fixed 300ms delay
+            for (let i = 0; i < 5 && !result.ok; i++) {
+              await new Promise(r => setTimeout(r, 200));
+              result = await trySend();
+            }
           } catch (injectErr: any) {
             console.warn('[Yeshie] Failed to inject content overlay:', injectErr.message);
             sendResponse({ ok: false, error: `Could not inject overlay into tab ${targetTabId}: ${injectErr.message}` });
@@ -2564,10 +2902,30 @@ export default defineBackground(() => {
         if (!result.ok) {
           sendResponse({ ok: false, error: 'Content overlay loaded but message delivery still failed. Try navigating the YeshID tab.' });
         } else {
+          // Track teach session so we can restore it after SPA navigation
+          if (msg.type === 'teach_start') {
+            teachSessions.set(targetTabId, { steps: msg.steps, currentStepIndex: 0 });
+          } else if (msg.type === 'teach_end') {
+            teachSessions.delete(targetTabId);
+          }
           sendResponse({ ok: true, tabId: targetTabId });
         }
       })();
       return true;
+    }
+    // Teach progress tracking — sent by content script, used to maintain restore point
+    if (msg.type === 'teach_step_complete') {
+      const tabId = sender.tab?.id;
+      if (tabId !== undefined) {
+        const session = teachSessions.get(tabId);
+        if (session) session.currentStepIndex = (msg.stepIndex ?? 0) + 1;
+      }
+      return false;
+    }
+    if (msg.type === 'teach_exit' || msg.type === 'teach_skip') {
+      const tabId = sender.tab?.id;
+      if (tabId !== undefined) teachSessions.delete(tabId);
+      return false;
     }
     if (msg.type === 'content_ready') return false;
   });

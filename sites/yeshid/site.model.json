@@ -17,7 +17,7 @@
       "authenticatedSignal": ".v-navigation-drawer a[href=\"/overview\"]",
       "notes": "Google SSO — extension can click through automatically if google_account_email is configured"
     },
-    "lastUpdated": "2026-04-11T20:49:23.132Z"
+    "lastUpdated": "2026-04-13T03:37:58.517Z"
   },
   "stateGraph": {
     "nodes": {

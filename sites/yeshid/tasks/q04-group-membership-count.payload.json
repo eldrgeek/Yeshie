@@ -1,0 +1,177 @@
+{
+  "_meta": {
+    "task": "q04-group-membership-count",
+    "queryType": "read_only",
+    "description": "Look up a group by name and return its member count and member list. Navigates to /organization/groups, searches for the group, navigates to its detail page, and reads the membership data.",
+    "selfImproving": false,
+    "runCount": 0,
+    "lastSuccess": null,
+    "requiredParams": ["group_name"],
+    "optionalParams": [],
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "params": {
+      "group_name": {
+        "required": true,
+        "description": "Name of the group to look up (partial match supported via search)."
+      }
+    },
+    "notes": [
+      "TIER WARNING: Groups feature requires a Business plan on this YeshID account. The current org is on a free/trial tier — the groups table shows 'No data available' and the 'New Group' button is disabled.",
+      "This payload is forward-compatible: when groups are enabled, it will work without modification.",
+      "Group detail URL pattern: /organization/groups/{id} (UUID-based, discovered via find_row navigation).",
+      "Groups table columns observed: Group name, Type, Description, Owners, Actions."
+    ]
+  },
+  "runId": "yeshid-q04-group-membership-count-{{timestamp}}",
+  "mode": "query",
+  "site": "app.yeshid.com",
+  "params": {
+    "base_url": "https://app.yeshid.com",
+    "group_name": "{{group_name}}"
+  },
+  "abstractTargets": {
+    "search-input": {
+      "match": { "role": "textbox", "name_contains": ["search"] },
+      "cachedSelector": "input[placeholder='Search']",
+      "cachedConfidence": 0.95,
+      "resolveHint": "Search input on the groups list page."
+    },
+    "groups-table-body": {
+      "match": { "css": ".v-data-table tbody" },
+      "cachedSelector": ".v-data-table tbody",
+      "cachedConfidence": 0.95
+    },
+    "group-member-count": {
+      "match": { "role": "text", "name_contains": ["member", "people", "users"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "resolveHint": "On the group detail page, find the member count. May appear as a badge, header stat, or table footer. Look for text near a 'Members' section heading."
+    },
+    "group-members-table": {
+      "match": { "css": ".v-data-table tbody, [class*='member'] tbody" },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "resolveHint": "Table of group members on the group detail page. Columns likely: Name, Email, Status."
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": { "state": "authenticated" },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/groups"
+    },
+    {
+      "stepId": "s3",
+      "action": "wait_for",
+      "selector": ".v-data-table, .search-input, input[placeholder='Search']",
+      "timeout": 6000
+    },
+    {
+      "stepId": "s3b",
+      "action": "perceive",
+      "selector": ".v-data-table-footer, .v-data-table tbody",
+      "store_as": "groups_page_state",
+      "note": "Check if groups are available. If footer shows '0-0 of 0' and no group rows, the groups feature is likely not enabled on this tier."
+    },
+    {
+      "stepId": "s3c",
+      "action": "guard_tier",
+      "check": "groups_page_state",
+      "empty_signal": "No data available",
+      "on_empty": "respond_early",
+      "respond_early_data": {
+        "error": "groups_feature_not_available",
+        "message": "Groups are not available on the current YeshID plan. Upgrade to Business plan to use groups.",
+        "group_name": "{{group_name}}"
+      },
+      "note": "If groups table is empty due to tier, short-circuit and return informative error rather than failing silently."
+    },
+    {
+      "stepId": "s4",
+      "action": "type",
+      "target": "search-input",
+      "value": "{{group_name}}",
+      "note": "Search for the group by name."
+    },
+    {
+      "stepId": "s4b",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Wait for Vue search debounce to filter the table."
+    },
+    {
+      "stepId": "s5",
+      "action": "find_row",
+      "identifier": "{{group_name}}",
+      "store_as": "group_row",
+      "assert_present": true,
+      "note": "Click the matching group row to navigate to the group detail page."
+    },
+    {
+      "stepId": "s6",
+      "action": "wait_for",
+      "state": "group-detail",
+      "timeout": 6000
+    },
+    {
+      "stepId": "s7",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Wait for group detail page to fully render."
+    },
+    {
+      "stepId": "s8",
+      "action": "perceive",
+      "target": "group-member-count",
+      "store_as": "member_count_raw",
+      "note": "Read the member count from the group detail page header or stats area."
+    },
+    {
+      "stepId": "s9",
+      "action": "perceive",
+      "target": "group-members-table",
+      "store_as": "members_list",
+      "extract": "table_rows",
+      "columns": ["name", "email", "status"],
+      "note": "Read the full member list from the group detail page. Columns may vary."
+    },
+    {
+      "stepId": "s10",
+      "action": "respond",
+      "data": {
+        "group_name": "{{group_name}}",
+        "member_count": { "source": "member_count_raw", "pattern": "(\\d+)", "capture": 1 },
+        "members": { "source": "members_list" }
+      },
+      "note": "Return group name, member count, and full member list."
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [{ "type": "url_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }]
+      },
+      "authenticated": {
+        "signals": [
+          { "type": "url_matches", "pattern": "app\\.yeshid\\.com" },
+          { "type": "url_not_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }
+        ]
+      },
+      "groups-list": {
+        "signals": [{ "type": "url_matches", "pattern": "/organization/groups$" }]
+      },
+      "group-detail": {
+        "signals": [{ "type": "url_matches", "pattern": "/organization/groups/[a-z0-9-]+" }]
+      }
+    }
+  }
+}

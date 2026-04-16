@@ -1,0 +1,3 @@
+application_name,login_url
+TestApp-AutoVal-CSV-A,https://testapp-a.example.com/login
+TestApp-AutoVal-CSV-B,https://testapp-b.example.com/login

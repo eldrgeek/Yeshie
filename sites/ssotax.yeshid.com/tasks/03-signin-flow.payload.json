@@ -1,0 +1,48 @@
+{
+  "_meta": {
+    "name": "ssotax-signin-flow",
+    "site": "ssotax.yeshid.com",
+    "description": "Navigate to the Sign in flow from ssotax.yeshid.com. Captures the auth entry point — whether it redirects to YeshID login or has its own auth.",
+    "version": "1.0.0",
+    "verified": false,
+    "verifiedDate": null,
+    "author": "session-2026-04-14"
+  },
+  "params": {
+    "email": {
+      "required": false,
+      "description": "User email for login",
+      "default": "mw@mike-wolf.com"
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://ssotax.yeshid.com/",
+      "note": "Start at homepage"
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s3",
+      "action": "click_text",
+      "text": "Sign in",
+      "note": "Click footer Sign in link"
+    },
+    {
+      "stepId": "s4",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s5",
+      "action": "perceive",
+      "store_as": "signin_snap",
+      "note": "Capture signin page — does it redirect to app.yeshid.com/login or have separate auth?"
+    }
+  ]
+}

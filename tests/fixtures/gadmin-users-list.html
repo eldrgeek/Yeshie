@@ -1,0 +1,54 @@
+<!-- Google Admin Users list page mock -->
+<!-- Reflects anomalies: React/Angular SPA, custom elements, doubled table headers, no H1/H2 -->
+<div class="gadmin-page">
+  <div class="gc-top-bar">
+    <input
+      aria-label="Search for users, groups, settings, or devices"
+      type="text"
+      id="gadmin-search"
+      placeholder="Search"
+    />
+  </div>
+  <div class="gadmin-toolbar">
+    <button title="Add new user" aria-label="Add new user">Add new user</button>
+    <button aria-label="Export users">Export</button>
+    <button aria-label="More options">More</button>
+  </div>
+  <!-- Doubled headers as observed in real Google Admin -->
+  <table id="users-table">
+    <thead>
+      <tr>
+        <th></th>
+        <th>NameName Name. Sorted in ascending order.</th>
+        <th>EmailEmail address</th>
+        <th>Last sign inLast sign in</th>
+        <th>Email usageEmail usage</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="user-row">
+        <td><input type="checkbox" /></td>
+        <td>John Doe</td>
+        <td>john@company.com</td>
+        <td>Apr 13, 2026</td>
+        <td>1.2 GB</td>
+        <td>
+          <button>Reset password</button>
+          <button>Rename user</button>
+        </td>
+      </tr>
+      <tr class="user-row">
+        <td><input type="checkbox" /></td>
+        <td>Jane Smith</td>
+        <td>jane@company.com</td>
+        <td>Apr 12, 2026</td>
+        <td>0.8 GB</td>
+        <td>
+          <button>Reset password</button>
+          <button>Rename user</button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>

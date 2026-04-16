@@ -1,0 +1,126 @@
+{
+  "_meta": {
+    "name": "gadmin-add-user",
+    "site": "admin.google.com",
+    "description": "Add a new user in Google Admin console. Opens the 'Add new user' dialog and fills First name, Last name, Primary email fields.",
+    "version": "1.0.0",
+    "verified": "partial",
+    "verifiedDate": "2026-04-13",
+    "verificationNotes": "Dialog opens confirmed (click_text 'Add new user' -> ok). Form fields confirmed via perceive (ariaLabel-based). Type steps not yet run end-to-end.",
+    "anomalies": [
+      "Form fields use ariaLabel not name attribute — CSS selectors must use input[aria-label='...'] pattern",
+      "Dialog H1 is 'User Information' not 'Add user' — perceive headings show [DIV:'Add new user', H1:'User Information']",
+      "abstractTargets MUST include cachedConfidence>=0.85 and resolvedOn or the extension ignores the selector",
+      "Primary email field sets both username and @domain — domain is auto-appended from org config",
+      "Google Admin uses /ac/ prefix for all paths"
+    ]
+  },
+  "params": {
+    "first_name": "REQUIRED",
+    "last_name": "REQUIRED",
+    "primary_email": "REQUIRED — username only (without @domain), or full email if domain differs"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://admin.google.com/ac/users",
+      "note": "Hard-coded. Do not use relative URLs."
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 3000
+    },
+    {
+      "stepId": "s3",
+      "action": "click_text",
+      "text": "Add new user",
+      "note": "Opens the Add new user slide-out panel. Confirmed working."
+    },
+    {
+      "stepId": "s4",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for dialog animation and field render."
+    },
+    {
+      "stepId": "s5",
+      "action": "type",
+      "target": "gadmin-first-name",
+      "value": "{{first_name}}"
+    },
+    {
+      "stepId": "s6",
+      "action": "type",
+      "target": "gadmin-last-name",
+      "value": "{{last_name}}"
+    },
+    {
+      "stepId": "s7",
+      "action": "type",
+      "target": "gadmin-primary-email",
+      "value": "{{primary_email}}"
+    },
+    {
+      "stepId": "s8",
+      "action": "delay",
+      "ms": 500
+    },
+    {
+      "stepId": "s9",
+      "action": "click_text",
+      "text": "Add new user",
+      "note": "Click the submit button inside the dialog. WARNING: Same text as the trigger button — may need 'exact' matching or a click on 'target' if click_text picks the wrong one. Monitor behavior."
+    },
+    {
+      "stepId": "s10",
+      "action": "delay",
+      "ms": 3000
+    },
+    {
+      "stepId": "s11",
+      "action": "perceive",
+      "store_as": "after_add",
+      "note": "Confirm user was added. Look for success toast or user row in table."
+    }
+  ],
+  "abstractTargets": {
+    "gadmin-first-name": {
+      "description": "First name input in Add new user dialog",
+      "cachedSelector": "input[aria-label='First name *']",
+      "cachedConfidence": 0.92,
+      "resolvedOn": "2026-04-13T00:00:00.000Z",
+      "resolveHint": "ariaLabel field confirmed via perceive: {'ariaLabel': 'First name *', 'tag': 'INPUT', 'type': 'text'}"
+    },
+    "gadmin-last-name": {
+      "description": "Last name input in Add new user dialog",
+      "cachedSelector": "input[aria-label='Last name *']",
+      "cachedConfidence": 0.92,
+      "resolvedOn": "2026-04-13T00:00:00.000Z",
+      "resolveHint": "ariaLabel field confirmed via perceive: {'ariaLabel': 'Last name *', 'tag': 'INPUT', 'type': 'text'}"
+    },
+    "gadmin-primary-email": {
+      "description": "Primary email input in Add new user dialog",
+      "cachedSelector": "input[aria-label='Primary email *']",
+      "cachedConfidence": 0.92,
+      "resolvedOn": "2026-04-13T00:00:00.000Z",
+      "resolveHint": "ariaLabel field confirmed via perceive: {'ariaLabel': 'Primary email *', 'tag': 'INPUT', 'type': 'text'}"
+    }
+  },
+  "stateGraph": {
+    "initial": "users-list",
+    "states": {
+      "users-list": {
+        "transitions": {"click Add new user": "add-user-dialog"}
+      },
+      "add-user-dialog": {
+        "description": "Slide-out panel open. H1: 'User Information'.",
+        "transitions": {"submit form": "user-created-or-error"}
+      },
+      "user-created-or-error": {
+        "description": "Either success toast shown, or validation error displayed"
+      }
+    }
+  }
+}

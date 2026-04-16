@@ -1,0 +1,61 @@
+{
+  "_meta": {
+    "id": "shadow-app-promote",
+    "version": "1.0",
+    "title": "Promote Shadow App to Managed",
+    "description": "Find a shadow (unmanaged) app and promote it to a fully managed application",
+    "baseUrl": "https://app.yeshid.com",
+    "requiresAuth": true,
+    "params": {
+      "app_name": "Name of the shadow app to promote"
+    }
+  },
+  "chain": [
+    {
+      "stepId": "navigate-shadow-apps",
+      "action": "navigate",
+      "url": "/applications?filter=shadow"
+    },
+    {
+      "stepId": "perceive-shadow-list",
+      "action": "perceive",
+      "store_as": "shadow_apps",
+      "description": "Read shadow apps list \u2014 confirms page loaded and shows unmanaged apps"
+    },
+    {
+      "stepId": "find-app-row",
+      "action": "find_row",
+      "column": "Name",
+      "value": "{{app_name}}",
+      "store_as": "app_row",
+      "target": {
+        "cachedSelector": "table tbody tr, [data-cy='shadow-app-row']"
+      }
+    },
+    {
+      "stepId": "click-promote",
+      "action": "click_text",
+      "text": "Promote",
+      "target": {
+        "anchors": {
+          "ariaLabel": "Promote to managed"
+        },
+        "cachedSelector": "button:has-text('Promote'), [data-cy='promote-app']"
+      }
+    },
+    {
+      "stepId": "confirm-promote",
+      "action": "click_text",
+      "text": "Confirm",
+      "target": {
+        "cachedSelector": "button:has-text('Confirm'), [data-cy='confirm-promote']"
+      }
+    },
+    {
+      "stepId": "verify-success",
+      "action": "perceive",
+      "store_as": "promote_result",
+      "description": "Read updated app status \u2014 confirms app moved from shadow to managed independently"
+    }
+  ]
+}
