@@ -1,0 +1,128 @@
+{
+  "_meta": {
+    "name": "okta-revoke-app-from-user",
+    "site": "trial-8689388-admin.okta.com",
+    "description": "Revoke (deassign) an application from an Okta user. Navigates to the user's Applications tab, finds the app, and clicks the remove/deassign action.",
+    "version": "1.0.0",
+    "verified": false,
+    "verifiedDate": null,
+    "author": "session-2026-04-14",
+    "warning": "Destructive action — removes app access. User will lose access to the app immediately.",
+    "auth": {
+      "type": "manual_required",
+      "note": "Okta OAuth PKCE — session must already be active."
+    },
+    "params": {
+      "userId": {
+        "required": true,
+        "description": "Okta user ID (format: 00u{alphanumeric}698)"
+      },
+      "app_name": {
+        "required": true,
+        "description": "Display name of the application to revoke"
+      }
+    },
+    "knownUserIds": {
+      "hermes-ai": "00u11likbm4T5fUIc698",
+      "perplexity-ai": "00u11li6wefRTyiKx698",
+      "chatgpt-openai": "00u11li2jqqGOd3Lm698",
+      "grok-xai": "00u11lib65eeRAt0h698",
+      "gemini-google": "00u11libzk14aJVmO698",
+      "claude-anthropic": "00u11li1n9nsGaoiX698",
+      "michael-wolf-admin": "00u11lcq3lk8XQjBt698"
+    },
+    "anomalies": [
+      "perceive required — Okta SPA",
+      "Remove action on app row may be a gear icon → Remove Assignment, or an inline X",
+      "Apps assigned via group (not direct assignment) cannot be removed from user profile — must remove via group",
+      "Group-assigned apps are labeled differently (shows group name) — perceive to distinguish direct vs group assignments"
+    ]
+  },
+  "params": {
+    "userId": "",
+    "app_name": "",
+    "base_url": "https://trial-8689388-admin.okta.com"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://trial-8689388-admin.okta.com/admin/user/profile/view/{{userId}}",
+      "note": "Navigate to user profile page"
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 3000
+    },
+    {
+      "stepId": "s3",
+      "action": "click_text",
+      "text": "Applications",
+      "note": "Click Applications tab"
+    },
+    {
+      "stepId": "s4",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s5",
+      "action": "perceive",
+      "store_as": "apps_tab",
+      "note": "Perceive Applications tab. Find target app row. Look for gear icon, X button, or 'Remove' action per row."
+    },
+    {
+      "stepId": "s6",
+      "action": "click_text",
+      "text": "{{app_name}}",
+      "note": "Click/hover on target app row to reveal actions"
+    },
+    {
+      "stepId": "s7",
+      "action": "delay",
+      "ms": 800
+    },
+    {
+      "stepId": "s8",
+      "action": "perceive",
+      "store_as": "app_row_actions",
+      "note": "Perceive row-level actions. Look for gear icon dropdown or explicit Remove/Deassign button."
+    },
+    {
+      "stepId": "s9",
+      "action": "click_text",
+      "text": "Remove",
+      "note": "Click Remove. Fallbacks: 'Deassign', 'Unassign', 'Remove Assignment'. If gear icon, click gear first."
+    },
+    {
+      "stepId": "s10",
+      "action": "delay",
+      "ms": 1500
+    },
+    {
+      "stepId": "s11",
+      "action": "perceive",
+      "store_as": "confirm_check",
+      "note": "Check for confirmation dialog."
+    },
+    {
+      "stepId": "s12",
+      "action": "click_text",
+      "text": "Remove Assignment",
+      "disabled": true,
+      "note": "ENABLE if confirmation dialog with 'Remove Assignment' appeared."
+    },
+    {
+      "stepId": "s13",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s14",
+      "action": "perceive",
+      "store_as": "post_revoke_verify",
+      "note": "Verify app no longer appears in user's Applications tab."
+    }
+  ]
+}

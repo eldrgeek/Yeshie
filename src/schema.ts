@@ -10,17 +10,20 @@ export const PayloadMetaSchema = z.object({
   runCount: z.number().optional(),
   lastSuccess: z.string().nullable().optional(),
   prerequisite: z.string().optional(),
-  params: z.array(z.string()).optional(),
+  // params in _meta can be an array of strings (legacy) or an object of param definitions
+  params: z.union([z.array(z.string()), z.record(z.any())]).optional(),
+  requiredParams: z.array(z.string()).optional(),
   optionalParams: z.array(z.string()).optional(),
 }).passthrough();
 
 export const PayloadSchema = z.object({
   _meta: PayloadMetaSchema,
-  runId: z.string(),
-  mode: z.enum(['exploratory', 'verification', 'production']),
-  site: z.string(),
-  params: z.record(z.any()),
-  chain: z.array(z.any()),                    // steps array
+  // Some older/special payloads omit these top-level fields
+  runId: z.string().optional(),
+  mode: z.enum(['exploratory', 'verification', 'production']).optional(),
+  site: z.string().optional(),
+  params: z.record(z.any()).optional(),
+  chain: z.array(z.any()).optional(),          // steps array (optional for template-style payloads)
   stateGraph: z.record(z.any()).optional(),
   abstractTargets: z.record(z.any()).optional(),
   urlSchema: z.record(z.any()).optional(),

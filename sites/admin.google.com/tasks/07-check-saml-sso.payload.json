@@ -1,0 +1,25 @@
+{
+  "_meta": {
+    "name": "gadmin-check-saml-sso",
+    "site": "admin.google.com",
+    "description": "Check Google Admin for SAML/SSO configuration pointing to YeshID. Navigates to Security > SSO with third party IdP. Confirms integration direction: is YeshID the IdP for Google Workspace, or is Google the IdP for YeshID?",
+    "version": "1.0.0",
+    "verified": false,
+    "verifiedDate": null,
+    "author": "session-2026-04-14",
+    "anomalies": [
+      "SAML SSO config for Google as SP (Service Provider) is at /ac/security/ssochoices",
+      "If YeshID is IdP: look for YeshID entity ID / SSO URL in SAML config",
+      "If Google is IdP: the SAML apps list (/ac/apps/unified) shows YeshID as a SAML SP app"
+    ]
+  },
+  "params": { "base_url": "https://admin.google.com" },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://admin.google.com/ac/security/ssochoices", "note": "SSO with third-party IdP settings" },
+    { "stepId": "s2", "action": "delay", "ms": 3500 },
+    { "stepId": "s3", "action": "perceive", "store_as": "saml_sso_config", "note": "Check if SSO with third party IdP is enabled. Look for: Sign-in page URL, Sign-out page URL, entity ID (should reference yeshid.com if YeshID is the IdP)." },
+    { "stepId": "s4", "action": "navigate", "url": "https://admin.google.com/ac/apps/unified", "note": "Also check SAML apps for YeshID as SP" },
+    { "stepId": "s5", "action": "delay", "ms": 3000 },
+    { "stepId": "s6", "action": "perceive", "store_as": "saml_apps", "note": "Look for YeshID in the SAML apps list — this means Google is IdP and YeshID is SP (more common direction)" }
+  ]
+}

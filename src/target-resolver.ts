@@ -29,6 +29,7 @@ export interface AbstractTarget {
   semanticKeys?: string[];
   resolutionStrategy?: string;
   fallbackSelectors?: string[];
+  data_se?: string;
   candidates?: string[];
 }
 
@@ -159,6 +160,19 @@ export class TargetResolver {
 
   // ── Main resolution ───────────────────────────────────────────────────────
   resolve(target: AbstractTarget): ResolvedTarget {
+    // Step 0: data_se attribute resolution — stable semantic ID, also checks shadow DOM
+    if (target.data_se) {
+      const el = querySelectorDeep(`[data-se="${target.data_se}"]`, this.doc);
+      if (el) {
+        return {
+          selector: `[data-se="${target.data_se}"]`,
+          confidence: 0.92,
+          resolvedVia: 'data_se',
+          element: el,
+        };
+      }
+    }
+
     // Step 1: cached selector
     if (this.isCacheValid(target)) {
       const el = this.doc.querySelector(target.cachedSelector!);
@@ -174,9 +188,9 @@ export class TargetResolver {
     const names = target.match?.name_contains || [];
     const keys = [...new Set([...labels, ...names])];
 
-    // Step 2: A11y-first resolution
+    // Step 2: A11y-first resolution (light DOM then shadow DOM via querySelectorDeep)
     for (const key of keys) {
-      const byAria = this.doc.querySelector(`[aria-label*="${key}" i]`);
+      const byAria = querySelectorDeep(`[aria-label*="${key}" i]`, this.doc);
       if (byAria) {
         return {
           selector: this.stableSelector(byAria) || `[aria-label*="${key}" i]`,
@@ -200,7 +214,7 @@ export class TargetResolver {
         }
       }
 
-      const byPlaceholder = this.doc.querySelector(`[placeholder*="${key}" i]`);
+      const byPlaceholder = querySelectorDeep(`[placeholder*="${key}" i]`, this.doc);
       if (byPlaceholder) {
         return {
           selector: this.stableSelector(byPlaceholder) || `[placeholder*="${key}" i]`,
@@ -221,10 +235,13 @@ export class TargetResolver {
       }
     }
 
-    // Step 4: text/role matching for clickable targets
+    // Step 4: text/role matching for clickable targets (light DOM + shadow DOM)
     if (names.length) {
       for (const name of names) {
-        const clickables = Array.from(this.doc.querySelectorAll('a[href], a, button, [role="button"], [role="menuitem"], [role="option"]'));
+        const clickables = querySelectorAllDeep(
+          'a[href], a, button, [role="button"], [role="menuitem"], [role="option"]',
+          this.doc
+        );
         const btn = clickables.find(b =>
           b.textContent?.trim().toLowerCase().includes(name.toLowerCase()) ||
           b.getAttribute('aria-label')?.toLowerCase().includes(name.toLowerCase())
@@ -255,4 +272,57 @@ export class TargetResolver {
     // Step 7: escalate
     return { selector: null, confidence: 0, resolvedVia: 'escalate', element: null };
   }
+}
+
+// ── Shadow DOM traversal utilities ──────────────────────────────────────────
+
+/**
+ * Recursively query all elements matching `selector` across light DOM and open shadow roots.
+ */
+export function querySelectorAllDeep(selector: string, root: Document | Element = document): Element[] {
+  const results: Element[] = [];
+  const rootNode = root instanceof Document ? root.documentElement : root;
+
+  function traverse(node: Element) {
+    try {
+      const found = node.querySelectorAll(selector);
+      results.push(...Array.from(found));
+    } catch {}
+    for (const child of Array.from(node.children)) {
+      if (child.shadowRoot) {
+        traverse(child.shadowRoot as unknown as Element);
+      }
+    }
+  }
+
+  try {
+    const topLevel = (root instanceof Document ? root : root).querySelectorAll(selector);
+    results.push(...Array.from(topLevel));
+  } catch {}
+
+  // Also traverse shadow roots
+  const allElements = (root instanceof Document ? root.documentElement : root).querySelectorAll('*');
+  for (const el of Array.from(allElements)) {
+    if (el.shadowRoot) {
+      const inner = el.shadowRoot.querySelectorAll(selector);
+      results.push(...Array.from(inner));
+      // Recurse into nested shadow roots
+      for (const innerEl of Array.from(el.shadowRoot.querySelectorAll('*'))) {
+        if ((innerEl as Element).shadowRoot) {
+          results.push(...Array.from((innerEl as Element).shadowRoot!.querySelectorAll(selector)));
+        }
+      }
+    }
+  }
+
+  // Deduplicate
+  return Array.from(new Set(results));
+}
+
+/**
+ * Return the first element matching `selector` across light DOM and open shadow roots.
+ */
+export function querySelectorDeep(selector: string, root: Document | Element = document): Element | null {
+  const results = querySelectorAllDeep(selector, root);
+  return results[0] ?? null;
 }

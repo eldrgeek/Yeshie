@@ -1,0 +1,147 @@
+{
+  "_meta": {
+    "description": "Start a new access audit campaign from the Audit Campaigns page.",
+    "requiresAuth": true,
+    "baseUrl": "https://app.yeshid.com",
+    "requiredParams": [],
+    "optionalParams": [],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "prerequisite": "00-login.payload.json",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "homeBookend": true,
+    "verificationStrategy": {
+      "pre": "perceive /access/audits-v2; confirm 'Start audit campaign' button visible",
+      "post": "perceive resulting modal or form after button click",
+      "primaryVerification": "element_visible '.v-dialog' OR url_contains '/access/audits'"
+    },
+    "notes": [
+      "Page was in empty state during survey: 'No audit campaigns yet. Start one below.'",
+      "Two 'Start audit campaign' buttons present: one in page header, one in empty-state body. Header button used.",
+      "Audit creation form at /access/audits/create was not surveyed — perceive step captures it.",
+      "No data-cy selectors confirmed on this page — button text selectors at 0.8 confidence.",
+      "Page also has a 'Templates' tab — not covered by this payload."
+    ],
+    "id": "audit-campaign-start",
+    "title": "Start Audit Campaign",
+    "params": {
+      "base_url": {
+        "required": false,
+        "description": "Base URL for the YeshID instance",
+        "default": "https://app.yeshid.com"
+      }
+    }
+  },
+  "runId": "yeshid-audit-campaign-start-{{timestamp}}",
+  "mode": "learning",
+  "site": "app.yeshid.com",
+  "params": {
+    "base_url": "https://app.yeshid.com"
+  },
+  "abstractTargets": {
+    "start-audit-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "Start audit campaign"
+        ],
+        "position": "first"
+      },
+      "cachedSelector": "button:has-text('Start audit campaign')",
+      "cachedConfidence": 0.8,
+      "resolvedOn": "2026-04-16",
+      "resolvedVia": "live-survey button text (no data-cy on /access/audits-v2)"
+    }
+  },
+  "chain": [
+    {
+      "stepId": "h0",
+      "action": "navigate",
+      "url": "/overview",
+      "note": "HOME START: Navigate to overview dashboard before performing action."
+    },
+    {
+      "stepId": "h0b",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 5000,
+      "note": "Confirm authenticated — username widget must be visible."
+    },
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "/access/audits-v2",
+      "note": "Navigate to Audit Campaigns page."
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "timeout": 6000,
+      "selector": "[data-cy=\"username\"]",
+      "note": " [fixed: was condition/url_contains for '/access/audits']"
+    },
+    {
+      "stepId": "p1",
+      "action": "perceive",
+      "description": "Verify audit campaigns page loaded; confirm 'Start audit campaign' button is visible in header or empty state",
+      "store_as": "audits_page_state",
+      "note": "Page may show empty state ('No audit campaigns yet') or existing campaigns table."
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "target": "start-audit-button",
+      "note": "Click the first 'Start audit campaign' button (header). Opens audit creation modal or navigates to /access/audits/create.",
+      "responseSignature": [
+        {
+          "any_of": [
+            {
+              "type": "element_visible",
+              "selector": ".v-dialog",
+              "timeout": 5000
+            },
+            {
+              "type": "url_contains",
+              "value": "/access/audits/create",
+              "timeout": 5000
+            },
+            {
+              "type": "element_visible",
+              "selector": ".v-overlay--active",
+              "timeout": 5000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "p2",
+      "action": "perceive",
+      "description": "Capture audit creation form — record all fields, selectors, data-cy attributes, and buttons present",
+      "store_as": "audit_creation_form_state",
+      "note": "LEARNING STEP: /access/audits/create form was not surveyed. Capture everything for future payload authoring."
+    },
+    {
+      "stepId": "hZ",
+      "action": "navigate",
+      "url": "/overview",
+      "note": "HOME END: Return to overview. Navigates away without submitting the audit form."
+    },
+    {
+      "stepId": "hZb",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 5000
+    },
+    {
+      "stepId": "verify-success",
+      "action": "perceive",
+      "store_as": "audit_campaign_verification",
+      "description": "Independent confirmation: verify audit creation form or modal is visible after clicking Start audit campaign"
+    }
+  ]
+}

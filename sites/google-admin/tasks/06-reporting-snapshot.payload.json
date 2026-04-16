@@ -1,0 +1,163 @@
+{
+  "_meta": {
+    "task": "reporting-snapshot",
+    "description": "Navigate to the user accounts reporting page and capture key metrics including 2FA status, password compliance, storage usage, and last login dates.",
+    "params": {
+      "base_url": {
+        "required": true,
+        "description": "Base URL for Google Admin Console",
+        "default": "https://admin.google.com"
+      }
+    },
+    "requiredParams": [],
+    "optionalParams": ["base_url"],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "manual_required",
+      "note": "Google Admin requires manual login with password + optional 2FA. Ensure the admin account is already signed in at admin.google.com before running."
+    },
+    "warning": "Requires active admin session at admin.google.com.",
+    "verificationStrategy": {
+      "pre": "Navigate to the user accounts reporting page and wait for the table to load",
+      "post": "Read the reporting table to extract metrics on user count, 2FA enrollment, password compliance, and storage usage",
+      "primaryVerification": "Captures reporting data including user metrics, security posture, and storage breakdown"
+    }
+  },
+  "runId": "google-admin-reporting-snapshot-{{timestamp}}",
+  "mode": "learning",
+  "site": "admin.google.com",
+  "params": {
+    "base_url": "https://admin.google.com"
+  },
+  "abstractTargets": {
+    "reporting-nav-item": {
+      "match": {
+        "role": "link",
+        "name_contains": ["Reporting", "Reports"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "a[href*='/ac/reporting']",
+        "[role='navigation'] span:has-text('Reporting')"
+      ],
+      "description": "Reporting section link in sidebar navigation"
+    },
+    "user-accounts-report": {
+      "match": {
+        "role": "link",
+        "name_contains": ["User accounts", "Users"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "a[href*='/ac/reporting/report/user/accounts']",
+        "span:has-text('User accounts')"
+      ],
+      "description": "User accounts report link"
+    }
+  },
+  "chain": [
+    {
+      "stepId": "nav-1",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/reporting/report/user/accounts",
+      "expect": {
+        "state": "reporting-page"
+      },
+      "note": "Navigate directly to the user accounts reporting page in Google Admin"
+    },
+    {
+      "stepId": "nav-2",
+      "action": "wait_for",
+      "selector": "[role='table'], [role='main'] table, .reporting-table",
+      "timeout": 10000,
+      "note": "Wait for the reporting table to fully load"
+    },
+    {
+      "stepId": "perceive-1",
+      "action": "perceive",
+      "note": "Read the reporting table to identify column headers and data rows, look for user count, 2FA status, password strength, and storage usage"
+    },
+    {
+      "stepId": "read-1",
+      "action": "read",
+      "candidates": [
+        "h1:has-text('User accounts'), h2:has-text('User accounts'), [role='heading'] span:has-text('User accounts')"
+      ],
+      "store_as": "report_title",
+      "note": "Capture the report title and timestamp"
+    },
+    {
+      "stepId": "read-2",
+      "action": "read",
+      "candidates": [
+        "[role='table'] tr, [role='row']",
+        "table tbody tr"
+      ],
+      "store_as": "user_table_rows",
+      "note": "Capture the user data table rows for metric extraction"
+    },
+    {
+      "stepId": "read-3",
+      "action": "read",
+      "candidates": [
+        "th:has-text('2'), th:has-text('2FA'), th:has-text('2-Step'), th:has-text('2SV'), [role='columnheader'] span:has-text('2')"
+      ],
+      "store_as": "2fa_column",
+      "note": "Locate and capture the 2-Step Verification enrollment column"
+    },
+    {
+      "stepId": "read-4",
+      "action": "read",
+      "candidates": [
+        "th:has-text('Password'), th:has-text('password'), th:has-text('strength'), [role='columnheader'] span:has-text('password')"
+      ],
+      "store_as": "password_column",
+      "note": "Locate and capture the password compliance column"
+    },
+    {
+      "stepId": "read-5",
+      "action": "read",
+      "candidates": [
+        "th:has-text('Storage'), th:has-text('storage'), th:has-text('usage'), [role='columnheader'] span:has-text('storage')"
+      ],
+      "store_as": "storage_column",
+      "note": "Locate and capture the storage usage column"
+    },
+    {
+      "stepId": "read-6",
+      "action": "read",
+      "candidates": [
+        "th:has-text('Last'), th:has-text('Login'), th:has-text('Last sign'), [role='columnheader'] span:has-text('Last')"
+      ],
+      "store_as": "last_login_column",
+      "note": "Locate and capture the last login date column"
+    },
+    {
+      "stepId": "perceive-2",
+      "action": "perceive",
+      "note": "Review the full table to count users and assess overall security posture from visible data"
+    },
+    {
+      "stepId": "nav-home",
+      "action": "navigate",
+      "url": "{{base_url}}/",
+      "note": "Return to home page to complete the reporting workflow"
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "reporting-page": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "admin\\.google\\.com/ac/reporting/report/user/accounts"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,187 @@
+{
+  "_meta": {
+    "task": "remove-user-from-group",
+    "description": "Remove a user from a group in YeshID. Navigates to the group detail page, finds the user in the member list, and removes them.",
+    "params": {
+      "group_name": {
+        "required": true,
+        "description": "Name of the group to remove the user from"
+      },
+      "user_identifier": {
+        "required": true,
+        "description": "Name or email of the user to remove from the group"
+      }
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "prerequisite": "00-login.payload.json",
+    "warning": "Destructive action \u2014 removes user from group. Verify group_name and user_identifier before running.",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "requiredParams": [
+      "group_name",
+      "user_identifier"
+    ],
+    "optionalParams": [],
+    "author": "session-2026-04-14",
+    "verified": false,
+    "anomalies": [
+      "IMPORTANT: Groups feature requires Business plan on this YeshID account. Cannot be tested until plan is upgraded.",
+      "Remove action may be a row-level icon (trash/X) or a context menu per member row",
+      "May require hovering the member row to reveal the remove action",
+      "Confirmation dialog may or may not appear \u2014 perceive after click to verify"
+    ]
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com",
+    "group_name": "",
+    "user_identifier": ""
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {
+        "state": "authenticated"
+      },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/groups",
+      "note": "Navigate to groups list"
+    },
+    {
+      "stepId": "s3",
+      "action": "wait_for",
+      "selector": ".search-input, table",
+      "timeout": 5000,
+      "note": "Wait for groups list to render."
+    },
+    {
+      "stepId": "s4",
+      "action": "type",
+      "target": "search-input",
+      "value": "{{group_name}}",
+      "note": "Bug 2 fix: Search for group first \u2014 do not rely on page 1 visibility."
+    },
+    {
+      "stepId": "s4b",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Wait for search debounce."
+    },
+    {
+      "stepId": "s5",
+      "action": "find_row",
+      "identifier": "{{group_name}}",
+      "store_as": "group_row",
+      "note": "Click into group detail page."
+    },
+    {
+      "stepId": "s6",
+      "action": "wait_for",
+      "url_pattern": "/organization/groups/[a-z0-9-]+",
+      "timeout": 6000,
+      "note": "Wait for group detail to load."
+    },
+    {
+      "stepId": "s7",
+      "action": "perceive",
+      "store_as": "group_detail",
+      "note": "Perceive group detail. Identify member rows and the remove action (trash icon, X, or kebab menu per row)."
+    },
+    {
+      "stepId": "s8",
+      "action": "find_row",
+      "identifier": "{{user_identifier}}",
+      "store_as": "member_row",
+      "click_action": "hover",
+      "note": "Hover the member row to reveal inline action buttons (remove/delete icon)."
+    },
+    {
+      "stepId": "s9",
+      "action": "click",
+      "target": "member-remove-button",
+      "note": "Click the remove button revealed on the member row. Falls back to trash/X icon selectors scoped to the user row."
+    },
+    {
+      "stepId": "s10",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Brief wait to detect if a confirmation dialog appears."
+    },
+    {
+      "stepId": "s11",
+      "action": "perceive",
+      "store_as": "confirm_check",
+      "note": "Check if a confirmation dialog appeared after clicking remove."
+    },
+    {
+      "stepId": "s12",
+      "action": "click_text",
+      "text": "Confirm",
+      "fallback_texts": [
+        "Remove",
+        "OK",
+        "Yes",
+        "Delete"
+      ],
+      "condition": "confirm_dialog_visible",
+      "note": "If a confirmation dialog appeared, dismiss it. Enabled (unlike previous version which was disabled).",
+      "onNotFound": "skip"
+    },
+    {
+      "stepId": "s13",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for removal to complete."
+    },
+    {
+      "stepId": "s14",
+      "action": "find_row",
+      "identifier": "{{user_identifier}}",
+      "store_as": "verify_removed",
+      "assert_absent": true,
+      "note": "VERIFY: User must NOT appear in group member list. If this step fails (row still found), removal did not complete."
+    }
+  ],
+  "abstractTargets": {
+    "search-input": {
+      "match": {
+        "role": "textbox",
+        "name_contains": [
+          "search"
+        ]
+      },
+      "cachedSelector": ".search-input",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-14T00:00:00Z",
+      "resolvedVia": "class_match",
+      "resolveHint": "Input with class search-input and placeholder Search."
+    },
+    "member-remove-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "remove",
+          "delete",
+          "kick"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.85,
+      "resolvedOn": "2026-04-14T00:00:00Z",
+      "resolveHint": "Row-level remove button on the member row. May be a trash icon, X button, or kebab menu. Hover the member row to reveal.",
+      "fallbackSelectors": [
+        "tr:has-text(\"{{user_identifier}}\") button[aria-label*=\"remove\" i]",
+        "tr:has-text(\"{{user_identifier}}\") .mdi-delete",
+        "tr:has-text(\"{{user_identifier}}\") .mdi-close"
+      ]
+    }
+  }
+}

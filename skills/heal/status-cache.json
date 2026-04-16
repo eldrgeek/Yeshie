@@ -1,0 +1,516 @@
+{
+  "generatedAt": "2026-04-15T08:38:33.518Z",
+  "relayUp": true,
+  "payloads": [
+    {
+      "id": "sites/admin.google.com/tasks/01-list-users",
+      "path": "sites/admin.google.com/tasks/01-list-users.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/admin.google.com/tasks/02-add-user",
+      "path": "sites/admin.google.com/tasks/02-add-user.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/admin.google.com/tasks/03-list-groups",
+      "path": "sites/admin.google.com/tasks/03-list-groups.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/admin.google.com/tasks/04-list-organizational-units",
+      "path": "sites/admin.google.com/tasks/04-list-organizational-units.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/admin.google.com/tasks/05-list-devices",
+      "path": "sites/admin.google.com/tasks/05-list-devices.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/admin.google.com/tasks/06-list-apps",
+      "path": "sites/admin.google.com/tasks/06-list-apps.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/admin.google.com/tasks/07-check-saml-sso",
+      "path": "sites/admin.google.com/tasks/07-check-saml-sso.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/chat.deepseek.com/tasks/01-submit-prompt",
+      "path": "sites/chat.deepseek.com/tasks/01-submit-prompt.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/chatgpt.com/tasks/01-submit-prompt",
+      "path": "sites/chatgpt.com/tasks/01-submit-prompt.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/claude.ai/tasks/01-submit-prompt",
+      "path": "sites/claude.ai/tasks/01-submit-prompt.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/frontier-models/probe-ui",
+      "path": "sites/frontier-models/probe-ui.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/gemini.google.com/tasks/01-submit-prompt",
+      "path": "sites/gemini.google.com/tasks/01-submit-prompt.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/google-admin/tasks/01-user-add",
+      "path": "sites/google-admin/tasks/01-user-add.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/google-admin/tasks/02-user-delete",
+      "path": "sites/google-admin/tasks/02-user-delete.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/google-admin/tasks/03-user-modify",
+      "path": "sites/google-admin/tasks/03-user-modify.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/google-admin/tasks/04-site-explore",
+      "path": "sites/google-admin/tasks/04-site-explore.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/grok.com/tasks/01-submit-prompt",
+      "path": "sites/grok.com/tasks/01-submit-prompt.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/okta/tasks/00-probe",
+      "path": "sites/okta/tasks/00-probe.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/okta/tasks/01-list-users",
+      "path": "sites/okta/tasks/01-list-users.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/okta/tasks/01-user-add",
+      "path": "sites/okta/tasks/01-user-add.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/okta/tasks/02-add-user",
+      "path": "sites/okta/tasks/02-add-user.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/okta/tasks/03-deactivate-user",
+      "path": "sites/okta/tasks/03-deactivate-user.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/okta/tasks/04-site-explore",
+      "path": "sites/okta/tasks/04-site-explore.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/okta/tasks/05-list-groups",
+      "path": "sites/okta/tasks/05-list-groups.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/okta/tasks/06-list-apps",
+      "path": "sites/okta/tasks/06-list-apps.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/okta/tasks/07-view-system-log",
+      "path": "sites/okta/tasks/07-view-system-log.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/okta/tasks/08-user-profile-actions",
+      "path": "sites/okta/tasks/08-user-profile-actions.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/okta/tasks/09-list-reports",
+      "path": "sites/okta/tasks/09-list-reports.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/okta/tasks/10-security-policies",
+      "path": "sites/okta/tasks/10-security-policies.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/okta/tasks/11-directory-integrations",
+      "path": "sites/okta/tasks/11-directory-integrations.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/okta/tasks/12-create-group",
+      "path": "sites/okta/tasks/12-create-group.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/okta/tasks/13-add-user-to-group",
+      "path": "sites/okta/tasks/13-add-user-to-group.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/okta/tasks/14-remove-user-from-group",
+      "path": "sites/okta/tasks/14-remove-user-from-group.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/okta/tasks/15-assign-app-to-user",
+      "path": "sites/okta/tasks/15-assign-app-to-user.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/okta/tasks/16-revoke-app-from-user",
+      "path": "sites/okta/tasks/16-revoke-app-from-user.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/okta/tasks/17-unlock-user",
+      "path": "sites/okta/tasks/17-unlock-user.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/okta/tasks/explore-add-person",
+      "path": "sites/okta/tasks/explore-add-person.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/ssotax.yeshid.com/tasks/01-perceive-homepage",
+      "path": "sites/ssotax.yeshid.com/tasks/01-perceive-homepage.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/ssotax.yeshid.com/tasks/02-generate-report",
+      "path": "sites/ssotax.yeshid.com/tasks/02-generate-report.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/ssotax.yeshid.com/tasks/03-signin-flow",
+      "path": "sites/ssotax.yeshid.com/tasks/03-signin-flow.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/00-login",
+      "path": "sites/yeshid/tasks/00-login.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/01-user-add",
+      "path": "sites/yeshid/tasks/01-user-add.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/02-user-delete",
+      "path": "sites/yeshid/tasks/02-user-delete.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/03-user-modify",
+      "path": "sites/yeshid/tasks/03-user-modify.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/04-site-explore",
+      "path": "sites/yeshid/tasks/04-site-explore.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/05-integration-setup",
+      "path": "sites/yeshid/tasks/05-integration-setup.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/06-person-search",
+      "path": "sites/yeshid/tasks/06-person-search.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/07-person-view",
+      "path": "sites/yeshid/tasks/07-person-view.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/08-sync-directory",
+      "path": "sites/yeshid/tasks/08-sync-directory.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/09-create-group",
+      "path": "sites/yeshid/tasks/09-create-group.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/10-add-application",
+      "path": "sites/yeshid/tasks/10-add-application.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/11-start-audit",
+      "path": "sites/yeshid/tasks/11-start-audit.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/12-view-access-grid",
+      "path": "sites/yeshid/tasks/12-view-access-grid.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/13-view-events",
+      "path": "sites/yeshid/tasks/13-view-events.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/14-add-user-to-group",
+      "path": "sites/yeshid/tasks/14-add-user-to-group.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/15-remove-user-from-group",
+      "path": "sites/yeshid/tasks/15-remove-user-from-group.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/16-delete-group",
+      "path": "sites/yeshid/tasks/16-delete-group.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/17-view-org-settings",
+      "path": "sites/yeshid/tasks/17-view-org-settings.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/q01-count-by-status",
+      "path": "sites/yeshid/tasks/q01-count-by-status.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/q02-pending-onboarding",
+      "path": "sites/yeshid/tasks/q02-pending-onboarding.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/q03-users-without-recovery-email",
+      "path": "sites/yeshid/tasks/q03-users-without-recovery-email.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/q04-group-membership-count",
+      "path": "sites/yeshid/tasks/q04-group-membership-count.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    },
+    {
+      "id": "sites/yeshid/tasks/q05-ungrouped-users",
+      "path": "sites/yeshid/tasks/q05-ungrouped-users.payload.json",
+      "lastHealedAt": null,
+      "lastVerdict": null,
+      "lastBackup": null,
+      "recentFailures": 0
+    }
+  ],
+  "summary": {
+    "total": 63,
+    "neverHealed": 63,
+    "healedRecently": 0,
+    "escalated": 0
+  }
+}

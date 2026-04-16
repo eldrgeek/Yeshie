@@ -62,4 +62,36 @@ Google Admin uses custom Google components. Key patterns:
 - Storage: Google Drive 13.4 GB, Google Photos 179.93 GB, Gmail 10.05 GB
 - Admin roles: Super Admin, Groups Admin, User Management Admin, Help Desk Admin, Services Admin, and 7 more
 
+### Selector Patterns — Phase 1 & 2 Payloads
+
+**Security Settings Page (/ac/security)**
+- Expandable sections use `button[aria-expanded]` pattern
+- 2-Step Verification section: Look for headings or buttons containing "2-Step" or "2FA"
+- Password management section: Look for "Password" in section headers
+- Status indicators: Check spans or divs adjacent to section headers for "enabled", "enrolled", "enforced"
+
+**Reporting — User Accounts (/ac/reporting/report/user/accounts)**
+- Main report container: `[role='main']` or `[role='table']`
+- Table rows: Standard `tr` and `td` elements
+- Column headers: `th` elements with text like "2FA", "Password", "Storage", "Last sign-in"
+- Data extraction: Each row represents one user; scan columns for status values
+
+**Groups Page (/ac/groups)**
+- Create group button: Text "Create group" in a `button` or `div[role='button']`
+- Group rows: `tr` or `[role='row']` containing group name and actions
+- Manage members button: Text-based, appears after group selection or in row actions
+- Member input: Standard `input[type='email']` or `input[placeholder*='Member']`
+
+**Organizational Units Page (/ac/orgunits)**
+- Create org unit button: Text "Create organizational unit"
+- OU rows: Table rows with Name, Description columns
+- Parent org selector: Usually a dropdown button with "Parent" or org unit hierarchy
+- Form fields: Standard text inputs for Name, Description
+
+**Google Workspace Services Page (/ac/appslist/core)**
+- Service rows: `tr` or `[role='row']` with service name in first column
+- Toggle buttons: Look for "Turn on for everyone" or "Turn off" patterns
+- Org unit scope selector: Dropdown or button for selecting which OU the toggle applies to
+- Service status: Check rows for "On for everyone", "Off for everyone", or specific OU info
+
 </site-context>

@@ -1,0 +1,272 @@
+{
+  "_meta": {
+    "description": "Offboard an existing YeshID person: select them from the dropdown, set an offboarding date, choose a template, and submit.",
+    "requiresAuth": true,
+    "baseUrl": "https://app.yeshid.com",
+    "requiredParams": [
+      "person_name"
+    ],
+    "optionalParams": [
+      "offboard_date",
+      "template"
+    ],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "prerequisite": "00-login.payload.json",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "params": {
+      "person_name": {
+        "required": true,
+        "description": "Full name of the person to offboard (as it appears in the dropdown, e.g. 'Sarah Johnson')"
+      },
+      "offboard_date": {
+        "required": false,
+        "description": "ISO date string for the scheduled offboarding date (e.g. '2026-05-01'). If omitted, the date picker is left at default."
+      },
+      "template": {
+        "required": false,
+        "default": "YeshID Default",
+        "description": "Offboarding workflow template name. Must match a template visible in the dropdown."
+      }
+    },
+    "homeBookend": true,
+    "verificationStrategy": {
+      "pre": "perceive offboard form and confirm person dropdown and date field are ready",
+      "post": "read snackbar, then navigate to /workflows and confirm a STAGED offboarding workflow for person_name appears",
+      "primaryVerification": "confirmation_message contains 'offboard' AND staged_offboard_workflow contains person_name"
+    },
+    "notes": [
+      "Person selector has no confirmed data-cy. cachedConfidence 0.6 — this target will likely need resolution on first run.",
+      "Vuetify autocomplete: type person_name into .v-autocomplete input, then click matching .v-list-item in the dropdown.",
+      "schedule-user-activator has only one instance on this form (unlike onboard which has two)."
+    ],
+    "id": "offboard-person",
+    "title": "Offboard Person"
+  },
+  "runId": "yeshid-offboard-person-{{timestamp}}",
+  "mode": "learning",
+  "site": "app.yeshid.com",
+  "params": {
+    "person_name": "{{person_name}}",
+    "offboard_date": "{{offboard_date}}",
+    "template": "{{template}}",
+    "base_url": "https://app.yeshid.com"
+  },
+  "abstractTargets": {
+    "person-selector": {
+      "match": {
+        "role": "combobox",
+        "label_contains": [
+          "person",
+          "select"
+        ],
+        "position": "first"
+      },
+      "cachedSelector": "[placeholder='Search by name or email...']",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-16",
+      "resolvedVia": "live-survey diag-09b — confirmed placeholder",
+      "fallbackSelectors": [
+        "[placeholder='Search by name or email...']",
+        ".v-autocomplete:first-of-type input",
+        ".v-combobox:first-of-type input",
+        "input[type='text']:first-of-type"
+      ],
+      "_note": "fallbackSelectors used because confidence < 0.85; person picker data-cy not confirmed in survey"
+    },
+    "person-list-item": {
+      "match": {
+        "role": "option",
+        "text_contains": "{{person_name}}"
+      },
+      "cachedSelector": ".v-list-item:has-text('{{person_name}}')",
+      "cachedConfidence": 0.75,
+      "resolvedOn": "2026-04-16",
+      "resolvedVia": "Vuetify 3 dropdown pattern"
+    },
+    "offboard-date-button": {
+      "match": {
+        "role": "button",
+        "ancestor_cy": "schedule-user-activator",
+        "name_contains": [
+          "Select offboarding date"
+        ]
+      },
+      "cachedSelector": "[data-cy=\"schedule-user-activator\"]",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-16",
+      "resolvedVia": "live-survey data-cy"
+    },
+    "template-select": {
+      "match": {
+        "role": "combobox",
+        "ancestor_cy": "Offboarding-template-select"
+      },
+      "cachedSelector": "[data-cy=\"Offboarding-template-select\"] input",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-16",
+      "resolvedVia": "live-survey data-cy"
+    },
+    "submit-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "Offboard person"
+        ]
+      },
+      "cachedSelector": "button:has-text('Offboard person')",
+      "cachedConfidence": 0.9,
+      "resolvedOn": "2026-04-16",
+      "resolvedVia": "live-survey button text"
+    }
+  },
+  "chain": [
+    {
+      "stepId": "h0",
+      "action": "navigate",
+      "url": "/overview",
+      "note": "HOME START: Navigate to overview dashboard before performing action."
+    },
+    {
+      "stepId": "h0b",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 5000,
+      "note": "Confirm authenticated — username widget must be visible."
+    },
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "/organization/people/offboard",
+      "note": "Navigate directly to the offboard person form."
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "timeout": 6000,
+      "selector": "[data-cy=\"schedule-user-activator\"]",
+      "note": " [fixed: was condition/url_contains for '/organization/people/offboard']"
+    },
+    {
+      "stepId": "p1",
+      "action": "perceive",
+      "description": "Verify offboard form is loaded; confirm person dropdown, date picker, and template selector are present",
+      "store_as": "form_state",
+      "note": "Perceive before filling to confirm form is ready. Also use to locate person-selector if cachedSelector fails."
+    },
+    {
+      "stepId": "s3",
+      "action": "type",
+      "target": "person-selector",
+      "value": "{{person_name}}",
+      "note": "Type person name to filter autocomplete. Dropdown opens during typing."
+    },
+    {
+      "stepId": "s3b",
+      "action": "delay",
+      "ms": 500,
+      "note": "500ms for Vuetify autocomplete to populate dropdown items."
+    },
+    {
+      "stepId": "s4",
+      "action": "js",
+      "code": "Array.from(document.querySelectorAll('.v-list-item,[role=\"option\"]')).find(r => r.textContent.includes('{{person_name}}'))?.click()",
+      "note": "Click autocomplete dropdown item containing person_name. Uses find(r => includes()) — whitelisted js pattern. Handles items that show name + email in textContent."
+    },
+    {
+      "stepId": "s5",
+      "action": "click",
+      "target": "offboard-date-button",
+      "skipIfParamEmpty": "offboard_date",
+      "note": "Open the date picker to set the offboarding date. Skip if no date provided."
+    },
+    {
+      "stepId": "s6",
+      "action": "perceive",
+      "description": "Locate the date input within the date picker dialog",
+      "store_as": "date_picker_state",
+      "skipIfParamEmpty": "offboard_date",
+      "note": "After clicking date activator, perceive to find the date entry field in the calendar dialog."
+    },
+    {
+      "stepId": "s7",
+      "action": "click_text",
+      "note": "Click 'Offboard person' button to submit. Using click_text — cachedSelector was :has-text() (invalid CSS). [was: click submit-button]",
+      "responseSignature": [
+        {
+          "any_of": [
+            {
+              "type": "url_contains",
+              "value": "/organization/people",
+              "timeout": 10000
+            },
+            {
+              "type": "element_visible",
+              "selector": ".v-snackbar--active",
+              "timeout": 10000
+            }
+          ]
+        }
+      ],
+      "text": "Offboard person"
+    },
+    {
+      "stepId": "s8",
+      "action": "read",
+      "candidates": [
+        ".v-snackbar--active .v-snackbar__content",
+        ".v-snackbar .v-snackbar__content",
+        "[role=\"alert\"]"
+      ],
+      "store_as": "confirmation_message",
+      "optional": true,
+      "note": "Capture success or error message from snackbar."
+    },
+    {
+      "stepId": "v1",
+      "action": "navigate",
+      "url": "/workflows/?filters=(workflow-status = \"STAGED\" OR workflow-status = \"PENDING\")",
+      "note": "VERIFICATION: Navigate to Workflows (staged/pending filter) to confirm offboarding workflow was created for {{person_name}}."
+    },
+    {
+      "stepId": "v2",
+      "action": "wait_for",
+      "timeout": 6000,
+      "selector": "[data-cy=\"username\"]",
+      "note": " [fixed: was condition/url_contains for '/workflows']"
+    },
+    {
+      "stepId": "v3",
+      "action": "read",
+      "candidates": [
+        "table tbody",
+        "[class*='workflow'] [class*='row']",
+        "main"
+      ],
+      "store_as": "staged_offboard_workflow",
+      "note": "Read the workflows list. Verify a row containing '{{person_name}}' with type 'Offboarding' and status STAGED or PENDING is present."
+    },
+    {
+      "stepId": "hZ",
+      "action": "navigate",
+      "url": "/overview",
+      "note": "HOME END: Return to overview after action completes."
+    },
+    {
+      "stepId": "hZb",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 5000
+    },
+    {
+      "stepId": "verify-success",
+      "action": "perceive",
+      "store_as": "offboard_verification",
+      "description": "Independent confirmation: verify staged_offboard_workflow in Workflows list contains person_name with Offboarding status"
+    }
+  ]
+}

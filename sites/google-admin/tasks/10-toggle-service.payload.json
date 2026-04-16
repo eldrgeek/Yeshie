@@ -1,0 +1,255 @@
+{
+  "_meta": {
+    "task": "toggle-service",
+    "description": "Enable or disable a Google Workspace service for a specific organizational unit.",
+    "params": {
+      "service_name": {
+        "required": true,
+        "description": "Name of the Google Workspace service to toggle",
+        "enum": ["AppSheet", "Calendar", "Drive and Docs", "Gmail", "Google Chat", "Google Meet", "Google Voice", "Groups for Business", "Keep", "Sites", "Tasks"],
+        "hint": "e.g. 'Gmail', 'Google Drive', 'Google Meet'"
+      },
+      "org_unit": {
+        "required": true,
+        "description": "Organizational unit to apply the service toggle to",
+        "hint": "e.g. 'Everyone', 'Test Department', or leave as 'Everyone' for all users"
+      },
+      "action": {
+        "required": true,
+        "description": "Action to perform: 'on' to enable or 'off' to disable",
+        "enum": ["on", "off"]
+      }
+    },
+    "requiredParams": ["service_name", "org_unit", "action"],
+    "optionalParams": [],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "manual_required",
+      "note": "Google Admin requires manual login with password + optional 2FA. Ensure the admin account is already signed in at admin.google.com before running."
+    },
+    "warning": "Requires active admin session at admin.google.com.",
+    "verificationStrategy": {
+      "pre": "Navigate to Apps > Google Workspace services and locate the target service",
+      "post": "Read the service status to verify it has been toggled to the desired state for the org unit",
+      "primaryVerification": "service_status shows the toggled state for the org unit"
+    }
+  },
+  "runId": "google-admin-toggle-service-{{timestamp}}",
+  "mode": "verification",
+  "site": "admin.google.com",
+  "params": {
+    "service_name": "{{service_name}}",
+    "org_unit": "{{org_unit}}",
+    "action": "{{action}}",
+    "base_url": "https://admin.google.com"
+  },
+  "abstractTargets": {
+    "service-row": {
+      "match": {
+        "role": "row",
+        "name_contains": "{{service_name}}"
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "tr:has-text('{{service_name}}')",
+        "[role='row'] span:has-text('{{service_name}}')"
+      ],
+      "description": "The target service row in the services table"
+    },
+    "service-toggle-button": {
+      "match": {
+        "role": "button",
+        "name_contains": ["Turn {{action}}", "Turn on", "Turn off", "{{service_name}}"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "button[aria-label*='Turn {{action}}' i]",
+        "button:has-text('Turn {{action}}')",
+        "div[role='button']:has-text('Turn')"
+      ],
+      "description": "Toggle button for the service"
+    },
+    "service-settings-button": {
+      "match": {
+        "role": "button",
+        "name_contains": ["Settings", "Configure", "Manage"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "button[aria-label*='Settings' i]",
+        "button:has-text('Settings')"
+      ],
+      "description": "Settings or configure button for the service"
+    },
+    "org-unit-selector": {
+      "match": {
+        "role": "button",
+        "name_contains": ["Organizational unit", "For", "Scope"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "button[aria-label*='Organizational' i]",
+        "button[aria-label*='For' i]",
+        "select[aria-label*='organization' i]"
+      ],
+      "description": "Selector to choose which organizational unit to apply the service toggle to"
+    },
+    "org-unit-option": {
+      "match": {
+        "role": "option",
+        "name_contains": "{{org_unit}}"
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "[role='option'] span:has-text('{{org_unit}}')",
+        "li[role='option']:has-text('{{org_unit}}')"
+      ],
+      "description": "The target organizational unit option in the dropdown"
+    }
+  },
+  "chain": [
+    {
+      "stepId": "nav-1",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/appslist/core",
+      "expect": {
+        "state": "apps-core"
+      },
+      "note": "Navigate to the Google Workspace services page (Google Workspace apps)"
+    },
+    {
+      "stepId": "nav-2",
+      "action": "wait_for",
+      "selector": "[role='main'], [role='table']",
+      "timeout": 8000,
+      "note": "Wait for the services list to fully render"
+    },
+    {
+      "stepId": "perceive-1",
+      "action": "perceive",
+      "note": "Identify the target service in the services list and any available controls for toggling"
+    },
+    {
+      "stepId": "click-1",
+      "action": "click",
+      "target": "service-row",
+      "note": "Click on or near the target service row to reveal service options"
+    },
+    {
+      "stepId": "wait-1",
+      "action": "wait_for",
+      "selector": "button[aria-label*='Turn' i], button:has-text('Turn'), button:has-text('Settings')",
+      "timeout": 4000,
+      "note": "Wait for service action buttons to appear"
+    },
+    {
+      "stepId": "perceive-2",
+      "action": "perceive",
+      "note": "Identify the toggle button for the service and check if organizational unit selection is needed"
+    },
+    {
+      "stepId": "click-2",
+      "action": "click",
+      "target": "org-unit-selector",
+      "note": "Click the org unit selector if available, to specify which OU to apply the service toggle to"
+    },
+    {
+      "stepId": "wait-2",
+      "action": "wait_for",
+      "selector": "[role='listbox'], [role='menu'], [role='option'], select",
+      "timeout": 4000,
+      "note": "Wait for the org unit dropdown to open"
+    },
+    {
+      "stepId": "click-3",
+      "action": "click",
+      "target": "org-unit-option",
+      "note": "Select the target organizational unit from the dropdown"
+    },
+    {
+      "stepId": "wait-3",
+      "action": "wait_for",
+      "selector": "button[aria-label*='Turn {{action}}' i], button:has-text('Turn {{action}}')",
+      "timeout": 4000,
+      "note": "Wait for the toggle button to be ready (may update after org unit selection)"
+    },
+    {
+      "stepId": "perceive-3",
+      "action": "perceive",
+      "note": "Review the current service status and locate the correct toggle button for the desired action"
+    },
+    {
+      "stepId": "click-4",
+      "action": "click",
+      "target": "service-toggle-button",
+      "note": "Click the toggle button to turn the service {{action}} for the selected org unit",
+      "responseSignature": [
+        {
+          "any_of": [
+            {
+              "type": "element_visible",
+              "selector": "[role='alert'], [aria-live='assertive'], [aria-live='polite']",
+              "textMatch": "updated|changed|turned|success",
+              "timeout": 10000
+            },
+            {
+              "type": "element_visible",
+              "selector": "[role='status']",
+              "timeout": 10000
+            }
+          ]
+        }
+      ],
+      "failureSignature": [
+        {
+          "any_of": [
+            {
+              "type": "element_visible",
+              "selector": "[role='alert'], [aria-live='assertive']",
+              "textMatch": "error|failed|unable",
+              "timeout": 8000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "read-1",
+      "action": "read",
+      "candidates": [
+        "[role='alert']",
+        "[aria-live='assertive']",
+        "[aria-live='polite']",
+        "[role='status']",
+        "[aria-label*='Status'], .service-status"
+      ],
+      "store_as": "service_status",
+      "note": "Capture the service status confirmation or error message"
+    },
+    {
+      "stepId": "nav-home",
+      "action": "navigate",
+      "url": "{{base_url}}/",
+      "note": "Return to home page to complete the service toggle workflow"
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "apps-core": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "admin\\.google\\.com/ac/appslist/core"
+          }
+        ]
+      }
+    }
+  }
+}

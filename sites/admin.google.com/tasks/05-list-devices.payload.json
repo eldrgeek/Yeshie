@@ -1,0 +1,33 @@
+{
+  "_meta": {
+    "name": "gadmin-list-devices",
+    "site": "admin.google.com",
+    "description": "Navigate to Google Admin Devices section and perceive enrolled devices. Covers mobile devices and Chrome devices.",
+    "version": "1.0.0",
+    "verified": false,
+    "verifiedDate": null,
+    "author": "session-2026-04-14",
+    "anomalies": [
+      "Google Admin SPA — perceive required",
+      "Devices section may show sub-sections: Mobile & endpoints, Chrome devices, Chromebooks, Printers"
+    ]
+  },
+  "params": { "base_url": "https://admin.google.com" },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://admin.google.com/ac/devices", "note": "Navigate to Devices section" },
+    { "stepId": "s2", "action": "delay", "ms": 3500 },
+    { "stepId": "s3", "action": "perceive", "store_as": "devices_snap", "note": "Perceive devices list. Expected: sub-tabs for Mobile & endpoints, Chrome. May show no devices on a new/trial org." }
+  ],
+  "stateGraph": {
+    "initial": "devices-list",
+    "states": {
+      "devices-list": {
+        "description": "Devices list page with mobile + chrome sub-sections",
+        "transitions": {
+          "click Mobile & endpoints": "mobile-devices",
+          "click Chrome devices": "chrome-devices"
+        }
+      }
+    }
+  }
+}

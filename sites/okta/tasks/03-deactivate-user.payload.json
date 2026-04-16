@@ -1,0 +1,172 @@
+{
+  "_meta": {
+    "task": "deactivate-user",
+    "description": "Deactivate a user in Okta. Navigates to the user's profile page via /admin/users search, then clicks Deactivate. DESTRUCTIVE \u2014 confirm before running.",
+    "skipAuthCheck": true,
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "manual_required",
+      "note": "Okta OAuth PKCE \u2014 session must already be active."
+    },
+    "params": {
+      "user_identifier": {
+        "required": true,
+        "description": "Name or email of the user to deactivate. Used to find the user in the table.",
+        "hint": "Can be first name, last name, or email. Example: 'Hermes AI' or 'hermes@hermes.ai'"
+      },
+      "base_url": {
+        "required": false,
+        "description": "Okta admin console base URL",
+        "default": "https://trial-8689388-admin.okta.com"
+      }
+    },
+    "note_params": "IMPORTANT: {{base_url}} in chain steps is resolved from API-call params, NOT from payload.params. When calling via /run directly, pass params={\"base_url\": \"https://trial-8689388-admin.okta.com\"} explicitly, OR use the hardcoded URL (chains already use hardcoded URL as of this version).",
+    "verified": true,
+    "verifiedDate": "2026-04-13"
+  },
+  "params": {
+    "user_identifier": "{{user_identifier}}",
+    "base_url": "https://trial-8689388-admin.okta.com"
+  },
+  "abstractTargets": {
+    "user-search-box": {
+      "description": "Search textarea on the users list page",
+      "cachedSelector": "textarea[placeholder*='Search for users']",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-13T00:00:00Z",
+      "resolveHint": "Textarea with placeholder 'Search for users by first name, primary email or username'"
+    },
+    "deactivate-button": {
+      "description": "Deactivate button on user profile page \u2014 inside More Actions dropdown or inline actions",
+      "cachedSelector": "a[href=\"#\"], button",
+      "cachedConfidence": 0.0,
+      "resolvedOn": "2026-04-13T00:00:00Z",
+      "resolveHint": "Look for a 'Deactivate' link or button. May be inside a 'More Actions' dropdown menu on the user profile page. Also check [data-se='lifecycle-actions'] area.",
+      "note": "DEPRECATED: data-se selector does not exist in OIE. Use click_text flow instead: More Actions \u2192 Deactivate \u2192 OK. See payload 08."
+    },
+    "deactivate-confirm-button": {
+      "description": "Confirm deactivation in the confirmation dialog",
+      "cachedSelector": "input[type='submit'][value*='eactivate'], button[data-se='confirm-deactivate']",
+      "cachedConfidence": 0.7,
+      "resolvedOn": "2026-04-13T00:00:00Z",
+      "resolveHint": "Confirmation dialog button after clicking Deactivate. Look for 'Deactivate' or 'Confirm' button inside a modal."
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://trial-8689388-admin.okta.com/admin/users",
+      "note": "Navigate to Okta admin users page"
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for table to render"
+    },
+    {
+      "stepId": "s3",
+      "action": "find_row",
+      "identifier": "{{user_identifier}}",
+      "store_as": "user_row",
+      "note": "Find the user row in the table by name or email. Okta table has columns: Person & username, Primary email, Status. NOTE: Okta table rows contain name+username concatenated (e.g., 'Hermes AIhermes@hermes.ai'). The identifier should match on first_name or email. find_row uses substring matching."
+    },
+    {
+      "stepId": "s4",
+      "action": "click_text",
+      "text": "{{user_identifier}}",
+      "note": "Click on the user's name link to navigate to their profile page"
+    },
+    {
+      "stepId": "s5",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for user profile page to load"
+    },
+    {
+      "stepId": "s6",
+      "action": "read",
+      "store_as": "user_profile",
+      "note": "Read the user profile page to find deactivate controls. Look for Deactivate button or More Actions dropdown."
+    },
+    {
+      "stepId": "s7",
+      "action": "click_text",
+      "text": "Deactivate",
+      "note": "Click the Deactivate button. If not visible, may need to open More Actions dropdown first."
+    },
+    {
+      "stepId": "s8",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for confirmation dialog to appear"
+    },
+    {
+      "stepId": "s9",
+      "action": "read",
+      "store_as": "confirm_dialog",
+      "note": "Read the confirmation dialog to understand what's being confirmed"
+    },
+    {
+      "stepId": "s10",
+      "action": "click",
+      "target": "deactivate-confirm-button",
+      "note": "Confirm deactivation in the dialog",
+      "responseSignature": [
+        {
+          "any_of": [
+            {
+              "type": "element_visible",
+              "selector": ".o-form-info-text, [data-se='o-form-content']",
+              "textMatch": "Deactivated|Inactive",
+              "timeout": 8000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "s11",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for deactivation to complete"
+    },
+    {
+      "stepId": "s12",
+      "action": "read",
+      "store_as": "after_deactivate",
+      "note": "Confirm deactivation \u2014 user status should now show Deactivated/Inactive"
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "users-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/admin/users$"
+          }
+        ]
+      },
+      "user-profile": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/admin/user/profile/view/"
+          }
+        ]
+      },
+      "login": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/oauth2/v1/authorize"
+          }
+        ]
+      }
+    }
+  }
+}

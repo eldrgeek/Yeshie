@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Honey Truth - Consumer Protection Exposé</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%);
+            color: #e0e0e0;
+            line-height: 1.6;
+        }
+
+        header {
+            background: linear-gradient(135deg, #2a1a1a 0%, #1a0a0a 100%);
+            border-bottom: 3px solid #d32f2f;
+            padding: 2rem 1rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(211, 47, 47, 0.1) 0%, transparent 70%);
+            animation: pulse 4s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        h1 {
+            font-size: 3rem;
+            font-weight: 900;
+            color: #ff4444;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            line-height: 1.2;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        .tagline {
+            font-size: 1.3rem;
+            color: #ffaa00;
+            font-style: italic;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .subheader {
+            font-size: 1.1rem;
+            color: #cccccc;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .warning-banner {
+            background: #d32f2f;
+            color: white;
+            padding: 1rem;
+            margin: 2rem 1rem 0 1rem;
+            border-radius: 4px;
+            font-weight: bold;
+            text-align: center;
+            display: inline-block;
+            margin-left: auto;
+            margin-right: auto;
+            display: block;
+            max-width: 600px;
+        }
+
+        main {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        section {
+            background: rgba(30, 30, 30, 0.8);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+
+        section::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 4px;
+            height: 100%;
+            background: #d32f2f;
+            border-radius: 8px 0 0 8px;
+        }
+
+        h2 {
+            color: #ff6666;
+            font-size: 2rem;
+            margin-bottom: 1.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        h3 {
+            color: #ffaa00;
+            font-size: 1.4rem;
+            margin-top: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .process-step {
+            background: rgba(40, 40, 40, 0.6);
+            border-left: 3px solid #ffaa00;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-radius: 4px;
+        }
+
+        .process-step strong {
+            color: #ffaa00;
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .process-step p {
+            margin-bottom: 0.5rem;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+        }
+
+        .comparison-table th {
+            background: rgba(211, 47, 47, 0.3);
+            color: #ffaa00;
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 2px solid #d32f2f;
+            font-weight: bold;
+        }
+
+        .comparison-table td {
+            padding: 1rem;
+            border-bottom: 1px solid #444;
+        }
+
+        .comparison-table tr:nth-child(even) {
+            background: rgba(255, 170, 0, 0.05);
+        }
+
+        .comparison-table tr:hover {
+            background: rgba(255, 170, 0, 0.1);
+        }
+
+        .what-they-say {
+            background: rgba(100, 50, 50, 0.3);
+            padding: 0.8rem 1rem;
+            border-radius: 4px;
+            font-style: italic;
+        }
+
+        .what-it-is {
+            background: rgba(211, 47, 47, 0.2);
+            padding: 0.8rem 1rem;
+            border-radius: 4px;
+            font-weight: bold;
+            color: #ff6666;
+        }
+
+        .alert-box {
+            background: #2a1a1a;
+            border: 2px solid #d32f2f;
+            border-radius: 4px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            position: relative;
+        }
+
+        .alert-box::before {
+            content: '⚠';
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 2rem;
+            color: #d32f2f;
+            opacity: 0.3;
+        }
+
+        .alert-title {
+            color: #ff4444;
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .facts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .fact-card {
+            background: rgba(40, 40, 40, 0.8);
+            border: 1px solid #ffaa00;
+            border-radius: 4px;
+            padding: 1.5rem;
+            position: relative;
+        }
+
+        .fact-card::before {
+            content: '•';
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 2rem;
+            color: #d32f2f;
+        }
+
+        .fact-number {
+            color: #ffaa00;
+            font-weight: bold;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+
+        .fact-text {
+            color: #e0e0e0;
+            margin-top: 0.5rem;
+        }
+
+        .sidebar {
+            background: rgba(40, 40, 40, 0.6);
+            border: 1px solid #ffaa00;
+            border-radius: 4px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .sidebar h4 {
+            color: #ffaa00;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+
+        .scandal-item {
+            padding: 1rem;
+            background: rgba(50, 50, 50, 0.5);
+            border-left: 2px solid #d32f2f;
+            margin-bottom: 1rem;
+            border-radius: 2px;
+        }
+
+        .scandal-item strong {
+            color: #ff6666;
+        }
+
+        .cta-section {
+            background: linear-gradient(135deg, rgba(211, 47, 47, 0.2) 0%, rgba(255, 170, 0, 0.1) 100%);
+            border: 2px solid #d32f2f;
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background: #d32f2f;
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 4px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin: 1rem 0.5rem;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .cta-button:hover {
+            background: #ff4444;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(211, 47, 47, 0.4);
+        }
+
+        .cta-button.secondary {
+            background: transparent;
+            border: 2px solid #ffaa00;
+            color: #ffaa00;
+        }
+
+        .cta-button.secondary:hover {
+            background: #ffaa00;
+            color: #1a1a1a;
+        }
+
+        .container-flex {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+
+            .container-flex {
+                grid-template-columns: 1fr;
+            }
+
+            .facts-grid {
+                grid-template-columns: 1fr;
+            }
+
+            section {
+                padding: 1.5rem;
+            }
+        }
+
+        footer {
+            background: #0a0a0a;
+            border-top: 1px solid #333;
+            padding: 2rem 1rem;
+            text-align: center;
+            color: #888;
+            margin-top: 3rem;
+        }
+
+        .footer-text {
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .disclaimer {
+            font-style: italic;
+            color: #666;
+            font-size: 0.85rem;
+        }
+
+        strong {
+            color: #ffaa00;
+        }
+
+        em {
+            color: #ff6666;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>THE HONEY TRUTH</h1>
+            <p class="tagline">A Consumer Protection Exposé</p>
+            <p class="subheader">What the $9 billion insect regurgitation industry doesn't want you to know</p>
+            <div class="warning-banner">⚠ WARNING: Contains disturbing facts about food production ⚠</div>
+        </div>
+    </header>
+
+    <main>
+        <div class="container-flex">
+            <div>
+                <!-- THE PROCESS SECTION -->
+                <section>
+                    <h2>The Manufacturing Process</h2>
+                    <p>Below is the shockingly detailed breakdown of how this product is actually manufactured. The honey industry prefers you don't understand these steps.</p>
+
+                    <div class="process-step">
+                        <strong>Step 1: Raw Material Ingestion</strong>
+                        <p>Worker bees deploy their proboscis (a tube-like feeding apparatus) to extract nectar directly from flowers. This liquid enters their digestive system.</p>
+                    </div>
+
+                    <div class="process-step">
+                        <strong>Step 2: Storage in the Vomit Chamber</strong>
+                        <p>Rather than storing the nectar in their stomach like normal insects, bees maintain a separate organ—the <em>"honey stomach"</em> or <em>"crop"</em>—specifically for this purpose. It is, biologically, a regurgitation chamber.</p>
+                    </div>
+
+                    <div class="process-step">
+                        <strong>Step 3: The Facility Return & Mouth-to-Mouth Transfer</strong>
+                        <p>Upon returning to the hive, the bee regurgitates this material directly into the mouth of a house bee. This is not a metaphor. The substance is transferred bee-to-bee, mouth-to-mouth.</p>
+                    </div>
+
+                    <div class="process-step">
+                        <strong>Step 4: Repeated Regurgitation Cycle</strong>
+                        <p>This mouth-to-mouth transfer is repeated 10 to 20 times between different worker bees. Each transfer partially digests the material further, breaking down complex sugars and adding enzymes.</p>
+                    </div>
+
+                    <div class="process-step">
+                        <strong>Step 5: Deposition & Dehydration</strong>
+                        <p>The partially digested material is finally deposited into a hexagonal wax cell within the honeycomb. Bees then fan their wings to dehydrate this substance from roughly 70% water content to approximately 17%.</p>
+                    </div>
+
+                    <div class="process-step">
+                        <strong>Step 6: Permanent Sealing</strong>
+                        <p>Once sufficiently dehydrated, the bees secrete beeswax—another insect byproduct—to seal the cell. This creates an impermeable storage container for long-term preservation.</p>
+                    </div>
+                </section>
+
+                <!-- WHAT THEY CALL IT VS WHAT IT IS -->
+                <section>
+                    <h2>Marketing vs. Reality</h2>
+                    <p>The honey industry uses carefully selected language to obscure the true nature of this product. Here is the truth:</p>
+
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>What They Call It</th>
+                                <th>What It Actually Is</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="what-they-say">"Artisanal honey"</td>
+                                <td class="what-it-is">Mass-produced insect regurgitation</td>
+                            </tr>
+                            <tr>
+                                <td class="what-they-say">"Raw honey"</td>
+                                <td class="what-it-is">Unprocessed insect vomit</td>
+                            </tr>
+                            <tr>
+                                <td class="what-they-say">"Pure honey"</td>
+                                <td class="what-it-is">Concentrated insect digestive output</td>
+                            </tr>
+                            <tr>
+                                <td class="what-they-say">"Golden nectar"</td>
+                                <td class="what-it-is">Bee vomit with good marketing</td>
+                            </tr>
+                            <tr>
+                                <td class="what-they-say">"Honey tasting"</td>
+                                <td class="what-it-is">Insect regurgitation sommelier</td>
+                            </tr>
+                            <tr>
+                                <td class="what-they-say">"Beekeeper"</td>
+                                <td class="what-it-is">Insect vomit farmer</td>
+                            </tr>
+                            <tr>
+                                <td class="what-they-say">"Honeycomb"</td>
+                                <td class="what-it-is">Vomit storage facility</td>
+                            </tr>
+                            <tr>
+                                <td class="what-they-say">"Bee-produced"</td>
+                                <td class="what-it-is">Bee-regurgitated</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+
+                <!-- THE COVER-UP -->
+                <section>
+                    <h2>The Cover-Up: How Language Hides the Truth</h2>
+                    <p>The honey industry spends millions on branding to obscure the biological reality of their product. Key propaganda terms:</p>
+
+                    <h3>"Natural"</h3>
+                    <p>Yes, honey is natural. So is bee vomit. The term "natural" doesn't describe the <em>process</em>—it only describes the <em>source</em>. This is intentional misdirection.</p>
+
+                    <h3>"Pure"</h3>
+                    <p>"Pure honey" means unfiltered, unheated honey. It does <strong>not</strong> mean "not regurgitated." This word was specifically chosen to evade scrutiny.</p>
+
+                    <h3>"Golden" and "Liquid Sunshine"</h3>
+                    <p>Honey's color is real, but these poetic descriptions serve one purpose: to prevent you from thinking about what you're actually consuming. Marketing disguises biology.</p>
+
+                    <h3>The Silence on "Mouth-to-Mouth Transfer"</h3>
+                    <p>Honey companies will spend hours discussing terroir, floral varietals, and crystallization patterns. They will never, ever mention that the product requires 10-20 instances of bee-to-bee regurgitation. This omission is strategic.</p>
+                </section>
+
+                <!-- DISTURBING FACTS -->
+                <section>
+                    <h2>Disturbing Facts</h2>
+                    <p>The following are scientifically verified facts about honey production and consumption. The scandal is that they're hidden from public view:</p>
+
+                    <div class="facts-grid">
+                        <div class="fact-card">
+                            <div class="fact-number">Fact 01</div>
+                            <div class="fact-text"><strong>A single bee produces only 1/12th of a teaspoon of vomit in her entire lifetime.</strong> Worker bees spend their lives generating this substance for hive storage.</div>
+                        </div>
+
+                        <div class="fact-card">
+                            <div class="fact-number">Fact 02</div>
+                            <div class="fact-text"><strong>Americans consume approximately 1.5 pounds of insect regurgitation per capita annually.</strong> That's roughly 300 million pounds of bee vomit consumed in the USA every year.</div>
+                        </div>
+
+                        <div class="fact-card">
+                            <div class="fact-number">Fact 03</div>
+                            <div class="fact-text"><strong>Honey has been found in Egyptian tombs dating back 3,000 years and is still edible.</strong> People have been eating multi-millennia-old bee vomit without knowing it.</div>
+                        </div>
+
+                        <div class="fact-card">
+                            <div class="fact-number">Fact 04</div>
+                            <div class="fact-text"><strong>The global honey market is worth $9 billion annually.</strong> That's $9 billion in revenue from insect regurgitation. The scale of the industry is staggering.</div>
+                        </div>
+
+                        <div class="fact-card">
+                            <div class="fact-number">Fact 05</div>
+                            <div class="fact-text"><strong>Honey contains enzymes added by bees during regurgitation.</strong> These enzymes break down complex sugars and are a direct byproduct of the regurgitation process itself.</div>
+                        </div>
+
+                        <div class="fact-card">
+                            <div class="fact-number">Fact 06</div>
+                            <div class="fact-text"><strong>The darker the honey, the more times it has been regurgitated.</strong> Darker honey undergoes more bee-to-bee transfers, resulting in a darker, more processed product.</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- PRODUCT RECALLS -->
+                <section>
+                    <h2>Consumer Alerts</h2>
+
+                    <div class="alert-box">
+                        <div class="alert-title">ALERT: "Raw Honey" Products</div>
+                        <p>Products labeled "raw" have undergone less processing, meaning more visible evidence of the regurgitation process remains. Consumers may notice this in crystallization patterns and sedimentation.</p>
+                    </div>
+
+                    <div class="alert-box">
+                        <div class="alert-title">ALERT: Bulk Honey Purchases</div>
+                        <p>Consumers purchasing bulk quantities should be aware they are acquiring significant volumes of unprocessed insect digestive output. Proper storage is essential.</p>
+                    </div>
+
+                    <div class="alert-box">
+                        <div class="alert-title">ALERT: "Single-Origin" Honey Claims</div>
+                        <p>These products claim to come from a specific floral source. However, all such honey still requires the full mouth-to-mouth regurgitation cycle regardless of origin.</p>
+                    </div>
+                </section>
+            </div>
+
+            <!-- SIDEBAR -->
+            <aside>
+                <section class="sidebar">
+                    <h4>Related Food Production Scandals</h4>
+
+                    <div class="scandal-item">
+                        <strong>Vanilla Flavoring</strong><br>
+                        Authentic vanilla includes <em>castoreum</em>—a secretion from beaver anal glands. Your "all-natural" vanilla dessert contains beaver gland juice.
+                    </div>
+
+                    <div class="scandal-item">
+                        <strong>Shellac Coating on Candy</strong><br>
+                        The glossy finish on M&Ms and other candies? It's made from <em>lac</em>, secretions from the lac beetle. You're eating beetle secretions for shininess.
+                    </div>
+
+                    <div class="scandal-item">
+                        <strong>Cochineal Red Dye</strong><br>
+                        The red coloring in some "natural" foods comes from crushed <em>cochineal insects</em>. Your strawberry yogurt contains liquified bugs.
+                    </div>
+
+                    <div class="scandal-item">
+                        <strong>Gelatin</strong><br>
+                        Made from animal bone and skin collagen. Your gummy bears require industrial-scale animal part processing.
+                    </div>
+                </section>
+
+                <section class="sidebar">
+                    <h4>Key Statistics</h4>
+                    <p><strong>$9 Billion</strong><br>Global honey market value</p>
+                    <p><strong>1.5 lbs</strong><br>Per capita US consumption annually</p>
+                    <p><strong>1/12 tsp</strong><br>Produced by single bee lifetime</p>
+                    <p><strong>3,000+ years</strong><br>Honey shelf-life documented</p>
+                    <p><strong>10-20 times</strong><br>Regurgitation cycle repeats</p>
+                    <p><strong>70% → 17%</strong><br>Water content reduction</p>
+                </section>
+            </aside>
+        </div>
+
+        <!-- CALL TO ACTION -->
+        <section class="cta-section">
+            <h2>What You Can Do</h2>
+            <p style="margin-bottom: 1.5rem; font-size: 1.1rem;">The honey industry relies on public ignorance. Knowledge is power. Spread the truth about what you're consuming.</p>
+
+            <button class="cta-button">Share This Exposé</button>
+            <button class="cta-button secondary">Download the Facts</button>
+            <button class="cta-button secondary">Ask Brands for Transparency</button>
+
+            <p style="margin-top: 1.5rem; font-size: 0.95rem; color: #aaa;">
+                Every jar of honey carries the truth of its origin within it. Demand that manufacturers acknowledge the biological reality of their product.
+            </p>
+        </section>
+    </main>
+
+    <footer>
+        <div class="footer-text"><strong>The Honey Truth</strong> — Investigative Consumer Protection</div>
+        <div class="footer-text">All facts presented are scientifically accurate. The scandal is not the biology; the scandal is the silence.</div>
+        <div class="disclaimer">
+            Disclaimer: Honey is a safe, nutritious food product used for thousands of years. This site presents factual biological information in a satirical format to highlight the disconnect between food production reality and consumer marketing. We do not recommend avoiding honey; we recommend understanding what you consume.
+        </div>
+    </footer>
+</body>
+</html>

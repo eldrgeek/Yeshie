@@ -1,0 +1,256 @@
+{
+  "_meta": {
+    "task": "org-unit-create",
+    "description": "Create a new organizational unit in Google Workspace with an optional parent org unit and description.",
+    "params": {
+      "ou_name": {
+        "required": true,
+        "description": "Name of the new organizational unit"
+      },
+      "parent_ou": {
+        "required": false,
+        "description": "Parent organizational unit path (e.g. 'mike-wolf.com' for root, 'Everyone' for a sub-unit)",
+        "default": null,
+        "hint": "Leave blank to create under the root org unit"
+      },
+      "description": {
+        "required": false,
+        "description": "Description of the organizational unit's purpose",
+        "default": null
+      }
+    },
+    "requiredParams": ["ou_name"],
+    "optionalParams": ["parent_ou", "description"],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "manual_required",
+      "note": "Google Admin requires manual login with password + optional 2FA. Ensure the admin account is already signed in at admin.google.com before running."
+    },
+    "warning": "Requires active admin session at admin.google.com.",
+    "verificationStrategy": {
+      "pre": "Navigate to Organizational Units page and identify the Create organizational unit button",
+      "post": "Read confirmation message and verify OU appears in the org units list",
+      "primaryVerification": "confirmation_message contains 'created|added|success|new org'"
+    }
+  },
+  "runId": "google-admin-org-unit-create-{{timestamp}}",
+  "mode": "verification",
+  "site": "admin.google.com",
+  "params": {
+    "ou_name": "{{ou_name}}",
+    "parent_ou": "{{parent_ou}}",
+    "description": "{{description}}",
+    "base_url": "https://admin.google.com"
+  },
+  "abstractTargets": {
+    "create-ou-button": {
+      "match": {
+        "role": "button",
+        "name_contains": ["Create organizational unit", "Create org unit"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "button[aria-label*='Create' i]",
+        "div[role='button']:has-text('Create')"
+      ],
+      "description": "Create organizational unit button on the Org Units page"
+    },
+    "ou-name-input": {
+      "match": {
+        "role": "textbox",
+        "name_contains": ["Name", "Organizational unit name"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "input[placeholder*='Name' i]",
+        "input[aria-label*='Name' i]",
+        "input[name='name']"
+      ],
+      "description": "Org unit name input in the Create organizational unit form"
+    },
+    "parent-ou-selector": {
+      "match": {
+        "role": "button",
+        "name_contains": ["Parent", "Parent org", "org unit"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "button[aria-label*='Parent' i]",
+        "div[role='button']:has-text('Parent')"
+      ],
+      "description": "Parent org unit selector button in the Create org unit form"
+    },
+    "ou-description-input": {
+      "match": {
+        "role": "textbox",
+        "name_contains": ["Description"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "textarea[placeholder*='Description' i]",
+        "textarea[aria-label*='Description' i]",
+        "input[name='description']"
+      ],
+      "description": "Org unit description input in the Create org unit form"
+    },
+    "submit-ou-button": {
+      "match": {
+        "role": "button",
+        "name_contains": ["Create", "Submit"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "button[type='submit']",
+        "div[role='button']:has-text('Create')"
+      ],
+      "description": "Submit button in the Create organizational unit form"
+    }
+  },
+  "chain": [
+    {
+      "stepId": "nav-1",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/orgunits",
+      "expect": {
+        "state": "orgunits-list"
+      },
+      "note": "Navigate to the Organizational Units page in Google Admin Console"
+    },
+    {
+      "stepId": "nav-2",
+      "action": "wait_for",
+      "selector": "[role='main']",
+      "timeout": 8000,
+      "note": "Wait for the main content area to fully render"
+    },
+    {
+      "stepId": "perceive-1",
+      "action": "perceive",
+      "note": "Identify the Create organizational unit button and existing org unit structure"
+    },
+    {
+      "stepId": "click-1",
+      "action": "click",
+      "target": "create-ou-button",
+      "note": "Click 'Create organizational unit' to open the org unit creation form"
+    },
+    {
+      "stepId": "wait-1",
+      "action": "wait_for",
+      "selector": "input[placeholder*='Name' i], input[aria-label*='Name' i], [role='dialog']",
+      "timeout": 6000,
+      "note": "Wait for the Create org unit form or dialog to appear"
+    },
+    {
+      "stepId": "perceive-2",
+      "action": "perceive",
+      "note": "Review the form fields and available options"
+    },
+    {
+      "stepId": "type-1",
+      "action": "type",
+      "target": "ou-name-input",
+      "value": "{{ou_name}}",
+      "note": "Enter the organizational unit name"
+    },
+    {
+      "stepId": "click-2",
+      "action": "click",
+      "target": "parent-ou-selector",
+      "note": "Click the parent org unit selector if a parent OU was specified"
+    },
+    {
+      "stepId": "wait-2",
+      "action": "wait_for",
+      "selector": "[role='listbox'], [role='menu'], [role='option']",
+      "timeout": 4000,
+      "note": "Wait for the parent org unit dropdown to appear"
+    },
+    {
+      "stepId": "type-2",
+      "action": "type",
+      "target": "parent-ou-selector",
+      "value": "{{parent_ou}}",
+      "note": "Select or type the parent organizational unit"
+    },
+    {
+      "stepId": "type-3",
+      "action": "type",
+      "target": "ou-description-input",
+      "value": "{{description}}",
+      "note": "Enter the org unit description if provided"
+    },
+    {
+      "stepId": "click-3",
+      "action": "click",
+      "target": "submit-ou-button",
+      "note": "Click 'Create' to submit the form and create the org unit",
+      "responseSignature": [
+        {
+          "any_of": [
+            {
+              "type": "element_visible",
+              "selector": "[role='alert'], [aria-live='assertive'], [aria-live='polite']",
+              "textMatch": "created|added|success|new org|organizational unit",
+              "timeout": 10000
+            },
+            {
+              "type": "element_visible",
+              "selector": "[role='status']",
+              "timeout": 10000
+            }
+          ]
+        }
+      ],
+      "failureSignature": [
+        {
+          "any_of": [
+            {
+              "type": "element_visible",
+              "selector": "[role='alert'], [aria-live='assertive']",
+              "textMatch": "error|failed|already exists|invalid",
+              "timeout": 8000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "read-1",
+      "action": "read",
+      "candidates": [
+        "[role='alert']",
+        "[aria-live='assertive']",
+        "[aria-live='polite']",
+        "[role='status']"
+      ],
+      "store_as": "confirmation_message",
+      "note": "Capture the confirmation or error message"
+    },
+    {
+      "stepId": "nav-home",
+      "action": "navigate",
+      "url": "{{base_url}}/",
+      "note": "Return to home page to complete the org unit creation workflow"
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "orgunits-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "admin\\.google\\.com/ac/orgunits"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "_meta": {
+    "name": "okta-list-apps",
+    "site": "trial-8689388-admin.okta.com",
+    "description": "List all active app integrations in the Okta admin console.",
+    "version": "1.0.0",
+    "verified": true,
+    "verifiedDate": "2026-04-13",
+    "anomalies": [
+      "perceive required instead of read — SPA issue",
+      "Table has empty headers [] — apps rendered as MUI cards not a standard <table>. perceive counts 5 'rows' but no column headers. Use mainActions to discover app instances (hrefs: /admin/app/{type}/instance/{id}/).",
+      "ACTIVE/INACTIVE counts shown as 'ACTIVE0', 'INACTIVE0' concatenated — badge text appended to label with no separator"
+    ]
+  },
+  "params": {
+    "base_url": "https://trial-8689388-admin.okta.com"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://trial-8689388-admin.okta.com/admin/apps/active",
+      "note": "Hard-coded admin subdomain."
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 3000
+    },
+    {
+      "stepId": "s3",
+      "action": "perceive",
+      "store_as": "apps_snap",
+      "note": "App names and instance hrefs appear in mainActions. Pattern: {href: '/admin/app/{type}/instance/{instanceId}/', text: 'App Name'}. Default trial org has 5 built-in apps: Okta Admin Console, Okta Browser Plugin, Okta Dashboard, Okta Workflows, Okta Workflows OAuth."
+    }
+  ],
+  "abstractTargets": {
+    "app-list-table": {
+      "description": "App card list — perceive sees it as a table with empty headers",
+      "tableHeaders": [],
+      "note": "App entries are in mainActions with href pattern /admin/app/{type}/instance/{id}/"
+    },
+    "search-field": {
+      "description": "App search input",
+      "tag": "INPUT",
+      "placeholder": "Search"
+    },
+    "create-app-integration": {
+      "description": "Button to create a new OIDC/SAML app integration",
+      "text": "Create App Integration",
+      "href": "#"
+    },
+    "browse-app-catalog": {
+      "description": "Link to browse prebuilt app catalog",
+      "href": "/admin/apps/add-app"
+    }
+  },
+  "knownApps": [
+    {"name": "Okta Admin Console", "type": "saasure", "instanceId": "0oa11lcq3hvMSM5Zi698"},
+    {"name": "Okta Browser Plugin", "type": "okta_browser_plugin", "instanceId": "0oa11lcq3kbpHYihz698"},
+    {"name": "Okta Dashboard", "type": "okta_enduser", "instanceId": "0oa11lcq3ipCPuWI9698"},
+    {"name": "Okta Workflows", "type": "okta_flow_sso", "instanceId": "0oa11ld7emwY2ZGnB698"},
+    {"name": "Okta Workflows OAuth", "type": "flow", "instanceId": "0oa11ld7enlSeDeYv698"}
+  ],
+  "stateGraph": {
+    "initial": "apps-list",
+    "states": {
+      "apps-list": {
+        "description": "Active apps list loaded",
+        "expectedHeading": "Applications",
+        "transitions": {
+          "click app name": "app-detail",
+          "click Create App Integration": "create-app-modal"
+        }
+      }
+    }
+  }
+}

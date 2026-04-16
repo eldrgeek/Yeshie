@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pollen Is Not Consent - Botanical Accountability Campaign</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #2c3e2c;
+            background: #f8f9f7;
+        }
+
+        header {
+            background: linear-gradient(135deg, #2d5016 0%, #4a7c2c 100%);
+            color: white;
+            padding: 20px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        nav a {
+            color: white;
+            text-decoration: none;
+            margin-left: 30px;
+            font-size: 14px;
+            transition: opacity 0.3s;
+        }
+
+        nav a:hover {
+            opacity: 0.8;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, #d4af37 0%, #f4d03f 50%, #d4af37 100%);
+            padding: 100px 20px;
+            text-align: center;
+            color: #2c3e2c;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '🌾';
+            position: absolute;
+            font-size: 300px;
+            opacity: 0.1;
+            top: -50px;
+            right: -50px;
+            transform: rotate(-15deg);
+        }
+
+        .hero h1 {
+            font-size: 4rem;
+            font-weight: 900;
+            margin-bottom: 20px;
+            letter-spacing: 3px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+            z-index: 2;
+        }
+
+        .hero p {
+            font-size: 1.3rem;
+            margin-bottom: 40px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            font-weight: 500;
+            position: relative;
+            z-index: 2;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background: #c41e3a;
+            color: white;
+            padding: 18px 50px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(196, 30, 58, 0.3);
+            position: relative;
+            z-index: 2;
+        }
+
+        .cta-button:hover {
+            background: #a01830;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(196, 30, 58, 0.4);
+        }
+
+        .section {
+            max-width: 1200px;
+            margin: 80px auto;
+            padding: 0 20px;
+        }
+
+        .section h2 {
+            font-size: 2.5rem;
+            color: #2c3e2c;
+            margin-bottom: 40px;
+            text-align: center;
+            position: relative;
+            padding-bottom: 20px;
+        }
+
+        .section h2::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 4px;
+            background: #d4af37;
+            border-radius: 2px;
+        }
+
+        .crisis-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .stat-box {
+            background: white;
+            padding: 40px 30px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            border-left: 6px solid #d4af37;
+            transition: transform 0.3s;
+        }
+
+        .stat-box:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-number {
+            font-size: 3rem;
+            font-weight: 900;
+            color: #c41e3a;
+            margin-bottom: 10px;
+        }
+
+        .stat-text {
+            font-size: 1.1rem;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .crisis-description {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            line-height: 1.8;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            margin-top: 30px;
+        }
+
+        .rights-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+
+        .rights-card {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            border-top: 6px solid #4a7c2c;
+        }
+
+        .rights-card h3 {
+            font-size: 1.4rem;
+            color: #2c3e2c;
+            margin-bottom: 20px;
+        }
+
+        .rights-card ol {
+            margin-left: 20px;
+            line-height: 2;
+        }
+
+        .rights-card li {
+            margin-bottom: 10px;
+        }
+
+        .offenders {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 30px;
+        }
+
+        .offender-card {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            transition: transform 0.3s;
+        }
+
+        .offender-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .offender-rank {
+            background: #c41e3a;
+            color: white;
+            padding: 20px;
+            font-size: 2rem;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .offender-content {
+            padding: 30px;
+        }
+
+        .offender-name {
+            font-size: 1.6rem;
+            font-weight: bold;
+            color: #2c3e2c;
+            margin-bottom: 15px;
+        }
+
+        .offender-stat {
+            background: #f0f0f0;
+            padding: 12px;
+            margin: 10px 0;
+            border-left: 4px solid #d4af37;
+            font-weight: 500;
+        }
+
+        .survivor-stories {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+
+        .story-card {
+            background: #fff9e6;
+            padding: 40px;
+            border-radius: 8px;
+            border-left: 6px solid #d4af37;
+            font-style: italic;
+            line-height: 1.8;
+        }
+
+        .story-card::before {
+            content: '"';
+            font-size: 4rem;
+            color: #d4af37;
+            opacity: 0.3;
+            line-height: 0;
+        }
+
+        .story-author {
+            margin-top: 20px;
+            text-align: right;
+            font-weight: bold;
+            color: #2c3e2c;
+            font-style: normal;
+        }
+
+        .petition-box {
+            background: white;
+            padding: 60px 40px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+
+        .petition-box h3 {
+            font-size: 1.8rem;
+            color: #2c3e2c;
+            margin-bottom: 30px;
+        }
+
+        .signature-counter {
+            background: linear-gradient(135deg, #d4af37, #f4d03f);
+            padding: 40px;
+            border-radius: 8px;
+            margin: 40px 0;
+        }
+
+        .counter-number {
+            font-size: 3.5rem;
+            font-weight: 900;
+            color: #2c3e2c;
+            margin-bottom: 10px;
+        }
+
+        .counter-label {
+            font-size: 1.3rem;
+            color: #2c3e2c;
+            font-weight: 600;
+        }
+
+        .psa-section {
+            background: #2c3e2c;
+            color: white;
+            padding: 60px 40px;
+            border-radius: 8px;
+            margin-bottom: 40px;
+        }
+
+        .psa-section h3 {
+            font-size: 1.6rem;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .psa-messages {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+        }
+
+        .psa-message {
+            background: rgba(255,255,255,0.1);
+            padding: 30px;
+            border-radius: 8px;
+            border-left: 4px solid #d4af37;
+            font-size: 1.2rem;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .donate-section {
+            background: linear-gradient(135deg, #4a7c2c, #2d5016);
+            color: white;
+            padding: 80px 40px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .donate-section h2 {
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .donate-section h2::after {
+            background: #d4af37;
+        }
+
+        .donate-text {
+            font-size: 1.2rem;
+            margin-bottom: 40px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .donate-button {
+            background: #c41e3a;
+            color: white;
+            padding: 18px 50px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(196, 30, 58, 0.3);
+        }
+
+        .donate-button:hover {
+            background: #a01830;
+            transform: translateY(-2px);
+        }
+
+        footer {
+            background: #2c3e2c;
+            color: white;
+            text-align: center;
+            padding: 40px 20px;
+            margin-top: 80px;
+        }
+
+        footer p {
+            margin: 10px 0;
+            font-size: 0.95rem;
+        }
+
+        .footer-links {
+            margin-top: 20px;
+        }
+
+        .footer-links a {
+            color: #d4af37;
+            text-decoration: none;
+            margin: 0 20px;
+            transition: opacity 0.3s;
+        }
+
+        .footer-links a:hover {
+            opacity: 0.8;
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .hero p {
+                font-size: 1rem;
+            }
+
+            .section h2 {
+                font-size: 2rem;
+            }
+
+            nav {
+                display: none;
+            }
+
+            .hero::before {
+                font-size: 150px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <div class="logo">🌾 PINC</div>
+            <nav>
+                <a href="#crisis">The Crisis</a>
+                <a href="#rights">Your Rights</a>
+                <a href="#offenders">Offenders</a>
+                <a href="#stories">Survivor Stories</a>
+                <a href="#petition">Sign Petition</a>
+            </nav>
+        </div>
+    </header>
+
+    <section class="hero">
+        <h1>POLLEN IS NOT CONSENT</h1>
+        <p>Stop the airborne assault on bodily autonomy</p>
+        <button class="cta-button">Join the Movement</button>
+    </section>
+
+    <section class="section" id="crisis">
+        <h2>The Crisis</h2>
+        <div class="crisis-stats">
+            <div class="stat-box">
+                <div class="stat-number">BILLIONS</div>
+                <div class="stat-text">Reproductive cells released annually without consent</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number">50M</div>
+                <div class="stat-text">Americans exposed to non-consensual plant reproduction</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number">$18B</div>
+                <div class="stat-text">Annual cost of treating exposure (allergies reframed)</div>
+            </div>
+        </div>
+        <div class="crisis-description">
+            <p><strong>Every spring, our bodies are invaded.</strong></p>
+            <p style="margin-top: 20px;">Trees, grasses, and weeds across North America release billions of microscopic pollen particles into the air—their reproductive material—without asking our permission. These airborne cells enter our bodies through our eyes, noses, and respiratory systems. We don't consent. We don't opt-in. They just happen.</p>
+            <p style="margin-top: 20px;">50 million Americans suffer the consequences: itchy eyes, swollen sinuses, difficulty breathing, lost work days, emergency room visits. We call it "allergies." But what it really is: <strong>exposure to unsolicited botanical reproduction.</strong></p>
+            <p style="margin-top: 20px;">The worst part? <strong>No one is held accountable.</strong></p>
+        </div>
+    </section>
+
+    <section class="section" id="rights">
+        <h2>Know Your Rights</h2>
+        <div class="rights-grid">
+            <div class="rights-card">
+                <h3>📋 If You've Been Exposed</h3>
+                <ol>
+                    <li>Document your exposure (pollen count readings, symptoms)</li>
+                    <li>Seek immediate medical attention if experiencing severe symptoms</li>
+                    <li>Report the incident to your local environmental health department</li>
+                    <li>Join the class action lawsuit (pending)</li>
+                    <li>Share your story on social media #PollenIsNotConsent</li>
+                </ol>
+            </div>
+            <div class="rights-card">
+                <h3>🛡️ Protective Measures</h3>
+                <ol>
+                    <li>Wear HEPA-filtered masks during high pollen seasons</li>
+                    <li>Keep windows closed during peak reproduction (spring/fall)</li>
+                    <li>Use air purifiers rated for pollen filtration</li>
+                    <li>Shower and change clothes after outdoor exposure</li>
+                    <li>Consider staying indoors (full bodily autonomy recovery)</li>
+                </ol>
+            </div>
+            <div class="rights-card">
+                <h3>⚖️ Legal Resources</h3>
+                <ol>
+                    <li>File complaints with the EPA about airborne assault</li>
+                    <li>Petition your city to mandate tree sterilization programs</li>
+                    <li>Demand municipal regulation of "consent-aware" botany</li>
+                    <li>Support the Botanical Consent Act (see petition below)</li>
+                    <li>Contact your representatives (template letter available)</li>
+                </ol>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" id="offenders">
+        <h2>The Worst Offenders</h2>
+        <div class="offenders">
+            <div class="offender-card">
+                <div class="offender-rank">#1</div>
+                <div class="offender-content">
+                    <div class="offender-name">Oak Trees</div>
+                    <div class="offender-stat">💨 Pollen Release: 5+ MILLION grains/tree</div>
+                    <div class="offender-stat">📅 Season: April-May (sustained assault)</div>
+                    <div class="offender-stat">🔥 Aggression Level: EXTREME</div>
+                    <p style="margin-top: 20px; font-size: 0.95rem;">The single most aggressive botanical offender. A mature oak can fill the air with enough pollen to trigger symptoms in hundreds of nearby residents. Zero remorse.</p>
+                </div>
+            </div>
+            <div class="offender-card">
+                <div class="offender-rank">#2</div>
+                <div class="offender-content">
+                    <div class="offender-name">Ragweed</div>
+                    <div class="offender-stat">💨 Pollen Release: 1 BILLION grains/plant/day</div>
+                    <div class="offender-stat">📅 Season: August-November (extended assault)</div>
+                    <div class="offender-stat">🔥 Aggression Level: CRITICAL</div>
+                    <p style="margin-top: 20px; font-size: 0.95rem;">The most prolific offender. A single ragweed plant produces nearly a billion pollen grains per day. Prefers spreading in late summer when people let their guard down.</p>
+                </div>
+            </div>
+            <div class="offender-card">
+                <div class="offender-rank">#3</div>
+                <div class="offender-content">
+                    <div class="offender-name">Grasses</div>
+                    <div class="offender-stat">💨 Pollen Release: 10,000+ grains/plant</div>
+                    <div class="offender-stat">📅 Season: May-July (persistent assault)</div>
+                    <div class="offender-stat">🔥 Aggression Level: HIGH</div>
+                    <p style="margin-top: 20px; font-size: 0.95rem;">Ubiquitous. Found in every lawn, park, and field. Grass pollen is impossible to escape and affects 1 in 4 Americans. Coordinated attack strategy.</p>
+                </div>
+            </div>
+            <div class="offender-card">
+                <div class="offender-rank">#4</div>
+                <div class="offender-content">
+                    <div class="offender-name">Birch Trees</div>
+                    <div class="offender-stat">💨 Pollen Release: 100 MILLION grains/tree</div>
+                    <div class="offender-stat">📅 Season: March-April (early assault)</div>
+                    <div class="offender-stat">🔥 Aggression Level: SEVERE</div>
+                    <p style="margin-top: 20px; font-size: 0.95rem;">Deceptively beautiful. Looks innocent but launches massive pollen attacks at the onset of spring. Often the first offender of the season.</p>
+                </div>
+            </div>
+            <div class="offender-card">
+                <div class="offender-rank">#5</div>
+                <div class="offender-content">
+                    <div class="offender-name">Pine Trees</div>
+                    <div class="offender-stat">💨 Pollen Release: 300 MILLION grains/tree</div>
+                    <div class="offender-stat">📅 Season: April-May (heavy assault)</div>
+                    <div class="offender-stat">🔥 Aggression Level: MODERATE-HIGH</div>
+                    <p style="margin-top: 20px; font-size: 0.95rem;">Produces so much yellow pollen it coats entire cities. Despite being evergreen, it times its assault for peak visibility.</p>
+                </div>
+            </div>
+            <div class="offender-card">
+                <div class="offender-rank">#6</div>
+                <div class="offender-content">
+                    <div class="offender-name">Mugwort</div>
+                    <div class="offender-stat">💨 Pollen Release: 100,000+ grains/plant</div>
+                    <div class="offender-stat">📅 Season: July-September (summer assault)</div>
+                    <div class="offender-stat">🔥 Aggression Level: HIGH</div>
+                    <p style="margin-top: 20px; font-size: 0.95rem;">Spreads along roadsides and vacant lots. Often missed in early-season awareness campaigns, making it a surprise mid-summer attacker.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" id="stories">
+        <h2>Survivor Stories</h2>
+        <div class="survivor-stories">
+            <div class="story-card">
+                <p>Every April, I can't leave my house. My eyes swell shut. I can't breathe through my nose. I miss work, I miss my kids' school events, I miss my life. And nobody holds these trees accountable. Nobody apologizes. They just keep releasing their pollen into the air like my suffering doesn't matter.</p>
+                <div class="story-author">— Sarah K., Portland, OR</div>
+            </div>
+            <div class="story-card">
+                <p>I spent $3,000 on medication last year. THREE THOUSAND DOLLARS. Because nature decided my sinuses were a good place to dump reproductive material without asking. My insurance doesn't cover half of it. No one sues the trees. No one is held liable. It's exhausting.</p>
+                <div class="story-author">— Marcus T., Denver, CO</div>
+            </div>
+            <div class="story-card">
+                <p>I had to move my wedding from outdoors to indoors because of the oak pollen forecast. My dream ceremony, compromised. I spent two years planning something beautiful and had to hide inside a building because trees couldn't be bothered to ask permission first.</p>
+                <div class="story-author">— Jennifer H., Atlanta, GA</div>
+            </div>
+            <div class="story-card">
+                <p>My 7-year-old had an allergic reaction so severe she was rushed to the hospital. The trees just... keep growing. No accountability. No remorse. Just another season of assault disguised as nature.</p>
+                <div class="story-author">— David M., Chicago, IL</div>
+            </div>
+            <div class="story-card">
+                <p>I work in landscaping. Every day I'm exposed to massive quantities of this stuff. It's my job. I never signed up for this. I never consented. But here we are, society enabling botanical assault in the name of "outdoor work."</p>
+                <div class="story-author">— Carlos R., Phoenix, AZ</div>
+            </div>
+            <div class="story-card">
+                <p>Nobody takes this seriously. I try to explain to people what pollen is — non-consensual reproductive material in the air — and they laugh. But it's not funny when you can't breathe. It's not funny when you're suffering.</p>
+                <div class="story-author">— Alex P., Seattle, WA</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" id="petition">
+        <div class="petition-box">
+            <h3>Demand Congress Pass the Botanical Consent Act</h3>
+            <p style="font-size: 1.1rem; margin-bottom: 20px;">We call on the U.S. Congress to enact the Botanical Consent Act, establishing legal frameworks for botanical reproductive accountability and mandating consent-aware cultivation practices.</p>
+
+            <div class="signature-counter">
+                <div class="counter-number" id="signature-count">347,891</div>
+                <div class="counter-label">People demand change</div>
+            </div>
+
+            <p style="font-size: 1rem; margin-bottom: 30px; color: #666;">Your signature tells Congress: POLLEN IS NOT CONSENT</p>
+
+            <button class="cta-button" onclick="addSignature()">Add Your Signature</button>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="psa-section">
+            <h3>Public Service Announcements</h3>
+            <div class="psa-messages">
+                <div class="psa-message">
+                    If you see something, sneeze something.
+                </div>
+                <div class="psa-message">
+                    Your pollen count is not just a weather report — it's a crime report.
+                </div>
+                <div class="psa-message">
+                    Botanical autonomy requires consent. Always.
+                </div>
+                <div class="psa-message">
+                    This spring, just say no to airborne reproduction.
+                </div>
+                <div class="psa-message">
+                    Trees didn't ask. We didn't consent. That's assault.
+                </div>
+                <div class="psa-message">
+                    Your allergies are valid. Your body is your own.
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="donate-section">
+            <h2>Support the Movement</h2>
+            <div class="donate-text">
+                <p>Fighting botanical assault takes resources. Funding research into consent-aware horticulture, supporting affected survivors, and lobbying Congress for the Botanical Consent Act requires your help.</p>
+            </div>
+            <button class="donate-button">Donate Now</button>
+            <p style="margin-top: 30px; font-size: 0.95rem; opacity: 0.9;">100% of donations go to educational campaigns and survivor support. PINC is a 501(c)(3) nonprofit. Tax ID: 00-0000000</p>
+        </div>
+    </section>
+
+    <footer>
+        <p><strong>Pollen Is Not Consent (PINC)</strong> — A grassroots campaign for botanical accountability</p>
+        <p>Because every body deserves the right to breathe freely, without unsolicited reproductive material.</p>
+        <div class="footer-links">
+            <a href="#top">Home</a>
+            <a href="#crisis">The Crisis</a>
+            <a href="#rights">Your Rights</a>
+            <a href="#petition">Sign Petition</a>
+            <a href="#">Contact Us</a>
+            <a href="#">Privacy Policy</a>
+        </div>
+        <p style="margin-top: 30px; font-size: 0.85rem; opacity: 0.8;">This is a satirical website. This is parody. Pollen is a natural biological process. Please don't actually sue a tree.</p>
+    </footer>
+
+    <script>
+        function addSignature() {
+            const counter = document.getElementById('signature-count');
+            let current = parseInt(counter.textContent.replace(/,/g, ''));
+            current += Math.floor(Math.random() * 50) + 1;
+            counter.textContent = current.toLocaleString();
+            alert('Thank you for signing! Your name has been added to the petition.\n\nTogether, we can make botanical assault a thing of the past.');
+        }
+    </script>
+</body>
+</html>

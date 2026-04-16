@@ -1,0 +1,62 @@
+{
+  "_meta": {
+    "id": "access-request-handle",
+    "version": "1.0",
+    "title": "Handle Access Request",
+    "description": "Find a pending access request for a person and approve or deny it",
+    "baseUrl": "https://app.yeshid.com",
+    "requiresAuth": true,
+    "params": {
+      "person_name": "Name of the person whose request to handle",
+      "action": "approve or deny"
+    }
+  },
+  "chain": [
+    {
+      "stepId": "navigate-requests",
+      "action": "navigate",
+      "url": "/requests"
+    },
+    {
+      "stepId": "perceive-requests",
+      "action": "perceive",
+      "store_as": "pending_requests",
+      "description": "Read pending access requests list \u2014 confirms page loaded and shows queue"
+    },
+    {
+      "stepId": "find-person-row",
+      "action": "find_row",
+      "column": "Name",
+      "value": "{{person_name}}",
+      "store_as": "request_row",
+      "target": {
+        "cachedSelector": "table tbody tr, [data-cy='request-row']"
+      }
+    },
+    {
+      "stepId": "click-action-button",
+      "action": "click_text",
+      "text": "{{action}}",
+      "target": {
+        "anchors": {
+          "ariaLabel": "{{action}} request"
+        },
+        "cachedSelector": "button:has-text('{{action}}'), [data-cy='{{action}}-request']"
+      }
+    },
+    {
+      "stepId": "confirm-action",
+      "action": "click_text",
+      "text": "Confirm",
+      "target": {
+        "cachedSelector": "button:has-text('Confirm'), [data-cy='confirm-dialog-ok']"
+      }
+    },
+    {
+      "stepId": "verify-success",
+      "action": "perceive",
+      "store_as": "action_result",
+      "description": "Read confirmation toast or updated request status \u2014 independent outcome check"
+    }
+  ]
+}

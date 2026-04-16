@@ -1,0 +1,19 @@
+{
+  "_meta": {
+    "task": "security-policies",
+    "description": "Navigate to Okta Security section and perceive authentication policies, MFA settings, and session policies.",
+    "version": "1.0.0",
+    "verified": false,
+    "verifiedDate": null,
+    "author": "session-2026-04-14"
+  },
+  "params": { "base_url": "https://trial-8689388-admin.okta.com" },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://trial-8689388-admin.okta.com/admin/security/general", "note": "Security general settings" },
+    { "stepId": "s2", "action": "delay", "ms": 3000 },
+    { "stepId": "s3", "action": "perceive", "store_as": "security_general", "note": "Perceive security settings: MFA, session duration, password policies." },
+    { "stepId": "s4", "action": "navigate", "url": "https://trial-8689388-admin.okta.com/admin/authn/policies", "note": "Authentication policies" },
+    { "stepId": "s5", "action": "delay", "ms": 3000 },
+    { "stepId": "s6", "action": "perceive", "store_as": "authn_policies", "note": "Perceive authentication policies list." }
+  ]
+}

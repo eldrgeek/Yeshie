@@ -33,7 +33,7 @@ export default defineContentScript({
         setTimeout(() => panel.hide(), 3000);
         sendResponse({ ok: true });
       } else if (msg.type === 'teach_start') {
-        teach.startTeach(msg.steps);
+        teach.startTeach(msg.steps, msg.startIndex ?? 0);
         sendResponse({ ok: true });
       } else if (msg.type === 'teach_goto') {
         teach.gotoStep(msg.stepIndex);
@@ -41,6 +41,10 @@ export default defineContentScript({
       } else if (msg.type === 'teach_end') {
         teach.endTeach();
         sendResponse({ ok: true });
+      } else if (msg.type === 'teach_query_step') {
+        // Background pings this to check if content script is alive (SPA nav detection)
+        const idx = teach.getCurrentStep();
+        sendResponse({ ok: true, stepIndex: idx, active: idx >= 0 });
       }
     });
   }

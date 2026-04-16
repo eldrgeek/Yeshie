@@ -1,0 +1,211 @@
+{
+  "_meta": {
+    "task": "security-audit",
+    "description": "Navigate to Google Admin security settings and read 2FA enrollment status, password compliance, and suspicious login rule configuration.",
+    "params": {
+      "base_url": {
+        "required": true,
+        "description": "Base URL for Google Admin Console",
+        "default": "https://admin.google.com"
+      }
+    },
+    "requiredParams": [],
+    "optionalParams": ["base_url"],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "manual_required",
+      "note": "Google Admin requires manual login with password + optional 2FA. Ensure the admin account is already signed in at admin.google.com before running."
+    },
+    "warning": "Requires active admin session at admin.google.com.",
+    "verificationStrategy": {
+      "pre": "Perceive security settings page to identify expandable sections and current configuration",
+      "post": "Read 2FA enrollment status, password policy, and suspicious login rule settings from the page",
+      "primaryVerification": "Captures security settings values including 2FA status, password strength, and rule configuration"
+    }
+  },
+  "runId": "google-admin-security-audit-{{timestamp}}",
+  "mode": "learning",
+  "site": "admin.google.com",
+  "params": {
+    "base_url": "https://admin.google.com"
+  },
+  "abstractTargets": {
+    "security-nav-item": {
+      "match": {
+        "role": "link",
+        "name_contains": ["Security"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "a[href*='/ac/security']",
+        "[role='navigation'] span:has-text('Security')"
+      ],
+      "description": "Security section link in sidebar navigation"
+    },
+    "2fa-section": {
+      "match": {
+        "role": "button",
+        "name_contains": ["2-Step Verification", "2FA"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "button:has-text('2-Step Verification')",
+        "[aria-expanded] span:has-text('2-Step Verification')"
+      ],
+      "description": "2-Step Verification expandable section"
+    },
+    "password-section": {
+      "match": {
+        "role": "button",
+        "name_contains": ["Password management", "Password policy"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "button:has-text('Password management')",
+        "[aria-expanded] span:has-text('Password management')"
+      ],
+      "description": "Password management expandable section"
+    },
+    "rules-section": {
+      "match": {
+        "role": "link",
+        "name_contains": ["Rules", "Alert rules"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "a[href*='/ac/rules']",
+        "[role='navigation'] span:has-text('Rules')"
+      ],
+      "description": "Rules section link in sidebar navigation"
+    }
+  },
+  "chain": [
+    {
+      "stepId": "nav-1",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/security",
+      "expect": {
+        "state": "security-overview"
+      },
+      "note": "Navigate to Security section in Google Admin Console"
+    },
+    {
+      "stepId": "nav-2",
+      "action": "wait_for",
+      "selector": "[role='main']",
+      "timeout": 8000,
+      "note": "Wait for the main content area to fully render"
+    },
+    {
+      "stepId": "perceive-1",
+      "action": "perceive",
+      "note": "Read the security settings page to identify expandable sections and their current states"
+    },
+    {
+      "stepId": "expand-1",
+      "action": "click",
+      "target": "2fa-section",
+      "note": "Click to expand the 2-Step Verification section"
+    },
+    {
+      "stepId": "wait-1",
+      "action": "wait_for",
+      "selector": "[aria-expanded='true'], [role='region']",
+      "timeout": 3000,
+      "note": "Wait for the section to expand"
+    },
+    {
+      "stepId": "read-1",
+      "action": "read",
+      "candidates": [
+        "[aria-expanded='true'] ~ div, [role='region'] [aria-label*='2-Step'], span:has-text('enrolled|enforced|disabled')"
+      ],
+      "store_as": "2fa_status",
+      "note": "Capture 2-Step Verification enrollment and enforcement status"
+    },
+    {
+      "stepId": "expand-2",
+      "action": "click",
+      "target": "password-section",
+      "note": "Click to expand the Password management section"
+    },
+    {
+      "stepId": "wait-2",
+      "action": "wait_for",
+      "selector": "[aria-expanded='true'], [role='region']",
+      "timeout": 3000,
+      "note": "Wait for the password section to expand"
+    },
+    {
+      "stepId": "read-2",
+      "action": "read",
+      "candidates": [
+        "[aria-expanded='true'] ~ div, [role='region'] [aria-label*='password'], span:has-text('strength|compliance|policy')"
+      ],
+      "store_as": "password_policy",
+      "note": "Capture password strength and compliance settings"
+    },
+    {
+      "stepId": "nav-3",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/ax",
+      "expect": {
+        "state": "rules-list"
+      },
+      "note": "Navigate to Rules section to check suspicious login rule configuration"
+    },
+    {
+      "stepId": "nav-4",
+      "action": "wait_for",
+      "selector": "[role='main']",
+      "timeout": 8000,
+      "note": "Wait for the Rules page to fully render"
+    },
+    {
+      "stepId": "perceive-2",
+      "action": "perceive",
+      "note": "Read the Rules page to find suspicious login rule status"
+    },
+    {
+      "stepId": "read-3",
+      "action": "read",
+      "candidates": [
+        "tr:has-text('Suspicious login'), [role='row'] span:has-text('Suspicious login'), div:has-text('Suspicious login') + div"
+      ],
+      "store_as": "suspicious_login_rule",
+      "note": "Capture the status and configuration of the Suspicious login rule"
+    },
+    {
+      "stepId": "nav-home",
+      "action": "navigate",
+      "url": "{{base_url}}/",
+      "note": "Return to home page to complete the audit workflow"
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "security-overview": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "admin\\.google\\.com/ac/security"
+          }
+        ]
+      },
+      "rules-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "admin\\.google\\.com/ac/ax"
+          }
+        ]
+      }
+    }
+  }
+}

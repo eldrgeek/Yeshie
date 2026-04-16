@@ -1,0 +1,246 @@
+{
+  "_meta": {
+    "task": "group-create",
+    "description": "Create a new group in Google Workspace and add members to it.",
+    "params": {
+      "group_name": {
+        "required": true,
+        "description": "Name of the new group"
+      },
+      "group_email": {
+        "required": true,
+        "description": "Email address for the group (before @mike-wolf.com)",
+        "hint": "e.g. 'engineering' — @mike-wolf.com will be appended automatically"
+      },
+      "description": {
+        "required": false,
+        "description": "Description of the group's purpose",
+        "default": null
+      },
+      "members": {
+        "required": false,
+        "description": "Comma-separated list of member email addresses to add to the group",
+        "default": null,
+        "hint": "e.g. 'john.doe@mike-wolf.com, jane.smith@mike-wolf.com'"
+      }
+    },
+    "requiredParams": ["group_name", "group_email"],
+    "optionalParams": ["description", "members"],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "manual_required",
+      "note": "Google Admin requires manual login with password + optional 2FA. Ensure the admin account is already signed in at admin.google.com before running."
+    },
+    "warning": "Requires active admin session at admin.google.com.",
+    "verificationStrategy": {
+      "pre": "Navigate to Groups page and identify the Create group button",
+      "post": "Read confirmation message and verify group appears in the groups list",
+      "primaryVerification": "confirmation_message contains 'created|added|success|new group'"
+    }
+  },
+  "runId": "google-admin-group-create-{{timestamp}}",
+  "mode": "verification",
+  "site": "admin.google.com",
+  "params": {
+    "group_name": "{{group_name}}",
+    "group_email": "{{group_email}}",
+    "description": "{{description}}",
+    "members": "{{members}}",
+    "base_url": "https://admin.google.com"
+  },
+  "abstractTargets": {
+    "create-group-button": {
+      "match": {
+        "role": "button",
+        "name_contains": ["Create group"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "button[aria-label*='Create group' i]",
+        "div[role='button']:has-text('Create group')"
+      ],
+      "description": "Create group button on the Groups page"
+    },
+    "group-name-input": {
+      "match": {
+        "role": "textbox",
+        "name_contains": ["Group name", "Name"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "input[placeholder*='Group name' i]",
+        "input[aria-label*='Group name' i]",
+        "input[name='groupName']"
+      ],
+      "description": "Group name input in the Create group form"
+    },
+    "group-email-input": {
+      "match": {
+        "role": "textbox",
+        "name_contains": ["Group email", "Email address"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "input[placeholder*='group email' i]",
+        "input[aria-label*='email' i]",
+        "input[name='groupEmail']",
+        "input[type='email']"
+      ],
+      "description": "Group email input in the Create group form"
+    },
+    "group-description-input": {
+      "match": {
+        "role": "textbox",
+        "name_contains": ["Description"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "textarea[placeholder*='Description' i]",
+        "textarea[aria-label*='Description' i]",
+        "input[name='description']"
+      ],
+      "description": "Group description input in the Create group form"
+    },
+    "submit-create-group-button": {
+      "match": {
+        "role": "button",
+        "name_contains": ["Create group", "Create", "Submit"]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "button[type='submit']",
+        "div[role='button']:has-text('Create')"
+      ],
+      "description": "Submit button in the Create group form"
+    }
+  },
+  "chain": [
+    {
+      "stepId": "nav-1",
+      "action": "navigate",
+      "url": "{{base_url}}/ac/groups",
+      "expect": {
+        "state": "groups-list"
+      },
+      "note": "Navigate to the Groups list in Google Admin Console"
+    },
+    {
+      "stepId": "nav-2",
+      "action": "wait_for",
+      "selector": "[role='main']",
+      "timeout": 8000,
+      "note": "Wait for the main content area to fully render"
+    },
+    {
+      "stepId": "perceive-1",
+      "action": "perceive",
+      "note": "Identify the Create group button and any additional UI elements"
+    },
+    {
+      "stepId": "click-1",
+      "action": "click",
+      "target": "create-group-button",
+      "note": "Click 'Create group' to open the group creation form"
+    },
+    {
+      "stepId": "wait-1",
+      "action": "wait_for",
+      "selector": "input[placeholder*='Group name' i], input[aria-label*='Group name' i], input[name='groupName']",
+      "timeout": 6000,
+      "note": "Wait for the Create group form or dialog to appear"
+    },
+    {
+      "stepId": "type-1",
+      "action": "type",
+      "target": "group-name-input",
+      "value": "{{group_name}}",
+      "note": "Enter the group name"
+    },
+    {
+      "stepId": "type-2",
+      "action": "type",
+      "target": "group-email-input",
+      "value": "{{group_email}}",
+      "note": "Enter the group email address (username part only, domain appended automatically)"
+    },
+    {
+      "stepId": "type-3",
+      "action": "type",
+      "target": "group-description-input",
+      "value": "{{description}}",
+      "note": "Enter the group description if provided"
+    },
+    {
+      "stepId": "click-2",
+      "action": "click",
+      "target": "submit-create-group-button",
+      "note": "Click 'Create group' to submit the form and create the group",
+      "responseSignature": [
+        {
+          "any_of": [
+            {
+              "type": "element_visible",
+              "selector": "[role='alert'], [aria-live='assertive'], [aria-live='polite']",
+              "textMatch": "created|added|success|new group",
+              "timeout": 10000
+            },
+            {
+              "type": "element_visible",
+              "selector": "[role='status'], .notification-panel",
+              "timeout": 10000
+            }
+          ]
+        }
+      ],
+      "failureSignature": [
+        {
+          "any_of": [
+            {
+              "type": "element_visible",
+              "selector": "[role='alert'], [aria-live='assertive']",
+              "textMatch": "error|failed|already exists|invalid",
+              "timeout": 8000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "read-1",
+      "action": "read",
+      "candidates": [
+        "[role='alert']",
+        "[aria-live='assertive']",
+        "[aria-live='polite']",
+        "[role='status']"
+      ],
+      "store_as": "confirmation_message",
+      "note": "Capture the confirmation or error message"
+    },
+    {
+      "stepId": "nav-home",
+      "action": "navigate",
+      "url": "{{base_url}}/",
+      "note": "Return to home page to complete the group creation workflow"
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "groups-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "admin\\.google\\.com/ac/groups"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,206 @@
+{
+  "siteId": "yeshid",
+  "mappedAt": "2026-04-14T15:00:00Z",
+  "mappedBy": "site-mapper/1.0",
+  "docSources": [],
+  "notes": "No help/doc links found in DOM during mapping run. Vuetify-based app — no data-testid attributes present; selectors rely on stable classes and aria-labels.",
+  "siteNav": {
+    "/overview": "Home",
+    "/workflows": "Workflows",
+    "/my-applications": "My Apps",
+    "/requested-applications": "Requested Apps",
+    "/organization/people": "People",
+    "/organization/directories": "Directories",
+    "/organization/groups": "Groups",
+    "/access/applications": "Applications",
+    "/access/grid": "Access Grid",
+    "/access/rbac": "RBAC (beta)",
+    "/access/requests": "Access Requests",
+    "/access/audits-v2": "Audit Campaigns",
+    "/security/shadow": "Shadow Applications"
+  },
+  "pages": {
+    "/organization/people": {
+      "title": "People",
+      "url": "https://app.yeshid.com/organization/people",
+      "status": "ok",
+      "headings": [],
+      "selectors": {
+        "search-input": {
+          "selector": ".search-input",
+          "stabilityTier": 4,
+          "fallbacks": [
+            "input[placeholder='Search']",
+            "input[placeholder*='Search']"
+          ],
+          "verifiedAt": "2026-04-14T15:00:00Z",
+          "notes": "Stable class .search-input observed; no data-testid or aria-label present"
+        },
+        "onboard-person-button": {
+          "selector": "button.bg-primary",
+          "stabilityTier": 4,
+          "fallbacks": [
+            "button.v-btn.bg-primary"
+          ],
+          "verifiedAt": "2026-04-14T15:00:00Z",
+          "notes": "Primary CTA. Label text: 'Onboard person'. No data-testid. Use .bg-primary as most stable available class."
+        },
+        "items-per-page-select": {
+          "selector": "[aria-label='Open']",
+          "stabilityTier": 2,
+          "fallbacks": [
+            "#input-v-26",
+            ".v-select input"
+          ],
+          "verifiedAt": "2026-04-14T15:00:00Z",
+          "notes": "Vuetify select/autocomplete for items-per-page. aria-label='Open' is the combobox trigger input."
+        },
+        "pagination-first": {
+          "selector": "[aria-label='First page']",
+          "stabilityTier": 2,
+          "fallbacks": [],
+          "verifiedAt": "2026-04-14T15:00:00Z"
+        },
+        "pagination-prev": {
+          "selector": "[aria-label='Previous page']",
+          "stabilityTier": 2,
+          "fallbacks": [],
+          "verifiedAt": "2026-04-14T15:00:00Z"
+        },
+        "pagination-next": {
+          "selector": "[aria-label='Next page']",
+          "stabilityTier": 2,
+          "fallbacks": [],
+          "verifiedAt": "2026-04-14T15:00:00Z"
+        },
+        "filter-clear-all": {
+          "selector": "button.text-primary.rounded-xs",
+          "stabilityTier": 4,
+          "fallbacks": [
+            "button.elevation-0.text-primary"
+          ],
+          "verifiedAt": "2026-04-14T15:00:00Z",
+          "notes": "Label text: 'Clear all'. Clears active filters."
+        },
+        "people-tab": {
+          "selector": "button.v-tab--selected",
+          "stabilityTier": 4,
+          "fallbacks": [
+            "button.v-tab-item--selected"
+          ],
+          "verifiedAt": "2026-04-14T15:00:00Z",
+          "notes": "Active tab button. Text: 'People'. Switches between People/Settings views."
+        }
+      },
+      "fields": [
+        {
+          "name": "search",
+          "type": "text",
+          "selector": ".search-input",
+          "stabilityTier": 4,
+          "required": false,
+          "placeholder": "Search",
+          "ariaLabel": null,
+          "notes": "Free-text filter for the people list"
+        }
+      ],
+      "actions": [
+        {
+          "label": "Onboard person",
+          "selector": "button.bg-primary",
+          "stabilityTier": 4,
+          "opensModal": true,
+          "notes": "Opens onboarding flow modal/wizard"
+        },
+        {
+          "label": "Clear all",
+          "selector": "button.text-primary.rounded-xs",
+          "stabilityTier": 4,
+          "opensModal": false
+        }
+      ],
+      "multiStepControls": [
+        {
+          "type": "search-then-select",
+          "triggerSelector": ".search-input",
+          "pickerSelector": null,
+          "steps": [
+            "click search input (.search-input)",
+            "type query text",
+            "results filter in-place (no separate listbox observed)"
+          ],
+          "notes": "Search filters the table live; no separate dropdown"
+        },
+        {
+          "type": "modal-trigger",
+          "triggerSelector": "button.bg-primary",
+          "pickerSelector": "[role='dialog']",
+          "steps": [
+            "click 'Onboard person' button (button.bg-primary)",
+            "interact with onboarding modal fields",
+            "submit form"
+          ]
+        }
+      ]
+    },
+    "/": {
+      "title": "YeshID: Connect anything with an API",
+      "url": "https://ssotax.yeshid.com/",
+      "status": "ok",
+      "headings": ["Explore"],
+      "notes": "ssotax.yeshid.com is a vendor research / SSO tax calculator tool. Separate subdomain from app.yeshid.com.",
+      "selectors": {
+        "main-search-input": {
+          "selector": "#main-input",
+          "stabilityTier": 5,
+          "fallbacks": [
+            "input[placeholder*='Search vendors']",
+            "input[id='main-input']"
+          ],
+          "verifiedAt": "2026-04-14T15:00:00Z",
+          "notes": "Primary input. Accepts vendor name, URL, or free-form query to generate research."
+        },
+        "generate-report-button": {
+          "selector": "button:not(.secondary)",
+          "stabilityTier": 6,
+          "fallbacks": [],
+          "verifiedAt": "2026-04-14T15:00:00Z",
+          "notes": "Label: 'Generate Research Report'. No id/aria-label/data-testid. Use text matching or position as last resort."
+        },
+        "clear-button": {
+          "selector": "button.secondary",
+          "stabilityTier": 4,
+          "fallbacks": [],
+          "verifiedAt": "2026-04-14T15:00:00Z",
+          "notes": "Label: 'Clear'. Resets the input."
+        }
+      },
+      "fields": [
+        {
+          "name": "vendor-search",
+          "type": "text",
+          "selector": "#main-input",
+          "stabilityTier": 5,
+          "required": false,
+          "placeholder": "Search vendors or enter URL/query to generate new research...",
+          "ariaLabel": null
+        }
+      ],
+      "actions": [
+        {
+          "label": "Generate Research Report",
+          "selector": "button:not(.secondary)",
+          "stabilityTier": 6,
+          "opensModal": false
+        },
+        {
+          "label": "Clear",
+          "selector": "button.secondary",
+          "stabilityTier": 4,
+          "opensModal": false
+        }
+      ],
+      "multiStepControls": []
+    }
+  }
+}

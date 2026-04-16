@@ -1,7 +1,7 @@
 {
   "_meta": {
     "task": "person-search",
-    "description": "Search for a person by name or email and view their row in the people list.",
+    "description": "Search for a person by name or email. Navigates to the people list, waits for the search input to mount, types the search term, and reads all rows for client-side filtering.",
     "params": {
       "search_term": {
         "required": true,
@@ -39,10 +39,17 @@
       "url": "{{base_url}}/organization/people"
     },
     {
-      "stepId": "s3",
+      "stepId": "s2b",
       "action": "delay",
-      "ms": 1500,
-      "note": "Wait for people list to render"
+      "ms": 2000,
+      "note": "Allow Vue app to hydrate after SPA navigation before polling for DOM elements"
+    },
+    {
+      "stepId": "s3",
+      "action": "wait_for",
+      "selector": "input[placeholder='Search']",
+      "timeout": 12000,
+      "note": "Wait for Vuetify search input to mount — SPA navigation completes before Vue components render"
     },
     {
       "stepId": "s4",
@@ -56,20 +63,20 @@
       "action": "type",
       "selector": "input[placeholder='Search']",
       "value": "{{search_term}}",
-      "note": "Type search term into the search input"
+      "note": "Type search term — uses CDP Input.insertText which triggers Vue v-model"
     },
     {
       "stepId": "s6",
       "action": "delay",
       "ms": 1500,
-      "note": "Wait for search debounce and results to filter"
+      "note": "Wait for Vue reactive filter to settle"
     },
     {
       "stepId": "s7",
       "action": "read",
       "selector": ".v-data-table tbody",
       "store_as": "search_results",
-      "note": "Capture the filtered table results"
+      "note": "Read ALL rows from people table. The search input may not trigger Vue reactive filtering — always return the full table and filter by search_term in the final response. Match search_term against name and email text in each row."
     }
   ],
   "stateGraph": {

@@ -1,0 +1,215 @@
+{
+  "_meta": {
+    "task": "q05-ungrouped-users",
+    "queryType": "read_only",
+    "description": "Find all active users who are not members of any group. Reads all active people, then checks each person's detail page for group membership. Returns the list of users with no group assignments.",
+    "selfImproving": false,
+    "runCount": 0,
+    "lastSuccess": null,
+    "requiredParams": [],
+    "optionalParams": [],
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "notes": [
+      "TIER WARNING: Groups feature requires a Business plan. The current org has 0 groups. If groups are not enabled, ALL active users will appear as 'ungrouped' by definition.",
+      "This payload first checks if any groups exist. If not, it short-circuits with a tier warning.",
+      "If groups exist, it iterates active users and checks each person's detail page for group membership info.",
+      "Group membership on person detail: expected to appear on the Details tab or a dedicated Groups tab — not confirmed via live inspection (groups not available on current tier).",
+      "Alternative approach (if group detail is accessible): read all group member lists and diff against the full people list."
+    ]
+  },
+  "runId": "yeshid-q05-ungrouped-users-{{timestamp}}",
+  "mode": "query",
+  "site": "app.yeshid.com",
+  "params": {
+    "base_url": "https://app.yeshid.com"
+  },
+  "abstractTargets": {
+    "search-input": {
+      "match": { "role": "textbox", "name_contains": ["search"] },
+      "cachedSelector": "input[placeholder='Search']",
+      "cachedConfidence": 0.95
+    },
+    "items-per-page-select": {
+      "match": { "css": ".v-data-table-footer .v-select" },
+      "cachedSelector": ".v-data-table-footer .v-select",
+      "cachedConfidence": 0.80,
+      "resolveHint": "Items-per-page dropdown in the table footer."
+    },
+    "person-groups-section": {
+      "match": { "role": "region", "name_contains": ["group", "groups"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "resolveHint": "On the person detail page, find the section listing their group memberships. May be a tab labeled 'Groups', or a section within the Details tab. Look for elements with text 'Groups' or 'No groups'."
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": { "state": "authenticated" },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/groups",
+      "note": "First check if any groups exist. If not, short-circuit."
+    },
+    {
+      "stepId": "s3",
+      "action": "wait_for",
+      "selector": ".v-data-table",
+      "timeout": 6000
+    },
+    {
+      "stepId": "s3b",
+      "action": "perceive",
+      "selector": ".v-data-table-footer",
+      "store_as": "groups_footer",
+      "note": "Check if any groups exist. Footer '0-0 of 0' means no groups."
+    },
+    {
+      "stepId": "s3c",
+      "action": "guard_tier",
+      "check": "groups_footer",
+      "empty_signal": "0 of 0",
+      "on_empty": "respond_early",
+      "respond_early_data": {
+        "warning": "no_groups_exist",
+        "message": "No groups exist in this YeshID org. All active users are effectively ungrouped. Groups require a Business plan — upgrade at /manage/settings/billing.",
+        "ungrouped_users": "all_active_users",
+        "action": "Run q01-count-by-status to get total active user count."
+      },
+      "note": "If no groups exist, short-circuit. All users are ungrouped by definition."
+    },
+    {
+      "stepId": "s4",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people?filters=status=ACTIVE",
+      "note": "Navigate to active people list to build the full user list."
+    },
+    {
+      "stepId": "s5",
+      "action": "wait_for",
+      "selector": ".v-data-table-footer",
+      "timeout": 6000
+    },
+    {
+      "stepId": "s6",
+      "action": "click",
+      "target": "items-per-page-select",
+      "note": "Expand items per page to load all active users at once."
+    },
+    {
+      "stepId": "s6b",
+      "action": "click_text",
+      "text": "100",
+      "fallback_text": "All",
+      "context": ".v-overlay--active .v-list, .v-menu--active .v-list"
+    },
+    {
+      "stepId": "s6c",
+      "action": "delay",
+      "ms": 1000
+    },
+    {
+      "stepId": "s7",
+      "action": "perceive",
+      "selector": ".v-data-table tbody",
+      "store_as": "all_active_people",
+      "extract": "table_rows",
+      "columns": ["name", "primary_email"],
+      "note": "Capture full active user list."
+    },
+    {
+      "stepId": "s8",
+      "action": "for_each_row",
+      "source": "all_active_people",
+      "accumulator": "ungrouped_users",
+      "sub_chain": [
+        {
+          "stepId": "iter_s1",
+          "action": "find_row",
+          "identifier": "{{row.primary_email}}",
+          "note": "Navigate to this person's detail page."
+        },
+        {
+          "stepId": "iter_s2",
+          "action": "wait_for",
+          "state": "person-detail",
+          "timeout": 6000
+        },
+        {
+          "stepId": "iter_s3",
+          "action": "perceive",
+          "target": "person-groups-section",
+          "store_as": "person_groups",
+          "note": "Read the groups section/tab on this person's detail page. Look for group names or 'No groups' / empty state text."
+        },
+        {
+          "stepId": "iter_s4",
+          "action": "if_empty",
+          "check": "person_groups",
+          "empty_signals": ["No groups", "no group", "0 groups"],
+          "then": {
+            "action": "accumulate",
+            "target": "ungrouped_users",
+            "value": { "name": "{{row.name}}", "email": "{{row.primary_email}}" }
+          },
+          "note": "If person has no groups (empty section or 'No groups' text), add to ungrouped list."
+        },
+        {
+          "stepId": "iter_s5",
+          "action": "navigate",
+          "url": "{{base_url}}/organization/people?filters=status=ACTIVE",
+          "note": "Return to people list for next iteration."
+        },
+        {
+          "stepId": "iter_s6",
+          "action": "wait_for",
+          "selector": ".v-data-table tbody",
+          "timeout": 5000
+        }
+      ],
+      "note": "For each active user: check person detail for group membership. Accumulate those with no groups."
+    },
+    {
+      "stepId": "s9",
+      "action": "respond",
+      "data": {
+        "ungrouped_users": { "source": "ungrouped_users" },
+        "ungrouped_count": { "source": "ungrouped_users", "extract": "count" },
+        "total_active_checked": { "source": "all_active_people", "extract": "count" }
+      },
+      "note": "Return list of active users not in any group. Each entry: { name, email }."
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [{ "type": "url_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }]
+      },
+      "authenticated": {
+        "signals": [
+          { "type": "url_matches", "pattern": "app\\.yeshid\\.com" },
+          { "type": "url_not_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }
+        ]
+      },
+      "people-list": {
+        "signals": [{ "type": "url_matches", "pattern": "/organization/people" }]
+      },
+      "person-detail": {
+        "signals": [
+          { "type": "url_matches", "pattern": "/organization/people/[a-z0-9-]+" },
+          { "type": "url_not_matches", "pattern": "/onboard|/offboard" }
+        ]
+      },
+      "groups-list": {
+        "signals": [{ "type": "url_matches", "pattern": "/organization/groups$" }]
+      }
+    }
+  }
+}

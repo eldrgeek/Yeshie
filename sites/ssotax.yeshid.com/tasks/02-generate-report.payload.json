@@ -1,0 +1,67 @@
+{
+  "_meta": {
+    "name": "ssotax-generate-report",
+    "site": "ssotax.yeshid.com",
+    "description": "Click 'Generate Research Report' — the primary CTA on ssotax.yeshid.com. Captures what the report flow looks like: form fields, required inputs, output format.",
+    "version": "1.0.0",
+    "verified": false,
+    "verifiedDate": null,
+    "author": "session-2026-04-14",
+    "anomalies": [
+      "Report generation flow unknown — needs exploration to determine if it requires login, email, or org name",
+      "May be a multi-step wizard or single-page form"
+    ]
+  },
+  "params": {
+    "company_name": {
+      "required": false,
+      "description": "Company name or domain to analyze for SSO Tax",
+      "default": ""
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://ssotax.yeshid.com/",
+      "note": "Start at homepage"
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 3000,
+      "note": "Wait for SPA render"
+    },
+    {
+      "stepId": "s3",
+      "action": "click_text",
+      "text": "Generate Research Report",
+      "note": "Click the primary CTA button"
+    },
+    {
+      "stepId": "s4",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for modal/next page to load"
+    },
+    {
+      "stepId": "s5",
+      "action": "perceive",
+      "store_as": "report_flow_snap",
+      "note": "Perceive the report generation form/flow. Capture all fields, labels, and required inputs."
+    }
+  ],
+  "stateGraph": {
+    "initial": "homepage",
+    "states": {
+      "homepage": {
+        "transitions": {
+          "click Generate Research Report": "report-form"
+        }
+      },
+      "report-form": {
+        "description": "Report generation form or modal — inputs TBD"
+      }
+    }
+  }
+}

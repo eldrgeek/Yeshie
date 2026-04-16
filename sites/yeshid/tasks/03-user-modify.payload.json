@@ -27,8 +27,8 @@
       "new_personal_email": "New personal email (optional, leave empty to skip)"
     },
     "selfImproving": true,
-    "runCount": 0,
-    "lastSuccess": null,
+    "runCount": 1,
+    "lastSuccess": "2026-04-14T00:00:00Z",
     "prerequisite": "00-login.payload.json",
     "auth": {
       "type": "sso_automatable",
@@ -61,8 +61,10 @@
           "search"
         ]
       },
-      "cachedSelector": "input[placeholder='Search']",
-      "cachedConfidence": 0.9
+      "cachedSelector": ".search-input",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-14T00:00:00Z",
+      "resolvedVia": "class_match"
     },
     "save-button": {
       "match": {
@@ -122,9 +124,10 @@
     },
     {
       "stepId": "s2",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for page to fully render"
+      "action": "wait_for",
+      "selector": ".search-input",
+      "timeout": 5000,
+      "note": "Wait for people list to fully render before typing in search. Replaces blind delay."
     },
     {
       "stepId": "s3",
@@ -217,6 +220,52 @@
       ],
       "store_as": "confirmation_message",
       "note": "Read the save confirmation message"
+    },
+    {
+      "stepId": "s13",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people",
+      "note": "VERIFY: Navigate back to people list to find the modified user."
+    },
+    {
+      "stepId": "s14",
+      "action": "wait_for",
+      "selector": ".search-input",
+      "timeout": 5000,
+      "note": "Wait for people list to render."
+    },
+    {
+      "stepId": "s15",
+      "action": "type",
+      "target": "search-input",
+      "value": "{{user_identifier}}",
+      "note": "Search for user by identifier to locate their row."
+    },
+    {
+      "stepId": "s15b",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for Vue debounce."
+    },
+    {
+      "stepId": "s16",
+      "action": "find_row",
+      "identifier": "{{user_identifier}}",
+      "store_as": "user_row",
+      "note": "Find user row and click through to their detail page."
+    },
+    {
+      "stepId": "s17",
+      "action": "wait_for",
+      "url_pattern": "/organization/people/[a-z0-9-]+/details",
+      "timeout": 6000,
+      "note": "Wait for person detail page to load."
+    },
+    {
+      "stepId": "s18",
+      "action": "perceive",
+      "store_as": "person_detail_verify",
+      "note": "VERIFY: Perceive person detail page. Confirm the modified fields (first name, last name, personal email) reflect the updated values."
     }
   ],
   "stateGraph": {

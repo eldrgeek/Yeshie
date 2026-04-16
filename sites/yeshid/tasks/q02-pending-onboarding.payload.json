@@ -1,0 +1,111 @@
+{
+  "_meta": {
+    "task": "q02-pending-onboarding",
+    "queryType": "read_only",
+    "description": "List users who are pending onboarding (status=STAGED). Returns each person's name, primary email, and start date if visible in the table. Returns an empty list if no staged users exist — this is expected on the current free-tier org.",
+    "selfImproving": false,
+    "runCount": 0,
+    "lastSuccess": null,
+    "requiredParams": [],
+    "optionalParams": [],
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "notes": [
+      "URL filter ?filters=status=STAGED tested live — returns 0 results on current org.",
+      "STAGED_OFFBOARDING is a separate status for users scheduled for removal.",
+      "If the org has users onboarded with a future start date, they appear here.",
+      "Table columns observed: YeshID account owner, Primary email, Directory synced, YeshID status, # of applications. Start date is not a visible column — may appear in person detail."
+    ]
+  },
+  "runId": "yeshid-q02-pending-onboarding-{{timestamp}}",
+  "mode": "query",
+  "site": "app.yeshid.com",
+  "params": {
+    "base_url": "https://app.yeshid.com"
+  },
+  "abstractTargets": {
+    "pagination-footer": {
+      "match": { "css": ".v-data-table-footer" },
+      "cachedSelector": ".v-data-table-footer",
+      "cachedConfidence": 0.97,
+      "resolveHint": "Footer below the data table. Shows '0-0 of 0' when no results."
+    },
+    "people-table-body": {
+      "match": { "css": ".v-data-table tbody" },
+      "cachedSelector": ".v-data-table tbody",
+      "cachedConfidence": 0.95,
+      "resolveHint": "Table body containing person rows. Each row has: avatar initials, name, primary email, directory sync status, YeshID status chip, app count."
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": { "state": "authenticated" },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people?filters=status=STAGED",
+      "note": "Filter to users in STAGED (pending onboarding) status."
+    },
+    {
+      "stepId": "s3",
+      "action": "wait_for",
+      "selector": ".v-data-table",
+      "timeout": 6000,
+      "note": "Wait for the Vue data table to mount."
+    },
+    {
+      "stepId": "s4",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Allow Vue reactivity to settle after navigation."
+    },
+    {
+      "stepId": "s5",
+      "action": "perceive",
+      "selector": ".v-data-table-footer",
+      "store_as": "staged_footer",
+      "note": "Capture total count. '0-0 of 0' means no staged users."
+    },
+    {
+      "stepId": "s6",
+      "action": "perceive",
+      "selector": ".v-data-table tbody",
+      "store_as": "staged_rows",
+      "extract": "table_rows",
+      "columns": ["name", "primary_email", "directory_synced", "status"],
+      "note": "Read all staged-user rows. Each row: name (col 1), primary email (col 2), directory sync (col 3), status chip (col 4). Start date not in table — would require navigating to each person's detail page."
+    },
+    {
+      "stepId": "s7",
+      "action": "respond",
+      "data": {
+        "count": { "source": "staged_footer", "pattern": "of (\\d+)", "capture": 1 },
+        "users": { "source": "staged_rows" }
+      },
+      "empty_message": "No users are currently pending onboarding (status=STAGED). If you expected staged users, verify their onboarding was scheduled for a future start date.",
+      "note": "Return count and list. If count is 0, return empty list with explanation."
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [{ "type": "url_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }]
+      },
+      "authenticated": {
+        "signals": [
+          { "type": "url_matches", "pattern": "app\\.yeshid\\.com" },
+          { "type": "url_not_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }
+        ]
+      },
+      "people-list": {
+        "signals": [{ "type": "url_matches", "pattern": "/organization/people" }]
+      }
+    }
+  }
+}

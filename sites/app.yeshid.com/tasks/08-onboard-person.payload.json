@@ -1,0 +1,308 @@
+{
+  "_meta": {
+    "description": "Create a new person in YeshID and launch their onboarding workflow with an optional scheduled start date.",
+    "requiresAuth": true,
+    "baseUrl": "https://app.yeshid.com",
+    "requiredParams": [
+      "first_name",
+      "last_name",
+      "email_prefix"
+    ],
+    "optionalParams": [
+      "recovery_email",
+      "start_date",
+      "template"
+    ],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "prerequisite": "00-login.payload.json",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "params": {
+      "first_name": {
+        "required": true,
+        "description": "Person's first name"
+      },
+      "last_name": {
+        "required": true,
+        "description": "Person's last name"
+      },
+      "email_prefix": {
+        "required": true,
+        "description": "Email prefix (part before @). The domain is selected in the UI — defaults to @mike-wolf.com.",
+        "hint": "e.g. 'john.smith' — do NOT include the @ or domain"
+      },
+      "recovery_email": {
+        "required": false,
+        "description": "Personal or recovery email address (optional)"
+      },
+      "start_date": {
+        "required": false,
+        "description": "ISO date string for scheduled onboarding start (e.g. '2026-05-01'). If omitted, the person is created and onboarded immediately using the default workflow."
+      },
+      "template": {
+        "required": false,
+        "default": "YeshID Default",
+        "description": "Onboarding workflow template name. Must match a template visible in the dropdown."
+      }
+    },
+    "homeBookend": true,
+    "verificationStrategy": {
+      "pre": "perceive onboard form and confirm fields are empty and ready",
+      "post": "read snackbar, then navigate to People table and search for first_name + last_name to confirm person was created",
+      "primaryVerification": "url_contains '/organization/people' AND new_person_in_table contains first_name and last_name"
+    },
+    "id": "onboard-person",
+    "title": "Onboard New Person"
+  },
+  "runId": "yeshid-onboard-person-{{timestamp}}",
+  "mode": "learning",
+  "site": "app.yeshid.com",
+  "params": {
+    "first_name": "{{first_name}}",
+    "last_name": "{{last_name}}",
+    "email_prefix": "{{email_prefix}}",
+    "recovery_email": "{{recovery_email}}",
+    "start_date": "{{start_date}}",
+    "template": "{{template}}",
+    "base_url": "https://app.yeshid.com"
+  },
+  "abstractTargets": {
+    "first-name-input": {
+      "match": {
+        "role": "textbox",
+        "ancestor_cy": "first-name-input"
+      },
+      "cachedSelector": "[data-cy=\"first-name-input\"] input",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-16",
+      "resolvedVia": "live-survey data-cy"
+    },
+    "last-name-input": {
+      "match": {
+        "role": "textbox",
+        "ancestor_cy": "last-name-input"
+      },
+      "cachedSelector": "[data-cy=\"last-name-input\"] input",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-16",
+      "resolvedVia": "live-survey data-cy"
+    },
+    "company-email-input": {
+      "match": {
+        "role": "textbox",
+        "ancestor_cy": "company-email-input"
+      },
+      "cachedSelector": "[data-cy=\"company-email-input\"] input",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-16",
+      "resolvedVia": "live-survey data-cy"
+    },
+    "recovery-email-input": {
+      "match": {
+        "role": "textbox",
+        "ancestor_cy": "recovery-email-input"
+      },
+      "cachedSelector": "[data-cy=\"recovery-email-input\"] input",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-16",
+      "resolvedVia": "live-survey data-cy"
+    },
+    "schedule-checkbox": {
+      "match": {
+        "type": "checkbox",
+        "aria-label": "Schedule this person to be onboarded"
+      },
+      "cachedSelector": "input[type=\"checkbox\"][aria-label=\"Schedule this person to be onboarded\"]",
+      "cachedConfidence": 0.9,
+      "resolvedOn": "2026-04-16",
+      "resolvedVia": "live-survey aria-label"
+    },
+    "start-date-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "Select start date"
+        ]
+      },
+      "cachedSelector": "[data-cy=\"schedule-user-activator\"]:first-of-type",
+      "cachedConfidence": 0.85,
+      "resolvedOn": "2026-04-16",
+      "resolvedVia": "live-survey data-cy (first of two activators)"
+    },
+    "template-select": {
+      "match": {
+        "role": "combobox",
+        "ancestor_cy": "Onboarding-template-select"
+      },
+      "cachedSelector": "[data-cy=\"Onboarding-template-select\"] input",
+      "cachedConfidence": 0.9,
+      "resolvedOn": "2026-04-16",
+      "resolvedVia": "live-survey data-cy"
+    },
+    "submit-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "Create and onboard person"
+        ]
+      },
+      "cachedSelector": "button:has-text('Create and onboard person')",
+      "cachedConfidence": 0.9,
+      "resolvedOn": "2026-04-16",
+      "resolvedVia": "live-survey button text"
+    },
+    "user-table": {
+      "match": {
+        "role": "table",
+        "ancestor_cy": "user-table"
+      },
+      "cachedSelector": "[data-cy=\"user-table\"]",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-16",
+      "resolvedVia": "live-survey data-cy"
+    }
+  },
+  "chain": [
+    {
+      "stepId": "h0",
+      "action": "navigate",
+      "url": "/overview",
+      "note": "HOME START: Navigate to overview dashboard before performing action."
+    },
+    {
+      "stepId": "h0b",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 5000,
+      "note": "Confirm authenticated — username widget must be visible."
+    },
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "/organization/people/onboard",
+      "note": "Navigate directly to the onboard person form."
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "timeout": 6000,
+      "selector": "[data-cy=\"first-name-input\"]",
+      "note": " [fixed: was condition/url_contains for '/organization/people/onboard']"
+    },
+    {
+      "stepId": "p1",
+      "action": "perceive",
+      "description": "Verify onboard form is loaded and fields are ready",
+      "store_as": "form_state",
+      "note": "Perceive before filling to confirm no stale data or error state."
+    },
+    {
+      "stepId": "s3",
+      "action": "type",
+      "target": "first-name-input",
+      "value": "{{first_name}}",
+      "note": "Fill first name field."
+    },
+    {
+      "stepId": "s4",
+      "action": "type",
+      "target": "last-name-input",
+      "value": "{{last_name}}",
+      "note": "Fill last name field."
+    },
+    {
+      "stepId": "s5",
+      "action": "type",
+      "target": "company-email-input",
+      "value": "{{email_prefix}}",
+      "note": "Fill email prefix only (e.g. 'john.smith'). Domain dropdown auto-appends @mike-wolf.com."
+    },
+    {
+      "stepId": "s6",
+      "action": "type",
+      "target": "recovery-email-input",
+      "value": "{{recovery_email}}",
+      "note": "Fill recovery email if provided. Skip if recovery_email is empty.",
+      "skipIfParamEmpty": "recovery_email"
+    },
+    {
+      "stepId": "s7",
+      "action": "click_text",
+      "note": "Click 'Create and onboard person' button to submit. Using click_text — cachedSelector was :has-text() (invalid CSS). [was: click submit-button]",
+      "responseSignature": [
+        {
+          "any_of": [
+            {
+              "type": "url_contains",
+              "value": "/organization/people",
+              "timeout": 10000
+            },
+            {
+              "type": "element_visible",
+              "selector": ".v-snackbar--active",
+              "timeout": 10000
+            }
+          ]
+        }
+      ],
+      "text": "Create and onboard person"
+    },
+    {
+      "stepId": "s8",
+      "action": "read",
+      "candidates": [
+        ".v-snackbar--active .v-snackbar__content",
+        ".v-snackbar .v-snackbar__content",
+        "[role=\"alert\"]"
+      ],
+      "store_as": "confirmation_message",
+      "optional": true,
+      "note": "Capture success or error message from snackbar."
+    },
+    {
+      "stepId": "v1",
+      "action": "navigate",
+      "url": "/organization/people",
+      "note": "VERIFICATION: Navigate to People table to confirm new person appears."
+    },
+    {
+      "stepId": "v2",
+      "action": "wait_for",
+      "selector": "[data-cy=\"user-table\"]",
+      "timeout": 6000,
+      "note": "Wait for People table to render."
+    },
+    {
+      "stepId": "v3",
+      "action": "read",
+      "candidates": [
+        "[data-cy=\"user-table\"] tbody",
+        "[data-cy=\"user-table\"]"
+      ],
+      "store_as": "new_person_in_table",
+      "note": "Read People table. Verify a row containing '{{first_name}}' and '{{last_name}}' is present."
+    },
+    {
+      "stepId": "hZ",
+      "action": "navigate",
+      "url": "/overview",
+      "note": "HOME END: Return to overview after action completes."
+    },
+    {
+      "stepId": "hZb",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 5000
+    },
+    {
+      "stepId": "verify-success",
+      "action": "perceive",
+      "store_as": "onboard_verification",
+      "description": "Independent confirmation: verify People table contains first_name and last_name row indicating successful onboarding"
+    }
+  ]
+}

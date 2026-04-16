@@ -1,0 +1,79 @@
+{
+  "_meta": {
+    "name": "okta-view-system-log",
+    "site": "trial-8689388-admin.okta.com",
+    "description": "Navigate to the Okta System Log (last 7 days) and read the event table.",
+    "version": "1.0.0",
+    "verified": true,
+    "verifiedDate": "2026-04-13",
+    "anomalies": [
+      "URL is /report/system_log_2 (not /admin/reports or /admin/security) — note the /report prefix, not /admin/report",
+      "Table header first column is empty string '' — likely a status/icon column",
+      "Page appends date range, locale, viewport, and zoom params automatically on load",
+      "CSV download available via direct href in mainActions: /sage/api/v1/logs/csv?since=...&until=...&q="
+    ]
+  },
+  "params": {
+    "base_url": "https://trial-8689388-admin.okta.com"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://trial-8689388-admin.okta.com/report/system_log_2",
+      "note": "URL prefix is /report (not /admin/report). Page auto-appends ?search=&fromTime=...&toTime=...&locale=...&limit=20&view=list"
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 3500,
+      "note": "System log fetches from API — needs slightly longer wait than other pages."
+    },
+    {
+      "stepId": "s3",
+      "action": "perceive",
+      "store_as": "syslog_snap",
+      "note": "Table headers: ['', 'Time', 'Actor', 'Event Info', 'Targets']. Typically 20-40 rows. mainActions include: Back to Reports, Advanced Filters, Reset Filters, Download CSV (href: /sage/api/v1/logs/csv?...), Show More."
+    }
+  ],
+  "abstractTargets": {
+    "log-table": {
+      "description": "System log event table",
+      "tableHeaders": ["", "Time", "Actor", "Event Info", "Targets"],
+      "note": "rowCount is typically 40 (20 events + calendar = ~40 effective rows seen by perceive)"
+    },
+    "search-field": {
+      "description": "Event type/filter search",
+      "tag": "INPUT",
+      "type": "text"
+    },
+    "csv-download": {
+      "description": "Download current log view as CSV",
+      "hrefPattern": "/sage/api/v1/logs/csv"
+    },
+    "advanced-filters": {
+      "description": "Toggle advanced filter panel",
+      "text": "Advanced Filters",
+      "href": "#"
+    }
+  },
+  "usefulSearchQueries": {
+    "failed-logins": "eventType eq \"user.session.start\" and outcome.result eq \"FAILURE\"",
+    "sso-attempts": "eventType eq \"user.authentication.sso\"",
+    "policy-changes": "eventType eq \"policy.lifecycle.update\"",
+    "user-by-id": "actor.id eq \"00u...\""
+  },
+  "stateGraph": {
+    "initial": "system-log",
+    "states": {
+      "system-log": {
+        "description": "System log loaded with default 7-day window",
+        "expectedHeading": "System Log",
+        "transitions": {
+          "click Advanced Filters": "filtered-log",
+          "click Download CSV": "csv-download-triggered"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "_meta": {
+    "name": "gadmin-list-ous",
+    "site": "admin.google.com",
+    "description": "Navigate to Google Admin Organizational Units and perceive the OU tree. Maps the org structure.",
+    "version": "1.0.0",
+    "verified": false,
+    "verifiedDate": null,
+    "author": "session-2026-04-14",
+    "anomalies": [
+      "Google Admin SPA — perceive required, read returns null",
+      "Session may require re-auth via accounts.google.com/signin/challenge if inactive"
+    ]
+  },
+  "params": {
+    "base_url": "https://admin.google.com"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://admin.google.com/ac/orgunits",
+      "note": "Navigate to Organizational Units"
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 3500
+    },
+    {
+      "stepId": "s3",
+      "action": "perceive",
+      "store_as": "ou_tree",
+      "note": "Perceive OU tree. Expected: hierarchical list of OUs under the root org. Google Workspace orgs typically show: root org, sub-OUs for departments/groups."
+    }
+  ],
+  "stateGraph": {
+    "initial": "ou-list",
+    "states": {
+      "ou-list": {
+        "description": "Organizational Units list page",
+        "transitions": {
+          "click OU row": "ou-detail",
+          "click Add organizational unit": "add-ou-form"
+        }
+      }
+    }
+  }
+}

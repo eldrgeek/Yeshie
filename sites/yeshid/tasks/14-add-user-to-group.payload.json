@@ -1,0 +1,257 @@
+{
+  "_meta": {
+    "task": "add-user-to-group",
+    "description": "Add an existing user to an existing group in YeshID. Navigates to the groups page, opens the target group, then adds the user via the group membership UI.",
+    "params": {
+      "group_name": {
+        "required": true,
+        "description": "Name of the group to add the user to"
+      },
+      "user_identifier": {
+        "required": true,
+        "description": "Name or email of the user to add to the group"
+      }
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "prerequisite": "00-login.payload.json",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "requiredParams": [
+      "group_name",
+      "user_identifier"
+    ],
+    "optionalParams": [],
+    "author": "session-2026-04-14",
+    "verified": false,
+    "anomalies": [
+      "IMPORTANT: Groups feature requires Business plan on this YeshID account. Cannot be tested until plan is upgraded.",
+      "Group member add UI may be inside the group detail page at /organization/groups/{id}",
+      "YeshID may use a modal or inline search to add members \u2014 perceive the group detail page first",
+      "Groups feature requires at least one existing group \u2014 ensure 09-create-group has been run first"
+    ]
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com",
+    "group_name": "",
+    "user_identifier": ""
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {
+        "state": "authenticated"
+      },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/groups",
+      "note": "Navigate to groups list"
+    },
+    {
+      "stepId": "s3",
+      "action": "wait_for",
+      "selector": ".search-input, table",
+      "timeout": 5000,
+      "note": "Wait for groups list to render."
+    },
+    {
+      "stepId": "s3b",
+      "action": "type",
+      "target": "search-input",
+      "value": "{{group_name}}",
+      "note": "Bug 2 fix: Search for the group first \u2014 do not rely on page 1 visibility."
+    },
+    {
+      "stepId": "s3c",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Wait for search debounce."
+    },
+    {
+      "stepId": "s4",
+      "action": "find_row",
+      "identifier": "{{group_name}}",
+      "store_as": "group_row",
+      "note": "Click group name to open group detail page."
+    },
+    {
+      "stepId": "s5",
+      "action": "wait_for",
+      "url_pattern": "/organization/groups/[a-z0-9-]+",
+      "timeout": 6000,
+      "note": "Wait for group detail to load."
+    },
+    {
+      "stepId": "s6",
+      "action": "perceive",
+      "store_as": "group_detail",
+      "note": "Perceive group detail page. Look for: Add Member / Add Person / Add User button. Also look for member list and any search field."
+    },
+    {
+      "stepId": "s7",
+      "action": "click",
+      "target": "add-member-button",
+      "fallback_texts": [
+        "Add Member",
+        "Add Person",
+        "Add User",
+        "+ Member"
+      ],
+      "note": "Open the add-member dialog."
+    },
+    {
+      "stepId": "s8",
+      "action": "wait_for",
+      "selector": ".v-overlay--active input, [role=\"dialog\"] input",
+      "timeout": 4000,
+      "note": "Wait for add-member dialog to open and search input to render."
+    },
+    {
+      "stepId": "s9",
+      "action": "type",
+      "target": "member-search-input",
+      "value": "{{user_identifier}}",
+      "note": "Type user name or email into member search field inside the dialog."
+    },
+    {
+      "stepId": "s10",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for search results to populate."
+    },
+    {
+      "stepId": "s11",
+      "action": "perceive",
+      "store_as": "member_search_results",
+      "note": "Verify search results appeared with the matching user."
+    },
+    {
+      "stepId": "s12",
+      "action": "click_text",
+      "text": "{{user_identifier}}",
+      "note": "Click the matching user in search results to select them."
+    },
+    {
+      "stepId": "s13",
+      "action": "delay",
+      "ms": 1000
+    },
+    {
+      "stepId": "s14",
+      "action": "click_text",
+      "text": "Add",
+      "fallback_texts": [
+        "Save",
+        "Confirm",
+        "Add Member"
+      ],
+      "note": "Confirm adding the user to the group."
+    },
+    {
+      "stepId": "s15",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for member list to update."
+    },
+    {
+      "stepId": "s16",
+      "action": "find_row",
+      "identifier": "{{user_identifier}}",
+      "store_as": "verify_membership",
+      "assert_present": true,
+      "note": "VERIFY: User must appear in group member list. If this step fails, the user was not added successfully."
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "authenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin"
+          }
+        ]
+      },
+      "groups-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/groups$"
+          }
+        ]
+      },
+      "group-detail": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/groups/[a-z0-9-]+"
+          }
+        ]
+      }
+    }
+  },
+  "abstractTargets": {
+    "search-input": {
+      "match": {
+        "role": "textbox",
+        "name_contains": [
+          "search"
+        ]
+      },
+      "cachedSelector": ".search-input",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-14T00:00:00Z",
+      "resolvedVia": "class_match",
+      "resolveHint": "Input with class search-input and placeholder Search."
+    },
+    "add-member-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "add member",
+          "add person",
+          "add user"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.85,
+      "resolvedOn": "2026-04-14T00:00:00Z",
+      "resolveHint": "Button to open add-member dialog. Look for Add Member, Add Person, or + icon on group detail page.",
+      "fallbackSelectors": [
+        "button:has-text(\"Add Member\")",
+        "button:has-text(\"Add Person\")",
+        "button.bg-primary"
+      ]
+    },
+    "member-search-input": {
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "search",
+          "name",
+          "email"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.85,
+      "resolvedOn": "2026-04-14T00:00:00Z",
+      "resolveHint": "Search input inside the add-member dialog. Look for input in .v-overlay--active or [role=dialog].",
+      "fallbackSelectors": [
+        ".v-overlay--active input[type=\"text\"]",
+        "[role=\"dialog\"] input[placeholder*=\"search\" i]",
+        "[role=\"dialog\"] input[placeholder*=\"name\" i]"
+      ]
+    }
+  }
+}

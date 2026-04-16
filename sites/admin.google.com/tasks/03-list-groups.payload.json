@@ -1,0 +1,81 @@
+{
+  "_meta": {
+    "name": "gadmin-list-groups",
+    "site": "admin.google.com",
+    "description": "List all Google Groups in Admin console. Groups table: Group name, Email address, Members, Access type.",
+    "version": "1.0.0",
+    "verified": true,
+    "verifiedDate": "2026-04-13",
+    "anomalies": [
+      "No H1/H2 headings \u2014 Google uses custom elements for page titles",
+      "Table headers doubled like users page: 'Group nameGroup name Group name...'",
+      "Per-row action buttons are in perceive.buttons not mainActions: 'View', 'Add members', 'Manage members', 'Edit settings', 'More options \u2193DELETE GROUP'",
+      "DELETE GROUP is concatenated into 'More options' button text \u2014 not a separate button",
+      "2 rows in default org (standard Google Workspace groups)"
+    ]
+  },
+  "params": {
+    "base_url": "https://admin.google.com"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://admin.google.com/ac/groups",
+      "note": "Google Admin groups path. Hard-code full URL."
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 3500
+    },
+    {
+      "stepId": "s3",
+      "action": "perceive",
+      "store_as": "groups_snap",
+      "note": "Table headers: ['', 'Group nameGroup name...', 'Email addressEmail address...', 'MembersMembers', 'Access typeAccess type', '']. rowCount=2 in default org. Buttons per row: View, Add members, Manage members, Edit settings, More options/DELETE."
+    }
+  ],
+  "abstractTargets": {
+    "create-group-button": {
+      "description": "Button to create a new group",
+      "cachedSelector": "button[aria-label='Create group']",
+      "cachedConfidence": 0.7,
+      "resolvedOn": "2026-04-13T00:00:00.000Z",
+      "note": "Confirmed via perceive buttons: 'Create group'. CSS selector confidence low \u2014 use click_text('Create group') as fallback.",
+      "anchors": {
+        "ariaLabel": "Create group"
+      }
+    },
+    "inspect-groups-button": {
+      "description": "Button to inspect/audit group memberships",
+      "cachedSelector": "button[aria-label='Inspect groups']",
+      "cachedConfidence": 0.7,
+      "resolvedOn": "2026-04-13T00:00:00.000Z",
+      "note": "Confirmed via perceive buttons: 'Inspect groups'.",
+      "anchors": {
+        "ariaLabel": "Inspect groups"
+      }
+    }
+  },
+  "stateGraph": {
+    "initial": "groups-list",
+    "states": {
+      "groups-list": {
+        "description": "Groups list loaded",
+        "expectedTable": {
+          "headers": [
+            "Group name",
+            "Email address",
+            "Members",
+            "Access type"
+          ]
+        },
+        "transitions": {
+          "click Create group": "create-group-dialog",
+          "click View (per row)": "group-detail"
+        }
+      }
+    }
+  }
+}

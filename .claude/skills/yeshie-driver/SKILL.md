@@ -102,3 +102,20 @@ During `/chat/await` timeouts, check the heartbeat:
 - Response buffer keeps last 50 responses per tab
 - Use the `since` param on `/chat/await` to avoid re-reading old responses:
   after getting a response, save its `ts` and pass it as `since` on the next await
+
+---
+
+## Tool Choice: Always Yeshie, Never CiC or Chrome DevTools MCP
+
+For any testing, exploration, or research on a live web page, **use Yeshie** (inject → await).
+Do NOT use Claude in Chrome (CiC) or the Chrome DevTools MCP for this project.
+
+Reasons:
+- Yeshie is the system under test — using it for exploration validates it as you go
+- CiC and Chrome DevTools bypass the Haiku listener entirely, giving you a false read on real behavior
+- Results from CiC/DevTools won't reflect what users actually experience through Yeshie
+
+**If Haiku can't complete the research** (e.g., the DOM is too complex, the task requires judgment beyond Haiku's capability):
+- Haiku should reply with `"escalate": true` in its response
+- Opus (you) then either drives the task directly with more specific sub-instructions, or asks the user
+- Never silently fall back to CiC/DevTools — escalate explicitly instead

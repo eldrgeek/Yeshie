@@ -1,0 +1,77 @@
+{
+  "_meta": {
+    "name": "gadmin-list-users",
+    "site": "admin.google.com",
+    "description": "Navigate to Google Admin Users list and perceive the table of all users.",
+    "version": "1.0.0",
+    "verified": true,
+    "verifiedDate": "2026-04-13",
+    "anomalies": [
+      "perceive required \u2014 Google Admin is a React/Angular SPA; read returns null after navigate",
+      "No H1/H2 headings on users page \u2014 Google uses custom elements. perceive returns headings:[].",
+      "Table headers are doubled with sort instructions concatenated: 'NameName Name. Sorted in ascending order...'",
+      "Table shows 20 rows per page (pagination). rowCount reflects current page only.",
+      "Per-row action buttons ('Reset password', 'Rename user') appear as floating buttons \u2014 not in mainActions"
+    ]
+  },
+  "params": {
+    "base_url": "https://admin.google.com"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://admin.google.com/ac/users",
+      "note": "All Google Admin paths use /ac/ prefix. Hard-code full URLs."
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 3500,
+      "note": "Google Admin SPA needs ~3s to populate table from API."
+    },
+    {
+      "stepId": "s3",
+      "action": "perceive",
+      "store_as": "users_snap",
+      "note": "Returns table with headers (doubled): ['', 'NameName...', 'EmailEmail...', 'Last sign in...', 'Email usage...', 'Google Photos usage...', '']. rowCount=20 (one page). Per-user actions in buttons: 'Reset password', 'Rename user'."
+    }
+  ],
+  "abstractTargets": {
+    "add-user-button": {
+      "description": "Primary button to open Add new user dialog",
+      "cachedSelector": "button[title='Add new user'], [data-test-id='add-user-button']",
+      "cachedConfidence": 0.7,
+      "resolvedOn": "2026-04-13T00:00:00.000Z",
+      "note": "Confirmed visible via click_text('Add new user'). CSS selector unverified \u2014 use click_text as fallback.",
+      "anchors": {
+        "ariaLabel": "Add new user"
+      }
+    },
+    "user-search": {
+      "description": "Search box: 'Search for users, groups, settings, or devices'",
+      "cachedSelector": "input[aria-label='Search for users, groups, settings, or devices']",
+      "cachedConfidence": 0.9,
+      "resolvedOn": "2026-04-13T00:00:00.000Z"
+    }
+  },
+  "stateGraph": {
+    "initial": "users-list",
+    "states": {
+      "users-list": {
+        "description": "Users list loaded, ~20 rows visible",
+        "expectedTable": {
+          "headers": [
+            "Name",
+            "Email",
+            "Last sign in"
+          ]
+        },
+        "transitions": {
+          "click Add new user": "add-user-dialog",
+          "click user row": "user-detail"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "_meta": {
+    "name": "ssotax-perceive-homepage",
+    "site": "ssotax.yeshid.com",
+    "description": "Navigate to ssotax.yeshid.com and perceive the full landing page. Captures hero text, CTAs, value proposition, pricing, and all interactive elements.",
+    "version": "1.0.0",
+    "verified": false,
+    "verifiedDate": null,
+    "author": "session-2026-04-14",
+    "anomalies": [
+      "Heavy JavaScript SPA — read returns minimal content; perceive required",
+      "Dynamic content renders after JS execution — delay of 3s needed",
+      "Title shows 'YeshID: Connect anything with an API' but subdomain is ssotax.yeshid.com",
+      "Main CTA observed: 'Generate Research Report' — likely the core product action"
+    ]
+  },
+  "params": {
+    "base_url": "https://ssotax.yeshid.com"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://ssotax.yeshid.com/",
+      "note": "Navigate to SSO Tax homepage"
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 3000,
+      "note": "Wait for JS-heavy SPA to fully render"
+    },
+    {
+      "stepId": "s3",
+      "action": "perceive",
+      "store_as": "homepage_snap",
+      "note": "Perceive the full homepage. Expected: hero with value prop, 'Generate Research Report' CTA, search bar, navigation links (Explore, Redmine), footer (YeshID Home, Blog, Sign in)."
+    },
+    {
+      "stepId": "s4",
+      "action": "scroll",
+      "direction": "down",
+      "amount": 2000,
+      "note": "Scroll to reveal below-fold content"
+    },
+    {
+      "stepId": "s5",
+      "action": "perceive",
+      "store_as": "homepage_below_fold",
+      "note": "Perceive content below the fold after scroll"
+    }
+  ],
+  "stateGraph": {
+    "initial": "homepage",
+    "states": {
+      "homepage": {
+        "description": "SSO Tax landing page loaded",
+        "transitions": {
+          "click Generate Research Report": "report-flow",
+          "click Sign in": "auth"
+        }
+      }
+    }
+  }
+}
