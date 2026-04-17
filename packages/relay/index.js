@@ -330,6 +330,9 @@ export function createRelay(port = 3333) {
     const url = new URL(req.url, 'http://localhost');
     const path = url.pathname;
 
+    // Let Socket.IO/engine.io handle its own paths
+    if (path.startsWith("/socket.io")) return;
+
     // --- Auth flow observability log ---
     // In-memory ring buffer for auth flow events from extension
     if (!global.__authLog) global.__authLog = [];
@@ -629,19 +632,27 @@ function render() {
   }).join('');
 }
 
-const socket = io({ transports: ['websocket'] });
-socket.on('connect', () => { connEl.textContent = 'live'; connEl.style.color = '#3fb950'; });
+const socket = io({ transports: ['websocket', 'polling'] });
+socket.on('connect', () => {
+  connEl.textContent = 'live';
+  connEl.style.color = '#3fb950';
+  fetch('/jobs/status?filter=all').then(r=>r.json()).then(d => {
+    d.jobs.forEach(j => jobs.set(j.id, j));
+    render();
+  }).catch(()=>{});
+});
 socket.on('disconnect', () => { connEl.textContent = 'offline'; connEl.style.color = '#f85149'; });
 socket.on('job_update', job => { jobs.set(job.id, job); render(); });
 socket.on('jobs_snapshot', list => { jobs.clear(); list.forEach(j => jobs.set(j.id, j)); render(); });
 
-socket.on('connect', () => {
+// Polling safety net — syncs even if Socket.IO is down
+function pollJobs() {
   fetch('/jobs/status?filter=all').then(r=>r.json()).then(d => {
     d.jobs.forEach(j => jobs.set(j.id, j));
     render();
-  });
-});
-
+  }).catch(()=>{});
+}
+setInterval(pollJobs, 5000);
 setInterval(render, 1000);
 </script>
 </body></html>`;
