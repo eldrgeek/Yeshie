@@ -7,7 +7,7 @@ import { Server } from 'socket.io';
 import { appendFileSync, mkdirSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { execFile } from 'child_process';
+import { execFile, spawn } from 'child_process';
 
 // ====================== Conversation Logger ======================
 
@@ -83,6 +83,61 @@ export function createRelay(port = 3333) {
   let pendingListener = null;            // { res, timer }
   let pendingResponders = new Map();     // chatId → { res, timer }
   let suggestionQueue = [];
+
+  // ── HUD Job Tracking ──────────────────────────────────────────
+  const jobMap = new Map();
+  const DONE_DISMISS_MS = 10 * 60 * 1000;
+  const ACK_TIMEOUT_MS  =  3 * 60 * 1000;
+
+  function makeJob(job_id, session_title, description) {
+    return { job_id, session_title, description, status: 'running',
+             message: '', started_at: Date.now(), updated_at: Date.now(),
+             ack_timer: null, dismiss_timer: null, snooze_timer: null };
+  }
+
+  function broadcastHud() {
+    const jobs = [...jobMap.values()].map(j => ({
+      job_id: j.job_id, session_title: j.session_title, description: j.description,
+      status: j.status, message: j.message, started_at: j.started_at, updated_at: j.updated_at,
+    }));
+    io.emit('hud_update', { jobs });
+  }
+
+  function dismissJob(job_id) {
+    const job = jobMap.get(job_id);
+    if (!job) return;
+    if (job.ack_timer)     clearTimeout(job.ack_timer);
+    if (job.dismiss_timer) clearTimeout(job.dismiss_timer);
+    if (job.snooze_timer)  clearTimeout(job.snooze_timer);
+    jobMap.delete(job_id);
+    broadcastHud();
+  }
+
+  function scheduleAutoDismiss(job_id) {
+    const job = jobMap.get(job_id);
+    if (!job) return;
+    if (job.dismiss_timer) clearTimeout(job.dismiss_timer);
+    job.dismiss_timer = setTimeout(() => dismissJob(job_id), DONE_DISMISS_MS);
+  }
+
+  function fireAlert(job_id, session_title, message) {
+    const alertScript = join(__dirname, '..', '..', 'scripts', 'alert.sh');
+    const child = spawn('bash', [alertScript, session_title, message, job_id],
+                        { detached: true, stdio: 'ignore' });
+    child.unref();
+    console.log(`[relay] alert fired for job ${job_id}`);
+    const job = jobMap.get(job_id);
+    if (job) {
+      if (job.snooze_timer) clearTimeout(job.snooze_timer);
+      job.snooze_timer = setTimeout(() => {
+        const j = jobMap.get(job_id);
+        if (j && (j.status === 'blocked' || j.status === 'notified'))
+          fireAlert(job_id, j.session_title, j.message);
+      }, 5 * 60 * 1000);
+    }
+  }
+  // ── end HUD Job Tracking ──────────────────────────────────────
+
   let lastListenerActiveAt = 0;          // timestamp of last listener activity (grace period for status)
 
   // Controller (C) channel — buffered responses and heartbeats for programmatic callers
@@ -130,7 +185,7 @@ export function createRelay(port = 3333) {
     clearNotifyTimer(job.id);
     const pyArgs = ['--session', job.session_title, '--save-restore', job.notify_message];
     console.log(`[relay] firing inject: job=${job.id} session="${job.session_title}"`);
-    execFile('python3', [AX_INJECT, ...pyArgs], { timeout: 15000 }, (err, stdout, stderr) => {
+    execFile('/opt/homebrew/bin/python3', [AX_INJECT, ...pyArgs], { timeout: 15000 }, (err, stdout, stderr) => {
       if (err) console.warn(`[relay] inject failed: ${err.message}\n${stderr}`);
       else console.log(`[relay] inject ok: ${stdout.trim()}`);
       const cur = jobs.get(job.id) || job;
@@ -1107,6 +1162,93 @@ h2{color:#58a6ff}hr{border-color:#333}
         io.emit('job_update', upd);
       }
       jsonReply(res, 200, { ok: true });
+      return;
+    }
+
+    // ── HUD: serve panel ─────────────────────────────────────────
+    if (path === '/' && req.method === 'GET') {
+      const { readFileSync: rfs } = await import('fs');
+      try {
+        const html = rfs(join(__dirname, 'index.html'), 'utf-8');
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(html);
+      } catch (e) {
+        res.writeHead(500); res.end('index.html not found: ' + e.message);
+      }
+      return;
+    }
+
+    // ── HUD: job/start ───────────────────────────────────────────
+    if (path === '/job/start' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const { job_id, session_title, description } = body;
+      if (!job_id) { jsonReply(res, 400, { error: 'job_id required' }); return; }
+      if (jobMap.has(job_id)) dismissJob(job_id);
+      jobMap.set(job_id, makeJob(job_id, session_title || 'unknown', description || ''));
+      broadcastHud();
+      jsonReply(res, 200, { ok: true, job_id });
+      return;
+    }
+
+    // ── HUD: job/update ──────────────────────────────────────────
+    if (path === '/job/update' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const { job_id, status, message } = body;
+      if (!job_id) { jsonReply(res, 400, { error: 'job_id required' }); return; }
+      if (!jobMap.has(job_id))
+        jobMap.set(job_id, makeJob(job_id, body.session_title || 'unknown', body.description || ''));
+      const job = jobMap.get(job_id);
+      if (status)             job.status  = status;
+      if (message !== undefined) job.message = message;
+      job.updated_at = Date.now();
+      if (status === 'notified') {
+        if (job.ack_timer) clearTimeout(job.ack_timer);
+        job.ack_timer = setTimeout(() => {
+          const j = jobMap.get(job_id);
+          if (j && j.status === 'notified') {
+            j.status = 'blocked'; j.message += ' [no ack — escalating]'; j.updated_at = Date.now();
+            broadcastHud();
+            fireAlert(job_id, j.session_title, 'Job completed but session did not acknowledge.');
+          }
+        }, ACK_TIMEOUT_MS);
+      }
+      if (status === 'blocked') fireAlert(job_id, job.session_title, message || 'Blocked — needs your input');
+      if (['done','acked','error'].includes(status)) {
+        if (job.ack_timer)    { clearTimeout(job.ack_timer);   job.ack_timer   = null; }
+        if (job.snooze_timer) { clearTimeout(job.snooze_timer); job.snooze_timer = null; }
+        scheduleAutoDismiss(job_id);
+      }
+      broadcastHud();
+      jsonReply(res, 200, { ok: true, job_id, status: job.status });
+      return;
+    }
+
+    // ── HUD: job/ack ─────────────────────────────────────────────
+    if (path === '/job/ack' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const { job_id } = body;
+      if (!job_id) { jsonReply(res, 400, { error: 'job_id required' }); return; }
+      const job = jobMap.get(job_id);
+      if (!job) { jsonReply(res, 404, { error: 'job not found' }); return; }
+      if (job.ack_timer)    { clearTimeout(job.ack_timer);   job.ack_timer   = null; }
+      if (job.snooze_timer) { clearTimeout(job.snooze_timer); job.snooze_timer = null; }
+      job.status = 'acked'; job.updated_at = Date.now();
+      scheduleAutoDismiss(job_id);
+      broadcastHud();
+      jsonReply(res, 200, { ok: true, job_id });
+      return;
+    }
+
+    // ── HUD: jobs snapshot ───────────────────────────────────────
+    if (path === '/jobs' && req.method === 'GET') {
+      const jobs = [...jobMap.values()].map(j => ({
+        job_id: j.job_id, session_title: j.session_title, description: j.description,
+        status: j.status, message: j.message, started_at: j.started_at, updated_at: j.updated_at,
+      }));
+      jsonReply(res, 200, { jobs });
       return;
     }
 
