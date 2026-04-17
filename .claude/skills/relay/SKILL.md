@@ -186,3 +186,41 @@ lsof -i :3333
 - Uses `createServer` + `socket.io` Server on the same HTTP server (not Express)
 - osascript notifier sends Mac desktop notifications on key events (configurable)
 - The `pending` Map is in-memory only — a relay restart clears all pending requests
+
+---
+
+## Session Injection (ax-inject / yeshie-inject)
+
+To send a message into a Claude Desktop session from the command line, use the `yeshie-inject` wrapper script:
+
+```bash
+yeshie-inject --session "Session Title" "message text"
+yeshie-inject --session "Session Title" --save-restore "message text"
+```
+
+- `--session` — exact or substring match against the sidebar session button title
+- `--save-restore` — saves the current session's textarea content and active session, injects into the target, then switches back and restores (use when the user may be mid-thought in another session)
+
+**The wrapper** (`scripts/yeshie-inject`) handles the correct Python interpreter and script path. If the underlying implementation changes, only the wrapper needs updating — not this skill or any callers.
+
+**From Node.js (relay):** The relay calls `yeshie-inject` directly via `execFile(AX_INJECT, pyArgs)` where `AX_INJECT = '.../scripts/yeshie-inject'`. No need to reference python3 explicitly.
+
+**Job dispatch pattern** — to trigger a session notification via the relay:
+```bash
+# 1. Create the job
+curl -s -X POST http://localhost:3333/jobs/create \
+  -H 'Content-Type: application/json' \
+  -d '{"id":"my-job","title":"Job description"}'
+
+# 2. Mark blocked with notify fields — relay handles smart timing
+curl -s -X POST http://localhost:3333/jobs/update \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "id": "my-job",
+    "status": "blocked",
+    "session_title": "Target Session Title",
+    "notify_message": "Your message here"
+  }'
+```
+
+The relay will fire immediately if the user is idle ≥10s, otherwise show a 30s HUD countdown with "Notify Now" / "Stop" buttons.

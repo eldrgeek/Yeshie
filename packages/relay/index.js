@@ -154,7 +154,7 @@ export function createRelay(port = 3333) {
   const notifyTimers = new Map();   // jobId → intervalId
   const COUNTDOWN_S  = 30;          // auto-fire after this many seconds
   const IDLE_FIRE_S  = 10;          // also auto-fire if user idle >= this long
-  const AX_INJECT    = '/Users/mikewolf/Projects/yeshie/scripts/ax-inject.py';
+  const AX_INJECT    = '/Users/mikewolf/Projects/yeshie/scripts/yeshie-inject';
 
   function getIdleSecondsAsync() {
     return new Promise(resolve => {
@@ -185,7 +185,7 @@ export function createRelay(port = 3333) {
     clearNotifyTimer(job.id);
     const pyArgs = ['--session', job.session_title, '--save-restore', job.notify_message];
     console.log(`[relay] firing inject: job=${job.id} session="${job.session_title}"`);
-    execFile('/opt/homebrew/bin/python3', [AX_INJECT, ...pyArgs], { timeout: 15000 }, (err, stdout, stderr) => {
+    execFile(AX_INJECT, pyArgs, { timeout: 15000 }, (err, stdout, stderr) => {
       if (err) console.warn(`[relay] inject failed: ${err.message}\n${stderr}`);
       else console.log(`[relay] inject ok: ${stdout.trim()}`);
       const cur = jobs.get(job.id) || job;

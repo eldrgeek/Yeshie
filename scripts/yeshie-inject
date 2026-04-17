@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# yeshie-inject — Send a message to a Claude Desktop session
+#
+# Usage:
+#   yeshie-inject --session "Session Title" "message text"
+#   yeshie-inject --session "Session Title" --save-restore "message text"
+#
+# Wraps ax-inject.py with the correct Python interpreter.
+
+PYTHON=/opt/homebrew/bin/python3
+SCRIPT="$(dirname "$0")/ax-inject.py"
+
+exec "$PYTHON" "$SCRIPT" "$@"
