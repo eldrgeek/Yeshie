@@ -523,7 +523,50 @@ def run(argv=None):
 
         return 0 if ok else 1
 
+    # ── Save current draft before injecting ──────────────────────────────────
+    current_ta = find_text_area(content_root)
+    saved_draft = (get_attr(current_ta, 'AXValue') or '') if current_ta else ''
+
+    # ── HUD / system notification ─────────────────────────────────────────────
+    import subprocess as _sp2
+    import urllib.request as _ur
+    import json as _js
+    short_msg = msg[:72] + ('…' if len(msg) > 72 else '')
+    notif_title = 'SOMA'
+    notif_body  = f'Injecting: {short_msg}' + (' (draft preserved)' if saved_draft else '')
+
+    # Try relay HUD first (silent fail if relay isn't running)
+    try:
+        _ur.urlopen(
+            _ur.Request(
+                'http://localhost:3333/notify',
+                data=_js.dumps({'message': notif_body, 'title': notif_title}).encode(),
+                headers={'Content-Type': 'application/json'},
+                method='POST',
+            ),
+            timeout=1,
+        )
+    except Exception:
+        pass  # relay not running — fall through to osascript
+
+    # osascript notification (always-available fallback)
+    _sp2.run(
+        ['osascript', '-e',
+         f'display notification {_js.dumps(notif_body)} with title {_js.dumps(notif_title)}'],
+        capture_output=True, timeout=3,
+    )
+
+    # ── Inject ────────────────────────────────────────────────────────────────
     ok = inject_message(content_root, msg)
+
+    # ── Restore draft ─────────────────────────────────────────────────────────
+    if saved_draft and ok:
+        time.sleep(0.8)   # let Claude register the submitted message
+        restore_ta = find_text_area(content_root)
+        if restore_ta:
+            AS.AXUIElementSetAttributeValue(restore_ta, 'AXValue', saved_draft)
+            print(f'restored draft ({len(saved_draft)} chars): {saved_draft[:60]!r}')
+
     return 0 if ok else 1
 
 
