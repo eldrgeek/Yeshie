@@ -186,12 +186,21 @@ export function createRelay(port = 3333) {
     const pyArgs = ['--session', job.session_title, '--save-restore', job.notify_message];
     console.log(`[relay] firing inject: job=${job.id} session="${job.session_title}"`);
     execFile(AX_INJECT, pyArgs, { timeout: 15000 }, (err, stdout, stderr) => {
-      if (err) console.warn(`[relay] inject failed: ${err.message}\n${stderr}`);
-      else console.log(`[relay] inject ok: ${stdout.trim()}`);
       const cur = jobs.get(job.id) || job;
-      const upd = { ...cur, status: err ? 'error' : 'done', countdown_start: null, countdown_seconds: null, updatedAt: Date.now() };
+      let newStatus;
+      if (err) {
+        console.warn(`[relay] inject failed: ${err.message}\n${stderr}`);
+        newStatus = 'needs_action';
+      } else {
+        console.log(`[relay] inject ok: ${stdout.trim()}`);
+        newStatus = 'done';
+      }
+      const upd = { ...cur, status: newStatus, countdown_start: null, countdown_seconds: null, updatedAt: Date.now() };
       jobs.set(job.id, upd);
       io.emit('job_update', upd);
+      if (newStatus === 'needs_action') {
+        fetch('http://localhost:3334/show').catch(() => {});
+      }
     });
   }
 
@@ -587,6 +596,61 @@ export function createRelay(port = 3333) {
 
     // ── HUD panel ──────────────────────────────────────────────────────────────
 
+
+    // ── HUD ask / respond (human-in-the-loop confirm/failed/partial) ─────────
+    // hudAsks declared at module level (see below)
+    if (path === '/hud/ask' && req.method === 'POST') {
+      let body = '';
+      req.on('data', d => body += d);
+      req.on('end', () => {
+        try {
+          const { message, timeout } = JSON.parse(body);
+          const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+          hudAsks.set(id, { id, message, response: null, createdAt: Date.now() });
+          io.emit('hud:ask', { id, message });
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ id }));
+        } catch (e) {
+          res.writeHead(400); res.end(JSON.stringify({ error: e.message }));
+        }
+      });
+      return;
+    }
+
+    const hudRespM = path.match(/^\/hud\/response\/([^/]+)$/);
+    if (hudRespM && req.method === 'GET') {
+      const id = hudRespM[1];
+      const ask = hudAsks.get(id);
+      if (!ask) { res.writeHead(404); res.end(JSON.stringify({ error: 'not found' })); return; }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      if (ask.response === null) {
+        res.end(JSON.stringify({ status: 'pending' }));
+      } else {
+        res.end(JSON.stringify({ status: 'answered', response: ask.response }));
+      }
+      return;
+    }
+
+    if (hudRespM && req.method === 'POST') {
+      let body = '';
+      req.on('data', d => body += d);
+      req.on('end', () => {
+        const id = hudRespM[1];
+        const ask = hudAsks.get(id);
+        if (!ask) { res.writeHead(404); res.end(JSON.stringify({ error: 'not found' })); return; }
+        try {
+          const { response } = JSON.parse(body);
+          ask.response = response;
+          io.emit('hud:answered', { id, response });
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true }));
+        } catch (e) {
+          res.writeHead(400); res.end(JSON.stringify({ error: e.message }));
+        }
+      });
+      return;
+    }
+
     if (path === '/hud' && req.method === 'GET') {
       const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Yeshie HUD</title>
@@ -605,6 +669,9 @@ body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-
 .job.blocked{border-color:#d29922;animation:pulse 1.5s infinite}
 .job.pending{border-color:#555}
 .job.notify_pending{border-color:#8b5cf6;animation:pulse 1.5s infinite}
+.job.needs_action{border-color:#f97316;animation:pulse 1.5s infinite}
+.job-status.needs_action{color:#f97316}
+.btn-copy{background:#f97316;color:#fff}.btn-copy:hover{background:#ea6c10}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
 .job-title{font-weight:500;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .job-meta{font-size:10px;color:#777;margin-top:2px}
@@ -620,6 +687,16 @@ body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-
 .btn-notify{background:#8b5cf6;color:#fff}.btn-notify:hover{background:#7c3aed}
 .btn-stop{background:#383838;color:#999}.btn-stop:hover{background:#444;color:#ccc}
 .countdown{font-size:10px;color:#7c3aed;font-variant-numeric:tabular-nums}
+
+/* HUD Ask overlay */
+#hud-ask-overlay{display:none;position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1a1a2e;border:1px solid #555;border-radius:12px;padding:18px 20px;min-width:300px;max-width:480px;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.6)}
+#hud-ask-message{color:#e0e0e0;font-size:13px;line-height:1.5;margin-bottom:14px}
+#hud-ask-btns{display:flex;gap:10px;justify-content:center}
+.hud-btn{padding:8px 18px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;transition:opacity .15s}
+.hud-btn:hover{opacity:.85}
+.hud-btn-confirm{background:#22c55e;color:#fff}
+.hud-btn-partial{background:#f59e0b;color:#fff}
+.hud-btn-failed{background:#ef4444;color:#fff}
 </style></head>
 <body>
 <div id="header"><h1>YESHIE HUD</h1><span id="conn">connecting…</span></div>
@@ -648,12 +725,29 @@ function notifyNow(id) {
 function stopCountdown(id) {
   fetch('/jobs/' + id + '/notify/cancel', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'}).catch(()=>{});
 }
+function copyMsg(msg) {
+  navigator.clipboard.writeText(msg).then(() => {
+    const btn = event.target;
+    btn.textContent = '✅ Copied!';
+    setTimeout(() => btn.textContent = '📋 Copy Message', 2000);
+  }).catch(() => {
+    fetch('/clipboard', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({text: msg})
+    }).then(() => {
+      const btn = event.target;
+      btn.textContent = '✅ Copied!';
+      setTimeout(() => btn.textContent = '📋 Copy Message', 2000);
+    });
+  });
+}
 
 function render() {
   const now = Date.now();
   const active = [...jobs.values()].filter(j => {
-    if (['running','blocked','pending','notify_pending'].includes(j.status)) return true;
-    return (now - j.updatedAt) < 60000;
+    if (['running','blocked','pending','notify_pending','needs_action'].includes(j.status)) return true;
+    return (now - j.updatedAt) < (j.status === 'needs_action' ? 600000 : 60000);
   });
   if (!active.length) { jobsEl.innerHTML = '<div class="empty">No active jobs</div>'; return; }
   jobsEl.innerHTML = active.map(j => {
@@ -671,13 +765,25 @@ function render() {
       </div>\`;
     }
 
-    const statusLabel = j.status === 'notify_pending' ? 'NOTIFY PENDING' : j.status.toUpperCase();
+    let actionHtml = '';
+    if (j.status === 'needs_action' && j.notify_message) {
+      const msg = esc(j.notify_message);
+      actionHtml = \`<div class="notify-row">
+        <button class="btn btn-copy" onclick="copyMsg('\${msg}')">📋 Copy Message</button>
+        <span style="color:#f97316;font-size:10px">⚠ Paste into Claude chat</span>
+      </div>
+      <div style="margin-top:4px;font-size:10px;color:#aaa;word-break:break-word">\${msg}</div>\`;
+    }
+
+    const statusLabel = j.status === 'notify_pending' ? 'NOTIFY PENDING'
+                      : j.status === 'needs_action'   ? 'NEEDS ACTION'
+                      : j.status.toUpperCase();
 
     return \`<div class="job \${j.status}">
       <div>
         <div class="job-title">\${esc(j.title || j.id)}</div>
         <div class="job-meta">\${esc(j.id)}\${step}</div>
-        \${notifyHtml}
+        \${notifyHtml}\${actionHtml}
       </div>
       <div>
         <div class="job-status \${j.status}">\${statusLabel}</div>
@@ -710,6 +816,15 @@ function pollJobs() {
 setInterval(pollJobs, 5000);
 setInterval(render, 1000);
 </script>
+
+<div id="hud-ask-overlay">
+  <div id="hud-ask-message"></div>
+  <div id="hud-ask-btns">
+    <button class="hud-btn hud-btn-confirm" onclick="hudRespond('confirm')">✅ Confirm</button>
+    <button class="hud-btn hud-btn-partial" onclick="hudRespond('partial')">⚠️ Partial</button>
+    <button class="hud-btn hud-btn-failed"  onclick="hudRespond('failed')">❌ Failed</button>
+  </div>
+</div>
 </body></html>`;
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(html);
@@ -1249,6 +1364,53 @@ h2{color:#58a6ff}hr{border-color:#333}
         status: j.status, message: j.message, started_at: j.started_at, updated_at: j.updated_at,
       }));
       jsonReply(res, 200, { jobs });
+      return;
+    }
+
+    // ── Clipboard helper (pbcopy fallback for WKWebView) ─────────────────────
+    if (path === '/clipboard' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      try {
+        const { text } = body;
+        const proc = spawn('pbcopy');
+        proc.stdin.write(text);
+        proc.stdin.end();
+        res.writeHead(200); res.end('ok');
+      } catch(e) { res.writeHead(500); res.end('error'); }
+      return;
+    }
+
+    // ── /job-update alias (used by cd-inject.sh) ─────────────────────────────
+    if (path === '/job-update' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+
+      const { id, title, status, step, result, error: jobError, session_title, notify_message } = body;
+      if (!id) { jsonReply(res, 400, { error: 'id required' }); return; }
+
+      const now = Date.now();
+      const existing = jobs.get(id);
+      jobs.set(id, {
+        id,
+        title:             title          || existing?.title          || id,
+        status:            status         || existing?.status         || 'running',
+        step:              step           || null,
+        result:            result         || existing?.result         || null,
+        error:             jobError       || existing?.error          || null,
+        session_title:     session_title  || existing?.session_title  || null,
+        notify_message:    notify_message || existing?.notify_message || null,
+        countdown_start:   existing?.countdown_start   || null,
+        countdown_seconds: existing?.countdown_seconds || null,
+        createdAt: existing?.createdAt || now,
+        updatedAt: now,
+      });
+      const updatedJob = jobs.get(id);
+      io.emit('job_update', updatedJob);
+      if (status === 'blocked' || status === 'done') {
+        scheduleOrInject(updatedJob);
+      }
+      jsonReply(res, 200, { ok: true });
       return;
     }
 
