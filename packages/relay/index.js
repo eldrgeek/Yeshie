@@ -74,6 +74,9 @@ export function createRelay(port = 3333) {
   // Pending calls: commandId → { resolve, reject, timer }
   const pending = new Map();
 
+  // HUD ask store
+  const hudAsks = new Map();
+
   // Track connected extensions — last registered is primary; others are fallbacks
   let extensionSocket = null;
   const extensionSockets = new Set();
@@ -598,7 +601,6 @@ export function createRelay(port = 3333) {
 
 
     // ── HUD ask / respond (human-in-the-loop confirm/failed/partial) ─────────
-    // hudAsks declared at module level (see below)
     if (path === '/hud/ask' && req.method === 'POST') {
       let body = '';
       req.on('data', d => body += d);
