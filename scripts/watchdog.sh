@@ -7,6 +7,11 @@ JOB_NAME=$2
 RESULT_FILE=$3
 INTERVAL=${4:-60}
 START_TIME=$(date +%s)
+RELAY="http://localhost:3333"
+
+curl -s -X POST "$RELAY/job/start" \
+  -H "Content-Type: application/json" \
+  -d "{\"job_id\":\"$JOB_NAME\",\"session_title\":\"$SESSION_TITLE\",\"description\":\"watching PID $PID\"}" > /dev/null 2>&1
 BOARD="http://localhost:3333/status-board"
 
 post_status() {
@@ -56,6 +61,9 @@ while kill -0 "$PID" 2>/dev/null; do
   else
     post_status "[$TS] WATCHDOG $JOB_NAME: ${MINS}m elapsed, $LINES lines, no API call"
   fi
+  curl -s -X POST "$RELAY/job/update" \
+    -H "Content-Type: application/json" \
+    -d "{\"job_id\":\"$JOB_NAME\",\"status\":\"running\",\"message\":\"${MINS}m elapsed, $LINES lines\"}" > /dev/null 2>&1
 done
 
 # Finished — post to board AND inject into CD
@@ -74,6 +82,15 @@ else
 fi
 
 post_status "$MSG"
+if [ "$EXIT_CODE" = "0" ]; then
+  curl -s -X POST "$RELAY/job/update" \
+    -H "Content-Type: application/json" \
+    -d "{\"job_id\":\"$JOB_NAME\",\"status\":\"notified\",\"message\":\"$MSG\"}" > /dev/null 2>&1
+else
+  curl -s -X POST "$RELAY/job/update" \
+    -H "Content-Type: application/json" \
+    -d "{\"job_id\":\"$JOB_NAME\",\"status\":\"error\",\"message\":\"$MSG\"}" > /dev/null 2>&1
+fi
 sleep 2  # let CD finish its current turn before injecting
 inject_cd "$MSG log=$RESULT_FILE"
 echo "watchdog done: $MSG"
