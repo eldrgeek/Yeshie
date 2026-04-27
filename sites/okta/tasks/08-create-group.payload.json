@@ -78,16 +78,16 @@
     {
       "stepId": "s7",
       "action": "type",
-      "selector": "input[name='name'], input[placeholder*='name' i], input[id*='name' i]",
+      "selector": "input[name='profile.name']",
       "value": "{{group_name}}",
-      "note": "Type group name into Name field"
+      "note": "Type group name — Okta uses profile.name not name"
     },
     {
       "stepId": "s8",
       "action": "type",
-      "selector": "input[name='description'], textarea[name='description'], input[placeholder*='description' i]",
+      "selector": "input[name='profile.description']",
       "value": "{{group_description}}",
-      "note": "Type group description (may be optional, skip if field not found)"
+      "note": "Type group description — Okta uses profile.description"
     },
     {
       "stepId": "s9",
@@ -96,9 +96,9 @@
     },
     {
       "stepId": "s10",
-      "action": "click_text",
-      "text": "Save",
-      "note": "Save the new group. Fallbacks: 'Add group', 'Create', 'Add'."
+      "action": "click",
+      "selector": "input[type='submit']",
+      "note": "Submit the form — Okta uses input[type=submit] not a Save button"
     },
     {
       "stepId": "s11",

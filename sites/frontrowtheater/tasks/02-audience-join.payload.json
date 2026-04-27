@@ -1,0 +1,63 @@
+{
+  "_meta": {
+    "task": "audience-join",
+    "description": "Open watch mode while a show is live. Verify performer stream received and seat occupied. Run in Tab 2 while 01-performer-golive Tab 1 is still live.",
+    "requiredParams": [],
+    "selfImproving": false
+  },
+  "runId": "frontrow-audience-{{timestamp}}",
+  "mode": "verification",
+  "site": "frontrowtheater.netlify.app",
+  "params": {
+    "base_url": "https://frontrowtheater.netlify.app"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "{{base_url}}?mode=watch&diag=true"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "[data-testid='diag-socket'][data-value='connected']",
+      "timeout": 20000,
+      "note": "Wait for socket to connect"
+    },
+    {
+      "stepId": "s3",
+      "action": "wait_for",
+      "selector": "[data-testid='diag-role'][data-value='audience']",
+      "timeout": 5000,
+      "note": "Confirm audience role"
+    },
+    {
+      "stepId": "s4",
+      "action": "read",
+      "selector": "[data-testid='diag-show-state']",
+      "store_as": "show_state_text",
+      "note": "Read show state — should be live if Tab 1 performer is still running"
+    },
+    {
+      "stepId": "s5",
+      "action": "wait_for",
+      "selector": "[data-testid='diag-seat']:not([data-value='none'])",
+      "timeout": 15000,
+      "note": "mode=watch should auto-select a seat"
+    },
+    {
+      "stepId": "s6",
+      "action": "wait_for",
+      "selector": "[data-testid='diag-performer-stream'][data-value='true']",
+      "timeout": 30000,
+      "note": "Wait up to 30s for performer LiveKit stream to arrive"
+    },
+    {
+      "stepId": "s7",
+      "action": "js",
+      "code": "window.__frontrow_state__",
+      "store_as": "final_state",
+      "note": "Capture final state for inspection"
+    }
+  ]
+}

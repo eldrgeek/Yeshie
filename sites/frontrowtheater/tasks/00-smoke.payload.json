@@ -1,0 +1,50 @@
+{
+  "_meta": {
+    "task": "smoke",
+    "description": "Load FrontRow, verify socket connects and state is exposed. No camera needed.",
+    "requiredParams": [],
+    "selfImproving": false
+  },
+  "runId": "frontrow-smoke-{{timestamp}}",
+  "mode": "verification",
+  "site": "frontrowtheater.netlify.app",
+  "params": {
+    "base_url": "https://frontrowtheater.netlify.app"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "{{base_url}}?diag=true",
+      "note": "Load with diagnostics panel visible"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "[data-testid='diag-socket'][data-value='connected']",
+      "timeout": 25000,
+      "note": "Wait up to 25s for socket to connect to VPS"
+    },
+    {
+      "stepId": "s3",
+      "action": "read",
+      "selector": "[data-testid='diag-socket']",
+      "store_as": "socket_status",
+      "note": "Read socket status text"
+    },
+    {
+      "stepId": "s4",
+      "action": "read",
+      "selector": "[data-testid='diag-show-state']",
+      "store_as": "show_state",
+      "note": "Read current show state (idle/pre-show/live/post-show)"
+    },
+    {
+      "stepId": "s5",
+      "action": "read",
+      "selector": "[data-testid='diag-role']",
+      "store_as": "role",
+      "note": "Read role (audience by default)"
+    }
+  ]
+}

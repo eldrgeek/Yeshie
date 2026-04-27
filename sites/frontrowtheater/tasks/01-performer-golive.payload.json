@@ -1,0 +1,80 @@
+{
+  "_meta": {
+    "task": "performer-golive",
+    "description": "Open performer mode, wait for camera + socket, click GO LIVE, verify show goes live. Run in Tab 1.",
+    "requiredParams": [],
+    "selfImproving": false,
+    "note": "Requires camera permission in Chrome. After this payload completes the show is LIVE — run 02-audience-join in Tab 2 immediately."
+  },
+  "runId": "frontrow-performer-{{timestamp}}",
+  "mode": "verification",
+  "site": "frontrowtheater.netlify.app",
+  "params": {
+    "base_url": "https://frontrowtheater.netlify.app"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "{{base_url}}?mode=performer&diag=true"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "[data-testid='diag-socket'][data-value='connected']",
+      "timeout": 20000,
+      "note": "Wait for socket to connect"
+    },
+    {
+      "stepId": "s3",
+      "action": "wait_for",
+      "selector": "[data-testid='diag-role'][data-value='performer']",
+      "timeout": 5000,
+      "note": "Confirm performer role is set"
+    },
+    {
+      "stepId": "s4",
+      "action": "wait_for",
+      "selector": "[data-testid='diag-user-stream'][data-value='true']",
+      "timeout": 20000,
+      "note": "Wait for local camera stream to be active (up to 20s)"
+    },
+    {
+      "stepId": "s5",
+      "action": "js",
+      "code": "window.__frontrow_state__",
+      "store_as": "state_with_camera",
+      "note": "Read state once camera is confirmed"
+    },
+    {
+      "stepId": "s6",
+      "action": "click",
+      "target": "go-live-button",
+      "note": "Click GO LIVE NOW"
+    },
+    {
+      "stepId": "s7",
+      "action": "wait_for",
+      "selector": "[data-testid='diag-show-state'][data-value='live']",
+      "timeout": 20000,
+      "note": "Wait for show to go live"
+    },
+    {
+      "stepId": "s8",
+      "action": "js",
+      "code": "window.__frontrow_state__",
+      "store_as": "final_state",
+      "note": "Capture final state"
+    }
+  ],
+  "abstractTargets": {
+    "go-live-button": {
+      "match": {
+        "role": "button",
+        "name_contains": ["GO LIVE NOW", "GO LIVE", "go live"]
+      },
+      "cachedSelector": "button[style*='background'][style*='red'], button",
+      "resolveHint": "Orange/red button overlaid on canvas in performer quick-mode. Text: GO LIVE NOW"
+    }
+  }
+}

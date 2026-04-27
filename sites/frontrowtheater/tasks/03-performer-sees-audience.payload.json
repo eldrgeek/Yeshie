@@ -1,0 +1,36 @@
+{
+  "_meta": {
+    "task": "performer-sees-audience",
+    "description": "After audience has joined (Tab 2 ran 02-audience-join), check Tab 1 performer sees audience streams and seats.",
+    "requiredParams": [],
+    "selfImproving": false,
+    "note": "Run in Tab 1 (performer tab) AFTER Tab 2 audience has joined"
+  },
+  "runId": "frontrow-perf-sees-aud-{{timestamp}}",
+  "mode": "verification",
+  "site": "frontrowtheater.netlify.app",
+  "params": {},
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "wait_for",
+      "selector": "[data-testid='diag-show-state'][data-value='live']",
+      "timeout": 5000,
+      "note": "Confirm show is still live on this tab"
+    },
+    {
+      "stepId": "s2",
+      "action": "js",
+      "code": "window.__frontrow_state__",
+      "store_as": "performer_state",
+      "note": "Read current performer state"
+    },
+    {
+      "stepId": "s3",
+      "action": "js",
+      "code": "window.__frontrow_state__",
+      "store_as": "final_state",
+      "note": "Capture full state including audienceSeats + audienceStreamCount"
+    }
+  ]
+}
