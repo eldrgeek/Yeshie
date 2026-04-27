@@ -808,6 +808,25 @@ socket.on('disconnect', () => { connEl.textContent = 'offline'; connEl.style.col
 socket.on('job_update', job => { jobs.set(job.id, job); render(); });
 socket.on('jobs_snapshot', list => { jobs.clear(); list.forEach(j => jobs.set(j.id, j)); render(); });
 
+// HUD ask — human-in-the-loop confirm/partial/failed
+let _askId = null;
+socket.on('hud:ask', ({id, message}) => {
+  _askId = id;
+  document.getElementById('hud-ask-message').textContent = message;
+  document.getElementById('hud-ask-overlay').style.display = 'block';
+});
+function hudRespond(response) {
+  if (!_askId) return;
+  const id = _askId;
+  _askId = null;
+  document.getElementById('hud-ask-overlay').style.display = 'none';
+  fetch('/hud/response/' + id, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({response})
+  }).catch(() => {});
+}
+
 // Polling safety net — syncs even if Socket.IO is down
 function pollJobs() {
   fetch('/jobs/status?filter=all').then(r=>r.json()).then(d => {

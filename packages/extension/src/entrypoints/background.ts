@@ -1577,6 +1577,16 @@ export default defineBackground(() => {
         return { leaves, keyword };
       }
 
+      // Read window variable: window.__frontrow_state__ or any window.__xxx__ var
+      // Pattern: code contains 'window.__' followed by identifier
+      if (code.includes('window.__') || code.includes('__frontrow_state__') || code.includes('readWindowVar')) {
+        const varMatch = code.match(/window\.__(\w+)__/);
+        const varName = varMatch ? `__${varMatch[1]}__` : '__frontrow_state__';
+        const val = (window as any)[varName];
+        if (val === undefined) return { __error: `window.${varName} is not defined` };
+        return typeof val === 'object' ? val : { value: val };
+      }
+
       return { __error: 'No matching pattern for js step' };
     } catch(e: any) {
       return { __error: e.message };
@@ -2039,7 +2049,7 @@ export default defineBackground(() => {
           ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.responseSignature])
           : {};
         const tgt = step.target ? abstractTargets?.[step.target] : null;
-        let resolvedSelector = step.selector || null;
+        let resolvedSelector = step.selector ? interpolate(step.selector, { ...params, ...buffer }) : null;
         let resolvedVia = 'direct';
         let confidence = 1.0;
         if (tgt) {
@@ -2074,7 +2084,7 @@ export default defineBackground(() => {
           ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.responseSignature])
           : {};
         const tgt = step.target ? abstractTargets?.[step.target] : null;
-        let resolvedSelector = step.selector || null;
+        let resolvedSelector = step.selector ? interpolate(step.selector, { ...params, ...buffer }) : null;
         let resolvedVia = 'direct';
         let buttonText = null;
         if (tgt) {
