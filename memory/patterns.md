@@ -104,9 +104,27 @@ Logs appear in Chrome's extension page (`chrome://extensions` → Yeshie → bac
 
 ---
 
-## Notification Architecture (3 Cases)
+## Notification Architecture (4 Cases)
 
-**Goal:** Get a macOS notification when async work finishes, even after MCP bridge timeout.
+**Goal:** Notify Mike when async work finishes, even after MCP bridge timeout. **Updated 2026-04-25** to reflect the cc.py / HUD architecture which supersedes the older keystroke-based pattern.
+
+### Case 0 — `cc hud-ask` (PREFERRED for fire-and-forget completions)
+
+For any background task that completes after the MCP bridge timeout, the canonical notification path is the HUD overlay:
+
+```bash
+/opt/homebrew/bin/python3 ~/Projects/mac-controller/cc.py hud-ask \
+  "DONE: <task name> (exit $EXIT_CODE)" --timeout 300
+```
+
+This POSTs to `localhost:3333/hud/ask`, which displays the message in a non-modal NSPanel overlay (HUD on `localhost:3334`) with Confirm / Failed / Partial buttons. Mike can acknowledge without leaving his current work. The relay queues the message; it survives Claude Desktop being mid-response.
+
+Why not osascript keystroke injection (the pre-2026-04 pattern)?
+- Plain `key code 36` is Return — adds a newline, doesn't submit. Only Cmd+Return submits.
+- Even with `using command down`, keystrokes corrupt whatever Mike is currently typing.
+- Multiple completions stack notifications into the input field unsent.
+
+Use cases 1-3 below as fallbacks when `cc hud-ask` is unavailable (HUD/relay down).
 
 ### Case 1 — yeshie_run / long chains
 
@@ -122,9 +140,9 @@ Add a `notify` action as the LAST step in any payload chain:
 Flow: `executeStep` → `socket.emit('notify', {message, title})` → relay `runOsascript()` → macOS notification.
 Works even after the MCP bridge 60s timeout because the extension socket connection to the relay persists.
 
-### Case 2 — bash fire-and-forget scripts
+### Case 2 — bash fire-and-forget scripts (FALLBACK — prefer Case 0)
 
-When writing a `nohup` fire-and-forget bash wrapper, add osascript retry loop as the LAST command:
+When writing a `nohup` fire-and-forget bash wrapper, the preferred notification is `cc.py hud-ask` (Case 0). If that's unavailable, fall back to a banner via osascript retry loop as the LAST command:
 ```bash
 nohup bash -c '
   <your command here>
@@ -148,3 +166,33 @@ curl -s -X POST http://localhost:3333/notify \
 `notifyHost(message, title)` is wired into `shell_exec`, `claude_code`, and `yeshie_run` completions in `cc-bridge-mcp/server.js`. Uses detached `spawn('osascript', ...)` + `.unref()` so the subprocess outlives any bridge timeout. Retries up to 3x with 2s gap.
 
 `yeshie_run` skips the fallback notify if the chain already included a `notify` step (avoids double-notification).
+
+---
+
+## Claude Desktop AX Injection — AXFocusedUIElement Fix
+
+**Problem:** Claude Desktop 1.3561.0 (updated 2026-04-20) broke ax-inject. The AX tree only shows 14 native elements (AXWindow, AXGroup×10, AXButton×3) when walking from the native window. No AXTextArea visible.
+
+**Root cause:** WKWebView content is now only accessible via `AXFocusedUIElement` on the app element, NOT by walking the window tree. This only works when Claude Desktop is the frontmost app.
+
+**Fix:** `get_content_root(app_elem)` in `claude_ax.py`:
+1. Activate Claude via both `activateWithOptions_` AND `osascript "tell application Claude to activate"` (belt-and-suspenders)
+2. Wait 0.4s for focus
+3. Poll `AXFocusedUIElement` until it returns an `AXWebArea` with children
+4. Walk THAT tree (768 elements, finds AXTextArea at depth 19)
+
+**Code location:** `~/Projects/yeshie/scripts/claude_ax.py`, function `get_content_root()`  
+**Commit:** `c90012b4`
+
+---
+
+## Architecture Decisions (2026-04-20/21)
+
+**CLI tools over MCP servers:** Mario Zechner's idea — keep a persistent bash shell open and send it messages. Simpler, more robust than MCP plumbing. Favored direction for future tooling.
+
+**cc-bridge refactor:** Split into two MCPs — one for sandbox, one for host — because Claude sometimes uses bash (sandbox) when it should use cc-bridge (host), getting confused about which tools reach the real machine.
+
+**Screenpipe as memory substrate:** Screenpipe records all screen activity to `~/.screenpipe/db.sqlite`. Can be queried directly via SQLite when the MCP isn't running. The `frames` + `ocr_text` tables are the primary search path. Always start screenpipe at login.
+
+**FrontRow:** WebRTC app at `~/Projects/FrontRow`. Replaced manual WebRTC with LiveKit (wss://vpsmikewolf.duckdns.org). Socket.IO show-state server moved from suspended Render to Contebo (port 4001 via nginx TLS). Netlify site: frontrowtheater. LiveKit token endpoint: `/.netlify/functions/get-livekit-token`.
+
