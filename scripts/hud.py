@@ -37,25 +37,44 @@ _main_queue = queue.Queue()
 
 # ── Control server (POST /show /hide /reload, GET /wv-status) ────────────────
 
+def _show_panel():
+    """Bring the HUD panel forward on the current Space, without stealing focus."""
+    if not panel:
+        return
+    # Move to whichever Space the user is on right now (Stationary would pin it
+    # to its original Space and Mike would never see it after switching).
+    panel.setCollectionBehavior_(AppKit.NSWindowCollectionBehaviorCanJoinAllSpaces)
+    panel.setLevel_(AppKit.NSFloatingWindowLevel)
+    # orderFrontRegardless reliably surfaces a NonactivatingPanel; makeKey is a no-op for those.
+    panel.orderFrontRegardless()
+
 class CtrlHandler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b'ok')
-        path = self.path
+    def _handle(self, path):
         if path == '/show':
-            _main_queue.put(lambda: panel and panel.makeKeyAndOrderFront_(None))
+            _main_queue.put(_show_panel)
         elif path == '/hide':
             _main_queue.put(lambda: panel and panel.orderOut_(None))
         elif path == '/reload':
             def _reload():
                 if webview:
                     webview.loadRequest_(NSURLRequest.requestWithURL_(NSURL.URLWithString_(HUD_URL)))
-                if panel:
-                    panel.makeKeyAndOrderFront_(None)
+                _show_panel()
             _main_queue.put(_reload)
 
+    def do_POST(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b'ok')
+        self._handle(self.path)
+
     def do_GET(self):
+        # Allow GET for /show /hide /reload too — easier for `fetch()` and `curl` callers.
+        if self.path in ('/show', '/hide', '/reload'):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b'ok')
+            self._handle(self.path)
+            return
         if self.path == '/wv-status':
             result_holder = [None]
             ev = threading.Event()
@@ -121,10 +140,7 @@ class AppDelegate(AppKit.NSObject):
         )
         panel.setTitle_("Yeshie HUD")
         panel.setLevel_(AppKit.NSFloatingWindowLevel)
-        panel.setCollectionBehavior_(
-            AppKit.NSWindowCollectionBehaviorCanJoinAllSpaces |
-            AppKit.NSWindowCollectionBehaviorStationary
-        )
+        panel.setCollectionBehavior_(AppKit.NSWindowCollectionBehaviorCanJoinAllSpaces)
         panel.setDelegate_(self)
 
         # Embed WKWebView (saved globally for reload_panel + wv-status)

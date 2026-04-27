@@ -77,6 +77,12 @@ export function createRelay(port = 3333) {
   // HUD ask store
   const hudAsks = new Map();
 
+  // Best-effort: surface the HUD panel (hud.py listens on :3334). Used whenever
+  // a new job appears or a hud:ask is fired, so Mike actually sees the thing.
+  function showHudPanel() {
+    fetch('http://localhost:3334/show', { method: 'POST' }).catch(() => {});
+  }
+
   // Track connected extensions — last registered is primary; others are fallbacks
   let extensionSocket = null;
   const extensionSockets = new Set();
@@ -202,7 +208,7 @@ export function createRelay(port = 3333) {
       jobs.set(job.id, upd);
       io.emit('job_update', upd);
       if (newStatus === 'needs_action') {
-        fetch('http://localhost:3334/show').catch(() => {});
+        showHudPanel();
       }
     });
   }
@@ -213,7 +219,7 @@ export function createRelay(port = 3333) {
     const pending = { ...job, status: 'notify_pending', countdown_start, countdown_seconds: COUNTDOWN_S, updatedAt: countdown_start };
     jobs.set(job.id, pending);
     io.emit('job_update', pending);
-    fetch('http://localhost:3334/show').catch(() => {});
+    showHudPanel();
 
     const iid = setInterval(async () => {
       const cur = jobs.get(job.id);
@@ -231,7 +237,7 @@ export function createRelay(port = 3333) {
 
   async function scheduleOrInject(job) {
     if (!job.notify_message || !job.session_title) {
-      fetch('http://localhost:3334/show').catch(() => {});
+      showHudPanel();
       return;
     }
     if (await isCdBusy()) {
@@ -610,6 +616,7 @@ export function createRelay(port = 3333) {
           const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
           hudAsks.set(id, { id, message, response: null, createdAt: Date.now() });
           io.emit('hud:ask', { id, message });
+          showHudPanel();
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ id }));
         } catch (e) {
@@ -1190,6 +1197,8 @@ h2{color:#58a6ff}hr{border-color:#333}
       logConversation({ event: 'job_update', jobId: id, status: status || 'running', step: step || null });
       const updatedJob = jobs.get(id);
       io.emit('job_update', updatedJob);
+      // First sighting of this job → bring the HUD forward so Mike notices it.
+      if (!existing) showHudPanel();
       // Smart inject/notify on blocked or done
       if (status === 'blocked' || status === 'done') {
         scheduleOrInject(jobs.get(id));
@@ -1240,7 +1249,7 @@ h2{color:#58a6ff}hr{border-color:#333}
       logConversation({ event: 'job_created', jobId: id, title: title || id });
       io.emit('job_update', jobs.get(id));
       // Reopen HUD whenever a new job starts
-      fetch('http://localhost:3334/show').catch(() => {});
+      showHudPanel();
       jsonReply(res, 200, { ok: true, id });
       return;
     }
