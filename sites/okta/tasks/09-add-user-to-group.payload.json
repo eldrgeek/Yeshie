@@ -2,11 +2,11 @@
   "_meta": {
     "name": "okta-add-user-to-group",
     "site": "trial-8689388-admin.okta.com",
-    "description": "Add an Okta user to a group. Two approaches: (A) via user profile Groups tab — navigate to user, click Groups tab, Assign; (B) via group detail Assign People. This payload uses approach A (user-centric). Requires userId.",
-    "version": "1.0.0",
-    "verified": false,
-    "verifiedDate": null,
-    "author": "session-2026-04-14",
+    "description": "Add an Okta user to a group via the group's Assign People page. Uses selector template substitution (fixed in background.ts v2) to target the exact user row. Requires groupId and userId.",
+    "version": "5.0.0",
+    "verified": true,
+    "verifiedDate": "2026-04-16",
+    "author": "session-2026-04-16",
     "auth": {
       "type": "manual_required",
       "note": "Okta OAuth PKCE — session must already be active."
@@ -14,11 +14,11 @@
     "params": {
       "userId": {
         "required": true,
-        "description": "Okta user ID (format: 00u{alphanumeric}698). Get from list-users perceive mainActions."
+        "description": "Okta user ID (format: 00u{alphanumeric}698). Get from list-users or knownUserIds below."
       },
-      "group_name": {
+      "groupId": {
         "required": true,
-        "description": "Name of the group to add the user to"
+        "description": "Okta group ID (format: 00g{alphanumeric}). Get from list-groups or knownGroupIds below."
       },
       "base_url": {
         "required": false,
@@ -32,113 +32,61 @@
       "grok-xai": "00u11lib65eeRAt0h698",
       "gemini-google": "00u11libzk14aJVmO698",
       "claude-anthropic": "00u11li1n9nsGaoiX698",
-      "michael-wolf-admin": "00u11lcq3lk8XQjBt698"
+      "michael-wolf-admin": "00u11lcq3lk8XQjBt698",
+      "yeshie-test": "00u11x5jinoSKzBC5698"
+    },
+    "knownGroupIds": {
+      "yeshie-test-group": "00g1218309z0J7R71698"
     },
     "anomalies": [
-      "perceive required — Okta SPA",
-      "Groups tab href is #tab-groups on user profile page",
-      "Assign Groups button may open a search modal — type group name to filter",
+      "DOM: each row has a.assign-member-button (class: assign-member-button link-button link-button-icon icon-only)",
+      "background.ts fix: selector now interpolated via interpolate() in click and type actions",
+      "tr:has() CSS selector requires Chrome 105+ — confirmed supported",
+      "After assignment, the row shows a Remove link instead of the assign button",
       "The 'Everyone' group cannot have members added manually (auto-populated)"
     ]
   },
   "params": {
     "userId": "",
-    "group_name": "",
+    "groupId": "",
     "base_url": "https://trial-8689388-admin.okta.com"
   },
   "chain": [
     {
       "stepId": "s1",
       "action": "navigate",
-      "url": "https://trial-8689388-admin.okta.com/admin/user/profile/view/{{userId}}",
-      "note": "Navigate to user profile page. {{userId}} must be a valid Okta user ID."
+      "url": "https://trial-8689388-admin.okta.com/admin/group/{{groupId}}/members",
+      "note": "Navigate to group Assign People page. All non-member users listed here."
     },
     {
       "stepId": "s2",
       "action": "delay",
-      "ms": 3000
+      "ms": 3000,
+      "note": "Wait for SPA to render the members table"
     },
     {
       "stepId": "s3",
       "action": "perceive",
-      "store_as": "profile_snap",
-      "note": "Confirm profile loaded. Look for tab bar with 'Groups' tab."
+      "store_as": "members_page_pre",
+      "note": "Confirm page loaded. Should see table with rows of unassigned users."
     },
     {
       "stepId": "s4",
-      "action": "click_text",
-      "text": "Groups",
-      "note": "Click Groups tab to see current group memberships"
+      "action": "click",
+      "selector": "tr:has(a[href*='{{userId}}']) a.assign-member-button",
+      "note": "Click the assign (+) button in the row for the target user. Requires selector interpolation fix in background.ts."
     },
     {
       "stepId": "s5",
       "action": "delay",
-      "ms": 2000
+      "ms": 2000,
+      "note": "Wait for the assignment to process (AJAX)"
     },
     {
       "stepId": "s6",
       "action": "perceive",
-      "store_as": "groups_tab",
-      "note": "Perceive Groups tab content. Look for 'Assign' or '+ Add Groups' button."
-    },
-    {
-      "stepId": "s7",
-      "action": "click_text",
-      "text": "Assign",
-      "note": "Click Assign button to open group assignment UI. Fallbacks: 'Add Groups', '+ Assign Groups'."
-    },
-    {
-      "stepId": "s8",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for group search modal to open"
-    },
-    {
-      "stepId": "s9",
-      "action": "type",
-      "selector": "input[type='text'], input[placeholder*='search' i], input[placeholder*='group' i]",
-      "value": "{{group_name}}",
-      "note": "Search for the target group by name"
-    },
-    {
-      "stepId": "s10",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for search results"
-    },
-    {
-      "stepId": "s11",
-      "action": "perceive",
-      "store_as": "group_search_results",
-      "note": "Verify target group appears in results."
-    },
-    {
-      "stepId": "s12",
-      "action": "click_text",
-      "text": "{{group_name}}",
-      "note": "Select the target group from results"
-    },
-    {
-      "stepId": "s13",
-      "action": "delay",
-      "ms": 1000
-    },
-    {
-      "stepId": "s14",
-      "action": "click_text",
-      "text": "Save",
-      "note": "Save group assignment. Fallbacks: 'Assign', 'Done', 'Add'."
-    },
-    {
-      "stepId": "s15",
-      "action": "delay",
-      "ms": 2000
-    },
-    {
-      "stepId": "s16",
-      "action": "perceive",
       "store_as": "post_assign",
-      "note": "Verify group appears in user's Groups tab list."
+      "note": "Verify assignment succeeded. User row should now show Remove link instead of assign button."
     }
   ]
 }

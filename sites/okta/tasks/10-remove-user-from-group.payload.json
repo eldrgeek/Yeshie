@@ -2,11 +2,11 @@
   "_meta": {
     "name": "okta-remove-user-from-group",
     "site": "trial-8689388-admin.okta.com",
-    "description": "Remove an Okta user from a group. Navigates to the user's profile Groups tab, finds the target group row, and clicks the remove (X) button.",
-    "version": "1.0.0",
-    "verified": false,
-    "verifiedDate": null,
-    "author": "session-2026-04-14",
+    "description": "Remove an Okta user from a group via the group detail page. The group detail page (/admin/group/{groupId}) shows current members with a remove-member-button per row. Requires groupId and userId.",
+    "version": "3.0.0",
+    "verified": true,
+    "verifiedDate": "2026-04-16",
+    "author": "session-2026-04-16",
     "auth": {
       "type": "manual_required",
       "note": "Okta OAuth PKCE — session must already be active."
@@ -14,11 +14,15 @@
     "params": {
       "userId": {
         "required": true,
-        "description": "Okta user ID (format: 00u{alphanumeric}698)"
+        "description": "Okta user ID (format: 00u{alphanumeric}698). Get from knownUserIds below."
       },
-      "group_name": {
+      "groupId": {
         "required": true,
-        "description": "Name of the group to remove the user from"
+        "description": "Okta group ID (format: 00g{alphanumeric}). Get from knownGroupIds below."
+      },
+      "base_url": {
+        "required": false,
+        "default": "https://trial-8689388-admin.okta.com"
       }
     },
     "knownUserIds": {
@@ -28,82 +32,61 @@
       "grok-xai": "00u11lib65eeRAt0h698",
       "gemini-google": "00u11libzk14aJVmO698",
       "claude-anthropic": "00u11li1n9nsGaoiX698",
-      "michael-wolf-admin": "00u11lcq3lk8XQjBt698"
+      "michael-wolf-admin": "00u11lcq3lk8XQjBt698",
+      "yeshie-test": "00u11x5jinoSKzBC5698"
+    },
+    "knownGroupIds": {
+      "yeshie-test-group": "00g1218309z0J7R71698"
     },
     "anomalies": [
-      "perceive required — Okta SPA",
-      "'Everyone' group cannot be removed (system-managed) — click will likely fail silently or show error",
-      "Remove icon may be an X button on the group row — revealed on hover in some Okta versions",
-      "Okta Classic had inline X icons; Okta OIE may use a different pattern — perceive to confirm"
+      "Remove button is on the GROUP DETAIL page (/admin/group/{groupId}), NOT the /members assign page",
+      "DOM: Remove button class is 'remove-member-button link-button link-button-icon icon-only' (confirmed 2026-04-16)",
+      "Selector: tr:has(a[href*='{userId}']) a.remove-member-button",
+      "The /members page shows only non-members for assigning — members do NOT appear there",
+      "The 'Everyone' group cannot have members removed manually"
     ]
   },
   "params": {
     "userId": "",
-    "group_name": "",
+    "groupId": "",
     "base_url": "https://trial-8689388-admin.okta.com"
   },
   "chain": [
     {
       "stepId": "s1",
       "action": "navigate",
-      "url": "https://trial-8689388-admin.okta.com/admin/user/profile/view/{{userId}}",
-      "note": "Navigate to user profile"
+      "url": "https://trial-8689388-admin.okta.com/admin/group/{{groupId}}",
+      "note": "Navigate to group detail page (NOT /members). Current members shown here with remove buttons."
     },
     {
       "stepId": "s2",
       "action": "delay",
-      "ms": 3000
+      "ms": 4000,
+      "note": "Wait for SPA to render member rows (needs extra time — table is empty until loaded)"
     },
     {
       "stepId": "s3",
-      "action": "click_text",
-      "text": "Groups",
-      "note": "Click Groups tab"
+      "action": "perceive",
+      "store_as": "group_page_pre",
+      "note": "Confirm group detail page loaded with member table. Target user should be in the table."
     },
     {
       "stepId": "s4",
-      "action": "delay",
-      "ms": 2000
+      "action": "click",
+      "selector": "tr:has(a[href*='{{userId}}']) a.remove-member-button",
+      "note": "Click remove button (X icon) in target user's row. Class: remove-member-button"
     },
     {
       "stepId": "s5",
-      "action": "perceive",
-      "store_as": "groups_tab",
-      "note": "Perceive groups tab. Find target group row. Look for inline remove button or action column."
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for removal to process (AJAX)"
     },
     {
       "stepId": "s6",
-      "action": "click_text",
-      "text": "{{group_name}}",
-      "note": "Hover/click on target group row to reveal remove action. If Okta shows an X/remove inline, click it instead."
-    },
-    {
-      "stepId": "s7",
-      "action": "delay",
-      "ms": 1000
-    },
-    {
-      "stepId": "s8",
-      "action": "perceive",
-      "store_as": "row_actions",
-      "note": "Perceive row actions revealed. Look for X button, 'Remove', 'Unassign' action."
-    },
-    {
-      "stepId": "s9",
-      "action": "click_text",
-      "text": "Remove",
-      "note": "Click Remove. Fallbacks: 'Unassign', 'Delete'. If X icon only: use click on the icon element."
-    },
-    {
-      "stepId": "s10",
-      "action": "delay",
-      "ms": 2000
-    },
-    {
-      "stepId": "s11",
       "action": "perceive",
       "store_as": "post_remove",
-      "note": "Verify group no longer appears in user's group list."
+      "note": "Verify removal. Target user's row should no longer appear in the group member table."
     }
   ]
 }

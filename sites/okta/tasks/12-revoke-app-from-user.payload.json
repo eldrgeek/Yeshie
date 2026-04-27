@@ -2,11 +2,11 @@
   "_meta": {
     "name": "okta-revoke-app-from-user",
     "site": "trial-8689388-admin.okta.com",
-    "description": "Revoke (deassign) an application from an Okta user. Navigates to the user's Applications tab, finds the app, and clicks the remove/deassign action.",
-    "version": "1.0.0",
-    "verified": false,
-    "verifiedDate": null,
-    "author": "session-2026-04-14",
+    "description": "Revoke (unassign) an application from an Okta user. Navigates to the user's Applications tab, clicks the delete (X) button for the target app row, confirms the 'Unassign Application' dialog, and verifies removal.",
+    "version": "2.0.0",
+    "verified": true,
+    "verifiedDate": "2026-04-16",
+    "author": "session-2026-04-16",
     "warning": "Destructive action — removes app access. User will lose access to the app immediately.",
     "auth": {
       "type": "manual_required",
@@ -15,11 +15,15 @@
     "params": {
       "userId": {
         "required": true,
-        "description": "Okta user ID (format: 00u{alphanumeric}698)"
+        "description": "Okta user ID (format: 00u{alphanumeric}698). Get from knownUserIds below."
       },
-      "app_name": {
+      "appInstanceId": {
         "required": true,
-        "description": "Display name of the application to revoke"
+        "description": "Okta app instance ID (format: 0oa{alphanumeric}698). Get from knownAppIds below."
+      },
+      "base_url": {
+        "required": false,
+        "default": "https://trial-8689388-admin.okta.com"
       }
     },
     "knownUserIds": {
@@ -29,18 +33,26 @@
       "grok-xai": "00u11lib65eeRAt0h698",
       "gemini-google": "00u11libzk14aJVmO698",
       "claude-anthropic": "00u11li1n9nsGaoiX698",
-      "michael-wolf-admin": "00u11lcq3lk8XQjBt698"
+      "michael-wolf-admin": "00u11lcq3lk8XQjBt698",
+      "yeshie-test": "00u11x5jinoSKzBC5698"
+    },
+    "knownAppIds": {
+      "okta-admin-console": "0oa11lcq3hvMSM5Zi698",
+      "okta-workflows": "0oa11ld7emwY2ZGnB698",
+      "okta-workflows-oauth": "0oa11ld7enlSeDeYv698"
     },
     "anomalies": [
-      "perceive required — Okta SPA",
-      "Remove action on app row may be a gear icon → Remove Assignment, or an inline X",
-      "Apps assigned via group (not direct assignment) cannot be removed from user profile — must remove via group",
-      "Group-assigned apps are labeled differently (shows group name) — perceive to distinguish direct vs group assignments"
+      "DOM: App row selector is tr[data-se='{appInstanceId}'] — each row is keyed by app instance ID",
+      "DOM: Delete button is a.app-user-delete-link (icon-only X button) in .app-actions — NOT a text link",
+      "DOM: Confirmation modal title is 'Unassign Application' with input[type='submit'][value='OK'] to confirm",
+      "DOM: Confirmation OK is input[type='submit'][value='OK'] — NOT a text link, use selector not click_text",
+      "Only directly-assigned apps appear in the app table with a delete button — group-assigned apps cannot be removed here",
+      "Apps assigned via group show group name in .app-assignment-type, not 'Individual'"
     ]
   },
   "params": {
     "userId": "",
-    "app_name": "",
+    "appInstanceId": "",
     "base_url": "https://trial-8689388-admin.okta.com"
   },
   "chain": [
@@ -57,9 +69,9 @@
     },
     {
       "stepId": "s3",
-      "action": "click_text",
-      "text": "Applications",
-      "note": "Click Applications tab"
+      "action": "click",
+      "selector": "a[href*='#tab-apps']",
+      "note": "Click Applications tab on user profile"
     },
     {
       "stepId": "s4",
@@ -70,59 +82,43 @@
       "stepId": "s5",
       "action": "perceive",
       "store_as": "apps_tab",
-      "note": "Perceive Applications tab. Find target app row. Look for gear icon, X button, or 'Remove' action per row."
+      "note": "Confirm Applications tab loaded. Target app should appear in the assigned apps table with delete button."
     },
     {
       "stepId": "s6",
-      "action": "click_text",
-      "text": "{{app_name}}",
-      "note": "Click/hover on target app row to reveal actions"
+      "action": "click",
+      "selector": "tr[data-se='{{appInstanceId}}'] a.app-user-delete-link",
+      "note": "Click the X (delete) button in the target app's row. Selector uses appInstanceId from tr[data-se] attribute."
     },
     {
       "stepId": "s7",
       "action": "delay",
-      "ms": 800
+      "ms": 1500,
+      "note": "Wait for Unassign Application confirmation modal"
     },
     {
       "stepId": "s8",
       "action": "perceive",
-      "store_as": "app_row_actions",
-      "note": "Perceive row-level actions. Look for gear icon dropdown or explicit Remove/Deassign button."
+      "store_as": "unassign_confirm",
+      "note": "Confirm 'Unassign Application' modal is visible with OK and Cancel buttons."
     },
     {
       "stepId": "s9",
-      "action": "click_text",
-      "text": "Remove",
-      "note": "Click Remove. Fallbacks: 'Deassign', 'Unassign', 'Remove Assignment'. If gear icon, click gear first."
+      "action": "click",
+      "selector": "input[type='submit'][value='OK']",
+      "note": "Confirm unassignment. Button is input[type='submit'][value='OK'] — NOT a text link."
     },
     {
       "stepId": "s10",
       "action": "delay",
-      "ms": 1500
+      "ms": 2000,
+      "note": "Wait for unassignment to process"
     },
     {
       "stepId": "s11",
       "action": "perceive",
-      "store_as": "confirm_check",
-      "note": "Check for confirmation dialog."
-    },
-    {
-      "stepId": "s12",
-      "action": "click_text",
-      "text": "Remove Assignment",
-      "disabled": true,
-      "note": "ENABLE if confirmation dialog with 'Remove Assignment' appeared."
-    },
-    {
-      "stepId": "s13",
-      "action": "delay",
-      "ms": 2000
-    },
-    {
-      "stepId": "s14",
-      "action": "perceive",
       "store_as": "post_revoke_verify",
-      "note": "Verify app no longer appears in user's Applications tab."
+      "note": "Verify app no longer appears in user's Applications tab. Table should not contain a row with appInstanceId."
     }
   ]
 }

@@ -1,0 +1,51 @@
+{
+  "_meta": {
+    "site": "frontrowtheater.netlify.app",
+    "description": "FrontRow virtual theatre — React/Three.js 3D stage with LiveKit WebRTC streaming and Socket.IO show management",
+    "version": "1.0.0",
+    "stateInspection": "window.__frontrow_state__ — always available when ?diag=true or after first render",
+    "diagPanel": "?diag=true adds DiagnosticsPanel with data-testid selectors for socket, show state, role, seat, streams"
+  },
+  "baseUrl": "https://frontrowtheater.netlify.app",
+  "quickModes": {
+    "performer": "?mode=performer&diag=true — skips form, auto-camera, shows GO LIVE NOW button",
+    "watch": "?mode=watch&diag=true — skips form, auto-picks seat, connects to live show"
+  },
+  "stateSchema": {
+    "socketConnected": "boolean — true when Socket.IO is connected to VPS backend",
+    "socketId": "string — socket ID",
+    "showState": "string — idle | pre-show | live | post-show",
+    "role": "string — performer | audience",
+    "selectedSeat": "string | null — e.g. seat-1",
+    "hasPerformerStream": "boolean — true when performer LiveKit video stream is active",
+    "performerStreamTracks": "number — count of MediaStreamTracks",
+    "hasUserStream": "boolean — true when local camera stream active",
+    "userStreamTracks": "number",
+    "audienceSeats": "array of {seatId, name, captureMode, socketId, hasLiveStream}",
+    "audienceStreamCount": "number — performer sees N audience camera streams",
+    "timestamp": "number — epoch ms of last state update"
+  },
+  "diagSelectors": {
+    "socket": "[data-testid='diag-socket']",
+    "showState": "[data-testid='diag-show-state']",
+    "role": "[data-testid='diag-role']",
+    "seat": "[data-testid='diag-seat']",
+    "performerStream": "[data-testid='diag-performer-stream']",
+    "userStream": "[data-testid='diag-user-stream']"
+  },
+  "jsHelpers": {
+    "getState": "window.__frontrow_state__",
+    "waitSocket": "await new Promise(r => { const c = () => { const s=window.__frontrow_state__; if(s?.socketConnected) r(s); else setTimeout(c,300); }; c(); })",
+    "waitLive": "await new Promise(r => { const c = () => { const s=window.__frontrow_state__; if(s?.showState==='live') r(s); else setTimeout(c,300); }; c(); })",
+    "waitPerformerStream": "await new Promise((r,rej) => { let n=0; const c = () => { const s=window.__frontrow_state__; if(s?.hasPerformerStream) r(s); else if(++n>60) rej('timeout'); else setTimeout(c,500); }; c(); })",
+    "waitSeat": "await new Promise(r => { const c = () => { const s=window.__frontrow_state__; if(s?.selectedSeat) r(s); else setTimeout(c,300); }; c(); })"
+  },
+  "stateGraph": {
+    "idle": { "signals": [{ "type": "js", "code": "window.__frontrow_state__?.showState === 'idle'" }] },
+    "live": { "signals": [{ "type": "js", "code": "window.__frontrow_state__?.showState === 'live'" }] },
+    "socket-connected": { "signals": [{ "type": "element_attr", "selector": "[data-testid='diag-socket']", "attr": "data-value", "value": "connected" }] },
+    "performer-role": { "signals": [{ "type": "element_attr", "selector": "[data-testid='diag-role']", "attr": "data-value", "value": "performer" }] },
+    "audience-role": { "signals": [{ "type": "element_attr", "selector": "[data-testid='diag-role']", "attr": "data-value", "value": "audience" }] },
+    "has-performer-stream": { "signals": [{ "type": "element_attr", "selector": "[data-testid='diag-performer-stream']", "attr": "data-value", "value": "true" }] }
+  }
+}
