@@ -42,14 +42,18 @@ class CtrlHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.end_headers()
         self.wfile.write(b'ok')
-        sel = None
-        if   self.path == '/show':   sel = b'show_panel'
-        elif self.path == '/hide':   sel = b'hide_panel'
-        elif self.path == '/reload': sel = b'reload_panel'
-        if sel:
-            AppKit.NSApplication.sharedApplication() \
-                .performSelectorOnMainThread_withObject_waitUntilDone_(
-                    objc.selector(None, selector=sel, isClassMethod=False), None, False)
+        path = self.path
+        if path == '/show':
+            _main_queue.put(lambda: panel and panel.makeKeyAndOrderFront_(None))
+        elif path == '/hide':
+            _main_queue.put(lambda: panel and panel.orderOut_(None))
+        elif path == '/reload':
+            def _reload():
+                if webview:
+                    webview.loadRequest_(NSURLRequest.requestWithURL_(NSURL.URLWithString_(HUD_URL)))
+                if panel:
+                    panel.makeKeyAndOrderFront_(None)
+            _main_queue.put(_reload)
 
     def do_GET(self):
         if self.path == '/wv-status':
