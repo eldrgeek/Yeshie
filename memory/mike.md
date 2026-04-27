@@ -2,7 +2,7 @@
 
 **Email:** mw@mike-wolf.com
 **Role:** Founder / builder — runs multiple parallel projects
-**Location:** Cowork + Claude Code environment on macOS
+**Location:** Splits time between Denver, Boston, and Blue Hill, Maine. Travels internationally when invited. Works on macOS via Cowork + Claude Code.
 
 ## Who He Is
 
