@@ -706,9 +706,11 @@ body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-
 .hud-btn-confirm{background:#22c55e;color:#fff}
 .hud-btn-partial{background:#f59e0b;color:#fff}
 .hud-btn-failed{background:#ef4444;color:#fff}
+#btn-digest{padding:3px 9px;border-radius:4px;border:1px solid #444;cursor:pointer;font-size:10px;font-weight:600;font-family:inherit;background:#2a2a2a;color:#888}
+#btn-digest:hover{background:#333;color:#ccc}
 </style></head>
 <body>
-<div id="header"><h1>YESHIE HUD</h1><span id="conn">connecting…</span></div>
+<div id="header"><h1>YESHIE HUD</h1><div style="display:flex;align-items:center;gap:8px"><button id="btn-digest" onclick="copyDigest()">📋 Copy Digest</button><span id="conn">connecting…</span></div></div>
 <div id="jobs"><div class="empty">No active jobs</div></div>
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -748,6 +750,56 @@ function copyMsg(msg) {
       const btn = event.target;
       btn.textContent = '✅ Copied!';
       setTimeout(() => btn.textContent = '📋 Copy Message', 2000);
+    });
+  });
+}
+
+function buildDigest() {
+  const now = Date.now();
+  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+  const todayMs = todayStart.getTime();
+  const pad = n => String(n).padStart(2,'0');
+  const d = new Date(now);
+  const dateStr = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  const all = [...jobs.values()];
+  const active = all.filter(j => ['running','blocked','pending','notify_pending'].includes(j.status));
+  const completedToday = all.filter(j => j.status === 'done' && j.updatedAt >= todayMs);
+  const needsAction = all.filter(j => j.status === 'needs_action');
+  const lines = [\`=== HUD Digest — \${dateStr} ===\`, ''];
+  lines.push(\`ACTIVE (\${active.length})\`);
+  if (active.length) {
+    active.forEach(j => {
+      const el = elapsed(now - j.createdAt);
+      lines.push(\`• \${j.title || j.id} — \${j.status} (started \${el} ago)\`);
+    });
+  } else { lines.push('(none)'); }
+  lines.push('');
+  lines.push(\`COMPLETED TODAY (\${completedToday.length})\`);
+  if (completedToday.length) {
+    completedToday.forEach(j => lines.push(\`• \${j.title || j.id} — completed\`));
+  } else { lines.push('(none)'); }
+  lines.push('');
+  lines.push(\`NEEDS ACTION (\${needsAction.length})\`);
+  if (needsAction.length) {
+    needsAction.forEach(j => lines.push(\`• \${j.title || j.id}\${j.notify_message ? ': ' + j.notify_message : ''}\`));
+  } else { lines.push('(none)'); }
+  return lines.join('\n');
+}
+
+function copyDigest() {
+  const text = buildDigest();
+  const btn = document.getElementById('btn-digest');
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => { btn.textContent = '📋 Copy Digest'; }, 1500);
+  }).catch(() => {
+    fetch('/clipboard', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({text})
+    }).then(() => {
+      btn.textContent = '✓ Copied!';
+      setTimeout(() => { btn.textContent = '📋 Copy Digest'; }, 1500);
     });
   });
 }
