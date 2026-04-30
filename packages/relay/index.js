@@ -672,9 +672,9 @@ body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-
 #jobs{flex:1;overflow-y:auto;padding:8px}
 .empty{color:#555;text-align:center;padding:40px;font-size:11px}
 .job{background:#242424;border-radius:6px;padding:8px 10px;margin-bottom:6px;border-left:3px solid #444;display:grid;grid-template-columns:1fr auto;gap:4px}
-.job.running{border-color:#f0a500}
-.job.done{border-color:#3fb950}
-.job.error{border-color:#f85149}
+.job.running{border-color:#3b82f6;animation:pulse 1.5s infinite}
+.job.done,.job.completed{border-color:#3fb950}
+.job.error,.job.failed{border-color:#f85149}
 .job.blocked{border-color:#d29922;animation:pulse 1.5s infinite}
 .job.pending{border-color:#555}
 .job.notify_pending{border-color:#8b5cf6;animation:pulse 1.5s infinite}
@@ -684,10 +684,14 @@ body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
 .job-title{font-weight:500;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .job-meta{font-size:10px;color:#777;margin-top:2px}
+.job-step{font-size:10px;color:#666;margin-top:3px;font-style:italic}
+.job-progress-wrap{height:4px;background:#333;border-radius:2px;margin-top:5px;overflow:hidden;max-width:200px}
+.job-progress-bar{height:100%;background:#3b82f6;border-radius:2px;transition:width .3s ease}
 .job-status{font-size:10px;text-align:right;font-weight:600}
-.job-status.running{color:#f0a500}
-.job-status.done{color:#3fb950}
-.job-status.error{color:#f85149}
+.job-status.running{color:#3b82f6}
+.job-status.pending{color:#666}
+.job-status.done,.job-status.completed{color:#3fb950}
+.job-status.error,.job-status.failed{color:#f85149}
 .job-status.blocked{color:#d29922}
 .job-status.notify_pending{color:#8b5cf6}
 .job-elapsed{font-size:10px;color:#555;text-align:right}
@@ -770,7 +774,11 @@ function buildDigest() {
   if (active.length) {
     active.forEach(j => {
       const el = elapsed(now - j.createdAt);
-      lines.push(\`• \${j.title || j.id} — \${j.status} (started \${el} ago)\`);
+      let extra = '';
+      if (j.step && j.progress != null) extra = \` (\${j.step}, \${j.progress}%)\`;
+      else if (j.step) extra = \` (\${j.step})\`;
+      else if (j.progress != null) extra = \` (\${j.progress}%)\`;
+      lines.push(\`• \${j.title || j.id} — \${j.status}\${extra}\`);
     });
   } else { lines.push('(none)'); }
   lines.push('');
@@ -813,8 +821,7 @@ function render() {
   if (!active.length) { jobsEl.innerHTML = '<div class="empty">No active jobs</div>'; return; }
   jobsEl.innerHTML = active.map(j => {
     const el   = elapsed(now - j.createdAt);
-    const step = j.step ? '<br>' + esc(j.step) : '';
-    const cls  = j.status.replace(/_/g,'-'); // CSS class (notify_pending → notify-pending, but keep both)
+    const cls  = j.status.replace(/_/g,'-'); // CSS class
 
     let notifyHtml = '';
     if (j.status === 'notify_pending' && j.countdown_start != null && j.countdown_seconds != null) {
@@ -838,6 +845,8 @@ function render() {
 
     const statusLabel = j.status === 'notify_pending' ? 'NOTIFY PENDING'
                       : j.status === 'needs_action'   ? 'NEEDS ACTION'
+                      : j.status === 'completed'      ? 'COMPLETED'
+                      : j.status === 'failed'         ? 'FAILED'
                       : j.status.toUpperCase();
 
     return \`<div class="job \${j.status}">
@@ -1227,7 +1236,7 @@ h2{color:#58a6ff}hr{border-color:#333}
       let body;
       try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
 
-      const { id, title, status, step, result, error: jobError, session_title, notify_message } = body;
+      const { id, title, status, step, progress, result, error: jobError, session_title, notify_message } = body;
       if (!id) { jsonReply(res, 400, { error: 'id required' }); return; }
 
       const now = Date.now();
@@ -1236,7 +1245,8 @@ h2{color:#58a6ff}hr{border-color:#333}
         id,
         title:             title          || existing?.title          || id,
         status:            status         || existing?.status         || 'running',
-        step:              step           || null,
+        step:              step           !== undefined ? step : null,
+        progress:          progress != null ? progress : (existing?.progress != null ? existing.progress : null),
         result:            result         || existing?.result         || null,
         error:             jobError       || existing?.error          || null,
         session_title:     session_title  || existing?.session_title  || null,
@@ -1284,15 +1294,16 @@ h2{color:#58a6ff}hr{border-color:#333}
       let body;
       try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
 
-      const { id, title } = body;
+      const { id, title, status: createStatus, step: createStep, progress: createProgress } = body;
       if (!id) { jsonReply(res, 400, { error: 'id required' }); return; }
 
       const now = Date.now();
       jobs.set(id, {
         id,
         title: title || id,
-        status: 'pending',
-        step: null,
+        status: createStatus || 'pending',
+        step: createStep || null,
+        progress: createProgress != null ? createProgress : null,
         result: null,
         error: null,
         createdAt: now,
