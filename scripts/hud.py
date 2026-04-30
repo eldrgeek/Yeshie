@@ -25,6 +25,13 @@ objc.loadBundle('WebKit',
 WKWebView              = _wk['WKWebView']
 WKWebViewConfiguration = _wk['WKWebViewConfiguration']
 
+# Subclass so first mouse click on a non-activating panel reaches HTML buttons
+# (default acceptsFirstMouse: returns NO, so AppKit eats the click as an "activate
+# the window" pass and never dispatches mouseDown: into the WKWebView content).
+class ClickableWebView(WKWebView):
+    def acceptsFirstMouse_(self, event):
+        return True
+
 HUD_URL   = "http://localhost:3333/hud"
 CTRL_PORT = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[1] == '--port' else 3334
 POS_FILE  = "/tmp/yeshie-hud-pos.json"
@@ -145,7 +152,7 @@ class AppDelegate(AppKit.NSObject):
 
         # Embed WKWebView (saved globally for reload_panel + wv-status)
         cfg = WKWebViewConfiguration.alloc().init()
-        webview = WKWebView.alloc().initWithFrame_configuration_(
+        webview = ClickableWebView.alloc().initWithFrame_configuration_(
             panel.contentView().bounds(), cfg
         )
         webview.setAutoresizingMask_(
