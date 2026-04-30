@@ -32,6 +32,27 @@ class ClickableWebView(WKWebView):
     def acceptsFirstMouse_(self, event):
         return True
 
+# Register block signature for evaluateJavaScript:completionHandler:
+# Signature: void (^)(id result, NSError *error)
+objc.registerMetaDataForSelector(
+    b'WKWebView',
+    b'evaluateJavaScript:completionHandler:',
+    {
+        'arguments': {
+            2 + 1: {  # arg index 3 = the block (after self, _cmd, jsString)
+                'callable': {
+                    'retval': {'type': b'v'},
+                    'arguments': {
+                        0: {'type': b'^v'},  # block self
+                        1: {'type': b'@'},   # id result
+                        2: {'type': b'@'},   # NSError* error
+                    },
+                },
+            },
+        },
+    },
+)
+
 HUD_URL   = "http://localhost:3333/hud"
 CTRL_PORT = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[1] == '--port' else 3334
 POS_FILE  = "/tmp/yeshie-hud-pos.json"
@@ -69,6 +90,53 @@ class CtrlHandler(BaseHTTPRequestHandler):
             _main_queue.put(_reload)
 
     def do_POST(self):
+        if self.path == '/eval':
+            length = int(self.headers.get('Content-Length') or 0)
+            raw = self.rfile.read(length) if length else b''
+            try:
+                payload = json.loads(raw.decode('utf-8') or '{}')
+                js_src = payload.get('js', '')
+            except Exception as e:
+                self.send_response(400); self.send_header('Content-Type','application/json'); self.end_headers()
+                self.wfile.write(json.dumps({'error': f'bad JSON: {e}'}).encode())
+                return
+            holder = [None]
+            ev = threading.Event()
+            def do_eval():
+                try:
+                    if not webview:
+                        holder[0] = {'error': 'no webview'}
+                        ev.set(); return
+                    def completion(result, err):
+                        if err is not None:
+                            try:
+                                holder[0] = {'error': str(err.localizedDescription())}
+                            except Exception:
+                                holder[0] = {'error': repr(err)}
+                        else:
+                            try:
+                                # Result may be NS types — coerce via str() then attempt JSON parse
+                                if result is None:
+                                    holder[0] = {'result': None}
+                                else:
+                                    s = str(result)
+                                    try:
+                                        holder[0] = {'result': json.loads(s)}
+                                    except Exception:
+                                        holder[0] = {'result': s}
+                            except Exception as e:
+                                holder[0] = {'error': f'coerce: {e}'}
+                        ev.set()
+                    webview.evaluateJavaScript_completionHandler_(js_src, completion)
+                except Exception as e:
+                    holder[0] = {'error': f'dispatch: {e}'}
+                    ev.set()
+            _main_queue.put(do_eval)
+            ev.wait(timeout=5.0)
+            body = json.dumps(holder[0] or {'error': 'timeout'}).encode()
+            self.send_response(200); self.send_header('Content-Type','application/json'); self.end_headers()
+            self.wfile.write(body)
+            return
         self.send_response(200)
         self.end_headers()
         self.wfile.write(b'ok')
