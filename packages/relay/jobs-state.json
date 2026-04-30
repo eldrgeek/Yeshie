@@ -1,0 +1,24 @@
+{
+  "hud-persist-scale": {
+    "id": "hud-persist-scale",
+    "title": "HUD persist + scale",
+    "status": "running",
+    "step": null,
+    "progress": null,
+    "result": null,
+    "error": null,
+    "createdAt": 1777561938604,
+    "updatedAt": 1777561938604
+  },
+  "persist-test": {
+    "id": "persist-test",
+    "title": "Persist test job",
+    "status": "running",
+    "step": null,
+    "progress": null,
+    "result": null,
+    "error": null,
+    "createdAt": 1777561938687,
+    "updatedAt": 1777561938687
+  }
+}

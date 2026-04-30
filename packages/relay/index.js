@@ -4,7 +4,7 @@
 
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import { appendFileSync, mkdirSync, existsSync } from 'fs';
+import { appendFileSync, mkdirSync, existsSync, readFileSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { execFile, spawn } from 'child_process';
@@ -12,6 +12,7 @@ import { execFile, spawn } from 'child_process';
 // ====================== Conversation Logger ======================
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const JOBS_STATE_FILE = join(__dirname, 'jobs-state.json');
 const LOGS_DIR = join(__dirname, '..', '..', 'logs', 'conversations');
 
 function ensureLogsDir() {
@@ -156,7 +157,28 @@ export function createRelay(port = 3333) {
   const chatIdToTabId = new Map();        // chatId → tabId (retained after pendingResponder consumed, for second respond calls)
 
   // Job tracking — subprocesses report status here, Dispatch polls on each wake-up
-  const jobs = new Map();                 // jobId → { id, title, status, step, result, error, createdAt, updatedAt }
+  function loadJobsState() {
+    try {
+      if (existsSync(JOBS_STATE_FILE)) {
+        const data = JSON.parse(readFileSync(JOBS_STATE_FILE, 'utf8'));
+        const map = new Map(Object.entries(data));
+        console.log(`[relay] Loaded ${map.size} job(s) from persisted state`);
+        return map;
+      }
+    } catch (e) {
+      console.warn('[relay] Failed to load jobs state:', e.message);
+    }
+    return new Map();
+  }
+  function persistJobsState() {
+    try {
+      const obj = Object.fromEntries(jobs);
+      writeFileSync(JOBS_STATE_FILE, JSON.stringify(obj, null, 2), 'utf8');
+    } catch (e) {
+      console.warn('[relay] Failed to persist jobs state:', e.message);
+    }
+  }
+  const jobs = loadJobsState();           // jobId → { id, title, status, step, result, error, createdAt, updatedAt }
   const JOB_TTL_MS = 30 * 60 * 1000;     // 30 minutes — auto-expire stale jobs
 
   // ── Smart notification (idle detection + countdown) ─────────────────────────
@@ -206,6 +228,7 @@ export function createRelay(port = 3333) {
       }
       const upd = { ...cur, status: newStatus, countdown_start: null, countdown_seconds: null, updatedAt: Date.now() };
       jobs.set(job.id, upd);
+      persistJobsState();
       io.emit('job_update', upd);
       if (newStatus === 'needs_action') {
         showHudPanel();
@@ -218,6 +241,7 @@ export function createRelay(port = 3333) {
     const countdown_start = Date.now();
     const pending = { ...job, status: 'notify_pending', countdown_start, countdown_seconds: COUNTDOWN_S, updatedAt: countdown_start };
     jobs.set(job.id, pending);
+    persistJobsState();
     io.emit('job_update', pending);
     showHudPanel();
 
@@ -664,8 +688,9 @@ export function createRelay(port = 3333) {
       const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Yeshie HUD</title>
 <style>
+:root{--hud-scale:1}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-size:12px;overflow:hidden;height:100vh;display:flex;flex-direction:column}
+body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-size:calc(12px * var(--hud-scale));overflow:hidden;height:100vh;display:flex;flex-direction:column;transform-origin:top left;transform:scale(var(--hud-scale));width:calc(100% / var(--hud-scale));height:calc(100vh / var(--hud-scale))}
 #header{padding:8px 12px;background:#111;border-bottom:1px solid #333;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
 #header h1{font-size:13px;font-weight:600;color:#aaa;letter-spacing:.5px}
 #header span{font-size:10px;color:#555}
@@ -904,6 +929,26 @@ function pollJobs() {
 }
 setInterval(pollJobs, 5000);
 setInterval(render, 1000);
+
+// ── Scale shortcuts: cmd+= / cmd+- / cmd+0 ──────────────────────────────────
+(function() {
+  let scale = parseFloat(localStorage.getItem('hud-scale') || '1');
+  function applyScale(s) {
+    scale = Math.min(2.0, Math.max(0.5, Math.round(s * 10) / 10));
+    document.documentElement.style.setProperty('--hud-scale', scale);
+    document.body.style.transform = 'scale(' + scale + ')';
+    document.body.style.width = 'calc(100% / ' + scale + ')';
+    document.body.style.height = 'calc(100vh / ' + scale + ')';
+    localStorage.setItem('hud-scale', scale);
+  }
+  applyScale(scale); // restore persisted scale on load
+  document.addEventListener('keydown', function(e) {
+    if (!e.metaKey) return;
+    if (e.key === '=' || e.key === '+') { e.preventDefault(); applyScale(scale + 0.1); }
+    else if (e.key === '-') { e.preventDefault(); applyScale(scale - 0.1); }
+    else if (e.key === '0') { e.preventDefault(); applyScale(1.0); }
+  });
+})();
 </script>
 
 <div id="hud-ask-overlay">
@@ -1257,6 +1302,7 @@ h2{color:#58a6ff}hr{border-color:#333}
         updatedAt: now,
       });
       logConversation({ event: 'job_update', jobId: id, status: status || 'running', step: step || null });
+      persistJobsState();
       const updatedJob = jobs.get(id);
       io.emit('job_update', updatedJob);
       // First sighting of this job → bring the HUD forward so Mike notices it.
@@ -1272,9 +1318,11 @@ h2{color:#58a6ff}hr{border-color:#333}
     if (path === '/jobs/status' && req.method === 'GET') {
       const now = Date.now();
       // Expire stale jobs
+      let expired = false;
       for (const [id, job] of jobs) {
-        if (now - job.updatedAt > JOB_TTL_MS) jobs.delete(id);
+        if (now - job.updatedAt > JOB_TTL_MS) { jobs.delete(id); expired = true; }
       }
+      if (expired) persistJobsState();
 
       const filter = url.searchParams.get('filter'); // "active" | "all" (default: active)
       const activeStatuses = new Set(['running', 'blocked', 'pending']);
@@ -1310,6 +1358,7 @@ h2{color:#58a6ff}hr{border-color:#333}
         updatedAt: now,
       });
       logConversation({ event: 'job_created', jobId: id, title: title || id });
+      persistJobsState();
       io.emit('job_update', jobs.get(id));
       // Reopen HUD whenever a new job starts
       showHudPanel();
