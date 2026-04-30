@@ -816,7 +816,7 @@ function buildDigest() {
   if (needsAction.length) {
     needsAction.forEach(j => lines.push(\`• \${j.title || j.id}\${j.notify_message ? ': ' + j.notify_message : ''}\`));
   } else { lines.push('(none)'); }
-  return lines.join('\n');
+  return lines.join('\\n');
 }
 
 function copyDigest() {
