@@ -696,29 +696,38 @@ body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-
 #header span{font-size:10px;color:#555}
 #jobs{flex:1;overflow-y:auto;padding:8px}
 .empty{color:#555;text-align:center;padding:40px;font-size:11px}
-.job{background:#242424;border-radius:6px;padding:8px 10px;margin-bottom:6px;border-left:3px solid #444;display:grid;grid-template-columns:1fr auto;gap:4px}
-.job.running{border-color:#3b82f6;animation:pulse 1.5s infinite}
+.job{background:#242424;border-radius:6px;padding:8px 10px;margin-bottom:6px;border-left:3px solid #444;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start}
+.job.running{border-color:#3b82f6}
 .job.done,.job.completed{border-color:#3fb950}
 .job.error,.job.failed{border-color:#f85149}
-.job.blocked{border-color:#d29922;animation:pulse 1.5s infinite}
+.job.blocked{border-color:#d29922}
 .job.pending{border-color:#555}
-.job.notify_pending{border-color:#8b5cf6;animation:pulse 1.5s infinite}
-.job.needs_action{border-color:#f97316;animation:pulse 1.5s infinite}
+.job.notify_pending{border-color:#8b5cf6}
+.job.needs_action{border-color:#f97316}
 .job-status.needs_action{color:#f97316}
 .btn-copy{background:#f97316;color:#fff}.btn-copy:hover{background:#ea6c10}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
-.job-title{font-weight:500;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.job-title{font-weight:500;font-size:12px;white-space:normal;word-break:break-word;overflow-wrap:anywhere;line-height:1.25;min-width:0}
 .job-meta{font-size:10px;color:#777;margin-top:2px}
 .job-step{font-size:10px;color:#666;margin-top:3px;font-style:italic}
 .job-progress-wrap{height:4px;background:#333;border-radius:2px;margin-top:5px;overflow:hidden;max-width:200px}
 .job-progress-bar{height:100%;background:#3b82f6;border-radius:2px;transition:width .3s ease}
-.job-status{font-size:10px;text-align:right;font-weight:600}
+.job-status{font-size:10px;text-align:right;font-weight:600;align-self:start;white-space:nowrap;flex-shrink:0}
 .job-status.running{color:#3b82f6}
 .job-status.pending{color:#666}
 .job-status.done,.job-status.completed{color:#3fb950}
 .job-status.error,.job-status.failed{color:#f85149}
 .job-status.blocked{color:#d29922}
 .job-status.notify_pending{color:#8b5cf6}
+#svc-strip{display:flex;flex-wrap:wrap;gap:6px;padding:6px 8px;border-top:1px solid #2a2a2a;font-size:9px;color:#888;align-items:center;flex-shrink:0}
+#svc-strip:empty{display:none}
+.svc-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border-radius:8px;background:#1c1c1c;border:1px solid #2a2a2a}
+.svc-pill .svc-dot{width:6px;height:6px;border-radius:50%;background:#3fb950}
+.svc-pill.failed .svc-dot,.svc-pill.error .svc-dot{background:#f85149}
+.svc-pill.blocked .svc-dot{background:#d29922}
+.svc-pill.notify_pending .svc-dot,.svc-pill.needs_action .svc-dot{background:#f97316}
+.svc-pill.pending .svc-dot{background:#666}
+.svc-pill .svc-name{color:#aaa}
+.svc-pill.failed .svc-name,.svc-pill.error .svc-name{color:#f85149}
 .job-elapsed{font-size:10px;color:#555;text-align:right}
 .notify-row{margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .btn{padding:3px 9px;border-radius:4px;border:none;cursor:pointer;font-size:10px;font-weight:600;font-family:inherit}
@@ -739,8 +748,8 @@ body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-
 #btn-digest:hover{background:#333;color:#ccc}
 </style></head>
 <body>
-<div id="header"><h1>YESHIE HUD</h1><div style="display:flex;align-items:center;gap:8px"><button id="btn-digest" onclick="copyDigest()">📋 Copy Digest</button><span id="conn">connecting…</span></div></div>
-<div id="jobs"><div class="empty">No active jobs</div></div>
+<div id="header"><h1>YESHIE HUD</h1><div style="display:flex;align-items:center;gap:8px"><button id="btn-digest" onclick="copyDigest()">📋 Copy Digest</button><span id="conn">connecting…</span><span id="last-poll" style="font-size:9px;color:#444;margin-left:6px"></span></div></div>
+<div id="jobs"><div class="empty">No active jobs</div></div><div id="svc-strip"></div>
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const jobsEl = document.getElementById('jobs');
@@ -822,15 +831,17 @@ function buildDigest() {
 function copyDigest() {
   const text = buildDigest();
   const btn = document.getElementById('btn-digest');
-  navigator.clipboard.writeText(text).then(() => {
+  // Always use server-side pbcopy — navigator.clipboard silently no-ops in WKWebView
+  fetch('/clipboard', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({text})
+  }).then(() => {
     btn.textContent = '✓ Copied!';
     setTimeout(() => { btn.textContent = '📋 Copy Digest'; }, 1500);
   }).catch(() => {
-    fetch('/clipboard', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({text})
-    }).then(() => {
+    // Fallback to browser clipboard API
+    navigator.clipboard.writeText(text).then(() => {
       btn.textContent = '✓ Copied!';
       setTimeout(() => { btn.textContent = '📋 Copy Digest'; }, 1500);
     });
@@ -839,10 +850,27 @@ function copyDigest() {
 
 function render() {
   const now = Date.now();
-  const active = [...jobs.values()].filter(j => {
-    if (['running','blocked','pending','notify_pending','needs_action'].includes(j.status)) return true;
+  // Service tiles (id starts with 'svc-') render in a compact footer strip, NOT the main job list.
+  // This keeps long-running daemons from being visual noise.
+  const allActive = [...jobs.values()].filter(j => {
+    if (['running','blocked','pending','notify_pending','needs_action','failed','error'].includes(j.status)) return true;
     return (now - j.updatedAt) < (j.status === 'needs_action' ? 600000 : 60000);
   });
+  const services = allActive.filter(j => (j.id || '').startsWith('svc-'));
+  const active = allActive.filter(j => !(j.id || '').startsWith('svc-'));
+  // Render service strip
+  const stripEl = document.getElementById('svc-strip');
+  if (stripEl) {
+    if (services.length === 0) {
+      stripEl.innerHTML = '';
+    } else {
+      stripEl.innerHTML = services.map(s2 => {
+        const cls = (s2.status || 'unknown').replace(/_/g, '-');
+        const name = (s2.id || '').replace(/^svc-/, '');
+        return `<span class="svc-pill ${s2.status}" title="${(s2.step || '').replace(/"/g, '&quot;')}"><span class="svc-dot"></span><span class="svc-name">${name}</span></span>`;
+      }).join('');
+    }
+  }
   if (!active.length) { jobsEl.innerHTML = '<div class="empty">No active jobs</div>'; return; }
   jobsEl.innerHTML = active.map(j => {
     const el   = elapsed(now - j.createdAt);
@@ -877,7 +905,8 @@ function render() {
     return \`<div class="job \${j.status}">
       <div>
         <div class="job-title">\${esc(j.title || j.id)}</div>
-        <div class="job-meta">\${esc(j.id)}\${step}</div>
+        <div class="job-meta">\${esc(j.id)}</div>
+        \${j.step ? '<div class="job-step">' + esc(j.step) + '</div>' : ''}
         \${notifyHtml}\${actionHtml}
       </div>
       <div>
@@ -925,8 +954,15 @@ function pollJobs() {
   fetch('/jobs/status?filter=all').then(r=>r.json()).then(d => {
     d.jobs.forEach(j => jobs.set(j.id, j));
     render();
-  }).catch(()=>{});
+    const p = document.getElementById('last-poll');
+    if (p) { const t = new Date(); p.textContent = t.getHours()+':'+String(t.getMinutes()).padStart(2,'0')+':'+String(t.getSeconds()).padStart(2,'0'); }
+  }).catch(e => {
+    const p = document.getElementById('last-poll');
+    if (p) p.textContent = 'poll ERR';
+  });
 }
+// Fire immediately on load, then every 5s
+pollJobs();
 setInterval(pollJobs, 5000);
 setInterval(render, 1000);
 
