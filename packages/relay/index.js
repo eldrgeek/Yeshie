@@ -867,7 +867,7 @@ function render() {
       stripEl.innerHTML = services.map(s2 => {
         const cls = (s2.status || 'unknown').replace(/_/g, '-');
         const name = (s2.id || '').replace(/^svc-/, '');
-        return `<span class="svc-pill ${s2.status}" title="${(s2.step || '').replace(/"/g, '&quot;')}"><span class="svc-dot"></span><span class="svc-name">${name}</span></span>`;
+        return '<span class="svc-pill ' + cls + '" title="' + (s2.step || '').replace(/"/g, '&amp;quot;') + '"><span class="svc-dot"></span><span class="svc-name">' + name + '</span></span>';
       }).join('');
     }
   }
