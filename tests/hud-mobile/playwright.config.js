@@ -1,0 +1,8 @@
+import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+  testDir: '.',
+  timeout: 30_000,
+  reporter: 'list',
+  use: { actionTimeout: 5000 },
+});

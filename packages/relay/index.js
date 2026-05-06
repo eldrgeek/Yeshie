@@ -8,6 +8,56 @@ import { appendFileSync, mkdirSync, existsSync, readFileSync, writeFileSync } fr
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { execFile, spawn } from 'child_process';
+import { deflateSync } from 'zlib';
+
+// ====================== PNG icon generator (solid color) ======================
+const _crcTable = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function _crc32(buf) {
+  let c = 0xffffffff;
+  for (let i = 0; i < buf.length; i++) c = _crcTable[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+function _pngChunk(type, data) {
+  const len = Buffer.alloc(4); len.writeUInt32BE(data.length, 0);
+  const typeBuf = Buffer.from(type, 'ascii');
+  const crc = Buffer.alloc(4); crc.writeUInt32BE(_crc32(Buffer.concat([typeBuf, data])), 0);
+  return Buffer.concat([len, typeBuf, data, crc]);
+}
+const _iconCache = new Map();
+function makeIconPng(size, r, g, b) {
+  const key = `${size}-${r}-${g}-${b}`;
+  if (_iconCache.has(key)) return _iconCache.get(key);
+  const sig = Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]);
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4);
+  ihdr[8] = 8; ihdr[9] = 2; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0; // 8-bit RGB
+  // Build raw scanlines: filter byte 0 + RGB per pixel, with a soft radial highlight
+  const cx = (size - 1) / 2, cy = (size - 1) / 2, maxD = Math.hypot(cx, cy);
+  const raw = Buffer.alloc(size * (1 + size * 3));
+  for (let y = 0; y < size; y++) {
+    raw[y * (1 + size * 3)] = 0;
+    for (let x = 0; x < size; x++) {
+      const d = Math.hypot(x - cx, y - cy) / maxD; // 0..1
+      const t = 1 - Math.min(1, d * 0.95);          // brighter center
+      const off = y * (1 + size * 3) + 1 + x * 3;
+      raw[off]     = Math.min(255, Math.round(r + t * 40));
+      raw[off + 1] = Math.min(255, Math.round(g + t * 40));
+      raw[off + 2] = Math.min(255, Math.round(b + t * 60));
+    }
+  }
+  const idat = deflateSync(raw, { level: 9 });
+  const png = Buffer.concat([sig, _pngChunk('IHDR', ihdr), _pngChunk('IDAT', idat), _pngChunk('IEND', Buffer.alloc(0))]);
+  _iconCache.set(key, png);
+  return png;
+}
 
 // ====================== Conversation Logger ======================
 
@@ -687,10 +737,19 @@ export function createRelay(port = 3333) {
     if (path === '/hud' && req.method === 'GET') {
       const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Yeshie HUD</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pulse">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1a1a1a">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
 <style>
 :root{--hud-scale:1}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-size:calc(12px * var(--hud-scale));overflow:hidden;height:100vh;display:flex;flex-direction:column;transform-origin:top left;transform:scale(var(--hud-scale));width:calc(100% / var(--hud-scale));height:calc(100vh / var(--hud-scale))}
+body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-size:calc(12px * var(--hud-scale));overflow:hidden;height:100vh;display:flex;flex-direction:column;transform-origin:top left;transform:scale(var(--hud-scale));width:calc(100% / var(--hud-scale));height:calc(100vh / var(--hud-scale));-webkit-text-size-adjust:100%}
 #header{padding:8px 12px;background:#111;border-bottom:1px solid #333;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
 #header h1{font-size:13px;font-weight:600;color:#aaa;letter-spacing:.5px}
 #header span{font-size:10px;color:#555}
@@ -746,9 +805,36 @@ body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-
 .hud-btn-failed{background:#ef4444;color:#fff}
 #btn-digest{padding:3px 9px;border-radius:4px;border:1px solid #444;cursor:pointer;font-size:10px;font-weight:600;font-family:inherit;background:#2a2a2a;color:#888}
 #btn-digest:hover{background:#333;color:#ccc}
+#btn-share{display:none}
+
+@media (max-width:600px){
+  body{transform:none!important;width:100%!important;height:auto!important;min-height:100vh;min-height:100dvh;font-size:16px;overflow:auto;-webkit-overflow-scrolling:touch;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+  #header{padding:12px 16px;position:sticky;top:0;z-index:10}
+  #header h1{font-size:16px}
+  #header span{font-size:12px}
+  #jobs{padding:12px;gap:10px;display:flex;flex-direction:column}
+  .empty{padding:48px 24px;font-size:14px}
+  .job{padding:14px 16px;margin-bottom:10px;border-radius:10px;border-left-width:4px;grid-template-columns:1fr;gap:6px}
+  .job-title{font-size:15px;line-height:1.35}
+  .job-meta{font-size:12px;margin-top:4px}
+  .job-step{font-size:12px;margin-top:6px}
+  .job-status{font-size:11px;text-align:left;margin-top:2px}
+  .job-elapsed{font-size:12px;text-align:left;margin-top:2px}
+  .job-progress-wrap{max-width:100%}
+  .notify-row{margin-top:10px;gap:10px}
+  .btn{min-height:44px;padding:0 16px;font-size:14px;border-radius:8px}
+  .countdown{font-size:13px}
+  #svc-strip{padding:10px 12px;gap:8px;font-size:11px}
+  .svc-pill{padding:6px 10px;font-size:12px;border-radius:14px}
+  #btn-digest{min-height:36px;padding:6px 12px;font-size:13px;border-radius:8px}
+  #btn-share{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:6px 12px;font-size:13px;font-weight:600;font-family:inherit;border-radius:8px;border:1px solid #444;background:#2a2a2a;color:#888;cursor:pointer}
+  #hud-ask-overlay{left:8px;right:8px;bottom:8px;transform:none;min-width:0;max-width:none;padding:20px}
+  #hud-ask-message{font-size:15px}
+  .hud-btn{min-height:48px;flex:1;font-size:14px}
+}
 </style></head>
 <body>
-<div id="header"><h1>YESHIE HUD</h1><div style="display:flex;align-items:center;gap:8px"><button id="btn-digest" onclick="copyDigest()">📋 Copy Digest</button><span id="conn">connecting…</span><span id="last-poll" style="font-size:9px;color:#444;margin-left:6px"></span></div></div>
+<div id="header"><h1>YESHIE HUD</h1><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><button id="btn-digest" onclick="copyDigest()">📋 Copy Digest</button><button id="btn-share" onclick="shareDigest()">⤴ Share</button><span id="conn">connecting…</span><span id="last-poll" style="font-size:9px;color:#444;margin-left:6px"></span></div></div>
 <div id="jobs"><div class="empty">No active jobs</div></div><div id="svc-strip"></div>
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -826,6 +912,15 @@ function buildDigest() {
     needsAction.forEach(j => lines.push(\`• \${j.title || j.id}\${j.notify_message ? ': ' + j.notify_message : ''}\`));
   } else { lines.push('(none)'); }
   return lines.join('\\n');
+}
+
+function shareDigest() {
+  const text = buildDigest();
+  if (navigator.share) {
+    navigator.share({ title: 'Yeshie Pulse', text }).catch(() => {});
+  } else {
+    copyDigest();
+  }
 }
 
 function copyDigest() {
@@ -968,6 +1063,8 @@ setInterval(render, 1000);
 
 // ── Scale shortcuts: cmd+= / cmd+- / cmd+0 ──────────────────────────────────
 (function() {
+  // Skip scale transform on mobile — viewport handles sizing, transform fights iOS rendering
+  if (window.matchMedia && window.matchMedia('(max-width: 600px)').matches) return;
   let scale = parseFloat(localStorage.getItem('hud-scale') || '1');
   function applyScale(s) {
     scale = Math.min(2.0, Math.max(0.5, Math.round(s * 10) / 10));
@@ -1589,6 +1686,40 @@ h2{color:#58a6ff}hr{border-color:#333}
         scheduleOrInject(updatedJob);
       }
       jsonReply(res, 200, { ok: true });
+      return;
+    }
+
+    // --- PWA manifest + icons (for iOS Add to Home Screen) ---
+    if (path === '/manifest.webmanifest' && req.method === 'GET') {
+      const manifest = {
+        name: 'Yeshie Pulse',
+        short_name: 'Pulse',
+        description: 'Yeshie HUD — live job & service pulse',
+        start_url: '/hud',
+        scope: '/hud',
+        display: 'standalone',
+        orientation: 'portrait',
+        background_color: '#1a1a1a',
+        theme_color: '#1a1a1a',
+        icons: [
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        ],
+      };
+      res.writeHead(200, { 'Content-Type': 'application/manifest+json; charset=utf-8' });
+      res.end(JSON.stringify(manifest));
+      return;
+    }
+    const iconMatch = path.match(/^\/(?:apple-touch-icon|icon-(\d+))\.png$/);
+    if (iconMatch && req.method === 'GET') {
+      const size = iconMatch[1] ? parseInt(iconMatch[1], 10) : 180;
+      const png = makeIconPng(size, 0x1a, 0x1a, 0x2e);
+      res.writeHead(200, {
+        'Content-Type': 'image/png',
+        'Content-Length': png.length,
+        'Cache-Control': 'public, max-age=86400',
+      });
+      res.end(png);
       return;
     }
 
