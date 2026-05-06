@@ -1,0 +1,19 @@
+app: google-admin
+display_name: Google Admin Console
+home_url: https://admin.google.com
+public_marketing: https://workspace.google.com/products/admin/
+docs_seeds:
+  - https://support.google.com/a/answer/182076
+  - https://support.google.com/a/topic/2413312
+  - https://support.google.com/a/answer/33310
+  - https://support.google.com/a/answer/33327
+  - https://support.google.com/a/answer/9050643
+auth:
+  type: sso_google
+  identity_email: mw@mike-wolf.com
+  notes: Requires Google Workspace super-admin role. MFA + recovery prompts likely.
+existing_site_dir: null
+notes: |
+  No existing payloads. Pure cold-start. Bootstrap loop should produce
+  theory.md from support.google.com/a/* corpus + a probing crawl of admin.google.com
+  (which requires auth — first skill is probably "login + take inventory").

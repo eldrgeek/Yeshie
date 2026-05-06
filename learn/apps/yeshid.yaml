@@ -1,0 +1,18 @@
+app: yeshid
+display_name: YeshID
+home_url: https://app.yeshid.com
+public_marketing: https://www.yeshid.com
+docs_seeds:
+  - https://www.yeshid.com
+  - https://help.yeshid.com
+  - https://www.yeshid.com/blog
+  - https://app.yeshid.com/login
+auth:
+  type: sso_google
+  identity_email: mw@mike-wolf.com
+existing_site_dir: sites/yeshid
+notes: |
+  YeshID is Mike's own product (Embedded Systems Research). The repo already has
+  17 production payloads under sites/yeshid/tasks/ — those encode hard-won knowledge
+  about selectors, state graph, and confirmation signatures. The bootstrap loop
+  should USE that as evidence, not reinvent it.

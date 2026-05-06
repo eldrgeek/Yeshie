@@ -1,0 +1,91 @@
+{
+  "app": "yeshid",
+  "skill": "00-user-add.payload.json",
+  "started_at": "20260506T052757Z",
+  "live": false,
+  "relay_status": {
+    "ok": true,
+    "extensionConnected": true,
+    "pending": 0
+  },
+  "results": [
+    {
+      "test": "happy-path-immediate-start",
+      "outcome": "dry-run",
+      "would_post_to": "http://localhost:3333/run",
+      "param_overrides": {
+        "first_name": "Testy",
+        "last_name": "McTestface",
+        "company_email": "testy.mctestface@embeddedsystemsresearch.org",
+        "backup_email": "testy.test@gmail.com",
+        "start_date_preset": "Immediately"
+      },
+      "expect": "success"
+    },
+    {
+      "test": "happy-path-monday-start",
+      "outcome": "dry-run",
+      "would_post_to": "http://localhost:3333/run",
+      "param_overrides": {
+        "first_name": "Monday",
+        "last_name": "Starter",
+        "company_email": "monday.starter@embeddedsystemsresearch.org",
+        "backup_email": "monday.starter@gmail.com",
+        "start_date_preset": "Monday morning"
+      },
+      "expect": "success"
+    },
+    {
+      "test": "missing-backup-email",
+      "outcome": "dry-run",
+      "would_post_to": "http://localhost:3333/run",
+      "param_overrides": {
+        "first_name": "No",
+        "last_name": "Recovery",
+        "company_email": "no.recovery@embeddedsystemsresearch.org",
+        "backup_email": "",
+        "start_date_preset": "Immediately"
+      },
+      "expect": "validation-error"
+    },
+    {
+      "test": "missing-start-date",
+      "outcome": "dry-run",
+      "would_post_to": "http://localhost:3333/run",
+      "param_overrides": {
+        "first_name": "No",
+        "last_name": "Startdate",
+        "company_email": "no.startdate@embeddedsystemsresearch.org",
+        "backup_email": "no.startdate@gmail.com",
+        "start_date_preset": ""
+      },
+      "expect": "validation-error"
+    },
+    {
+      "test": "derived-email-already-correct",
+      "outcome": "dry-run",
+      "would_post_to": "http://localhost:3333/run",
+      "param_overrides": {
+        "first_name": "Skip",
+        "last_name": "Test",
+        "company_email": "skip.test@embeddedsystemsresearch.org",
+        "backup_email": "skip.test@gmail.com",
+        "start_date_preset": "Immediately"
+      },
+      "expect": "success"
+    },
+    {
+      "test": "duplicate-person-error",
+      "outcome": "dry-run",
+      "would_post_to": "http://localhost:3333/run",
+      "param_overrides": {
+        "first_name": "Mike",
+        "last_name": "Wolf",
+        "company_email": "mike.wolf@embeddedsystemsresearch.org",
+        "backup_email": "mw@mike-wolf.com",
+        "start_date_preset": "Immediately"
+      },
+      "expect": "error"
+    }
+  ]
+}

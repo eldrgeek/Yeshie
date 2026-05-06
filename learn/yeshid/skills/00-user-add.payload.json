@@ -1,0 +1,684 @@
+{
+  "_meta": {
+    "task": "user-add",
+    "description": "Onboard a new person into YeshID. Navigates to the onboard form, fills name/email/start-date fields, submits, and verifies redirect to the provisioning workflow.",
+    "requiredParams": [
+      "first_name",
+      "last_name",
+      "backup_email",
+      "start_date_preset"
+    ],
+    "optionalParams": [
+      "company_email"
+    ],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "prerequisite": "00-login.payload.json",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "proposalRationale": "Chose user-add (rank #1 in \u00a711) because it is the highest-leverage lifecycle action \u2014 every new hire requires it \u2014 and it is also the lowest-difficulty option: four fields are mapped with confirmed data-cy selectors (confidence 1.0 from theory \u00a78), the start-date picker has a stable data-cy activator, and the success signal (redirect to /workflows/{uuid} + snackbar) is unambiguous. Its only prerequisite is 00-login, which \u00a73 confirms is fully automatable via Google SSO. No other skill in the ranked list combines this impact level with this level of selector certainty at zero confirmed runs.",
+    "params": {
+      "first_name": {
+        "required": true,
+        "description": "First name of the person to onboard",
+        "hint": "Plain string \u2014 no titles or honorifics"
+      },
+      "last_name": {
+        "required": true,
+        "description": "Last name of the person to onboard"
+      },
+      "company_email": {
+        "required": false,
+        "description": "Company email address \u2014 auto-derived from first and last name if omitted",
+        "derived": true,
+        "derivationTemplate": "{first_name_lower}.{last_name_lower}@embeddedsystemsresearch.org",
+        "confirmDerived": true,
+        "pattern": "^[a-z]+\\.[a-z]+@embeddedsystemsresearch\\.org$",
+        "hint": "Auto-derived as firstname.lastname@embeddedsystemsresearch.org \u2014 confirm or correct before running if name contains non-ASCII characters"
+      },
+      "backup_email": {
+        "required": true,
+        "description": "Personal/recovery email address (e.g. Gmail or personal domain)",
+        "hint": "Always required by YeshID \u2014 ask if not provided"
+      },
+      "start_date_preset": {
+        "required": true,
+        "description": "When the person's access should activate",
+        "promptLabel": "When should they start?",
+        "options": [
+          "Immediately",
+          "Monday morning",
+          "Pick date & time"
+        ],
+        "hint": "Never default silently to Immediately \u2014 always ask the operator"
+      }
+    },
+    "homeBookend": true,
+    "verificationStrategy": {
+      "pre": "h0c captures baseline_total_applications via statByLabel",
+      "post": "hZc captures final_total_applications via statByLabel",
+      "assertion": "workflow_redirect_url matches /workflows/ AND snackbar_text contains 'Onboarding workflow created'",
+      "note": "Total Applications stat on overview does not increment on person-add in all tenants; primary verification is workflow redirect URL pattern + snackbar text. Headcount delta is a secondary smoke test.",
+      "mechanism": "url_change + snackbar read",
+      "primaryVerification": "url matches /workflows/[a-zA-Z0-9-]+ AND workflow_confirmation contains 'Workflow'"
+    }
+  },
+  "runId": "yeshid-user-add-{{timestamp}}",
+  "mode": "exploratory",
+  "site": "app.yeshid.com",
+  "params": {
+    "first_name": "{{first_name}}",
+    "last_name": "{{last_name}}",
+    "company_email": "{{company_email}}",
+    "backup_email": "{{backup_email}}",
+    "start_date_preset": "{{start_date_preset}}",
+    "base_url": "https://app.yeshid.com"
+  },
+  "abstractTargets": {
+    "auth-sentinel": {
+      "match": {
+        "role": "generic",
+        "data_cy": "username"
+      },
+      "cachedSelector": "[data-cy=\"username\"]",
+      "cachedConfidence": 1.0,
+      "resolveHint": "Present on every authenticated YeshID page. Use as hydration sentinel after navigation.",
+      "resolvedOn": "2026-05-05T00:00:00Z",
+      "resolvedVia": "data-cy"
+    },
+    "first-name-input": {
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "first name",
+          "First Name"
+        ]
+      },
+      "cachedSelector": "[data-cy=\"first-name-input\"] input",
+      "cachedConfidence": 1.0,
+      "resolveHint": "Vuetify text-field wrapper with data-cy attribute; target the inner <input> not the wrapper div.",
+      "resolvedOn": "2026-05-05T00:00:00Z",
+      "resolvedVia": "data-cy"
+    },
+    "last-name-input": {
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "last name",
+          "Last Name"
+        ]
+      },
+      "cachedSelector": "[data-cy=\"last-name-input\"] input",
+      "cachedConfidence": 1.0,
+      "resolveHint": "Vuetify text-field wrapper with data-cy=\"last-name-input\"; inner input.",
+      "resolvedOn": "2026-05-05T00:00:00Z",
+      "resolvedVia": "data-cy"
+    },
+    "company-email-input": {
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "company email",
+          "Company Email",
+          "Work email"
+        ]
+      },
+      "cachedSelector": "[data-cy=\"company-email-input\"] input",
+      "cachedConfidence": 1.0,
+      "resolveHint": "data-cy=\"company-email-input\" wrapper; inner input. YeshID may pre-fill this based on name fields \u2014 check value before typing.",
+      "resolvedOn": "2026-05-05T00:00:00Z",
+      "resolvedVia": "data-cy"
+    },
+    "recovery-email-input": {
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "personal",
+          "recovery",
+          "backup",
+          "Recovery email",
+          "Personal email"
+        ]
+      },
+      "cachedSelector": "[data-cy=\"recovery-email-input\"] input",
+      "cachedConfidence": 1.0,
+      "resolveHint": "YeshID labels this field 'recovery email' (data-cy=\"recovery-email-input\"), not 'personal'. Inner input via wrapper.",
+      "resolvedOn": "2026-05-05T00:00:00Z",
+      "resolvedVia": "data-cy"
+    },
+    "start-date-activator": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "start date",
+          "schedule",
+          "Select start date",
+          "Immediately",
+          "ASAP"
+        ]
+      },
+      "cachedSelector": "[data-cy=\"schedule-user-activator\"]",
+      "cachedConfidence": 1.0,
+      "resolveHint": "Click opens a preset picker overlay. data-cy=\"schedule-user-activator\" is the button itself (not an inner element). Presets: Immediately, ASAP, Monday morning, Pick date & time.",
+      "pickerOptions": [
+        "Immediately",
+        "ASAP",
+        "Monday morning",
+        "Pick date & time"
+      ],
+      "resolvedOn": "2026-05-05T00:00:00Z",
+      "resolvedVia": "data-cy"
+    },
+    "start-date-preset-option": {
+      "match": {
+        "role": "option",
+        "name_contains": [
+          "{{start_date_preset}}"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0,
+      "resolveHint": "Items inside the start-date picker overlay. Try .v-overlay--active .v-list-item, .v-overlay--active [role='option'], or .v-overlay--active .v-btn with text matching the preset. Resolve at runtime from picker context.",
+      "resolvedVia": "aria"
+    },
+    "submit-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "create and onboard",
+          "onboard person",
+          "Create and onboard",
+          "Onboard",
+          "Submit"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0,
+      "resolveHint": "Primary CTA at the bottom of the onboard form. Try: button.v-btn--variant-flat:last-of-type scoped to main, or button containing text 'onboard'. No data-cy confirmed for this element.",
+      "fallbackSelectors": [
+        "main button.v-btn--variant-flat:last-of-type",
+        "main .v-btn--color-primary:last-of-type",
+        "main form button[type='submit']"
+      ],
+      "resolvedVia": "aria"
+    },
+    "snackbar": {
+      "match": {
+        "role": "alert",
+        "class_contains": [
+          "v-snackbar--active"
+        ]
+      },
+      "cachedSelector": ".v-snackbar--active .v-snackbar__content",
+      "cachedConfidence": 0.9,
+      "resolveHint": "Vuetify snackbar for success/error feedback. Read .v-snackbar__content for message text.",
+      "resolvedVia": "class_match"
+    },
+    "error-field": {
+      "match": {
+        "role": "generic",
+        "class_contains": [
+          "v-input--error"
+        ]
+      },
+      "cachedSelector": ".v-input--error",
+      "cachedConfidence": 0.9,
+      "resolveHint": "Vuetify input component with validation error state. Child .v-messages__message contains the error text.",
+      "resolvedVia": "class_match"
+    }
+  },
+  "stateGraph": {
+    "unauthenticated": {
+      "url_pattern": "/login|/auth|/signin|accounts\\.google\\.com",
+      "signals": [
+        "no [data-cy=\"username\"]"
+      ],
+      "transitions": [
+        {
+          "on": "google_sso_complete",
+          "to": "authenticated"
+        }
+      ]
+    },
+    "authenticated": {
+      "url_pattern": "app\\.yeshid\\.com(?!/login|/auth|/signin)",
+      "signals": [
+        "[data-cy=\"username\"] visible"
+      ],
+      "transitions": [
+        {
+          "on": "navigate_to_onboard",
+          "to": "onboard-form"
+        },
+        {
+          "on": "navigate_to_overview",
+          "to": "overview"
+        }
+      ]
+    },
+    "overview": {
+      "url_pattern": "/overview$",
+      "signals": [
+        "[data-cy=\"username\"] visible",
+        "url ends with /overview"
+      ],
+      "transitions": [
+        {
+          "on": "navigate_to_onboard",
+          "to": "onboard-form"
+        }
+      ]
+    },
+    "onboard-form": {
+      "url_pattern": "/organization/people/onboard",
+      "signals": [
+        "[data-cy=\"first-name-input\"] visible",
+        "[data-cy=\"schedule-user-activator\"] visible"
+      ],
+      "transitions": [
+        {
+          "on": "submit_success",
+          "to": "onboard-workflow"
+        },
+        {
+          "on": "submit_validation_error",
+          "to": "onboard-form-error"
+        }
+      ]
+    },
+    "onboard-form-error": {
+      "url_pattern": "/organization/people/onboard",
+      "signals": [
+        ".v-input--error visible OR .v-snackbar--active with error text"
+      ],
+      "transitions": [
+        {
+          "on": "field_corrected_and_resubmit",
+          "to": "onboard-workflow"
+        }
+      ]
+    },
+    "onboard-workflow": {
+      "url_pattern": "/workflows/[a-zA-Z0-9\\-]+",
+      "signals": [
+        "url matches /workflows/UUID",
+        "workflow status chip visible"
+      ],
+      "transitions": [
+        {
+          "on": "navigate_to_overview",
+          "to": "overview"
+        }
+      ]
+    }
+  },
+  "branches": {
+    "not-authenticated": {
+      "description": "Session has expired or was never established. Prerequisite 00-login must run first.",
+      "steps": [
+        {
+          "stepId": "na1",
+          "action": "navigate",
+          "url": "https://app.yeshid.com/overview",
+          "note": "Re-attempt navigation; if login page appears, abort and surface error \u2014 00-login must be re-run."
+        },
+        {
+          "stepId": "na2",
+          "action": "assess_state",
+          "expect": {
+            "state": "unauthenticated"
+          },
+          "note": "Confirm unauthenticated; abort chain with error requiring manual re-login via 00-login."
+        }
+      ]
+    }
+  },
+  "chain": [
+    {
+      "stepId": "h0",
+      "action": "navigate",
+      "url": "https://app.yeshid.com/overview",
+      "note": "HOME BOOKEND START: Always begin from overview so pre/post state comparison is consistent."
+    },
+    {
+      "stepId": "h0b",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 6000,
+      "note": "Hydration sentinel \u2014 present on every authenticated page. Fail fast here if session expired."
+    },
+    {
+      "stepId": "h0c",
+      "action": "js",
+      "code": "statByLabel('Total Applications')",
+      "store_as": "baseline_total_applications",
+      "note": "PRE-BOOKEND: Capture baseline stat. 'Total Applications' is the confirmed-working label (value ~4). People count requires /organization/people \u2014 using app count as lightweight smoke proxy."
+    },
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {
+        "state": "authenticated"
+      },
+      "onMismatch": "branch:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people/onboard",
+      "guard": {
+        "target": "first-name-input",
+        "state": {
+          "visible": true
+        },
+        "timeout": 7000
+      },
+      "expect": {
+        "state": "onboard-form"
+      },
+      "note": "Direct URL navigation to onboard form. Guard waits for first-name-input before proceeding."
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "target": "start-date-activator",
+      "guard": {
+        "target": "start-date-activator",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      },
+      "note": "Start date is REQUIRED \u2014 must be selected before other fields to avoid validation error on submit. Click activator to open preset picker."
+    },
+    {
+      "stepId": "s3b",
+      "action": "wait_for",
+      "selector": ".v-overlay--active .v-list-item, .v-overlay--active [role='option'], .v-overlay--active .v-btn",
+      "timeout": 3000,
+      "note": "Wait for picker overlay to render before selecting preset."
+    },
+    {
+      "stepId": "s3c",
+      "action": "click_preset",
+      "target": "start-date-preset-option",
+      "preset": "{{start_date_preset}}",
+      "defaultPreset": "Immediately",
+      "overlayScope": ".v-overlay--active",
+      "note": "Select the chosen preset from the open picker. If 'Pick date & time' is selected, additional date input will appear \u2014 not yet handled in this exploratory version; return error."
+    },
+    {
+      "stepId": "s4",
+      "action": "type",
+      "target": "first-name-input",
+      "value": "{{first_name}}",
+      "guard": {
+        "target": "first-name-input",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      }
+    },
+    {
+      "stepId": "s5",
+      "action": "type",
+      "target": "last-name-input",
+      "value": "{{last_name}}",
+      "guard": {
+        "target": "last-name-input",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      }
+    },
+    {
+      "stepId": "s6",
+      "action": "wait_for",
+      "selector": "[data-cy=\"company-email-input\"] input",
+      "timeout": 2000,
+      "note": "YeshID may auto-derive company email from first+last name via Vue reactivity. Wait briefly before inspecting."
+    },
+    {
+      "stepId": "s6b",
+      "action": "js",
+      "code": "document.querySelector('[data-cy=\"company-email-input\"] input')?.value || ''",
+      "store_as": "derived_company_email",
+      "note": "Read whatever YeshID auto-derived. If it matches the template, skip manual type. If company_email param was supplied and differs, overwrite."
+    },
+    {
+      "stepId": "s6c",
+      "action": "type",
+      "target": "company-email-input",
+      "value": "{{company_email}}",
+      "guard": {
+        "target": "company-email-input",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      },
+      "skipIfStored": {
+        "key": "derived_company_email",
+        "matchesParam": "company_email",
+        "note": "Skip if YeshID already filled the correct value \u2014 avoid clearing and retyping unnecessarily"
+      }
+    },
+    {
+      "stepId": "s7",
+      "action": "type",
+      "target": "recovery-email-input",
+      "value": "{{backup_email}}",
+      "guard": {
+        "target": "recovery-email-input",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      },
+      "note": "YeshID calls this 'Recovery email' (data-cy=recovery-email-input). Required field \u2014 do not skip."
+    },
+    {
+      "stepId": "s8",
+      "action": "click",
+      "target": "submit-button",
+      "guard": {
+        "target": "submit-button",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      },
+      "responseSignature": [
+        {
+          "any_of": [
+            {
+              "type": "url_change",
+              "matches": "/workflows/",
+              "timeout": 12000,
+              "note": "Primary success: YeshID redirects to /workflows/{uuid} on successful onboard"
+            },
+            {
+              "type": "element_visible",
+              "selector": ".v-snackbar--active",
+              "textMatch": "Onboarding workflow created|success|created|onboard",
+              "timeout": 8000
+            }
+          ]
+        }
+      ],
+      "failureSignature": [
+        {
+          "any_of": [
+            {
+              "type": "element_visible",
+              "selector": ".v-snackbar--active",
+              "textMatch": "Error|error|failed|required|invalid|already exists",
+              "timeout": 6000
+            },
+            {
+              "type": "element_visible",
+              "selector": ".v-input--error",
+              "timeout": 3000,
+              "note": "Inline Vuetify validation error on one or more fields"
+            },
+            {
+              "type": "element_text",
+              "selector": ".v-messages__message, .v-input--error .v-messages",
+              "textPattern": "required|invalid|must|fill|already",
+              "timeout": 3000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "s8b",
+      "action": "read",
+      "candidates": [
+        ".v-input--error .v-label",
+        ".v-input--error label",
+        ".v-messages__message"
+      ],
+      "store_as": "validation_errors",
+      "optional": true,
+      "note": "Capture which fields have inline validation errors if submit triggered failureSignature."
+    },
+    {
+      "stepId": "s9",
+      "action": "assess_state",
+      "expect": {
+        "state_any": [
+          "onboard-workflow"
+        ]
+      },
+      "note": "Confirm we landed on /workflows/{uuid}. If still on onboard-form, submit failed \u2014 surface validation_errors.",
+      "onMismatch": "report_failure"
+    },
+    {
+      "stepId": "s9b",
+      "action": "read",
+      "candidates": [
+        ".v-snackbar--active .v-snackbar__content",
+        "h1",
+        ".workflow-title",
+        ".v-toolbar__title",
+        "title"
+      ],
+      "store_as": "workflow_confirmation",
+      "optional": true,
+      "note": "Read workflow page heading or snackbar to confirm person name appears in confirmation."
+    },
+    {
+      "stepId": "hZ",
+      "action": "navigate",
+      "url": "https://app.yeshid.com/overview",
+      "note": "HOME BOOKEND END: Return to overview for post-action stat capture."
+    },
+    {
+      "stepId": "hZb",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 5000
+    },
+    {
+      "stepId": "hZc",
+      "action": "js",
+      "code": "statByLabel('Total Applications')",
+      "store_as": "final_total_applications",
+      "note": "POST-BOOKEND: Compare with baseline. Delta may be 0 (Total Applications tracks apps not people); primary verification is workflow_confirmation and URL pattern."
+    },
+    {
+      "stepId": "hZd",
+      "action": "js",
+      "code": "(function() { const url = window.__yeshie_last_url || document.referrer || ''; const match = url.match(/\\/workflows\\/([a-zA-Z0-9\\-]+)/); return match ? match[1] : null; })()",
+      "store_as": "workflow_uuid",
+      "optional": true,
+      "note": "Attempt to capture the UUID of the workflow that was created, for downstream use."
+    }
+  ],
+  "_tests": [
+    {
+      "name": "happy-path-immediate-start",
+      "description": "Onboard a real test person with all required fields and Immediately start date.",
+      "params": {
+        "first_name": "Testy",
+        "last_name": "McTestface",
+        "company_email": "testy.mctestface@embeddedsystemsresearch.org",
+        "backup_email": "testy.test@gmail.com",
+        "start_date_preset": "Immediately"
+      },
+      "expect": "success",
+      "successCriteria": "url matches /workflows/[uuid] AND workflow_confirmation contains 'Workflow'"
+    },
+    {
+      "name": "happy-path-monday-start",
+      "description": "Onboard with Monday morning start date to verify preset picker handles non-Immediately option.",
+      "params": {
+        "first_name": "Monday",
+        "last_name": "Starter",
+        "company_email": "monday.starter@embeddedsystemsresearch.org",
+        "backup_email": "monday.starter@gmail.com",
+        "start_date_preset": "Monday morning"
+      },
+      "expect": "success",
+      "successCriteria": "url matches /workflows/[uuid]"
+    },
+    {
+      "name": "missing-backup-email",
+      "description": "Submit without backup_email to verify required-field validation fires.",
+      "params": {
+        "first_name": "No",
+        "last_name": "Recovery",
+        "company_email": "no.recovery@embeddedsystemsresearch.org",
+        "backup_email": "",
+        "start_date_preset": "Immediately"
+      },
+      "expect": "validation-error",
+      "errorCriteria": ".v-input--error visible on recovery-email-input field"
+    },
+    {
+      "name": "missing-start-date",
+      "description": "Skip start date picker selection entirely to confirm validation blocks submit.",
+      "params": {
+        "first_name": "No",
+        "last_name": "Startdate",
+        "company_email": "no.startdate@embeddedsystemsresearch.org",
+        "backup_email": "no.startdate@gmail.com",
+        "start_date_preset": ""
+      },
+      "expect": "validation-error",
+      "errorCriteria": "submit fails with validation error referencing start date"
+    },
+    {
+      "name": "derived-email-already-correct",
+      "description": "Verify that when company_email matches the auto-derived value, the skip logic in s6c fires and no double-type occurs.",
+      "params": {
+        "first_name": "Skip",
+        "last_name": "Test",
+        "company_email": "skip.test@embeddedsystemsresearch.org",
+        "backup_email": "skip.test@gmail.com",
+        "start_date_preset": "Immediately"
+      },
+      "expect": "success",
+      "note": "If derived_company_email == company_email param, s6c should no-op. Success still expected."
+    },
+    {
+      "name": "duplicate-person-error",
+      "description": "Attempt to onboard a person who already exists (same company email) to verify error handling.",
+      "params": {
+        "first_name": "Mike",
+        "last_name": "Wolf",
+        "company_email": "mike.wolf@embeddedsystemsresearch.org",
+        "backup_email": "mw@mike-wolf.com",
+        "start_date_preset": "Immediately"
+      },
+      "expect": "error",
+      "errorCriteria": "snackbar contains 'already exists' or similar; chain reports failure gracefully"
+    }
+  ]
+}

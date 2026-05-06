@@ -1,0 +1,5451 @@
+You are bootstrapping autonomous knowledge of the web application named "YeshID" (https://app.yeshid.com).
+
+You are reading a corpus of documentation pages and (where available) existing structured site evidence (payload JSON files, site model JSON). Your job: produce a single Markdown document, theory.md, that captures the **conceptual model** of this application — strong enough that a downstream skill-generator can propose concrete UI automation skills against it without re-reading the corpus.
+
+The theory must be MORE than a list of pages. It must capture how this app's world hangs together. Imagine handing it to a smart engineer who has never used the app, and they should be able to predict roughly how a given user-goal would map to a sequence of UI actions.
+
+Output a Markdown file with this exact structure (use these headers verbatim):
+
+```
+---
+app: yeshid
+display_name: YeshID
+home_url: https://app.yeshid.com
+generated_at: 2026-05-06T05:23:17.784019+00:00
+corpus_entries: 27
+confidence: <one of: low | medium | high — your honest read on how grounded this theory is>
+---
+
+# Theory of YeshID
+
+## 1. Purpose (one paragraph)
+What is this application FOR? Who is the primary user persona? What is the job-to-be-done?
+
+## 2. Mental Model (3-5 sentences)
+How would a fluent user describe how the app "thinks"? E.g. "It's an identity directory with a workflow layer on top — every change to a person triggers a workflow that gates downstream provisioning."
+
+## 3. Auth & Identity Model
+- Login mechanism (SSO? local? MFA?)
+- Session signals (how do you know you're authenticated?)
+- Multi-tenant? Org-scoped?
+- Is auth automatable end-to-end, or does it require a human prompt?
+
+## 4. Entity Model
+List the primary nouns and their relationships. Use a markdown table:
+
+| Entity | Description | Key Attributes | Relationships |
+|--------|-------------|----------------|---------------|
+
+Then a short paragraph on which entity is the "center of gravity" — the one most operations revolve around.
+
+## 5. Action Vocabulary
+A matrix of verbs × entities. Rows = entities. Columns = action verbs (Create, Read/View, Update, Delete, plus app-specific verbs). Mark cells with the URL pattern or UI affordance, or "—" if absent.
+
+## 6. Navigation Topology
+- Top-level routes (URL patterns + what page each is)
+- How users move between sections (top nav? side nav? deep links from emails?)
+- Modal vs. full-page patterns
+- Any "wizard" or multi-step flows worth flagging
+
+## 7. State Machine
+Key states an entity (or the session) passes through. Markdown list or mermaid pseudo-syntax — whatever is clearer.
+
+## 8. UI Framework Fingerprint
+- Framework family (Vuetify? Material? React? Custom?)
+- Selector strategy hints (does the app use data-cy? aria-labels? class-based?)
+- Anything about the DOM that future skill resolvers should know
+
+## 9. Permissions / Roles
+Who can do what. Even if the docs are vague, capture what they imply.
+
+## 10. Failure Modes & Pitfalls
+What do the docs warn about? What's easy to get wrong? What signals appear on failure (snackbars, banners, validation errors)? Anything counterintuitive?
+
+## 11. Skill Candidates (RANKED)
+List 5-10 concrete skills, ranked by **leverage × frequency / difficulty**. For each:
+- **Name** (kebab-case, e.g. `user-add`)
+- **Goal** (one sentence)
+- **Estimated leverage** (high/medium/low) — how often will Mike or an agent want to do this?
+- **Estimated difficulty** (high/medium/low) — how hairy is the UI flow?
+- **Pre-requisites** (other skills or auth state needed first)
+- **Verification signal** (how the skill will know it succeeded)
+
+The top of the list is what the skill-proposer should encode first.
+
+## 12. Open Questions
+What is the corpus silent on? What do you *not* know that the next round of fetching or a probing crawl should answer?
+
+## 13. Provenance
+Bullet list of corpus entries that most informed each section. Be specific (cite slugs/URLs).
+```
+
+Calibration rules:
+- If the corpus is thin or contradictory, set `confidence: low` and say so explicitly in §12. Do NOT manufacture detail.
+- If existing-evidence files (payload JSONs, site.model.json) are in the corpus, prefer them as ground truth for §3, §6, §7, §8 — they encode what actually works against the live app.
+- Keep the document under 4000 words. Tight is better than exhaustive.
+
+Now read the corpus below and produce theory.md. Output ONLY the markdown document, no preamble, no postamble, no fence around the whole thing.
+
+=========== CORPUS ===========
+
+
+=== DOC: Workforce Identity Infrastructure for the AI Era | IAM & IGA | YeshID ===
+Source: https://www.yeshid.com/
+
+# Workforce Identity Infrastructure for the AI Era | IAM & IGA | YeshID
+
+Source: https://www.yeshid.com/
+Fetched: 2026-05-06T05:22:52.426065+00:00
+
+---
+
+New
+Learn about: YeshID's Rae -- Agentic AI for IAM, Built for Trust.
+Continuous Identity Governance for the Modern Workforce
+YeshID maps every human and non-human identity into a unified identity graph, then automate security, governance, and remediation.
+Replace legacy IAM or extend it. One platform. Continuous control.
+Get a Demo
+Try Free for 14 days
+Used by teams like
+Meet Rae. AI for Real Identity Work
+AI that actually helps you run identity. Rae is your control plane and can extend that control across your entire stack through deep integrations
+.
+Policy
+Rae reports, explains, and alerts. Rae understands your identity state, surfaces issues, explains impact, and keeps you ahead of security and compliance work.
+Workflow
+With Rae, you can build onboarding, offboarding, and access workflows in minutes. Point to your source of truth and let Rae assemble the steps. Clear, readable, and ready to use.
+Integration
+Rae generates and maintain integration code across REST, SCIM, and custom APIs. New app or new endpoint. Rae keeps it working and current.
+Lifecycle Management for Your Messy Stack
+Onboarding, offboarding, and access changes without spreadsheets, tickets, or manual cleanup.
+Simple, easy-to-read workflows
+Automated from your actual source of truth(s)
+Provisioning across every app you use
+Access requests directly in Slack or Teams
+One login page for your users
+Security for All Identities
+Visibility and control across every identity and integration in your environment — even the part-time and non-human ones.
+Shadow IT and OAuth visibility
+YeshID surfaces every app employees sign into with social-login (Google, MSFT). See who’s using what, revoke OAuth tokens instantly, and alert when policies are broken.
+Watch How
+Drift and identity security report
+Spot stale accounts, over-permissioned users, mismatched roles, unsynced apps, and configuration drift. Issues are prioritized with clear fixes.
+Watch How
+Full identity and app inventory
+The Access Grid tracks every human, service, shared, and automated identity. Integrated apps sync continuously; others can be pulled in by CSV or screen-shot and managed the same way.
+Watch How
+Policy-Driven Compliance
+Clear rules, provable controls, and audit-ready trails — without the usual overhead.
+Rules enforced automatically
+Set approval logic by app, department, sensitivity, or access level. YeshID routes requests to the right owners, applies time limits, and logs the entire flow.
+Watch How
+A practical, modern take on RBAC
+Enforce the policies you trust. Flag the ones you want reviewed or staged. Keep role and group drift from creeping into critical systems.
+Watch How
+Audit-ready logs from day one
+Every access request, approval, denial, and expiration is captured automatically. SOC 2, ISO, and SOX evidence is always ready.
+Watch How
+Structured access reviews
+Run periodic reviews without spreadsheets or email chains. Assign reviewers, collect decisions, track exceptions, and export clean reports for auditors.
+Watch How
+Take control of your Identity & Access Management.
+Get a Demo
+
+
+### [FETCH ERROR] https://help.yeshid.com
+HTTPSConnectionPool(host='help.yeshid.com', port=443): Max retries exceeded with url: / (Caused by NameResolutionError("HTTPSConnection(host='help.yeshid.com', port=443): Failed to resolve 'help.yeshid.com' ([Errno 8] nodename nor servname provided, or not known)"))
+
+
+=== DOC: Blog | YeshID ===
+Source: https://www.yeshid.com/blog
+
+# Blog | YeshID
+
+Source: https://www.yeshid.com/blog
+Fetched: 2026-05-06T05:22:53.190122+00:00
+
+---
+
+blog
+Product news and pro tips from the YeshID team
+YeshID release notes - March 2026
+improved access reviews, workflow automation, provisioning, HRIS imports, and non-human identities
+Read more
+“Agentic identity monitoring” splits immediately once you ask: where is the agent actually running?
+What Agentic Security Do You Need?
+Read more
+YeshID IAM platform release notes - February 2026
+Reduced manual work with better workflows, access audits, integrations, RBAC, and more!
+Read more
+Why SCIM Is So Hard to Set Up
+SCIM promised simple SaaS provisioning. In practice, integrating real-world identity models is far more complex.
+Read more
+What Makes IAM “AI-Native”? A Definition, Maturity Model, and Why Being the IdP Matters
+AI-native IAM isn’t chatbots and ticket automation. It’s continuous access intelligence that can execute policy safely a
+Read more
+One Agent to Run IAM: Why Holistic Context Beats a Fleet of Siloed Bots
+IAM teams don’t lack tools, they lack cohesion. Real AI requires one agent with end-to-end identity context across syste
+Read more
+Release Notes: Janurary 2026
+Jan Release: Safer automation triggers, new Audit Admin role, and integrations for BambooHR, OpenAI & Zendesk.
+Read more
+IAM or SaaS Management First
+IAM vs SaaS Management: why control and action should come before reporting and cost visibility as organizations scale.
+Read more
+RBAC Isn’t Dead: Meet ReBAC
+IAM is shifting from roles to relationships as OAuth apps act on your behalf across docs, repos, and workspaces.
+Read more
+Next
+1 / 16
+Take control of your Identity & Access Management.
+Get a Demo
+
+
+=== DOC: YeshID ===
+Source: https://app.yeshid.com/login
+
+# YeshID
+
+Source: https://app.yeshid.com/login
+Fetched: 2026-05-06T05:22:54.034562+00:00
+
+---
+
+
+
+
+=== EXISTING-EVIDENCE: exploration-results.json ===
+Source: file://sites/yeshid/exploration-results.json
+
+{
+  "exploredAt": "2026-04-02T20:30:00Z",
+  "pagesExplored": 19,
+  "durationMs": 46651,
+  "pages": {
+    "page_overview": {
+      "buttons": [
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/organization/people/onboard",
+          "tag": "A",
+          "text": "Onboard people"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/organization/people/offboard",
+          "tag": "A",
+          "text": "Offboard people"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/access/audits/create",
+          "tag": "A",
+          "text": "New Audit"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "href": "https://join.slack.com/t/yeshid-community/shared_invite/zt-23j3mkjc6-Ic562ZO~9EGNP79EGBSM3Q",
+          "tag": "A",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/organization/people?filters=status=ACTIVE",
+          "tag": "A",
+          "text": "View all"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/manage/settings/administrators",
+          "tag": "A",
+          "text": "View all"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/organization/applications",
+          "tag": "A",
+          "text": "Add more apps"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/security/identities/applications",
+          "tag": "A",
+          "text": "Review"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--block v-theme--light text-primary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "View all"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light bg-primary v-btn--density-default elevation-1",
+          "href": "/access/applications",
+          "tag": "A",
+          "text": "Applications"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light text-primary v-btn--density-default elevation-0",
+          "href": "/policies",
+          "tag": "A",
+          "text": "Policies"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--flat v-theme--light v-btn--density-compact v-btn--size-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Staged"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn y-toggle-btn-child-selected v-btn--active v-btn--flat v-theme--light",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "In Progress"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--flat v-theme--light v-btn--density-compact v-btn--size-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Pending"
+        }
+      ],
+      "headings": [],
+      "inputs": [],
+      "links": [
+        {
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        },
+        {
+          "href": "/organization/people/onboard",
+          "text": "Onboard people"
+        },
+        {
+          "href": "/organization/people/offboard",
+          "text": "Offboard people"
+        },
+        {
+          "href": "/access/audits/create",
+          "text": "New Audit"
+        },
+        {
+          "href": "/organization/people?filters=status=ACTIVE",
+          "text": "View all"
+        },
+        {
+          "href": "/manage/settings/administrators",
+          "text": "View all"
+        },
+        {
+          "href": "/organization/applications",
+          "text": "Add more apps"
+        },
+        {
+          "href": "/security/identities/applications",
+          "text": "Review"
+        }
+      ],
+      "navLinks": [
+        {
+          "active": true,
+          "href": "/overview",
+          "text": "Home"
+        },
+        {
+          "active": false,
+          "href": "/workflows",
+          "text": "Workflows"
+        },
+        {
+          "active": false,
+          "href": "/my-applications",
+          "text": "My Apps"
+        },
+        {
+          "active": false,
+          "href": "/requested-applications",
+          "text": "Requested Apps"
+        },
+        {
+          "active": false,
+          "href": "/organization/people",
+          "text": "People"
+        },
+        {
+          "active": false,
+          "href": "/organization/directories",
+          "text": "Directories"
+        },
+        {
+          "active": false,
+          "href": "/organization/groups",
+          "text": "Groups"
+        },
+        {
+          "active": false,
+          "href": "/access/applications",
+          "text": "Applications"
+        },
+        {
+          "active": false,
+          "href": "/access/grid",
+          "text": "Access Grid"
+        },
+        {
+          "active": false,
+          "href": "/access/rbac",
+          "text": "RBAC BETA"
+        },
+        {
+          "active": false,
+          "href": "/access/requests",
+          "text": "Access Requests"
+        },
+        {
+          "active": false,
+          "href": "/access/audits",
+          "text": "Audit Reports"
+        },
+        {
+          "active": false,
+          "href": "/security/shadow",
+          "text": "Shadow applications"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/applications",
+          "text": "Identities"
+        },
+        {
+          "active": false,
+          "href": "/security/access-drift",
+          "text": "Access Drift"
+        },
+        {
+          "active": false,
+          "href": "/security/identities/nhi",
+          "text": "Non-human IDs BETA"
+        },
+        {
+          "active": false,
+          "href": "/security/risk-assessment",
+          "text": "Risk Assessment"
+        },
+        {
+          "active": false,
+          "href": "/manage/triggers",
+          "text": "Triggers"
+        },
+        {
+          "active": false,
+          "href": "/workflow-templates",
+          "text": "Workflow Templates"
+        },
+        {
+          "active": false,
+          "href": "/policies",
+          "text": "Policies BETA"
+        },
+        {
+          "active": false,
+          "href": "/events",
+          "text": "Events"
+        },
+        {
+          "active": false,
+          "href": "/manage/settings",
+          "text": "Settings"
+        },
+        {
+          "active": false,
+          "href": "https://docs.yeshid.com/",
+          "text": "Docs"
+        }
+      ],
+      "pageUrl": "/overview",
+      "tables": []
+    },
+    "page_people-list": {
+      "buttons": [
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light bg-primary v-btn--density-default elevation-1",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Onboard person"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-btn--icon v-theme--light text-text-secondary v-btn--density-default",
+          "href": "https://join.slack.com/t/yeshid-community/shared_invite/zt-23j3mkjc6-Ic562ZO~9EGNP79EGBSM3Q",
+          "tag": "A",
+          "text": ""
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-tab-item--selected v-tab--selected v-theme--light v-btn--density-default",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "People"
+        },
+        {
+          "ariaLabel": null,
+          "classes": "v-btn v-theme--light v-btn--density-default v-btn--size-default v-btn--variant-text",
+          "disabled": false,
+          "href": null,
+          "tag": "BUTTON",
+          "text": "Settings"
+        }
+      ],
+      "headings": [],
+      "inputs": [
+        {
+          "ariaLabel": null,
+          "id": "",
+          "label": null,
+          "placeholder": "Search",
+          "tag": "INPUT",
+          "type": "text"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-23",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-34",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-38",
+          "label": null,
+          "placeholder": "",
+          "tag": "INPUT",
+          "type": "checkbox"
+        },
+        {
+          "ariaLabel": null,
+          "id": "input-v-42",
+          "label": null,
+          "placeholder": "
+
+[... truncated, original 170165 chars ...]
+
+=== EXISTING-EVIDENCE: site.model.json ===
+Source: file://sites/yeshid/site.model.json
+
+{
+  "_meta": {
+    "layer": 3,
+    "name": "YeshID Site Model",
+    "description": "State graph, abstract target registry, and observed response signatures for app.yeshid.com. This file is the accumulation of all learning from running payloads against YeshID. It is updated automatically after each successful run via the self-improvement merge protocol.",
+    "version": "0.2",
+    "site": "app.yeshid.com",
+    "framework": "vue",
+    "frameworkDetail": "Vuetify 3 (v-application detected). No ARIA labels on form inputs. Use vuetify_label_match resolution.",
+    "lastExplored": "2026-04-10",
+    "exploredBy": "yeshie-04-site-explore automated crawl",
+    "auth": {
+      "type": "sso_automatable",
+      "provider": "google",
+      "loginPath": "/login",
+      "ssoButtonSelector": "button:has-text('Sign in with Google')",
+      "authenticatedSignal": ".v-navigation-drawer a[href=\"/overview\"]",
+      "notes": "Google SSO — extension can click through automatically if google_account_email is configured"
+    },
+    "lastUpdated": "2026-04-13T03:37:58.517Z"
+  },
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "description": "User is not logged in. Redirected to login page.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "authenticated": {
+        "description": "User is logged in. Navigation sidebar is visible.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "dashboard": {
+        "description": "Overview/dashboard page.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/overview$"
+          },
+          {
+            "type": "element_visible",
+            "selector": "a[href='/organization/people/onboard']"
+          }
+        ]
+      },
+      "people-list": {
+        "description": "People management list page.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people$"
+          },
+          {
+            "type": "element_visible",
+            "selector": "button, .v-data-table"
+          }
+        ],
+        "knownElements": {
+          "onboard-button": "The 'Onboard person' button at top of page",
+          "search-input": "Search box for filtering people",
+          "people-table": "v-data-table with columns: YeshID account owner, Primary email, Directory synced, YeshID status, # of applications"
+        }
+      },
+      "onboard-form": {
+        "description": "Add new person form.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/onboard"
+          },
+          {
+            "type": "element_visible",
+            "selector": "button"
+          }
+        ],
+        "knownElements": {
+          "first-name-input": "First name text field",
+          "last-name-input": "Last name text field",
+          "company-email-input": "Company email address field (@ mike-wolf.com domain)",
+          "personal-email-input": "Personal / recovery email address field",
+          "submit-button": "'Create and onboard person' button"
+        }
+      },
+      "person-detail": {
+        "description": "Individual person profile/edit page.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/[a-z0-9-]+"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/onboard|/offboard"
+          }
+        ]
+      },
+      "applications-list": {
+        "description": "Application management list page.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/applications$"
+          }
+        ],
+        "knownElements": {
+          "add-application-button": "'Add application' button",
+          "import-button": "'Import application list' button",
+          "apps-table": "Table with columns: Application, Status, Available Integrations, Accounts, Technical Owners, Actions"
+        }
+      },
+      "application-detail": {
+        "description": "Application accounts/detail page.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/applications/[a-z0-9-]+/accounts"
+          }
+        ],
+        "knownElements": {
+          "manage-integration-button": "'Manage Integration' button",
+          "connect-button": "'Connect' button (when not integrated)"
+        }
+      },
+      "integration-config": {
+        "description": "Integration authentication configuration page.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/applications/[a-z0-9-]+/integration/authentication"
+          }
+        ],
+        "knownElements": {
+          "scim-option": "SCIM radio option",
+          "build-own-option": "'Build your own' radio option",
+          "auth-type-selector": "Authentication Type selector (Bearer, OAuth2, Basic, Custom API key, None)",
+          "base-url-input": "Base URL field",
+          "save-button": "'Save' button",
+          "disconnect-button": "'Disconnect' button"
+        }
+      },
+      "directories": {
+        "description": "Directory management — sync, filter, view identities.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/directories"
+          },
+          {
+            "type": "element_visible",
+            "selector": "button"
+          }
+        ],
+        "knownElements": {
+          "sync-directory-button": "Sync directory button",
+          "add-directory-button": "Add Directory button",
+          "filter-active": "Filter active identities button",
+          "filter-suspended": "Filter suspended identities button",
+          "filter-admin": "Filter super admins button",
+          "filter-no-mfa": "Filter identities without MFA button",
+          "search-input": "Search box for filtering identities",
+          "identities-table": "Table of directory identities"
+        }
+      },
+      "groups": {
+        "description": "Group management — create, view, edit groups.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/groups$"
+          },
+          {
+            "type": "element_visible",
+            "selector": ".v-data-table"
+          }
+        ],
+        "knownElements": {
+          "new-group-button": "New Group button (may be disabled if on free tier)",
+          "search-input": "Search box for filtering groups",
+          "groups-table": "Table of groups with columns and actions"
+        }
+      },
+      "access-grid": {
+        "description": "Access grid — cross-reference people × applications.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/grid$"
+          },
+          {
+            "type": "element_visible",
+            "selector": ".v-data-table"
+          }
+        ],
+        "knownElements": {
+          "start-audit-button": "Start an audit button",
+          "filter-input": "Add another filter input",
+          "clear-all-button": "Clear all filters button",
+          "access-table": "Access grid table"
+        }
+      },
+      "rbac": {
+        "description": "Role-based access control management.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/rbac$"
+          }
+        ]
+      },
+      "access-requests": {
+        "description": "Access request queue — view and action pending requests.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/requests$"
+          },
+          {
+            "type": "element_visible",
+            "selector": ".v-data-table"
+          }
+        ]
+      },
+      "audit-reports": {
+        "description": "Audit management — start new audits, view reports.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/audits$"
+          }
+        ],
+        "knownElements": {
+          "start-new-audit-button": "Start new audit button (bg-primary)"
+        }
+      },
+      "shadow-applications": {
+        "description": "Shadow IT — unmanaged applications detected via SSO logs.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/security/shadow"
+          }
+        ],
+        "knownElements": {
+          "filter-all": "All shadow apps toggle",
+          "filter-neutral": "Neutral classification filter",
+          "filter-sensitive": "Sensitive classification filter",
+          "filter-restricted": "Restricted classification filter",
+          "add-managed-button": "Add as managed application button",
+          "revoke-access-button": "Revoke access button (text-error)",
+          "search-input": "Search by applications and scopes"
+        }
+      },
+      "identities": {
+        "description": "Identity security — view application-linked identities.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/security/identities"
+          }
+        ]
+      },
+      "access-drift": {
+        "description": "Access drift detection — identify unauthorized access changes.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/security/access-drift$"
+          }
+        ]
+      },
+      "risk-assessment": {
+        "description": "Risk assessment dashboard — risk scores and posture.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/security/risk-assessment$"
+          }
+        ]
+      },
+      "triggers": {
+        "description": "Automation triggers — event-driven workflow rules.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/manage/triggers$"
+          },
+          {
+            "type": "element_visible",
+            "selector": ".v-data-table"
+          }
+        ],
+        "knownElements": {
+          "new-trigger-button": "New Trigger button (bg-primary)",
+          "search-input": "Search triggers input",
+          "triggers-table": "Table of configured triggers"
+        }
+      },
+      "workflow-templates": {
+        "description": "Workflow templates — onboarding, offboarding, audit templates.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/workflow-templates$"
+          }
+        ],
+        "knownElements": {
+          "new-template-button": "New Template button (bg-primary)",
+          "filter-all": "All templates toggle",
+          "filter-onboarding": "Onboarding filter",
+          "filter-offboarding": "Offboarding filter",
+          "filter-audit": "Audit filter",
+          "templates-table": "Table of workflow templates"
+        }
+      },
+      "policies": {
+        "description": "Policies — compliance rules (BETA).",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/policies$"
+          }
+        ]
+      },
+      "events": {
+        "description": "Event log — all activity events across the org.",
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/events$"
+          },
+          {
+            "type": "element_visible",
+            "selector": ".v-data-table"
+          }
+        ],
+        "knownElements": {
+          "search-input": "Search events input",
+          "events-table": "Table of events"
+        }
+      },
+      "settings": {
+        "description": "Organization settings — general, notifications, customize, billing, admins.",
+        "signals": [
+          {
+            "type": "url_matches",
+      
+
+[... truncated, original 56152 chars ...]
+
+=== EXISTING-EVIDENCE: 00-login.payload.json ===
+Source: file://sites/yeshid/tasks/00-login.payload.json
+
+{
+  "_meta": {
+    "task": "login",
+    "description": "Ensure the user is authenticated on app.yeshid.com via Google SSO. If already logged in, exits immediately.",
+    "params": {
+      "google_account_email": {
+        "required": false,
+        "default": "mw@mike-wolf.com",
+        "description": "Google account email for SSO"
+      },
+      "base_url": {
+        "required": false,
+        "default": "https://app.yeshid.com",
+        "description": "YeshID base URL"
+      }
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    }
+  },
+  "runId": "yeshid-login-{{timestamp}}",
+  "mode": "verification",
+  "site": "app.yeshid.com",
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "{{base_url}}",
+      "note": "Navigate to base URL. If already authenticated, will redirect to /overview."
+    },
+    {
+      "stepId": "s2",
+      "action": "assess_state",
+      "expect": {
+        "state": "authenticated"
+      },
+      "onMatch": "exit_success",
+      "note": "If already authenticated, exit immediately."
+    },
+    {
+      "stepId": "s3",
+      "action": "click_text",
+      "text": "Sign in with Google",
+      "note": "Click the Google SSO button on the YeshID login page."
+    },
+    {
+      "stepId": "s4",
+      "action": "delay",
+      "ms": 3000,
+      "note": "Wait for redirect to accounts.google.com."
+    },
+    {
+      "stepId": "s5",
+      "action": "click",
+      "selector": "[data-email=\"{{google_account_email}}\"]",
+      "note": "Click the matching Google account on the account chooser page."
+    },
+    {
+      "stepId": "s6",
+      "action": "wait_for",
+      "url_pattern": "app\\.yeshid\\.com(?!/login)",
+      "timeout": 30000,
+      "note": "Wait for redirect back to app.yeshid.com (not /login)."
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "authenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      }
+    }
+  }
+}
+
+
+=== EXISTING-EVIDENCE: 01-user-add.payload.json ===
+Source: file://sites/yeshid/tasks/01-user-add.payload.json
+
+{
+  "_meta": {
+    "task": "user-add",
+    "description": "Add (onboard) a new person to YeshID. Navigates to the onboard form, fills all fields, and submits.",
+    "requiredParams": [
+      "first_name",
+      "last_name",
+      "backup_email",
+      "start_date_preset"
+    ],
+    "optionalParams": [],
+    "selfImproving": true,
+    "runCount": 5,
+    "lastSuccess": "2026-04-14T00:00:00Z",
+    "prerequisite": "00-login.payload.json",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "params": {
+      "first_name": {
+        "required": true,
+        "description": "First name"
+      },
+      "last_name": {
+        "required": true,
+        "description": "Last name"
+      },
+      "company_email": {
+        "required": false,
+        "description": "Company email \u2014 auto-derived from first and last name",
+        "derived": true,
+        "derivationTemplate": "{first_name_lower}.{last_name_lower}@embeddedsystemsresearch.org",
+        "confirmDerived": true,
+        "pattern": "^[a-z]+\\.[a-z]+@embeddedsystemsresearch\\.org$",
+        "hint": "Auto-derived as firstname.lastname@embeddedsystemsresearch.org \u2014 confirm or correct before running"
+      },
+      "backup_email": {
+        "required": true,
+        "description": "Personal/recovery email (e.g. Gmail)",
+        "hint": "Ask if not provided \u2014 this is required by YeshID"
+      },
+      "start_date_preset": {
+        "required": true,
+        "description": "When should this person start?",
+        "promptLabel": "When should they start?",
+        "options": [
+          "Immediately",
+          "Monday morning",
+          "Pick date & time"
+        ],
+        "hint": "Always ask \u2014 never default silently to Immediately"
+      }
+    },
+    "homeBookend": true,
+    "verificationStrategy": {
+      "pre": "h0c stores initial_active_people",
+      "post": "hZc stores final_active_people",
+      "assertion": "final_active_people.numericValue == initial_active_people.numericValue + 1",
+      "note": "NEEDS UPDATE: 'Active people in YeshID' label does not exist on current overview page. Use 'Total Applications' for statByLabel smoke test. True people count verification requires /organization/people or /organization/directories page.",
+      "mechanism": "statByLabel \u2014 prev-sibling and ancestor-depth walk. 'Total Applications' confirmed working (returns 4). 'Initial directory' label found but numeric neighbor not reachable within 3 ancestor levels.",
+      "workingLabel": "Total Applications",
+      "workingLabelValue": 4,
+      "primaryVerification": "confirmation_message == 'Onboarding workflow created' AND workflow_confirmation contains 'Workflow Run'"
+    }
+  },
+  "runId": "yeshid-user-add-{{timestamp}}",
+  "mode": "verification",
+  "site": "app.yeshid.com",
+  "params": {
+    "first_name": "{{first_name}}",
+    "last_name": "{{last_name}}",
+    "company_email": "{{company_email}}",
+    "backup_email": "{{backup_email}}",
+    "base_url": "https://app.yeshid.com",
+    "start_date_preset": "{{start_date_preset}}"
+  },
+  "abstractTargets": {
+    "first-name-input": {
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "first name"
+        ]
+      },
+      "cachedSelector": "[data-cy=\"first-name-input\"] input",
+      "cachedConfidence": 1.0,
+      "resolveHint": "data-cy wrapper confirmed stable. Inner input via [data-cy=\"first-name-input\"] input.",
+      "resolvedOn": "2026-04-15T00:00:00Z",
+      "resolvedVia": "data-cy"
+    },
+    "last-name-input": {
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "last name"
+        ]
+      },
+      "cachedSelector": "[data-cy=\"last-name-input\"] input",
+      "cachedConfidence": 1.0,
+      "resolveHint": "data-cy wrapper. data-cy=\"last-name-input\" confirmed present on the last name div.",
+      "resolvedOn": "2026-04-15T00:00:00Z",
+      "resolvedVia": "data-cy"
+    },
+    "company-email-input": {
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "company email"
+        ]
+      },
+      "cachedSelector": "[data-cy=\"company-email-input\"] input",
+      "cachedConfidence": 1.0,
+      "resolveHint": "data-cy wrapper. [data-cy=\"company-email-input\"] input confirmed.",
+      "resolvedOn": "2026-04-15T00:00:00Z",
+      "resolvedVia": "data-cy"
+    },
+    "personal-email-input": {
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "personal",
+          "recovery"
+        ]
+      },
+      "cachedSelector": "[data-cy=\"recovery-email-input\"] input",
+      "cachedConfidence": 1.0,
+      "resolveHint": "YeshID uses data-cy=\"recovery-email-input\" (not personal). Inner input via [data-cy=\"recovery-email-input\"] input.",
+      "resolvedOn": "2026-04-15T00:00:00Z",
+      "resolvedVia": "data-cy"
+    },
+    "create-onboard-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "create and onboard",
+          "onboard person"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.85,
+      "fallbackSelectors": [
+        "button.v-btn--variant-flat",
+        "button:last-of-type"
+      ],
+      "resolvedOn": "2026-03-31T00:11:57.745179+00:00",
+      "resolvedVia": "aria"
+    },
+    "start-date-picker": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "select start date",
+          "start date"
+        ]
+      },
+      "cachedSelector": "[data-cy=\"schedule-user-activator\"]",
+      "cachedConfidence": 1.0,
+      "resolveHint": "data-cy=\"schedule-user-activator\" is the start date button directly. Click opens preset picker.",
+      "pickerOptions": [
+        "Immediately",
+        "ASAP",
+        "Monday morning",
+        "Pick date & time"
+      ],
+      "resolvedOn": "2026-04-15T00:00:00Z",
+      "resolvedVia": "data-cy"
+    },
+    "search-input": {
+      "match": {
+        "role": "textbox",
+        "name_contains": [
+          "search"
+        ]
+      },
+      "cachedSelector": ".search-input",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-14T00:00:00Z",
+      "resolvedVia": "class_match",
+      "resolveHint": "Input with class search-input and placeholder Search on the people list page."
+    }
+  },
+  "chain": [
+    {
+      "stepId": "h0",
+      "action": "navigate",
+      "url": "https://app.yeshid.com/overview",
+      "note": "HOME START: Navigate to overview dashboard before performing action."
+    },
+    {
+      "stepId": "h0b",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 5000,
+      "note": "Wait for page to render \u2014 username data-cy is present on every authenticated page."
+    },
+    {
+      "stepId": "h0c",
+      "action": "js",
+      "code": "statByLabel('Total Applications')",
+      "store_as": "initial_active_people",
+      "note": "BOOKEND PLACEHOLDER: 'Active people in YeshID' not on overview. Using Total Applications (does not change on user-add). Real verification is snackbar + /workflows/ redirect."
+    },
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {
+        "state": "authenticated"
+      },
+      "onMismatch": "branch:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people/onboard",
+      "guard": {
+        "target": "first-name-input",
+        "state": {
+          "visible": true
+        },
+        "timeout": 6000
+      },
+      "expect": {
+        "state": "onboard-form"
+      }
+    },
+    {
+      "stepId": "s2b",
+      "action": "click_preset",
+      "target": "start-date-picker",
+      "preset": "{{start_date_preset}}",
+      "defaultPreset": "Immediately",
+      "note": "Required field. Click the start date button then select a preset. Defaults to Immediately."
+    },
+    {
+      "stepId": "s3",
+      "action": "type",
+      "target": "first-name-input",
+      "value": "{{first_name}}",
+      "guard": {
+        "target": "first-name-input",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      }
+    },
+    {
+      "stepId": "s4",
+      "action": "type",
+      "target": "last-name-input",
+      "value": "{{last_name}}",
+      "guard": {
+        "target": "last-name-input",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      }
+    },
+    {
+      "stepId": "s5",
+      "action": "type",
+      "target": "company-email-input",
+      "value": "{{company_email}}",
+      "guard": {
+        "target": "company-email-input",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      }
+    },
+    {
+      "stepId": "s6",
+      "action": "type",
+      "target": "personal-email-input",
+      "value": "{{backup_email}}",
+      "guard": {
+        "target": "personal-email-input",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      },
+      "note": "Personal / recovery email. Required by YeshID. Pass backup_email param."
+    },
+    {
+      "stepId": "s7",
+      "action": "click",
+      "target": "create-onboard-button",
+      "guard": {
+        "target": "create-onboard-button",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      },
+      "responseSignature": [
+        {
+          "any_of": [
+            {
+              "type": "url_change",
+              "matches": "/workflows/",
+              "timeout": 12000,
+              "note": "YeshID redirects to /workflows/UUID on successful onboard"
+            },
+            {
+              "type": "url_change",
+              "matches": "/organization/people$",
+              "timeout": 12000
+            },
+            {
+              "type": "element_visible",
+              "selector": ".v-snackbar--active",
+              "textMatch": "success|created|added|onboard",
+              "timeout": 8000
+            }
+          ]
+        }
+      ],
+      "failureSignature": [
+        {
+          "any_of": [
+            {
+              "type": "element_visible",
+              "selector": ".v-snackbar--active",
+              "textMatch": "Error|error|failed|required|invalid",
+              "timeout": 5000
+            },
+            {
+              "type": "element_visible",
+              "selector": ".v-input--error",
+              "timeout": 3000,
+              "note": "Inline field validation error \u2014 one or more fields failed"
+            },
+            {
+              "type": "element_text",
+              "selector": ".v-messages__message, .v-input--error .v-messages",
+              "textPattern": "required|invalid|must|fill",
+              "timeout": 3000
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "s7b",
+      "action": "read",
+      "candidates": [
+        ".v-input--error .v-label",
+        ".v-input--error label",
+        ".v-messages__message"
+      ],
+      "store_as": "validation_errors",
+      "optional": true,
+      "note": "Read which fields have inline validation errors after submit. Only populated if s7 triggered failureSignature."
+    },
+    {
+      "stepId": "s8b",
+      "action": "assess_state",
+      "expect": {
+        "state_any": [
+          "people-list",
+          "onboard-workflow"
+        ]
+      },
+      "note": "Verify redirect \u2014 success lands on /workflows/UUID (workflow kicked off) or /organization/people",
+      "onMismatch": "report_failure"
+    },
+    {
+      "stepId": "s8c",
+      "action": "read",
+      "candidates": [
+        "h1",
+        ".workflow-title",
+        "title",
+        ".v-snackbar--active .v-snackbar__content",
+        ".v-toolbar__title"
+      ],
+      "store_as": "workflow_confirmation",
+      "optional": true,
+      "note": "VERIFY: Read page title or snackbar on workflow/people page to confirm user name was created."
+    },
+    {
+      "stepId": "s8",
+      "action": "read",
+      "candidates": [
+        ".v-snackbar--active .v-snack
+
+[... truncated, original 15277 chars ...]
+
+=== EXISTING-EVIDENCE: 02-user-delete.payload.json ===
+Source: file://sites/yeshid/tasks/02-user-delete.payload.json
+
+{
+  "_meta": {
+    "task": "user-delete",
+    "description": "Delete (offboard) a user from YeshID by name or email. Searches the people list, opens the person's profile, clicks Manage \u2192 Offboard, and confirms.",
+    "params": {
+      "user_identifier": {
+        "required": true,
+        "description": "Name or email of the person to offboard",
+        "hint": "Can be a full name like \"John Smith\" or an email"
+      }
+    },
+    "paramNotes": {
+      "user_identifier": "Name or email of the user to delete. Used to search the people table."
+    },
+    "selfImproving": true,
+    "runCount": 2,
+    "lastSuccess": "2026-04-14T00:00:00Z",
+    "prerequisite": "00-login.payload.json",
+    "warning": "Destructive action. Verify user_identifier before running in production mode.",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "requiredParams": [
+      "user_identifier"
+    ],
+    "optionalParams": []
+  },
+  "runId": "yeshid-user-delete-{{timestamp}}",
+  "mode": "verification",
+  "site": "app.yeshid.com",
+  "params": {
+    "user_identifier": "{{user_identifier}}",
+    "base_url": "https://app.yeshid.com"
+  },
+  "abstractTargets": {
+    "search-input": {
+      "match": {
+        "vuetify_label": [
+          "search",
+          "filter",
+          "name"
+        ],
+        "name_contains": [
+          "search"
+        ]
+      },
+      "cachedSelector": ".search-input",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-14T00:00:00Z",
+      "description": "Search input on people list page",
+      "resolvedVia": "class_match",
+      "resolveHint": "Input with class search-input and placeholder Search. Vuetify ID (#input-v-XX) changes per session \u2014 use .search-input instead."
+    },
+    "person-row": {
+      "match": {
+        "role": "row",
+        "name_contains": [
+          "{{user_identifier}}"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "resolveHint": "Find <tr> in the people table whose text contains user_identifier."
+    },
+    "manage-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "manage"
+        ]
+      },
+      "cachedSelector": "button[aria-haspopup='menu'].bg-primary",
+      "cachedConfidence": 0.9,
+      "resolvedOn": "2026-04-01T00:00:00Z",
+      "fallbackSelectors": [
+        "button[aria-haspopup='menu'].bg-primary",
+        "main button.bg-primary"
+      ],
+      "description": "Green 'Manage' dropdown button on person detail page (top-right). Must be scoped to main to avoid sidebar nav group."
+    },
+    "offboard-menu-item": {
+      "match": {
+        "role": "menuitem",
+        "name_contains": [
+          "offboard"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        ".v-overlay--active .v-list-item",
+        ".v-menu__content .v-list-item"
+      ],
+      "description": "Offboard option in the Manage dropdown menu"
+    },
+    "confirm-offboard-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "offboard",
+          "confirm",
+          "yes"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        ".v-overlay--active .v-btn--variant-flat:last-child",
+        ".v-dialog .v-btn.bg-primary"
+      ],
+      "description": "Confirm button on the offboard page or dialog"
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people",
+      "expect": {
+        "state": "people-list"
+      }
+    },
+    {
+      "stepId": "s1b",
+      "action": "wait_for",
+      "selector": "input[placeholder*='Search' i], input[placeholder*='search' i]",
+      "timeout": 5000,
+      "note": "Wait for Vue app to render the search input after page navigation."
+    },
+    {
+      "stepId": "s2",
+      "action": "type",
+      "target": "search-input",
+      "value": "{{user_identifier}}",
+      "guard": {
+        "target": "search-input",
+        "state": {
+          "visible": true,
+          "enabled": true
+        }
+      },
+      "responseSignature": [
+        {
+          "type": "element_visible",
+          "selector": "table tbody tr",
+          "timeout": 2000
+        }
+      ]
+    },
+    {
+      "stepId": "s2b",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for Vue search debounce to filter the table."
+    },
+    {
+      "stepId": "s3",
+      "action": "find_row",
+      "identifier": "{{user_identifier}}",
+      "store_as": "find_result",
+      "note": "Find the matching row and click the name link to navigate to person detail page."
+    },
+    {
+      "stepId": "s4",
+      "action": "wait_for",
+      "url_pattern": "/organization/people/[a-z0-9-]+/details",
+      "timeout": 8000,
+      "note": "Wait for Vue router to navigate to the person detail page."
+    },
+    {
+      "stepId": "s5",
+      "action": "click",
+      "selector": "button[aria-haspopup='menu']",
+      "note": "Click the Manage dropdown button to reveal offboard option."
+    },
+    {
+      "stepId": "s6",
+      "action": "click_text",
+      "text": "Offboard User",
+      "note": "Click 'Offboard User' from the Manage dropdown menu. Confirmed option text is 'Offboard User' (not 'Offboard')."
+    },
+    {
+      "stepId": "s7",
+      "action": "wait_for",
+      "url_pattern": "/offboard/",
+      "timeout": 5000,
+      "note": "Wait for navigation to the offboard page."
+    },
+    {
+      "stepId": "s8",
+      "action": "click_text",
+      "text": "Select offboarding date",
+      "note": "Open the date picker dropdown."
+    },
+    {
+      "stepId": "s9",
+      "action": "click_text",
+      "text": "Immediately",
+      "note": "Select 'Immediately' from the date options."
+    },
+    {
+      "stepId": "s10",
+      "action": "click_text",
+      "text": "Offboard person",
+      "note": "Confirm offboarding."
+    },
+    {
+      "stepId": "s10b",
+      "action": "wait_for",
+      "url_pattern": "/workflows/",
+      "timeout": 8000,
+      "note": "CONFIRMED: After clicking Offboard person, YeshID creates an offboarding workflow and immediately redirects to /workflows/{uuid}. Snackbar shows Workflow created."
+    },
+    {
+      "stepId": "s11",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for offboard API call to complete."
+    },
+    {
+      "stepId": "s12",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people",
+      "note": "Navigate back to people list to verify offboard succeeded."
+    },
+    {
+      "stepId": "s12b",
+      "action": "wait_for",
+      "selector": "input[placeholder*='Search' i], input[placeholder*='search' i]",
+      "timeout": 5000,
+      "note": "Wait for people list to render."
+    },
+    {
+      "stepId": "s13",
+      "action": "type",
+      "target": "search-input",
+      "value": "{{user_identifier}}",
+      "note": "Re-search for user to verify offboard status. Uses .search-input selector."
+    },
+    {
+      "stepId": "s13b",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for Vue search debounce."
+    },
+    {
+      "stepId": "s14",
+      "action": "find_row",
+      "identifier": "{{user_identifier}}",
+      "store_as": "verify_offboarded",
+      "assert_cell_contains": "Deactivated",
+      "assert_cell_column": "YeshID status",
+      "note": "VERIFY: Find user row and assert YeshID status column shows Deactivated (not Active). Confirmed: offboarding immediately sets status to Deactivated."
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "authenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "people-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people$"
+          }
+        ]
+      },
+      "onboard-form": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/onboard"
+          }
+        ]
+      },
+      "person-detail": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/[a-z0-9-]+"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/onboard|/offboard"
+          }
+        ]
+      },
+      "directories": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/directories"
+          }
+        ]
+      },
+      "access-grid": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/grid"
+          }
+        ]
+      },
+      "events": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/events$"
+          }
+        ]
+      }
+    }
+  }
+}
+
+=== EXISTING-EVIDENCE: 03-user-modify.payload.json ===
+Source: file://sites/yeshid/tasks/03-user-modify.payload.json
+
+{
+  "_meta": {
+    "task": "user-modify",
+    "description": "Modify an existing user's profile in YeshID. Searches for the user, opens their detail page, updates specified fields, and saves.",
+    "params": {
+      "user_identifier": {
+        "required": true,
+        "description": "Name or email of the person to modify"
+      },
+      "new_first_name": {
+        "required": false,
+        "description": "New first name (leave blank to keep current)"
+      },
+      "new_last_name": {
+        "required": false,
+        "description": "New last name (leave blank to keep current)"
+      },
+      "new_personal_email": {
+        "required": false,
+        "description": "New personal/recovery email (leave blank to keep current)"
+      }
+    },
+    "paramNotes": {
+      "user_identifier": "Name or email to find the user",
+      "new_first_name": "New first name (optional, leave empty to skip)",
+      "new_last_name": "New last name (optional, leave empty to skip)",
+      "new_personal_email": "New personal email (optional, leave empty to skip)"
+    },
+    "selfImproving": true,
+    "runCount": 1,
+    "lastSuccess": "2026-04-14T00:00:00Z",
+    "prerequisite": "00-login.payload.json",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "requiredParams": [
+      "user_identifier"
+    ],
+    "optionalParams": [
+      "new_first_name",
+      "new_last_name",
+      "new_personal_email"
+    ]
+  },
+  "runId": "yeshid-user-modify-{{timestamp}}",
+  "mode": "verification",
+  "site": "app.yeshid.com",
+  "params": {
+    "user_identifier": "{{user_identifier}}",
+    "new_first_name": "{{new_first_name}}",
+    "new_last_name": "{{new_last_name}}",
+    "new_personal_email": "{{new_personal_email}}",
+    "base_url": "https://app.yeshid.com"
+  },
+  "abstractTargets": {
+    "search-input": {
+      "match": {
+        "role": "textbox",
+        "name_contains": [
+          "search"
+        ]
+      },
+      "cachedSelector": ".search-input",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-14T00:00:00Z",
+      "resolvedVia": "class_match"
+    },
+    "save-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "confirm",
+          "save",
+          "update"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0,
+      "fallbackSelectors": [
+        "button.bg-primary",
+        "button.v-btn--variant-flat",
+        "button[type='submit']"
+      ]
+    },
+    "edit-first-name": {
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "first name"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0
+    },
+    "edit-last-name": {
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "last name"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0
+    },
+    "edit-personal-email": {
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "personal",
+          "recovery"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.0
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people",
+      "note": "Go to the people list"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": ".search-input",
+      "timeout": 5000,
+      "note": "Wait for people list to fully render before typing in search. Replaces blind delay."
+    },
+    {
+      "stepId": "s3",
+      "action": "type",
+      "target": "search-input",
+      "value": "{{user_identifier}}",
+      "responseSignature": [
+        {
+          "type": "element_visible",
+          "selector": "table tbody tr",
+          "timeout": 2000
+        }
+      ],
+      "note": "Search for the user"
+    },
+    {
+      "stepId": "s4",
+      "action": "find_row",
+      "identifier": "{{user_identifier}}",
+      "note": "Click into the user's detail page"
+    },
+    {
+      "stepId": "s5",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for detail page to load"
+    },
+    {
+      "stepId": "s6",
+      "action": "click_text",
+      "text": "Edit",
+      "note": "Click Edit to switch from view mode to edit mode"
+    },
+    {
+      "stepId": "s6b",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for edit form to render"
+    },
+    {
+      "stepId": "s6c",
+      "action": "read",
+      "candidates": [],
+      "store_as": "edit_form_snapshot",
+      "note": "Snapshot the edit form to verify inputs are available"
+    },
+    {
+      "stepId": "s7",
+      "action": "type",
+      "target": "edit-first-name",
+      "value": "{{new_first_name}}",
+      "condition": "{{new_first_name}}",
+      "note": "Update first name if provided"
+    },
+    {
+      "stepId": "s8",
+      "action": "type",
+      "target": "edit-last-name",
+      "value": "{{new_last_name}}",
+      "condition": "{{new_last_name}}",
+      "note": "Update last name if provided"
+    },
+    {
+      "stepId": "s9",
+      "action": "type",
+      "target": "edit-personal-email",
+      "value": "{{new_personal_email}}",
+      "condition": "{{new_personal_email}}",
+      "note": "Update personal email if provided"
+    },
+    {
+      "stepId": "s10",
+      "action": "click",
+      "target": "save-button",
+      "note": "Click Save/Update to persist changes"
+    },
+    {
+      "stepId": "s11",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for save confirmation"
+    },
+    {
+      "stepId": "s12",
+      "action": "read",
+      "candidates": [
+        ".v-snackbar--active .v-snackbar__content",
+        ".v-alert .v-alert__content",
+        ".v-snackbar .v-snackbar__content"
+      ],
+      "store_as": "confirmation_message",
+      "note": "Read the save confirmation message"
+    },
+    {
+      "stepId": "s13",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people",
+      "note": "VERIFY: Navigate back to people list to find the modified user."
+    },
+    {
+      "stepId": "s14",
+      "action": "wait_for",
+      "selector": ".search-input",
+      "timeout": 5000,
+      "note": "Wait for people list to render."
+    },
+    {
+      "stepId": "s15",
+      "action": "type",
+      "target": "search-input",
+      "value": "{{user_identifier}}",
+      "note": "Search for user by identifier to locate their row."
+    },
+    {
+      "stepId": "s15b",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for Vue debounce."
+    },
+    {
+      "stepId": "s16",
+      "action": "find_row",
+      "identifier": "{{user_identifier}}",
+      "store_as": "user_row",
+      "note": "Find user row and click through to their detail page."
+    },
+    {
+      "stepId": "s17",
+      "action": "wait_for",
+      "url_pattern": "/organization/people/[a-z0-9-]+/details",
+      "timeout": 6000,
+      "note": "Wait for person detail page to load."
+    },
+    {
+      "stepId": "s18",
+      "action": "perceive",
+      "store_as": "person_detail_verify",
+      "note": "VERIFY: Perceive person detail page. Confirm the modified fields (first name, last name, personal email) reflect the updated values."
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "authenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "people-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people$"
+          }
+        ]
+      },
+      "onboard-form": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/onboard"
+          }
+        ]
+      },
+      "person-detail": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/[a-z0-9-]+"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/onboard|/offboard"
+          }
+        ]
+      },
+      "directories": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/directories"
+          }
+        ]
+      },
+      "access-grid": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/grid"
+          }
+        ]
+      },
+      "events": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/events$"
+          }
+        ]
+      }
+    }
+  }
+}
+
+=== EXISTING-EVIDENCE: 04-site-explore.payload.json ===
+Source: file://sites/yeshid/tasks/04-site-explore.payload.json
+
+{
+  "_meta": {
+    "task": "site-explore",
+    "description": "Systematic exploration of all YeshID pages. Visits each page and snapshots all interactive elements.",
+    "params": [
+      "base_url"
+    ],
+    "selfImproving": true,
+    "outputFile": "sites/yeshid/exploration-results.json",
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    }
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {
+        "state": "authenticated"
+      },
+      "onMismatch": "exit_with_error:not-authenticated",
+      "note": "Verify we're logged in before exploring"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/overview",
+      "note": "Navigate to overview"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for overview to render"
+    },
+    {
+      "stepId": "s4",
+      "action": "read",
+      "store_as": "page_overview",
+      "note": "Snapshot overview page affordances"
+    },
+    {
+      "stepId": "s5",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people",
+      "note": "Navigate to people-list"
+    },
+    {
+      "stepId": "s6",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for people-list to render"
+    },
+    {
+      "stepId": "s7",
+      "action": "read",
+      "store_as": "page_people-list",
+      "note": "Snapshot people-list page affordances"
+    },
+    {
+      "stepId": "s8",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people/onboard",
+      "note": "Navigate to onboard-form"
+    },
+    {
+      "stepId": "s9",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for onboard-form to render"
+    },
+    {
+      "stepId": "s10",
+      "action": "read",
+      "store_as": "page_onboard-form",
+      "note": "Snapshot onboard-form page affordances"
+    },
+    {
+      "stepId": "s11",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/directories",
+      "note": "Navigate to directories"
+    },
+    {
+      "stepId": "s12",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for directories to render"
+    },
+    {
+      "stepId": "s13",
+      "action": "read",
+      "store_as": "page_directories",
+      "note": "Snapshot directories page affordances"
+    },
+    {
+      "stepId": "s14",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/groups",
+      "note": "Navigate to groups"
+    },
+    {
+      "stepId": "s15",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for groups to render"
+    },
+    {
+      "stepId": "s16",
+      "action": "read",
+      "store_as": "page_groups",
+      "note": "Snapshot groups page affordances"
+    },
+    {
+      "stepId": "s17",
+      "action": "navigate",
+      "url": "{{base_url}}/access/applications",
+      "note": "Navigate to applications-list"
+    },
+    {
+      "stepId": "s18",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for applications-list to render"
+    },
+    {
+      "stepId": "s19",
+      "action": "read",
+      "store_as": "page_applications-list",
+      "note": "Snapshot applications-list page affordances"
+    },
+    {
+      "stepId": "s20",
+      "action": "navigate",
+      "url": "{{base_url}}/access/grid",
+      "note": "Navigate to access-grid"
+    },
+    {
+      "stepId": "s21",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for access-grid to render"
+    },
+    {
+      "stepId": "s22",
+      "action": "read",
+      "store_as": "page_access-grid",
+      "note": "Snapshot access-grid page affordances"
+    },
+    {
+      "stepId": "s23",
+      "action": "navigate",
+      "url": "{{base_url}}/access/rbac",
+      "note": "Navigate to rbac"
+    },
+    {
+      "stepId": "s24",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for rbac to render"
+    },
+    {
+      "stepId": "s25",
+      "action": "read",
+      "store_as": "page_rbac",
+      "note": "Snapshot rbac page affordances"
+    },
+    {
+      "stepId": "s26",
+      "action": "navigate",
+      "url": "{{base_url}}/access/requests",
+      "note": "Navigate to access-requests"
+    },
+    {
+      "stepId": "s27",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for access-requests to render"
+    },
+    {
+      "stepId": "s28",
+      "action": "read",
+      "store_as": "page_access-requests",
+      "note": "Snapshot access-requests page affordances"
+    },
+    {
+      "stepId": "s29",
+      "action": "navigate",
+      "url": "{{base_url}}/access/audits",
+      "note": "Navigate to audit-reports"
+    },
+    {
+      "stepId": "s30",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for audit-reports to render"
+    },
+    {
+      "stepId": "s31",
+      "action": "read",
+      "store_as": "page_audit-reports",
+      "note": "Snapshot audit-reports page affordances"
+    },
+    {
+      "stepId": "s32",
+      "action": "navigate",
+      "url": "{{base_url}}/security/shadow",
+      "note": "Navigate to shadow-applications"
+    },
+    {
+      "stepId": "s33",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for shadow-applications to render"
+    },
+    {
+      "stepId": "s34",
+      "action": "read",
+      "store_as": "page_shadow-applications",
+      "note": "Snapshot shadow-applications page affordances"
+    },
+    {
+      "stepId": "s35",
+      "action": "navigate",
+      "url": "{{base_url}}/security/identities/applications",
+      "note": "Navigate to identities"
+    },
+    {
+      "stepId": "s36",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for identities to render"
+    },
+    {
+      "stepId": "s37",
+      "action": "read",
+      "store_as": "page_identities",
+      "note": "Snapshot identities page affordances"
+    },
+    {
+      "stepId": "s38",
+      "action": "navigate",
+      "url": "{{base_url}}/security/access-drift",
+      "note": "Navigate to access-drift"
+    },
+    {
+      "stepId": "s39",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for access-drift to render"
+    },
+    {
+      "stepId": "s40",
+      "action": "read",
+      "store_as": "page_access-drift",
+      "note": "Snapshot access-drift page affordances"
+    },
+    {
+      "stepId": "s41",
+      "action": "navigate",
+      "url": "{{base_url}}/security/risk-assessment",
+      "note": "Navigate to risk-assessment"
+    },
+    {
+      "stepId": "s42",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for risk-assessment to render"
+    },
+    {
+      "stepId": "s43",
+      "action": "read",
+      "store_as": "page_risk-assessment",
+      "note": "Snapshot risk-assessment page affordances"
+    },
+    {
+      "stepId": "s44",
+      "action": "navigate",
+      "url": "{{base_url}}/manage/triggers",
+      "note": "Navigate to triggers"
+    },
+    {
+      "stepId": "s45",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for triggers to render"
+    },
+    {
+      "stepId": "s46",
+      "action": "read",
+      "store_as": "page_triggers",
+      "note": "Snapshot triggers page affordances"
+    },
+    {
+      "stepId": "s47",
+      "action": "navigate",
+      "url": "{{base_url}}/workflow-templates",
+      "note": "Navigate to workflow-templates"
+    },
+    {
+      "stepId": "s48",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for workflow-templates to render"
+    },
+    {
+      "stepId": "s49",
+      "action": "read",
+      "store_as": "page_workflow-templates",
+      "note": "Snapshot workflow-templates page affordances"
+    },
+    {
+      "stepId": "s50",
+      "action": "navigate",
+      "url": "{{base_url}}/policies",
+      "note": "Navigate to policies"
+    },
+    {
+      "stepId": "s51",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for policies to render"
+    },
+    {
+      "stepId": "s52",
+      "action": "read",
+      "store_as": "page_policies",
+      "note": "Snapshot policies page affordances"
+    },
+    {
+      "stepId": "s53",
+      "action": "navigate",
+      "url": "{{base_url}}/events",
+      "note": "Navigate to events"
+    },
+    {
+      "stepId": "s54",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for events to render"
+    },
+    {
+      "stepId": "s55",
+      "action": "read",
+      "store_as": "page_events",
+      "note": "Snapshot events page affordances"
+    },
+    {
+      "stepId": "s56",
+      "action": "navigate",
+      "url": "{{base_url}}/manage/settings",
+      "note": "Navigate to settings"
+    },
+    {
+      "stepId": "s57",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for settings to render"
+    },
+    {
+      "stepId": "s58",
+      "action": "read",
+      "store_as": "page_settings",
+      "note": "Snapshot settings page affordances"
+    },
+    {
+      "stepId": "s59",
+      "action": "navigate",
+      "url": "{{base_url}}/overview",
+      "note": "Return to dashboard"
+    }
+  ],
+  "runId": "yeshid-explore-{{timestamp}}",
+  "site": "app.yeshid.com",
+  "mode": "exploratory",
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "authenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "people-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people$"
+          }
+        ]
+      },
+      "onboard-form": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/onboard"
+          }
+        ]
+      },
+      "person-detail": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/[a-z0-9-]+"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/onboard|/offboard"
+          }
+        ]
+      },
+      "directories": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/directories"
+          }
+        ]
+      },
+      "access-grid": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/grid"
+          }
+        ]
+      },
+      "events": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/events$"
+          }
+        ]
+      }
+    }
+  }
+}
+
+
+=== EXISTING-EVIDENCE: 05-integration-setup.payload.json ===
+Source: file://sites/yeshid/tasks/05-integration-setup.payload.json
+
+{
+  "_meta": {
+    "task": "integration-setup",
+    "description": "Set up a SCIM integration for an application in YeshID. Creates the app first if needed, then configures SCIM with Bearer auth.",
+    "params": {
+      "app_name": {"required": true, "description": "Name of the application to integrate"},
+      "technical_owner": {"required": true, "description": "Email of the technical owner"},
+      "technical_owner_name": {"required": false, "default": "Mike Wolf", "description": "Display name of technical owner"},
+      "api_base_url": {"required": true, "description": "SCIM base URL (e.g. https://api.example.com/scim/v2)"},
+      "bearer_token": {"required": true, "description": "Bearer token for SCIM auth"},
+      "auth_type": {"required": false, "default": "Bearer", "description": "Auth type: Bearer, OAuth2, Basic, Custom API key, None"}
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "prerequisite": "00-login.payload.json",
+    "note": "Before running: (1) look up the service's SCIM endpoint and token, (2) populate params accordingly.",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    }
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com",
+    "app_name": "",
+    "technical_owner": "",
+    "technical_owner_name": "Mike Wolf",
+    "api_base_url": "",
+    "bearer_token": "",
+    "auth_type": "Bearer"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {"state": "authenticated"},
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/access/applications",
+      "note": "Go to applications list"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s4",
+      "action": "click_text",
+      "text": "Add application",
+      "note": "Open Add Application dialog"
+    },
+    {
+      "stepId": "s5",
+      "action": "delay",
+      "ms": 1500
+    },
+    {
+      "stepId": "s6",
+      "action": "type",
+      "selector": "input[placeholder='Type application name']",
+      "value": "{{app_name}}"
+    },
+    {
+      "stepId": "s7",
+      "action": "delay",
+      "ms": 500
+    },
+    {
+      "stepId": "s8",
+      "action": "select_entity",
+      "selector": "input[placeholder='Select technical owners']",
+      "search": "{{technical_owner}}",
+      "select_text": "{{technical_owner_name}}",
+      "delay_ms": 2500,
+      "note": "Select technical owner from unified-selection-shell dropdown"
+    },
+    {
+      "stepId": "s9",
+      "action": "delay",
+      "ms": 1000
+    },
+    {
+      "stepId": "s10",
+      "action": "click_text",
+      "text": "Add",
+      "exact": true,
+      "note": "Submit the Add Application dialog"
+    },
+    {
+      "stepId": "s11",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for app creation and redirect to app detail"
+    },
+    {
+      "stepId": "s12",
+      "action": "navigate",
+      "url": "{{base_url}}/access/applications",
+      "note": "Return to applications list to find the new app"
+    },
+    {
+      "stepId": "s13",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s14",
+      "action": "find_row",
+      "identifier": "{{app_name}}",
+      "click": true,
+      "note": "Click on the newly created app row"
+    },
+    {
+      "stepId": "s15",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s16",
+      "action": "click_text",
+      "text": "Connect",
+      "note": "Open integration setup panel"
+    },
+    {
+      "stepId": "s17",
+      "action": "delay",
+      "ms": 1500
+    },
+    {
+      "stepId": "s18",
+      "action": "click_text",
+      "text": "SCIM",
+      "note": "Select SCIM integration type"
+    },
+    {
+      "stepId": "s19",
+      "action": "delay",
+      "ms": 500
+    },
+    {
+      "stepId": "s20",
+      "action": "click_text",
+      "text": "{{auth_type}}",
+      "note": "Select auth type (Bearer by default)"
+    },
+    {
+      "stepId": "s21",
+      "action": "delay",
+      "ms": 500
+    },
+    {
+      "stepId": "s22",
+      "action": "type",
+      "selector": "input[placeholder='https://']",
+      "value": "{{api_base_url}}",
+      "note": "Fill SCIM base URL"
+    },
+    {
+      "stepId": "s23",
+      "action": "type",
+      "selector": "input[type='password']",
+      "value": "{{bearer_token}}",
+      "note": "Fill bearer token"
+    },
+    {
+      "stepId": "s24",
+      "action": "delay",
+      "ms": 500
+    },
+    {
+      "stepId": "s25",
+      "action": "click_text",
+      "text": "Save",
+      "exact": true,
+      "note": "Save integration configuration"
+    }
+  ],
+  "preRunChecklist": {
+    "description": "Steps to complete BEFORE running this payload.",
+    "steps": [
+      "1. Look up the service's SCIM provisioning endpoint URL",
+      "2. Generate a SCIM/API bearer token from the service's admin console",
+      "3. Populate params: app_name, technical_owner, api_base_url, bearer_token"
+    ]
+  }
+}
+
+
+=== EXISTING-EVIDENCE: 06-person-search.payload.json ===
+Source: file://sites/yeshid/tasks/06-person-search.payload.json
+
+{
+  "_meta": {
+    "task": "person-search",
+    "description": "Search for a person by name or email. Navigates to the people list, waits for the search input to mount, types the search term, and reads all rows for client-side filtering.",
+    "params": {
+      "search_term": {
+        "required": true,
+        "description": "Name or email to search for"
+      }
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "requiredParams": [
+      "search_term"
+    ],
+    "optionalParams": []
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com",
+    "search_term": ""
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {
+        "state": "authenticated"
+      },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people"
+    },
+    {
+      "stepId": "s2b",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Allow Vue app to hydrate after SPA navigation before polling for DOM elements"
+    },
+    {
+      "stepId": "s3",
+      "action": "wait_for",
+      "selector": "input[placeholder='Search']",
+      "timeout": 12000,
+      "note": "Wait for Vuetify search input to mount — SPA navigation completes before Vue components render"
+    },
+    {
+      "stepId": "s4",
+      "action": "assess_state",
+      "expect": {
+        "state": "people-list"
+      }
+    },
+    {
+      "stepId": "s5",
+      "action": "type",
+      "selector": "input[placeholder='Search']",
+      "value": "{{search_term}}",
+      "note": "Type search term — uses CDP Input.insertText which triggers Vue v-model"
+    },
+    {
+      "stepId": "s6",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for Vue reactive filter to settle"
+    },
+    {
+      "stepId": "s7",
+      "action": "read",
+      "selector": ".v-data-table tbody",
+      "store_as": "search_results",
+      "note": "Read ALL rows from people table. The search input may not trigger Vue reactive filtering — always return the full table and filter by search_term in the final response. Match search_term against name and email text in each row."
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "authenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "people-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people$"
+          }
+        ]
+      },
+      "onboard-form": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/onboard"
+          }
+        ]
+      },
+      "person-detail": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/[a-z0-9-]+"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/onboard|/offboard"
+          }
+        ]
+      },
+      "directories": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/directories"
+          }
+        ]
+      },
+      "access-grid": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/grid"
+          }
+        ]
+      },
+      "events": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/events$"
+          }
+        ]
+      }
+    }
+  }
+}
+
+
+=== EXISTING-EVIDENCE: 07-person-view.payload.json ===
+Source: file://sites/yeshid/tasks/07-person-view.payload.json
+
+{
+  "_meta": {
+    "task": "person-view",
+    "description": "Search for a person and navigate to their detail profile page.",
+    "params": {
+      "user_identifier": {
+        "required": true,
+        "description": "Name or email of the person to view"
+      }
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "requiredParams": [
+      "user_identifier"
+    ],
+    "optionalParams": []
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com",
+    "user_identifier": ""
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {
+        "state": "authenticated"
+      },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 1500
+    },
+    {
+      "stepId": "s4",
+      "action": "find_row",
+      "identifier": "{{user_identifier}}",
+      "store_as": "found_person",
+      "note": "Find and click the row matching the user identifier"
+    },
+    {
+      "stepId": "s5",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for person detail page to load"
+    },
+    {
+      "stepId": "s6",
+      "action": "assess_state",
+      "expect": {
+        "state": "person-detail"
+      }
+    },
+    {
+      "stepId": "s7",
+      "action": "read",
+      "store_as": "person_details",
+      "note": "Capture the person detail page content"
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "authenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "people-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people$"
+          }
+        ]
+      },
+      "onboard-form": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/onboard"
+          }
+        ]
+      },
+      "person-detail": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/[a-z0-9-]+"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/onboard|/offboard"
+          }
+        ]
+      },
+      "directories": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/directories"
+          }
+        ]
+      },
+      "access-grid": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/grid"
+          }
+        ]
+      },
+      "events": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/events$"
+          }
+        ]
+      }
+    }
+  }
+}
+
+
+=== EXISTING-EVIDENCE: 08-sync-directory.payload.json ===
+Source: file://sites/yeshid/tasks/08-sync-directory.payload.json
+
+{
+  "_meta": {
+    "task": "sync-directory",
+    "description": "Navigate to directories page and trigger a directory sync.",
+    "params": [
+      "base_url"
+    ],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    }
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {
+        "state": "authenticated"
+      },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "click",
+      "target": "nav-directories",
+      "note": "Click Directories in sidebar nav"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for directory page to load"
+    },
+    {
+      "stepId": "s4",
+      "action": "assess_state",
+      "expect": {
+        "state": "directories"
+      }
+    },
+    {
+      "stepId": "s4b",
+      "action": "read",
+      "store_as": "page_state_before_sync",
+      "note": "Snapshot page state before attempting sync \u2014 so if the sync button can't be found, the failure message includes what elements are visible"
+    },
+    {
+      "stepId": "s5",
+      "action": "click",
+      "target": "sync-button",
+      "note": "Click the sync directory button"
+    },
+    {
+      "stepId": "s6",
+      "action": "delay",
+      "ms": 3000,
+      "note": "Wait for sync to initiate"
+    },
+    {
+      "stepId": "s7",
+      "action": "read",
+      "store_as": "sync_result",
+      "note": "Capture page state after sync trigger"
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "authenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "people-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people$"
+          }
+        ]
+      },
+      "onboard-form": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/onboard"
+          }
+        ]
+      },
+      "person-detail": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/[a-z0-9-]+"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/onboard|/offboard"
+          }
+        ]
+      },
+      "directories": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/directories"
+          }
+        ]
+      },
+      "access-grid": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/grid"
+          }
+        ]
+      },
+      "events": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/events$"
+          }
+        ]
+      }
+    }
+  },
+  "abstractTargets": {
+    "sync-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "sync",
+          "sync now",
+          "sync directory",
+          "refresh"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "fallbackSelectors": [
+        "button[aria-label*='sync' i]",
+        "button[aria-label*='Sync' i]",
+        ".v-btn:has-text('Sync')",
+        "button.v-btn--variant-flat",
+        "[data-testid*='sync']"
+      ],
+      "resolveHint": "Look for a button with text containing 'sync' anywhere on the /organization/directories page. It may be in a toolbar, header, or card action area."
+    }
+  }
+}
+
+=== EXISTING-EVIDENCE: 09-create-group.payload.json ===
+Source: file://sites/yeshid/tasks/09-create-group.payload.json
+
+{
+  "_meta": {
+    "task": "create-group",
+    "description": "Create a new group with name, type, and description.",
+    "params": {
+      "group_name": {
+        "required": true,
+        "description": "Name for the new group"
+      },
+      "group_description": {
+        "required": false,
+        "default": "",
+        "description": "Description of the group (optional)"
+      }
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "requiredParams": [
+      "group_name"
+    ],
+    "optionalParams": [
+      "group_description"
+    ]
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com",
+    "group_name": "",
+    "group_description": ""
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {
+        "state": "authenticated"
+      },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/groups"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s4",
+      "action": "click_text",
+      "text": "New Group",
+      "note": "Open New Group dialog"
+    },
+    {
+      "stepId": "s5",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for dialog to render"
+    },
+    {
+      "stepId": "s6",
+      "action": "type",
+      "selector": "input[placeholder='e.g. Finance Team']",
+      "value": "{{group_name}}",
+      "note": "Type group name"
+    },
+    {
+      "stepId": "s7",
+      "action": "type",
+      "selector": "textarea[placeholder='e.g. All US-based finance employees']",
+      "value": "{{group_description}}",
+      "note": "Type group description"
+    },
+    {
+      "stepId": "s8",
+      "action": "click_text",
+      "text": "Create Group",
+      "responseSignature": {
+        "type": "snackbar_text",
+        "selector": ".v-snackbar--active .v-snackbar__content"
+      },
+      "note": "Click Create Group button"
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "authenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "people-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people$"
+          }
+        ]
+      },
+      "onboard-form": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/onboard"
+          }
+        ]
+      },
+      "person-detail": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/[a-z0-9-]+"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/onboard|/offboard"
+          }
+        ]
+      },
+      "directories": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/directories"
+          }
+        ]
+      },
+      "access-grid": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/grid"
+          }
+        ]
+      },
+      "events": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/events$"
+          }
+        ]
+      }
+    }
+  }
+}
+
+=== EXISTING-EVIDENCE: 10-add-application.payload.json ===
+Source: file://sites/yeshid/tasks/10-add-application.payload.json
+
+{
+  "_meta": {
+    "task": "add-application",
+    "description": "Add a new application to YeshID.",
+    "params": {
+      "app_name": {
+        "required": true,
+        "description": "Name of the application to add"
+      },
+      "technical_owner": {
+        "required": true,
+        "description": "Email of the technical owner",
+        "hint": "Usually an admin \u2014 suggest current user if not specified"
+      },
+      "technical_owner_name": {
+        "required": false,
+        "default": "Mike Wolf",
+        "description": "Display name of technical owner (for dropdown selection)",
+        "hint": "Used to click the right person from search results"
+      }
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "requiredParams": [
+      "app_name",
+      "technical_owner"
+    ],
+    "optionalParams": []
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com",
+    "app_name": "",
+    "technical_owner": "",
+    "technical_owner_name": "Mike Wolf"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {
+        "state": "authenticated"
+      },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/access/applications"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s4",
+      "action": "click_text",
+      "text": "Add application",
+      "note": "Open Add Application dialog"
+    },
+    {
+      "stepId": "s5",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for dialog to render"
+    },
+    {
+      "stepId": "s6",
+      "action": "type",
+      "selector": "input[placeholder='Type application name']",
+      "value": "{{app_name}}",
+      "note": "Type application name"
+    },
+    {
+      "stepId": "s7",
+      "action": "delay",
+      "ms": 500
+    },
+    {
+      "stepId": "s8",
+      "action": "select_entity",
+      "selector": "input[placeholder='Select technical owners']",
+      "search": "{{technical_owner}}",
+      "select_text": "{{technical_owner_name}}",
+      "delay_ms": 2500,
+      "note": "Search and select technical owner"
+    },
+    {
+      "stepId": "s9",
+      "action": "delay",
+      "ms": 1000
+    },
+    {
+      "stepId": "s10",
+      "action": "click_text",
+      "text": "Add",
+      "exact": true,
+      "note": "Click Add button in dialog footer"
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "authenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "people-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people$"
+          }
+        ]
+      },
+      "onboard-form": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/onboard"
+          }
+        ]
+      },
+      "person-detail": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/[a-z0-9-]+"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/onboard|/offboard"
+          }
+        ]
+      },
+      "directories": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/directories"
+          }
+        ]
+      },
+      "access-grid": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/grid"
+          }
+        ]
+      },
+      "events": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/events$"
+          }
+        ]
+      }
+    }
+  }
+}
+
+=== EXISTING-EVIDENCE: 11-start-audit.payload.json ===
+Source: file://sites/yeshid/tasks/11-start-audit.payload.json
+
+{
+  "_meta": {
+    "task": "start-audit",
+    "description": "Start a new access audit from the audit reports page.",
+    "params": {
+      "audit_title": {
+        "required": true,
+        "description": "Title for the access audit",
+        "hint": "e.g. \"Q2 2026 Access Review\""
+      }
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "requiredParams": [
+      "audit_title"
+    ],
+    "optionalParams": []
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com",
+    "audit_title": ""
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {
+        "state": "authenticated"
+      },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/access/audits"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 1500
+    },
+    {
+      "stepId": "s4",
+      "action": "click_text",
+      "text": "Start new audit",
+      "note": "Click Start new audit button"
+    },
+    {
+      "stepId": "s5",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for audit form to open"
+    },
+    {
+      "stepId": "s6",
+      "action": "type",
+      "selector": "input",
+      "value": "{{audit_title}}",
+      "condition": "{{audit_title}}",
+      "note": "Type audit title if provided"
+    },
+    {
+      "stepId": "s7",
+      "action": "read",
+      "store_as": "audit_form",
+      "note": "Capture audit form state for review before submission"
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "authenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "people-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people$"
+          }
+        ]
+      },
+      "onboard-form": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/onboard"
+          }
+        ]
+      },
+      "person-detail": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/[a-z0-9-]+"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/onboard|/offboard"
+          }
+        ]
+      },
+      "directories": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/directories"
+          }
+        ]
+      },
+      "access-grid": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/grid"
+          }
+        ]
+      },
+      "events": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/events$"
+          }
+        ]
+      }
+    }
+  }
+}
+
+
+=== EXISTING-EVIDENCE: 12-view-access-grid.payload.json ===
+Source: file://sites/yeshid/tasks/12-view-access-grid.payload.json
+
+{
+  "_meta": {
+    "task": "view-access-grid",
+    "description": "Navigate to the access grid and capture the people × applications matrix.",
+    "params": [
+      "base_url"
+    ],
+    "selfImproving": true,
+    "runCount": 6,
+    "lastSuccess": "2026-04-13T03:37:58.515Z",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "lastDurationMs": 3167
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {
+        "state": "authenticated"
+      },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/access/grid"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Access grid loads slowly — extra wait"
+    },
+    {
+      "stepId": "s4",
+      "action": "assess_state",
+      "expect": {
+        "state": "access-grid"
+      }
+    },
+    {
+      "stepId": "s5",
+      "action": "read",
+      "selector": ".v-data-table",
+      "store_as": "access_grid_data",
+      "note": "Capture the full access grid table"
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "authenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "people-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people$"
+          }
+        ]
+      },
+      "onboard-form": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/onboard"
+          }
+        ]
+      },
+      "person-detail": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/[a-z0-9-]+"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/onboard|/offboard"
+          }
+        ]
+      },
+      "directories": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/directories"
+          }
+        ]
+      },
+      "access-grid": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/grid"
+          }
+        ]
+      },
+      "events": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/events$"
+          }
+        ]
+      }
+    }
+  }
+}
+
+
+=== EXISTING-EVIDENCE: 13-view-events.payload.json ===
+Source: file://sites/yeshid/tasks/13-view-events.payload.json
+
+{
+  "_meta": {
+    "task": "view-events",
+    "description": "Navigate to events page and optionally search for specific events.",
+    "params": {
+      "search_term": {
+        "required": false,
+        "default": "",
+        "description": "Event search term (leave blank to show all recent events)"
+      }
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "requiredParams": [],
+    "optionalParams": [
+      "search_term"
+    ]
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com",
+    "search_term": ""
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {
+        "state": "authenticated"
+      },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/events"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 1500
+    },
+    {
+      "stepId": "s4",
+      "action": "type",
+      "selector": "input[placeholder='Search']",
+      "value": "{{search_term}}",
+      "condition": "{{search_term}}",
+      "note": "Search events if search_term provided"
+    },
+    {
+      "stepId": "s5",
+      "action": "delay",
+      "ms": 1000,
+      "condition": "{{search_term}}"
+    },
+    {
+      "stepId": "s6",
+      "action": "read",
+      "selector": ".v-data-table",
+      "store_as": "events_data",
+      "note": "Capture events table"
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "authenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
+      },
+      "people-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people$"
+          }
+        ]
+      },
+      "onboard-form": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/onboard"
+          }
+        ]
+      },
+      "person-detail": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/[a-z0-9-]+"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/onboard|/offboard"
+          }
+        ]
+      },
+      "directories": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/directories"
+          }
+        ]
+      },
+      "access-grid": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/access/grid"
+          }
+        ]
+      },
+      "events": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/events$"
+          }
+        ]
+      }
+    }
+  }
+}
+
+
+=== EXISTING-EVIDENCE: 14-add-user-to-group.payload.json ===
+Source: file://sites/yeshid/tasks/14-add-user-to-group.payload.json
+
+{
+  "_meta": {
+    "task": "add-user-to-group",
+    "description": "Add an existing user to an existing group in YeshID. Navigates to the groups page, opens the target group, then adds the user via the group membership UI.",
+    "params": {
+      "group_name": {
+        "required": true,
+        "description": "Name of the group to add the user to"
+      },
+      "user_identifier": {
+        "required": true,
+        "description": "Name or email of the user to add to the group"
+      }
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "prerequisite": "00-login.payload.json",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "requiredParams": [
+      "group_name",
+      "user_identifier"
+    ],
+    "optionalParams": [],
+    "author": "session-2026-04-14",
+    "verified": false,
+    "anomalies": [
+      "IMPORTANT: Groups feature requires Business plan on this YeshID account. Cannot be tested until plan is upgraded.",
+      "Group member add UI may be inside the group detail page at /organization/groups/{id}",
+      "YeshID may use a modal or inline search to add members \u2014 perceive the group detail page first",
+      "Groups feature requires at least one existing group \u2014 ensure 09-create-group has been run first"
+    ]
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com",
+    "group_name": "",
+    "user_identifier": ""
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {
+        "state": "authenticated"
+      },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/groups",
+      "note": "Navigate to groups list"
+    },
+    {
+      "stepId": "s3",
+      "action": "wait_for",
+      "selector": ".search-input, table",
+      "timeout": 5000,
+      "note": "Wait for groups list to render."
+    },
+    {
+      "stepId": "s3b",
+      "action": "type",
+      "target": "search-input",
+      "value": "{{group_name}}",
+      "note": "Bug 2 fix: Search for the group first \u2014 do not rely on page 1 visibility."
+    },
+    {
+      "stepId": "s3c",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Wait for search debounce."
+    },
+    {
+      "stepId": "s4",
+      "action": "find_row",
+      "identifier": "{{group_name}}",
+      "store_as": "group_row",
+      "note": "Click group name to open group detail page."
+    },
+    {
+      "stepId": "s5",
+      "action": "wait_for",
+      "url_pattern": "/organization/groups/[a-z0-9-]+",
+      "timeout": 6000,
+      "note": "Wait for group detail to load."
+    },
+    {
+      "stepId": "s6",
+      "action": "perceive",
+      "store_as": "group_detail",
+      "note": "Perceive group detail page. Look for: Add Member / Add Person / Add User button. Also look for member list and any search field."
+    },
+    {
+      "stepId": "s7",
+      "action": "click",
+      "target": "add-member-button",
+      "fallback_texts": [
+        "Add Member",
+        "Add Person",
+        "Add User",
+        "+ Member"
+      ],
+      "note": "Open the add-member dialog."
+    },
+    {
+      "stepId": "s8",
+      "action": "wait_for",
+      "selector": ".v-overlay--active input, [role=\"dialog\"] input",
+      "timeout": 4000,
+      "note": "Wait for add-member dialog to open and search input to render."
+    },
+    {
+      "stepId": "s9",
+      "action": "type",
+      "target": "member-search-input",
+      "value": "{{user_identifier}}",
+      "note": "Type user name or email into member search field inside the dialog."
+    },
+    {
+      "stepId": "s10",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for search results to populate."
+    },
+    {
+      "stepId": "s11",
+      "action": "perceive",
+      "store_as": "member_search_results",
+      "note": "Verify search results appeared with the matching user."
+    },
+    {
+      "stepId": "s12",
+      "action": "click_text",
+      "text": "{{user_identifier}}",
+      "note": "Click the matching user in search results to select them."
+    },
+    {
+      "stepId": "s13",
+      "action": "delay",
+      "ms": 1000
+    },
+    {
+      "stepId": "s14",
+      "action": "click_text",
+      "text": "Add",
+      "fallback_texts": [
+        "Save",
+        "Confirm",
+        "Add Member"
+      ],
+      "note": "Confirm adding the user to the group."
+    },
+    {
+      "stepId": "s15",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for member list to update."
+    },
+    {
+      "stepId": "s16",
+      "action": "find_row",
+      "identifier": "{{user_identifier}}",
+      "store_as": "verify_membership",
+      "assert_present": true,
+      "note": "VERIFY: User must appear in group member list. If this step fails, the user was not added successfully."
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "authenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin"
+          }
+        ]
+      },
+      "groups-list": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/groups$"
+          }
+        ]
+      },
+      "group-detail": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/groups/[a-z0-9-]+"
+          }
+        ]
+      }
+    }
+  },
+  "abstractTargets": {
+    "search-input": {
+      "match": {
+        "role": "textbox",
+        "name_contains": [
+          "search"
+        ]
+      },
+      "cachedSelector": ".search-input",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-14T00:00:00Z",
+      "resolvedVia": "class_match",
+      "resolveHint": "Input with class search-input and placeholder Search."
+    },
+    "add-member-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "add member",
+          "add person",
+          "add user"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.85,
+      "resolvedOn": "2026-04-14T00:00:00Z",
+      "resolveHint": "Button to open add-member dialog. Look for Add Member, Add Person, or + icon on group detail page.",
+      "fallbackSelectors": [
+        "button:has-text(\"Add Member\")",
+        "button:has-text(\"Add Person\")",
+        "button.bg-primary"
+      ]
+    },
+    "member-search-input": {
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "search",
+          "name",
+          "email"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.85,
+      "resolvedOn": "2026-04-14T00:00:00Z",
+      "resolveHint": "Search input inside the add-member dialog. Look for input in .v-overlay--active or [role=dialog].",
+      "fallbackSelectors": [
+        ".v-overlay--active input[type=\"text\"]",
+        "[role=\"dialog\"] input[placeholder*=\"search\" i]",
+        "[role=\"dialog\"] input[placeholder*=\"name\" i]"
+      ]
+    }
+  }
+}
+
+=== EXISTING-EVIDENCE: 15-remove-user-from-group.payload.json ===
+Source: file://sites/yeshid/tasks/15-remove-user-from-group.payload.json
+
+{
+  "_meta": {
+    "task": "remove-user-from-group",
+    "description": "Remove a user from a group in YeshID. Navigates to the group detail page, finds the user in the member list, and removes them.",
+    "params": {
+      "group_name": {
+        "required": true,
+        "description": "Name of the group to remove the user from"
+      },
+      "user_identifier": {
+        "required": true,
+        "description": "Name or email of the user to remove from the group"
+      }
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "prerequisite": "00-login.payload.json",
+    "warning": "Destructive action \u2014 removes user from group. Verify group_name and user_identifier before running.",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "requiredParams": [
+      "group_name",
+      "user_identifier"
+    ],
+    "optionalParams": [],
+    "author": "session-2026-04-14",
+    "verified": false,
+    "anomalies": [
+      "IMPORTANT: Groups feature requires Business plan on this YeshID account. Cannot be tested until plan is upgraded.",
+      "Remove action may be a row-level icon (trash/X) or a context menu per member row",
+      "May require hovering the member row to reveal the remove action",
+      "Confirmation dialog may or may not appear \u2014 perceive after click to verify"
+    ]
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com",
+    "group_name": "",
+    "user_identifier": ""
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": {
+        "state": "authenticated"
+      },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/groups",
+      "note": "Navigate to groups list"
+    },
+    {
+      "stepId": "s3",
+      "action": "wait_for",
+      "selector": ".search-input, table",
+      "timeout": 5000,
+      "note": "Wait for groups list to render."
+    },
+    {
+      "stepId": "s4",
+      "action": "type",
+      "target": "search-input",
+      "value": "{{group_name}}",
+      "note": "Bug 2 fix: Search for group first \u2014 do not rely on page 1 visibility."
+    },
+    {
+      "stepId": "s4b",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Wait for search debounce."
+    },
+    {
+      "stepId": "s5",
+      "action": "find_row",
+      "identifier": "{{group_name}}",
+      "store_as": "group_row",
+      "note": "Click into group detail page."
+    },
+    {
+      "stepId": "s6",
+      "action": "wait_for",
+      "url_pattern": "/organization/groups/[a-z0-9-]+",
+      "timeout": 6000,
+      "note": "Wait for group detail to load."
+    },
+    {
+      "stepId": "s7",
+      "action": "perceive",
+      "store_as": "group_detail",
+      "note": "Perceive group detail. Identify member rows and the remove action (trash icon, X, or kebab menu per row)."
+    },
+    {
+      "stepId": "s8",
+      "action": "find_row",
+      "identifier": "{{user_identifier}}",
+      "store_as": "member_row",
+      "click_action": "hover",
+      "note": "Hover the member row to reveal inline action buttons (remove/delete icon)."
+    },
+    {
+      "stepId": "s9",
+      "action": "click",
+      "target": "member-remove-button",
+      "note": "Click the remove button revealed on the member row. Falls back to trash/X icon selectors scoped to the user row."
+    },
+    {
+      "stepId": "s10",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Brief wait to detect if a confirmation dialog appears."
+    },
+    {
+      "stepId": "s11",
+      "action": "perceive",
+      "store_as": "confirm_check",
+      "note": "Check if a confirmation dialog appeared after clicking remove."
+    },
+    {
+      "stepId": "s12",
+      "action": "click_text",
+      "text": "Confirm",
+      "fallback_texts": [
+        "Remove",
+        "OK",
+        "Yes",
+        "Delete"
+      ],
+      "condition": "confirm_dialog_visible",
+      "note": "If a confirmation dialog appeared, dismiss it. Enabled (unlike previous version which was disabled).",
+      "onNotFound": "skip"
+    },
+    {
+      "stepId": "s13",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for removal to complete."
+    },
+    {
+      "stepId": "s14",
+      "action": "find_row",
+      "identifier": "{{user_identifier}}",
+      "store_as": "verify_removed",
+      "assert_absent": true,
+      "note": "VERIFY: User must NOT appear in group member list. If this step fails (row still found), removal did not complete."
+    }
+  ],
+  "abstractTargets": {
+    "search-input": {
+      "match": {
+        "role": "textbox",
+        "name_contains": [
+          "search"
+        ]
+      },
+      "cachedSelector": ".search-input",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-04-14T00:00:00Z",
+      "resolvedVia": "class_match",
+      "resolveHint": "Input with class search-input and placeholder Search."
+    },
+    "member-remove-button": {
+      "match": {
+        "role": "button",
+        "name_contains": [
+          "remove",
+          "delete",
+          "kick"
+        ]
+      },
+      "cachedSelector": null,
+      "cachedConfidence": 0.85,
+      "resolvedOn": "2026-04-14T00:00:00Z",
+      "resolveHint": "Row-level remove button on the member row. May be a trash icon, X button, or kebab menu. Hover the member row to reveal.",
+      "fallbackSelectors": [
+        "tr:has-text(\"{{user_identifier}}\") button[aria-label*=\"remove\" i]",
+        "tr:has-text(\"{{user_identifier}}\") .mdi-delete",
+        "tr:has-text(\"{{user_identifier}}\") .mdi-close"
+      ]
+    }
+  }
+}
+
+=== EXISTING-EVIDENCE: 16-delete-group.payload.json ===
+Source: file://sites/yeshid/tasks/16-delete-group.payload.json
+
+{
+  "_meta": {
+    "task": "delete-group",
+    "description": "Delete a group from YeshID. Navigates to the group detail page and triggers the delete/archive action.",
+    "params": {
+      "group_name": {
+        "required": true,
+        "description": "Name of the group to delete"
+      }
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "prerequisite": "00-login.payload.json",
+    "warning": "Destructive action — permanently deletes the group. Members are NOT deleted, only the group record.",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "requiredParams": ["group_name"],
+    "optionalParams": [],
+    "author": "session-2026-04-14",
+    "verified": false,
+    "anomalies": [
+      "Delete action is likely in a group-detail page action menu (Manage, kebab ⋮, or Settings)",
+      "YeshID may use 'Archive' instead of 'Delete' — check perceive output for actual button text",
+      "Confirmation dialog likely uses group name as a type-to-confirm field"
+    ]
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com",
+    "group_name": ""
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": { "state": "authenticated" },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/groups",
+      "note": "Navigate to groups list"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s4",
+      "action": "click_text",
+      "text": "{{group_name}}",
+      "note": "Click target group to open group detail page"
+    },
+    {
+      "stepId": "s5",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s6",
+      "action": "perceive",
+      "store_as": "group_detail",
+      "note": "Perceive group detail. Look for: 'Delete', 'Archive', 'Manage' dropdown, kebab menu (⋮), or settings icon."
+    },
+    {
+      "stepId": "s7",
+      "action": "click_text",
+      "text": "Manage",
+      "note": "Open Manage/actions dropdown. Fallbacks: '⋮', 'Settings', 'Options', 'Actions'."
+    },
+    {
+      "stepId": "s8",
+      "action": "delay",
+      "ms": 800,
+      "note": "Wait for dropdown to open"
+    },
+    {
+      "stepId": "s9",
+      "action": "click_text",
+      "text": "Delete Group",
+      "note": "Click Delete Group. Fallbacks: 'Archive Group', 'Delete', 'Remove Group'."
+    },
+    {
+      "stepId": "s10",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for confirmation dialog"
+    },
+    {
+      "stepId": "s11",
+      "action": "perceive",
+      "store_as": "confirm_dialog",
+      "note": "Perceive confirmation dialog. Check if type-to-confirm input exists."
+    },
+    {
+      "stepId": "s12",
+      "action": "click_text",
+      "text": "Delete",
+      "note": "Confirm deletion. Fallbacks: 'Confirm', 'Archive', 'Yes'. If type-to-confirm required, use type action on input first."
+    },
+    {
+      "stepId": "s13",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s14",
+      "action": "perceive",
+      "store_as": "post_delete_state",
+      "note": "Verify redirect to groups list and group no longer appears."
+    }
+  ]
+}
+
+
+=== EXISTING-EVIDENCE: 17-view-org-settings.payload.json ===
+Source: file://sites/yeshid/tasks/17-view-org-settings.payload.json
+
+{
+  "_meta": {
+    "task": "view-org-settings",
+    "description": "Navigate to YeshID organization settings and capture current configuration: org name, domain, SCIM settings, seat count, and plan information.",
+    "params": {
+      "base_url": {
+        "required": false,
+        "default": "https://app.yeshid.com",
+        "description": "YeshID base URL"
+      }
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "prerequisite": "00-login.payload.json",
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "requiredParams": [],
+    "optionalParams": ["base_url"],
+    "author": "session-2026-04-14",
+    "verified": false,
+    "anomalies": [
+      "Settings path is likely /organization/settings or /settings — try both if first returns 404",
+      "May require admin role — standard users may see a 403 or redirect",
+      "Plan/billing info may be on a separate /billing or /subscription subpath"
+    ]
+  },
+  "params": {
+    "base_url": "https://app.yeshid.com"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": { "state": "authenticated" },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/settings",
+      "note": "Navigate to org settings. Primary path attempt."
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s4",
+      "action": "perceive",
+      "store_as": "org_settings",
+      "note": "Perceive org settings page. Capture: org name, domain(s), SCIM base URL, API tokens, seat limit, plan tier. If page shows 404/403, try /settings or /admin/settings."
+    },
+    {
+      "stepId": "s5",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/settings/general",
+      "disabled": true,
+      "note": "ENABLE if /organization/settings is a redirect — try the general subpath directly."
+    },
+    {
+      "stepId": "s6",
+      "action": "delay",
+      "ms": 1500
+    },
+    {
+      "stepId": "s7",
+      "action": "perceive",
+      "store_as": "general_settings",
+      "disabled": true,
+      "note": "Perceive general settings subpage if navigated here."
+    }
+  ]
+}
+
+
+=== EXISTING-EVIDENCE: q01-count-by-status.payload.json ===
+Source: file://sites/yeshid/tasks/q01-count-by-status.payload.json
+
+{
+  "_meta": {
+    "task": "q01-count-by-status",
+    "queryType": "read_only",
+    "description": "Count YeshID users by status. Navigates to /organization/people with URL-based status filters and reads totals from the pagination footer. Returns { active, deactivated, staged_offboarding, total }.",
+    "selfImproving": false,
+    "runCount": 0,
+    "lastSuccess": null,
+    "requiredParams": [],
+    "optionalParams": [],
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "discoveredFilters": {
+      "note": "URL filter pattern confirmed via exploration-results.json: dashboard 'View all' uses ?filters=status=ACTIVE. Tested live: ACTIVE=28, DEACTIVATED=3, STAGED_OFFBOARDING=0, total=31.",
+      "knownStatuses": ["ACTIVE", "DEACTIVATED", "STAGED_OFFBOARDING", "STAGED"]
+    }
+  },
+  "runId": "yeshid-q01-count-by-status-{{timestamp}}",
+  "mode": "query",
+  "site": "app.yeshid.com",
+  "params": {
+    "base_url": "https://app.yeshid.com"
+  },
+  "abstractTargets": {
+    "pagination-footer": {
+      "match": { "css": ".v-data-table-footer" },
+      "cachedSelector": ".v-data-table-footer",
+      "cachedConfidence": 0.97,
+      "resolveHint": "Footer below the data table. Contains text matching 'Items per page:10 1-10 of TOTAL'. Extract TOTAL (number after 'of ')."
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": { "state": "authenticated" },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people?filters=status=ACTIVE",
+      "note": "URL filter confirmed from site exploration. dashboard 'View all active' uses this exact href."
+    },
+    {
+      "stepId": "s3",
+      "action": "wait_for",
+      "selector": ".v-data-table-footer",
+      "timeout": 6000,
+      "note": "Wait for Vue table and pagination footer to render."
+    },
+    {
+      "stepId": "s4",
+      "action": "perceive",
+      "selector": ".v-data-table-footer",
+      "store_as": "active_footer",
+      "note": "Footer shows e.g. 'Items per page:10 1-10 of 28'. Total is the number after 'of'."
+    },
+    {
+      "stepId": "s5",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people?filters=status=DEACTIVATED"
+    },
+    {
+      "stepId": "s6",
+      "action": "wait_for",
+      "selector": ".v-data-table-footer",
+      "timeout": 6000
+    },
+    {
+      "stepId": "s7",
+      "action": "perceive",
+      "selector": ".v-data-table-footer",
+      "store_as": "deactivated_footer"
+    },
+    {
+      "stepId": "s8",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people?filters=status=STAGED_OFFBOARDING",
+      "note": "Staged-for-offboarding users. Currently 0 in this org but pattern is valid."
+    },
+    {
+      "stepId": "s9",
+      "action": "wait_for",
+      "selector": ".v-data-table-footer",
+      "timeout": 6000
+    },
+    {
+      "stepId": "s10",
+      "action": "perceive",
+      "selector": ".v-data-table-footer",
+      "store_as": "staged_offboarding_footer"
+    },
+    {
+      "stepId": "s11",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people",
+      "note": "No filter — grand total of all users regardless of status."
+    },
+    {
+      "stepId": "s12",
+      "action": "wait_for",
+      "selector": ".v-data-table-footer",
+      "timeout": 6000
+    },
+    {
+      "stepId": "s13",
+      "action": "perceive",
+      "selector": ".v-data-table-footer",
+      "store_as": "total_footer"
+    },
+    {
+      "stepId": "s14",
+      "action": "respond",
+      "extract_from": {
+        "active":             { "source": "active_footer",             "pattern": "of (\\d+)", "capture": 1 },
+        "deactivated":        { "source": "deactivated_footer",        "pattern": "of (\\d+)", "capture": 1 },
+        "staged_offboarding": { "source": "staged_offboarding_footer", "pattern": "of (\\d+)", "capture": 1 },
+        "total":              { "source": "total_footer",              "pattern": "of (\\d+)", "capture": 1 }
+      },
+      "note": "Parse total from each footer's 'N-N of TOTAL' text. Return structured counts."
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [{ "type": "url_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }]
+      },
+      "authenticated": {
+        "signals": [
+          { "type": "url_matches", "pattern": "app\\.yeshid\\.com" },
+          { "type": "url_not_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }
+        ]
+      },
+      "people-list": {
+        "signals": [{ "type": "url_matches", "pattern": "/organization/people" }]
+      }
+    }
+  }
+}
+
+
+=== EXISTING-EVIDENCE: q02-pending-onboarding.payload.json ===
+Source: file://sites/yeshid/tasks/q02-pending-onboarding.payload.json
+
+{
+  "_meta": {
+    "task": "q02-pending-onboarding",
+    "queryType": "read_only",
+    "description": "List users who are pending onboarding (status=STAGED). Returns each person's name, primary email, and start date if visible in the table. Returns an empty list if no staged users exist — this is expected on the current free-tier org.",
+    "selfImproving": false,
+    "runCount": 0,
+    "lastSuccess": null,
+    "requiredParams": [],
+    "optionalParams": [],
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "notes": [
+      "URL filter ?filters=status=STAGED tested live — returns 0 results on current org.",
+      "STAGED_OFFBOARDING is a separate status for users scheduled for removal.",
+      "If the org has users onboarded with a future start date, they appear here.",
+      "Table columns observed: YeshID account owner, Primary email, Directory synced, YeshID status, # of applications. Start date is not a visible column — may appear in person detail."
+    ]
+  },
+  "runId": "yeshid-q02-pending-onboarding-{{timestamp}}",
+  "mode": "query",
+  "site": "app.yeshid.com",
+  "params": {
+    "base_url": "https://app.yeshid.com"
+  },
+  "abstractTargets": {
+    "pagination-footer": {
+      "match": { "css": ".v-data-table-footer" },
+      "cachedSelector": ".v-data-table-footer",
+      "cachedConfidence": 0.97,
+      "resolveHint": "Footer below the data table. Shows '0-0 of 0' when no results."
+    },
+    "people-table-body": {
+      "match": { "css": ".v-data-table tbody" },
+      "cachedSelector": ".v-data-table tbody",
+      "cachedConfidence": 0.95,
+      "resolveHint": "Table body containing person rows. Each row has: avatar initials, name, primary email, directory sync status, YeshID status chip, app count."
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": { "state": "authenticated" },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people?filters=status=STAGED",
+      "note": "Filter to users in STAGED (pending onboarding) status."
+    },
+    {
+      "stepId": "s3",
+      "action": "wait_for",
+      "selector": ".v-data-table",
+      "timeout": 6000,
+      "note": "Wait for the Vue data table to mount."
+    },
+    {
+      "stepId": "s4",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Allow Vue reactivity to settle after navigation."
+    },
+    {
+      "stepId": "s5",
+      "action": "perceive",
+      "selector": ".v-data-table-footer",
+      "store_as": "staged_footer",
+      "note": "Capture total count. '0-0 of 0' means no staged users."
+    },
+    {
+      "stepId": "s6",
+      "action": "perceive",
+      "selector": ".v-data-table tbody",
+      "store_as": "staged_rows",
+      "extract": "table_rows",
+      "columns": ["name", "primary_email", "directory_synced", "status"],
+      "note": "Read all staged-user rows. Each row: name (col 1), primary email (col 2), directory sync (col 3), status chip (col 4). Start date not in table — would require navigating to each person's detail page."
+    },
+    {
+      "stepId": "s7",
+      "action": "respond",
+      "data": {
+        "count": { "source": "staged_footer", "pattern": "of (\\d+)", "capture": 1 },
+        "users": { "source": "staged_rows" }
+      },
+      "empty_message": "No users are currently pending onboarding (status=STAGED). If you expected staged users, verify their onboarding was scheduled for a future start date.",
+      "note": "Return count and list. If count is 0, return empty list with explanation."
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [{ "type": "url_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }]
+      },
+      "authenticated": {
+        "signals": [
+          { "type": "url_matches", "pattern": "app\\.yeshid\\.com" },
+          { "type": "url_not_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }
+        ]
+      },
+      "people-list": {
+        "signals": [{ "type": "url_matches", "pattern": "/organization/people" }]
+      }
+    }
+  }
+}
+
+
+=== EXISTING-EVIDENCE: q03-users-without-recovery-email.payload.json ===
+Source: file://sites/yeshid/tasks/q03-users-without-recovery-email.payload.json
+
+{
+  "_meta": {
+    "task": "q03-users-without-recovery-email",
+    "queryType": "read_only",
+    "description": "Find all active users who are missing a personal/recovery email. Recovery email is not visible in the people list table — this payload iterates through each active user's detail page and checks whether the 'Personal / recovery email' field is populated. Returns a list of users missing it.",
+    "selfImproving": false,
+    "runCount": 0,
+    "lastSuccess": null,
+    "requiredParams": [],
+    "optionalParams": [],
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "notes": [
+      "Recovery email is labeled 'Personal / recovery email' on the onboard form and person detail edit form.",
+      "It is NOT a column in the people list table — iteration through detail pages is required.",
+      "This payload uses for_each_row to visit each active user's detail page.",
+      "With 28 active users and ~3s per detail page, expect ~90s total runtime.",
+      "The column-picker button (mdi-view-column-outline) may support adding a recovery-email column — not yet confirmed. If confirmed, simplify to a single perceive step."
+    ]
+  },
+  "runId": "yeshid-q03-users-without-recovery-email-{{timestamp}}",
+  "mode": "query",
+  "site": "app.yeshid.com",
+  "params": {
+    "base_url": "https://app.yeshid.com"
+  },
+  "abstractTargets": {
+    "pagination-footer": {
+      "match": { "css": ".v-data-table-footer" },
+      "cachedSelector": ".v-data-table-footer",
+      "cachedConfidence": 0.97
+    },
+    "items-per-page-select": {
+      "match": { "css": ".v-data-table-footer .v-select" },
+      "cachedSelector": ".v-data-table-footer .v-select",
+      "cachedConfidence": 0.80,
+      "resolveHint": "The items-per-page dropdown in the table footer. Currently shows '10'. Click to open and select the highest available option (e.g. 100 or All)."
+    },
+    "people-table-body": {
+      "match": { "css": ".v-data-table tbody" },
+      "cachedSelector": ".v-data-table tbody",
+      "cachedConfidence": 0.95
+    },
+    "recovery-email-field": {
+      "match": { "role": "textbox", "vuetify_label": ["personal", "recovery", "backup"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "resolveHint": "On the person detail page, find the field labeled 'Personal / recovery email'. It appears in the Details tab of the person profile. May require clicking 'Edit' to reveal. Look for input with label containing 'personal', 'recovery', or 'backup'."
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": { "state": "authenticated" },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/people?filters=status=ACTIVE",
+      "note": "Start with active users only — deactivated users missing recovery email are less actionable."
+    },
+    {
+      "stepId": "s3",
+      "action": "wait_for",
+      "selector": ".v-data-table-footer",
+      "timeout": 6000
+    },
+    {
+      "stepId": "s4",
+      "action": "click",
+      "target": "items-per-page-select",
+      "note": "Open items-per-page dropdown to load all users on one page."
+    },
+    {
+      "stepId": "s4b",
+      "action": "click_text",
+      "text": "100",
+      "fallback_text": "All",
+      "context": ".v-overlay--active .v-list, .v-menu--active .v-list",
+      "note": "Select 100 items per page (or 'All' if available). This loads all ~28 active users without pagination."
+    },
+    {
+      "stepId": "s4c",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Wait for table to reload with expanded item count."
+    },
+    {
+      "stepId": "s5",
+      "action": "perceive",
+      "selector": ".v-data-table tbody",
+      "store_as": "all_active_people",
+      "extract": "table_rows",
+      "columns": ["name", "primary_email"],
+      "note": "Capture all active user rows (name, email). This list drives the iteration in s6."
+    },
+    {
+      "stepId": "s6",
+      "action": "for_each_row",
+      "source": "all_active_people",
+      "accumulator": "missing_recovery_email",
+      "sub_chain": [
+        {
+          "stepId": "iter_s1",
+          "action": "find_row",
+          "identifier": "{{row.primary_email}}",
+          "note": "Click the person's row to navigate to their detail page."
+        },
+        {
+          "stepId": "iter_s2",
+          "action": "wait_for",
+          "state": "person-detail",
+          "timeout": 6000
+        },
+        {
+          "stepId": "iter_s3",
+          "action": "perceive",
+          "target": "recovery-email-field",
+          "store_as": "recovery_email_value",
+          "note": "Read the personal/recovery email field value. Empty string or null means it's missing."
+        },
+        {
+          "stepId": "iter_s4",
+          "action": "if_empty",
+          "check": "recovery_email_value",
+          "then": {
+            "action": "accumulate",
+            "target": "missing_recovery_email",
+            "value": { "name": "{{row.name}}", "email": "{{row.primary_email}}" }
+          }
+        },
+        {
+          "stepId": "iter_s5",
+          "action": "navigate",
+          "url": "{{base_url}}/organization/people?filters=status=ACTIVE",
+          "note": "Return to people list for next iteration."
+        },
+        {
+          "stepId": "iter_s6",
+          "action": "wait_for",
+          "selector": ".v-data-table tbody",
+          "timeout": 5000
+        }
+      ],
+      "note": "Iterate each active person. Navigate to detail, check recovery email field, record if empty, return to list."
+    },
+    {
+      "stepId": "s7",
+      "action": "respond",
+      "data": {
+        "missing_recovery_email": { "source": "missing_recovery_email" },
+        "total_active_checked": { "source": "all_active_people", "extract": "count" }
+      },
+      "note": "Return list of active users with no recovery email. Each entry: { name, email }."
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [{ "type": "url_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }]
+      },
+      "authenticated": {
+        "signals": [
+          { "type": "url_matches", "pattern": "app\\.yeshid\\.com" },
+          { "type": "url_not_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }
+        ]
+      },
+      "people-list": {
+        "signals": [{ "type": "url_matches", "pattern": "/organization/people" }]
+      },
+      "person-detail": {
+        "signals": [
+          { "type": "url_matches", "pattern": "/organization/people/[a-z0-9-]+" },
+          { "type": "url_not_matches", "pattern": "/onboard|/offboard" }
+        ]
+      }
+    }
+  }
+}
+
+
+=== EXISTING-EVIDENCE: q04-group-membership-count.payload.json ===
+Source: file://sites/yeshid/tasks/q04-group-membership-count.payload.json
+
+{
+  "_meta": {
+    "task": "q04-group-membership-count",
+    "queryType": "read_only",
+    "description": "Look up a group by name and return its member count and member list. Navigates to /organization/groups, searches for the group, navigates to its detail page, and reads the membership data.",
+    "selfImproving": false,
+    "runCount": 0,
+    "lastSuccess": null,
+    "requiredParams": ["group_name"],
+    "optionalParams": [],
+    "auth": {
+      "type": "sso_automatable",
+      "googleAccountEmail": "mw@mike-wolf.com"
+    },
+    "params": {
+      "group_name": {
+        "required": true,
+        "description": "Name of the group to look up (partial match supported via search)."
+      }
+    },
+    "notes": [
+      "TIER WARNING: Groups feature requires a Business plan on this YeshID account. The current org is on a free/trial tier — the groups table shows 'No data available' and the 'New Group' button is disabled.",
+      "This payload is forward-compatible: when groups are enabled, it will work without modification.",
+      "Group detail URL pattern: /organization/groups/{id} (UUID-based, discovered via find_row navigation).",
+      "Groups table columns observed: Group name, Type, Description, Owners, Actions."
+    ]
+  },
+  "runId": "yeshid-q04-group-membership-count-{{timestamp}}",
+  "mode": "query",
+  "site": "app.yeshid.com",
+  "params": {
+    "base_url": "https://app.yeshid.com",
+    "group_name": "{{group_name}}"
+  },
+  "abstractTargets": {
+    "search-input": {
+      "match": { "role": "textbox", "name_contains": ["search"] },
+      "cachedSelector": "input[placeholder='Search']",
+      "cachedConfidence": 0.95,
+      "resolveHint": "Search input on the groups list page."
+    },
+    "groups-table-body": {
+      "match": { "css": ".v-data-table tbody" },
+      "cachedSelector": ".v-data-table tbody",
+      "cachedConfidence": 0.95
+    },
+    "group-member-count": {
+      "match": { "role": "text", "name_contains": ["member", "people", "users"] },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "resolveHint": "On the group detail page, find the member count. May appear as a badge, header stat, or table footer. Look for text near a 'Members' section heading."
+    },
+    "group-members-table": {
+      "match": { "css": ".v-data-table tbody, [class*='member'] tbody" },
+      "cachedSelector": null,
+      "cachedConfidence": 0,
+      "resolveHint": "Table of group members on the group detail page. Columns likely: Name, Email, Status."
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "assess_state",
+      "expect": { "state": "authenticated" },
+      "onMismatch": "exit_with_error:not-authenticated"
+    },
+    {
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/organization/groups"
+    },
+    {
+      "stepId": "s3",
+      "action": "wait_for",
+      "selector": ".v-data-table, .search-input, input[placeholder='Search']",
+      "timeout": 6000
+    },
+    {
+      "stepId": "s3b",
+      "action": "perceive",
+      "selector": ".v-data-table-footer, .v-data-table tbody",
+      "store_as": "groups_page_state",
+      "note": "Check if groups are available. If footer shows '0-0 of 0' and no group rows, the groups feature is likely not enabled on this tier."
+    },
+    {
+      "stepId": "s3c",
+      "action": "guard_tier",
+      "check": "groups_page_state",
+      "empty_signal": "No data available",
+      "on_empty": "respond_early",
+      "respond_early_data": {
+        "error": "groups_feature_not_available",
+        "message": "Groups are not available on the current YeshID plan. Upgrade to Business plan to use groups.",
+        "group_name": "{{group_name}}"
+      },
+      "note": "If groups table is empty due to tier, short-circuit and return informative error rather than failing silently."
+    },
+    {
+      "stepId": "s4",
+      "action": "type",
+      "target": "search-input",
+      "value": "{{group_name}}",
+      "note": "Search for the group by name."
+    },
+    {
+      "stepId": "s4b",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Wait for Vue search debounce to filter the table."
+    },
+    {
+      "stepId": "s5",
+      "action": "find_row",
+      "identifier": "{{group_name}}",
+      "store_as": "group_row",
+      "assert_present": true,
+      "note": "Click the matching group row to navigate to the group detail page."
+    },
+    {
+      "stepId": "s6",
+      "action": "wait_for",
+      "state": "group-detail",
+      "timeout": 6000
+    },
+    {
+      "stepId": "s7",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Wait for group detail page to fully render."
+    },
+    {
+      "stepId": "s8",
+      "action": "perceive",
+      "target": "group-member-count",
+      "store_as": "member_count_raw",
+      "note": "Read the member count from the group detail page header or stats area."
+    },
+    {
+      "stepId": "s9",
+      "action": "perceive",
+      "target": "group-members-table",
+      "store_as": "members_list",
+      "extract": "table_rows",
+      "columns": ["name", "email", "status"],
+      "note": "Read the full member list from the group detail page. Columns may vary."
+    },
+    {
+      "stepId": "s10",
+      "action": "respond",
+      "data": {
+        "group_name": "{{group_name}}",
+        "member_count": { "source": "member_count_raw", "pattern": "(\\d+)", "capture": 1 },
+        "members": { "source": "members_list" }
+      },
+      "note": "Return group name, member count, and full member list."
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "unauthenticated": {
+        "signals": [{ "type": "url_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }]
+      },
+      "authenticated": {
+        "signals": [
+          { "type": "url_matches", "pattern": "app\\.yeshid\\.com" },
+          { "type": "url_not_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }
+        ]
+      },
+      "groups-list": {
+        "signals": [{ "type": "url_matches", "pattern": "/organization/groups$" }]
+      },
+      "group-detail": {
+        "signals": [{ "type": "url_matches", "pattern": "/organization/groups/[a-z0-9-]+" }]
+      }
+    }
+  }
+}
+
+
+[... corpus truncated at 150000 chars; 1 entries unread ...]
+=========== END CORPUS ===========

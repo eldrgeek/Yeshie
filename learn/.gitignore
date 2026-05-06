@@ -1,0 +1,3 @@
+# Cache / scratch — keep theory.md, proposed skills, and run reports tracked.
+__pycache__/
+*.pyc
