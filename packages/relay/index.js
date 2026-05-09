@@ -500,6 +500,17 @@ export function createRelay(port = 3333) {
     // Let Socket.IO/engine.io handle its own paths
     if (path.startsWith("/socket.io")) return;
 
+    // CORS preflight — allow browser fetches from Pulse (localhost:8088)
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Dispatch-Token',
+      });
+      res.end();
+      return;
+    }
+
     // --- Auth flow observability log ---
     // In-memory ring buffer for auth flow events from extension
     if (!global.__authLog) global.__authLog = [];
