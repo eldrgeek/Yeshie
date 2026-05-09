@@ -4,10 +4,58 @@
 
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import { appendFileSync, mkdirSync, existsSync, readFileSync, writeFileSync } from 'fs';
+import { appendFileSync, mkdirSync, existsSync, readFileSync, readdirSync, writeFileSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { execFile, spawn } from 'child_process';
+import { homedir } from 'os';
+
+// ====================== dispatch_input config ======================
+// See ~/Projects/SOMA/specs/heartbeat-pattern-v1.md
+
+const DISPATCH_DIR = process.env.DISPATCH_DIR || join(homedir(), '.dispatch');
+const PULSE_REPLIES_PATH = join(DISPATCH_DIR, 'pulse_replies.jsonl');
+const RELAY_SECRET_PATH = join(DISPATCH_DIR, 'relay.secret');
+const INBOX_PATH = join(DISPATCH_DIR, 'inbox.jsonl');
+
+let _cachedSecret = null;
+let _cachedSecretMtime = 0;
+function loadRelaySecret() {
+  try {
+    const { mtimeMs } = statSync(RELAY_SECRET_PATH);
+    if (mtimeMs !== _cachedSecretMtime) {
+      _cachedSecret = readFileSync(RELAY_SECRET_PATH, 'utf8').trim();
+      _cachedSecretMtime = mtimeMs;
+    }
+    return _cachedSecret;
+  } catch {
+    return null;
+  }
+}
+
+function extractClientIp(req) {
+  // Prefer the socket's remoteAddress; fall back to X-Forwarded-For only if local.
+  const raw = req.socket?.remoteAddress || '';
+  // Strip IPv4-mapped-IPv6 prefix
+  return raw.replace(/^::ffff:/, '');
+}
+
+function isAllowedClientIp(ip) {
+  if (!ip) return false;
+  // Localhost
+  if (ip === '127.0.0.1' || ip === '::1') return true;
+  // LAN (RFC1918)
+  if (/^192\.168\./.test(ip)) return true;
+  if (/^10\./.test(ip)) return true;
+  if (/^172\.(1[6-9]|2[0-9]|3[01])\./.test(ip)) return true;
+  // Tailscale CGNAT 100.64.0.0/10
+  const m = ip.match(/^100\.(\d+)\./);
+  if (m) {
+    const second = parseInt(m[1], 10);
+    if (second >= 64 && second <= 127) return true;
+  }
+  return false;
+}
 
 // ====================== Conversation Logger ======================
 
@@ -458,6 +506,260 @@ export function createRelay(port = 3333) {
       return;
     }
 
+    if (path === '/health' && req.method === 'GET') {
+      const healthPath = join(homedir(), 'Projects/SOMA/state/health-latest.json');
+      try {
+        const raw = readFileSync(healthPath, 'utf8');
+        const data = JSON.parse(raw);
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        });
+        res.end(JSON.stringify(data));
+      } catch (e) {
+        jsonReply(res, 500, { error: `Failed to read health: ${e.message}` });
+      }
+      return;
+    }
+
+    if (path === '/artifacts/cc-dispatch' && req.method === 'GET') {
+      const since = parseInt(url.searchParams.get('since') || '0', 10);
+      const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+      const logsDir = join(homedir(), 'Projects/cc-dispatch/logs');
+      const auditsDir = join(homedir(), 'Projects/SOMA/audits');
+
+      // Load tag config (graceful — missing file is fine)
+      let tagConfig = { explicit: {}, prefix_map: {} };
+      try {
+        const tagPath = join(homedir(), 'Projects/SOMA/state/job-tags.json');
+        tagConfig = JSON.parse(readFileSync(tagPath, 'utf8'));
+      } catch { /* use defaults */ }
+      const deriveTags = (taskName) => {
+        if (tagConfig.explicit[taskName]) return tagConfig.explicit[taskName];
+        const prefix = taskName.split('-')[0];
+        if (tagConfig.prefix_map[prefix]) return [tagConfig.prefix_map[prefix]];
+        return [prefix];
+      };
+
+      try {
+        const logFiles = readdirSync(logsDir)
+          .filter(f => f.endsWith('.log'))
+          .sort()
+          .reverse();
+        const items = [];
+        for (const logFile of logFiles) {
+          const m = logFile.match(/^(\d{8}T\d{6}Z)-(.+)\.log$/);
+          if (!m) continue;
+          const [, tsStr, taskName] = m;
+          const yr = tsStr.slice(0,4), mo = tsStr.slice(4,6), dy = tsStr.slice(6,8);
+          const hr = tsStr.slice(9,11), mn = tsStr.slice(11,13), sc = tsStr.slice(13,15);
+          const startedAt = `${yr}-${mo}-${dy}T${hr}:${mn}:${sc}Z`;
+          const startedMs = new Date(startedAt).getTime();
+          if (since && startedMs < since) continue;
+
+          const logPath = join(logsDir, logFile);
+          const logStat = statSync(logPath);
+
+          // Try exact timestamp+taskname match in audits
+          const reportFile = `${tsStr}-${taskName}.md`;
+          const reportFullPath = join(auditsDir, reportFile);
+          const hasReport = existsSync(reportFullPath);
+
+          let status = 'running';
+          let finishedAt = null;
+          let sizeBytes = logStat.size;
+
+          try {
+            const logContent = readFileSync(logPath, 'utf8');
+            if (logContent.includes('=== cc-dispatch complete (exit 0) ===')) {
+              status = 'complete';
+            } else if (/=== cc-dispatch complete \(exit [^0]/.test(logContent)) {
+              status = 'failed';
+            }
+          } catch { /* ignore */ }
+
+          if (hasReport) {
+            const rStat = statSync(reportFullPath);
+            finishedAt = rStat.mtime.toISOString();
+            sizeBytes = rStat.size;
+            if (status === 'running') status = 'complete';
+          } else if (status !== 'running') {
+            finishedAt = logStat.mtime.toISOString();
+          }
+
+          items.push({
+            task_name: taskName,
+            log_path: `~/${logPath.slice(homedir().length + 1)}`,
+            report_path: hasReport ? `~/${reportFullPath.slice(homedir().length + 1)}` : null,
+            started_at: startedAt,
+            finished_at: finishedAt,
+            status,
+            size_bytes: sizeBytes,
+            tags: deriveTags(taskName),
+          });
+          if (items.length >= limit) break;
+        }
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        });
+        res.end(JSON.stringify({ items }));
+      } catch (e) {
+        jsonReply(res, 500, { error: e.message });
+      }
+      return;
+    }
+
+    if (path === '/artifacts/tags' && req.method === 'GET') {
+      const logsDir = join(homedir(), 'Projects/cc-dispatch/logs');
+      const auditsDir = join(homedir(), 'Projects/SOMA/audits');
+      let tagConfig = { explicit: {}, prefix_map: {} };
+      try {
+        const tagPath = join(homedir(), 'Projects/SOMA/state/job-tags.json');
+        tagConfig = JSON.parse(readFileSync(tagPath, 'utf8'));
+      } catch { /* use defaults */ }
+      const deriveTags = (taskName) => {
+        if (tagConfig.explicit[taskName]) return tagConfig.explicit[taskName];
+        const prefix = taskName.split('-')[0];
+        if (tagConfig.prefix_map[prefix]) return [tagConfig.prefix_map[prefix]];
+        return [prefix];
+      };
+      try {
+        const logFiles = readdirSync(logsDir).filter(f => f.endsWith('.log'));
+        const counts = {};
+        for (const logFile of logFiles) {
+          const m = logFile.match(/^(\d{8}T\d{6}Z)-(.+)\.log$/);
+          if (!m) continue;
+          const taskName = m[2];
+          for (const tag of deriveTags(taskName)) {
+            counts[tag] = (counts[tag] || 0) + 1;
+          }
+        }
+        const tags = Object.keys(counts).sort();
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        });
+        res.end(JSON.stringify({ tags, counts }));
+      } catch (e) {
+        jsonReply(res, 500, { error: e.message });
+      }
+      return;
+    }
+
+    if (path === '/artifacts/file' && req.method === 'GET') {
+      const filePath = url.searchParams.get('path');
+      if (!filePath) { jsonReply(res, 400, { error: 'path required' }); return; }
+      const absPath = filePath.startsWith('~')
+        ? join(homedir(), filePath.slice(1))
+        : filePath;
+      const allowed = [
+        join(homedir(), 'Projects/SOMA'),
+        join(homedir(), 'Projects/cc-dispatch'),
+      ];
+      const safe = allowed.some(p => absPath.startsWith(p + '/') || absPath === p);
+      if (!safe) { jsonReply(res, 403, { error: 'Path not allowed' }); return; }
+      try {
+        let content = readFileSync(absPath, 'utf8');
+        const tailParam = url.searchParams.get('tail');
+        if (tailParam) {
+          const n = parseInt(tailParam, 10);
+          if (n > 0) {
+            const lines = content.split('\n');
+            content = lines.slice(Math.max(0, lines.length - n)).join('\n');
+          }
+        }
+        res.writeHead(200, {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Access-Control-Allow-Origin': '*',
+        });
+        res.end(content);
+      } catch (e) {
+        jsonReply(res, 404, { error: `Not found: ${e.message}` });
+      }
+      return;
+    }
+
+    // ── dispatch_input: Pulse → Heartbeat ingest ─────────────────
+    // Spec: ~/Projects/SOMA/specs/heartbeat-pattern-v1.md
+    if (path === '/dispatch_input' && req.method === 'POST') {
+      const clientIp = extractClientIp(req);
+      if (!isAllowedClientIp(clientIp)) {
+        jsonReply(res, 403, { error: 'Forbidden: source IP not allowed', ip: clientIp });
+        return;
+      }
+      const secret = loadRelaySecret();
+      if (!secret) {
+        jsonReply(res, 503, { error: 'Relay secret not configured' });
+        return;
+      }
+      const provided = req.headers['x-dispatch-token'] || '';
+      if (provided !== secret) {
+        jsonReply(res, 401, { error: 'Bad token' });
+        return;
+      }
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const message = (body?.message || '').toString();
+      const source = (body?.source || 'unknown').toString();
+      if (!message.trim()) {
+        jsonReply(res, 400, { error: 'message required' });
+        return;
+      }
+      if (message.length > 8000) {
+        jsonReply(res, 413, { error: 'message too large (max 8000 chars)' });
+        return;
+      }
+      try { mkdirSync(DISPATCH_DIR, { recursive: true }); } catch {}
+      const entry = {
+        body: message,
+        source,
+        client_ip: clientIp,
+        timestamp: new Date().toISOString(),
+      };
+      appendFileSync(PULSE_REPLIES_PATH, JSON.stringify(entry) + '\n');
+      jsonReply(res, 200, { ok: true, queued: true, timestamp: entry.timestamp });
+      return;
+    }
+
+    if (path === '/dispatch_input/pending' && req.method === 'GET') {
+      const clientIp = extractClientIp(req);
+      if (!isAllowedClientIp(clientIp)) {
+        jsonReply(res, 403, { error: 'Forbidden: source IP not allowed' });
+        return;
+      }
+      const secret = loadRelaySecret();
+      const provided = req.headers['x-dispatch-token'] || '';
+      if (!secret || provided !== secret) {
+        jsonReply(res, 401, { error: 'Bad token' });
+        return;
+      }
+      const sinceParam = url.searchParams.get('since') || '';
+      let sinceMs = 0;
+      if (sinceParam) {
+        const t = Date.parse(sinceParam);
+        if (Number.isFinite(t)) sinceMs = t;
+      }
+      let lines = [];
+      try {
+        const raw = readFileSync(INBOX_PATH, 'utf8');
+        lines = raw.split('\n').filter(Boolean);
+      } catch {
+        jsonReply(res, 200, { events: [] });
+        return;
+      }
+      const events = [];
+      for (const line of lines) {
+        try {
+          const e = JSON.parse(line);
+          const ts = Date.parse(e.timestamp || '');
+          if (!sinceMs || (Number.isFinite(ts) && ts > sinceMs)) events.push(e);
+        } catch {}
+      }
+      jsonReply(res, 200, { events });
+      return;
+    }
+
     if (path === '/run' && req.method === 'POST') {
       let body;
       try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
@@ -630,6 +932,31 @@ export function createRelay(port = 3333) {
     // ── HUD panel ──────────────────────────────────────────────────────────────
 
 
+    // ── Pulse context sidecar (read side; write side added by Pulse task) ────
+    // GET /context?from=<iso>&to=<iso> → { events: [...] }
+    // For now this returns whatever pulseEvents have been pushed by the sibling
+    // Pulse-on-Pixel task. If empty or unimplemented, returns { events: [] }.
+    if (path === '/context' && req.method === 'GET') {
+      try {
+        const u = new URL(req.url, 'http://x');
+        const from = u.searchParams.get('from');
+        const to = u.searchParams.get('to');
+        const fromMs = from ? Date.parse(from) : -Infinity;
+        const toMs = to ? Date.parse(to) : Infinity;
+        // global pulseEvents may be undefined until the Pulse write endpoint exists
+        const all = (typeof pulseEvents !== 'undefined' && Array.isArray(pulseEvents)) ? pulseEvents : [];
+        const filtered = all.filter(e => {
+          const t = Date.parse(e.ts || '');
+          return Number.isFinite(t) && t >= fromMs && t <= toMs;
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ events: filtered }));
+      } catch (e) {
+        res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+      }
+      return;
+    }
+
     // ── HUD ask / respond (human-in-the-loop confirm/failed/partial) ─────────
     if (path === '/hud/ask' && req.method === 'POST') {
       let body = '';
@@ -746,6 +1073,18 @@ body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-
 .hud-btn-failed{background:#ef4444;color:#fff}
 #btn-digest{padding:3px 9px;border-radius:4px;border:1px solid #444;cursor:pointer;font-size:10px;font-weight:600;font-family:inherit;background:#2a2a2a;color:#888}
 #btn-digest:hover{background:#333;color:#ccc}
+.job{cursor:pointer}.job:hover{background:#2a2a2a}
+.svc-pill{cursor:pointer}.svc-pill:hover{background:#252525}
+#detail-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;align-items:center;justify-content:center}
+#detail-overlay.open{display:flex}
+#detail-modal{background:#1a1a1a;border:1px solid #444;border-radius:10px;width:92%;max-width:480px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.7)}
+#detail-header{padding:10px 14px;border-bottom:1px solid #333;display:flex;justify-content:space-between;align-items:center}
+#detail-title{font-weight:600;font-size:13px;color:#e0e0e0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+#detail-close{background:none;border:none;color:#888;font-size:18px;cursor:pointer;padding:0 4px;line-height:1}
+#detail-close:hover{color:#fff}
+#detail-meta{padding:8px 14px;font-size:10px;color:#888;border-bottom:1px solid #2a2a2a}
+#detail-meta span{margin-right:12px}
+#detail-tail{flex:1;overflow-y:auto;padding:10px 14px;font-family:'SF Mono',Menlo,monospace;font-size:10px;line-height:1.5;color:#aaa;background:#111;white-space:pre-wrap;word-break:break-all;min-height:80px;max-height:50vh}
 </style></head>
 <body>
 <div id="header"><h1>YESHIE HUD</h1><div style="display:flex;align-items:center;gap:8px"><button id="btn-digest" onclick="copyDigest()">📋 Copy Digest</button><span id="conn">connecting…</span><span id="last-poll" style="font-size:9px;color:#444;margin-left:6px"></span></div></div>
@@ -867,7 +1206,7 @@ function render() {
       stripEl.innerHTML = services.map(s2 => {
         const cls = (s2.status || 'unknown').replace(/_/g, '-');
         const name = (s2.id || '').replace(/^svc-/, '');
-        return '<span class="svc-pill ' + cls + '" title="' + (s2.step || '').replace(/"/g, '&amp;quot;') + '"><span class="svc-dot"></span><span class="svc-name">' + name + '</span></span>';
+        return '<span class="svc-pill ' + cls + '" title="' + (s2.step || '').replace(/"/g, '&amp;quot;') + '" onclick="openDetail(\\'svc-' + name.replace(/'/g, '') + '\\')">' + '<span class="svc-dot"></span><span class="svc-name">' + name + '</span></span>';
       }).join('');
     }
   }
@@ -902,7 +1241,7 @@ function render() {
                       : j.status === 'failed'         ? 'FAILED'
                       : j.status.toUpperCase();
 
-    return \`<div class="job \${j.status}">
+    return \`<div class="job \${j.status}" onclick="openDetail('\${esc(j.id)}')">
       <div>
         <div class="job-title">\${esc(j.title || j.id)}</div>
         <div class="job-meta">\${esc(j.id)}</div>
@@ -929,6 +1268,22 @@ socket.on('connect', () => {
 socket.on('disconnect', () => { connEl.textContent = 'offline'; connEl.style.color = '#f85149'; });
 socket.on('job_update', job => { jobs.set(job.id, job); render(); });
 socket.on('jobs_snapshot', list => { jobs.clear(); list.forEach(j => jobs.set(j.id, j)); render(); });
+
+// Periodic re-render + snapshot refresh — keeps HUD fresh even if socket events miss.
+// Re-render every 10s so time-based filters (done jobs older than 60s, etc.) re-evaluate.
+// Full snapshot refresh every 30s in case the relay evicted jobs via TTL and we missed it.
+function refreshAndRender() {
+  fetch('/jobs/status?filter=all').then(r=>r.json()).then(d => {
+    if (Array.isArray(d.jobs)) {
+      jobs.clear();
+      d.jobs.forEach(j => jobs.set(j.id, j));
+    }
+    render();
+  }).catch(() => { render(); });
+}
+setInterval(render, 10000);
+setInterval(refreshAndRender, 30000);
+
 
 // HUD ask — human-in-the-loop confirm/partial/failed
 let _askId = null;
@@ -985,6 +1340,58 @@ setInterval(render, 1000);
     else if (e.key === '0') { e.preventDefault(); applyScale(1.0); }
   });
 })();
+
+// ── Click-to-drill detail modal ──────────────────────────────
+let _detailId = null;
+let _detailTimer = null;
+
+function openDetail(jobId) {
+  _detailId = jobId;
+  document.getElementById('detail-overlay').classList.add('open');
+  fetchDetail();
+  _detailTimer = setInterval(fetchDetail, 2000);
+}
+
+function closeDetail() {
+  _detailId = null;
+  document.getElementById('detail-overlay').classList.remove('open');
+  if (_detailTimer) { clearInterval(_detailTimer); _detailTimer = null; }
+}
+
+function fetchDetail() {
+  if (!_detailId) return;
+  fetch('/jobs/' + encodeURIComponent(_detailId) + '/detail')
+    .then(r => r.json())
+    .then(d => {
+      if (!_detailId) return;
+      document.getElementById('detail-title').textContent = d.title || d.id;
+      const statusEl = document.getElementById('detail-status');
+      statusEl.textContent = (d.status || '').toUpperCase();
+      statusEl.style.color = ({running:'#3b82f6',done:'#3fb950',completed:'#3fb950',failed:'#f85149',error:'#f85149',blocked:'#d29922',stuck:'#d29922'})[d.status] || '#888';
+      document.getElementById('detail-elapsed').textContent = d.createdAt ? elapsed(Date.now() - d.createdAt) : '';
+      document.getElementById('detail-step').textContent = d.step || '';
+      const tail = document.getElementById('detail-tail');
+      if (d.pane_tail != null) {
+        tail.textContent = d.pane_tail || '(empty pane)';
+      } else if (d.last_log_lines && d.last_log_lines.length) {
+        let txt = d.last_log_lines.join('\\n');
+        if (d.process_state) txt += '\\n\\n── state ──\\n' + JSON.stringify(d.process_state, null, 2);
+        tail.textContent = txt;
+      } else {
+        let txt = 'Status: ' + (d.status || 'unknown');
+        if (d.step) txt += '\\nStep: ' + d.step;
+        if (d.updatedAt) txt += '\\nUpdated: ' + new Date(d.updatedAt).toLocaleTimeString();
+        tail.textContent = txt;
+      }
+    })
+    .catch(() => {
+      document.getElementById('detail-tail').textContent = 'Failed to fetch detail';
+    });
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && _detailId) closeDetail();
+});
 </script>
 
 <div id="hud-ask-overlay">
@@ -993,6 +1400,13 @@ setInterval(render, 1000);
     <button class="hud-btn hud-btn-confirm" onclick="hudRespond('confirm')">✅ Confirm</button>
     <button class="hud-btn hud-btn-partial" onclick="hudRespond('partial')">⚠️ Partial</button>
     <button class="hud-btn hud-btn-failed"  onclick="hudRespond('failed')">❌ Failed</button>
+  </div>
+</div>
+<div id="detail-overlay" onclick="if(event.target===this)closeDetail()">
+  <div id="detail-modal">
+    <div id="detail-header"><span id="detail-title"></span><button id="detail-close" onclick="closeDetail()">✕</button></div>
+    <div id="detail-meta"><span id="detail-status"></span><span id="detail-elapsed"></span><span id="detail-step"></span></div>
+    <div id="detail-tail">Loading…</div>
   </div>
 </div>
 </body></html>`;
@@ -1455,6 +1869,56 @@ h2{color:#58a6ff}hr{border-color:#333}
         io.emit('job_update', upd);
       }
       jsonReply(res, 200, { ok: true });
+      return;
+    }
+
+    // ── Job detail (click-to-drill) ─────────────────────────────
+    const detailM = path.match(/^\/jobs\/([^/]+)\/detail$/);
+    if (detailM && req.method === 'GET') {
+      const jobId = decodeURIComponent(detailM[1]);
+      const job = jobs.get(jobId);
+      const base = job
+        ? { id: job.id, status: job.status, step: job.step, title: job.title, updatedAt: job.updatedAt, createdAt: job.createdAt }
+        : { id: jobId, status: 'unknown', step: null, title: jobId, updatedAt: null, createdAt: null };
+
+      // svc-* → supervisor log + state
+      if (jobId.startsWith('svc-')) {
+        const svcName = jobId.replace(/^svc-/, '');
+        let last_log_lines = [];
+        let process_state = null;
+        try {
+          const logPath = join(process.env.HOME || '/Users/mikewolf', '.local', 'share', 'soma-supervisor.log');
+          const { readFileSync: rfs2 } = await import('fs');
+          const lines = rfs2(logPath, 'utf8').split('\n');
+          last_log_lines = lines.filter(l => l.includes('| ' + svcName + ' |')).slice(-10);
+        } catch {}
+        try {
+          const statePath = join(process.env.HOME || '/Users/mikewolf', '.local', 'share', 'soma-supervisor.state.json');
+          const { readFileSync: rfs3 } = await import('fs');
+          const allState = JSON.parse(rfs3(statePath, 'utf8'));
+          process_state = allState[svcName] || null;
+        } catch {}
+        jsonReply(res, 200, { ...base, last_log_lines, process_state });
+        return;
+      }
+
+      // ntm-* → tmux pane capture
+      if (jobId.startsWith('ntm-')) {
+        let pane_tail = '';
+        try {
+          const parts = jobId.match(/^ntm-(.+?)-pane(\d+)/);
+          if (parts) {
+            const [, session, paneNum] = parts;
+            const { execFileSync } = await import('child_process');
+            const tmuxBin = '/opt/homebrew/bin/tmux';
+            pane_tail = execFileSync(tmuxBin, ['capture-pane', '-t', session + ':0.' + paneNum, '-p', '-S', '-30'], { timeout: 5000, encoding: 'utf8' });
+          }
+        } catch (e) { pane_tail = 'capture failed: ' + e.message; }
+        jsonReply(res, 200, { ...base, pane_tail });
+        return;
+      }
+
+      jsonReply(res, 200, base);
       return;
     }
 
