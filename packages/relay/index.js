@@ -112,6 +112,23 @@ async function runOsascript(message, title = 'Yeshie', retries = 3) {
   return false;
 }
 
+// ====================== Process-level error handlers ======================
+// Must be registered once at module load. Guard against duplicate registration
+// in test mode where createRelay is called multiple times.
+if (!global.__relayErrorHandlersRegistered) {
+  global.__relayErrorHandlersRegistered = true;
+  process.on('uncaughtException', (err) => {
+    console.error('[relay] uncaughtException:', err);
+  });
+  process.on('unhandledRejection', (reason) => {
+    console.error('[relay] unhandledRejection:', reason);
+  });
+}
+
+// ====================== Module-level telemetry (for /selfcheck) ======================
+let _lastRequestTs = null;
+let _lastError = null;
+
 // ====================== Server factory ======================
 
 export function createRelay(port = 3333) {
@@ -353,7 +370,10 @@ export function createRelay(port = 3333) {
 
   function jsonReply(res, status, obj) {
     if (res.writableEnded) return;
-    res.writeHead(status, { 'Content-Type': 'application/json' });
+    res.writeHead(status, {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    });
     res.end(JSON.stringify(obj));
   }
 
@@ -472,6 +492,8 @@ export function createRelay(port = 3333) {
 
   // HTTP handler
   httpServer.on('request', async (req, res) => {
+    _lastRequestTs = new Date().toISOString();
+    try {
     const url = new URL(req.url, 'http://localhost');
     const path = url.pathname;
 
@@ -656,6 +678,7 @@ export function createRelay(port = 3333) {
       const allowed = [
         join(homedir(), 'Projects/SOMA'),
         join(homedir(), 'Projects/cc-dispatch'),
+        join(homedir(), 'Library/Application Support/Claude/local-agent-mode-sessions'),
       ];
       const safe = allowed.some(p => absPath.startsWith(p + '/') || absPath === p);
       if (!safe) { jsonReply(res, 403, { error: 'Path not allowed' }); return; }
@@ -676,6 +699,77 @@ export function createRelay(port = 3333) {
         res.end(content);
       } catch (e) {
         jsonReply(res, 404, { error: `Not found: ${e.message}` });
+      }
+      return;
+    }
+
+    // ── activity feed: newest-first file stream across SOMA dirs ──
+    if (path === '/artifacts/activity' && req.method === 'GET') {
+      const sinceMs = parseInt(url.searchParams.get('since') || '0', 10);
+      const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+      const home = homedir();
+      const scanDirs = [
+        { dir: join(home, 'Projects/SOMA/audits'), kind: 'audit' },
+        { dir: join(home, 'Projects/SOMA/specs'), kind: 'spec' },
+        { dir: join(home, 'Projects/SOMA/state/ccdd-reports'), kind: 'report' },
+        { dir: join(home, 'Projects/SOMA/state/dispatch-dee-to-ccdd'), kind: 'report' },
+        { dir: join(home, 'Projects/cc-dispatch/logs'), kind: 'log' },
+      ];
+      const singleFiles = [
+        { file: join(home, 'Projects/SOMA/wall.md'), kind: 'wall' },
+      ];
+      const items = [];
+      for (const { dir, kind } of scanDirs) {
+        try {
+          const files = readdirSync(dir);
+          for (const f of files) {
+            if (f.startsWith('.')) continue;
+            const fullPath = join(dir, f);
+            try {
+              const st = statSync(fullPath);
+              if (!st.isFile()) continue;
+              const mtime = st.mtime.getTime();
+              if (sinceMs && mtime <= sinceMs) continue;
+              items.push({ path: `~/${fullPath.slice(home.length + 1)}`, kind, mtime, size_bytes: st.size, name: f });
+            } catch { /* skip */ }
+          }
+        } catch { /* dir missing */ }
+      }
+      for (const { file, kind } of singleFiles) {
+        try {
+          const st = statSync(file);
+          const mtime = st.mtime.getTime();
+          if (!sinceMs || mtime > sinceMs) {
+            items.push({ path: `~/${file.slice(home.length + 1)}`, kind, mtime, size_bytes: st.size, name: file.split('/').pop() });
+          }
+        } catch { /* missing */ }
+      }
+      items.sort((a, b) => b.mtime - a.mtime);
+      const result = items.slice(0, limit).map(i => ({ ...i, mtime: new Date(i.mtime).toISOString() }));
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ items: result }));
+      return;
+    }
+
+    // ── pulse/capture: quick-capture from Pulse UI (localhost-only, no token) ──
+    if (path === '/pulse/capture' && req.method === 'POST') {
+      const clientIp = extractClientIp(req);
+      if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(clientIp)) {
+        jsonReply(res, 403, { error: 'localhost only' });
+        return;
+      }
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const text = (body?.text || '').toString().trim();
+      if (!text) { jsonReply(res, 400, { error: 'text required' }); return; }
+      if (text.length > 4000) { jsonReply(res, 413, { error: 'too large' }); return; }
+      try { mkdirSync(DISPATCH_DIR, { recursive: true }); } catch {}
+      const entry = { body: text, source: 'pulse-quickcapture', timestamp: new Date().toISOString() };
+      try {
+        appendFileSync(INBOX_PATH, JSON.stringify(entry) + '\n');
+        jsonReply(res, 200, { ok: true, timestamp: entry.timestamp });
+      } catch (e) {
+        jsonReply(res, 500, { error: 'Failed to write' });
       }
       return;
     }
@@ -717,7 +811,14 @@ export function createRelay(port = 3333) {
         client_ip: clientIp,
         timestamp: new Date().toISOString(),
       };
-      appendFileSync(PULSE_REPLIES_PATH, JSON.stringify(entry) + '\n');
+      try {
+        appendFileSync(PULSE_REPLIES_PATH, JSON.stringify(entry) + '\n');
+      } catch (e) {
+        _lastError = e.message;
+        console.error('[relay] Failed to append to pulse_replies:', e.message);
+        jsonReply(res, 500, { error: 'Failed to queue message' });
+        return;
+      }
       jsonReply(res, 200, { ok: true, queued: true, timestamp: entry.timestamp });
       return;
     }
@@ -1759,7 +1860,10 @@ h2{color:#58a6ff}hr{border-color:#333}
       if (!existing) showHudPanel();
       // Smart inject/notify on blocked or done
       if (status === 'blocked' || status === 'done') {
-        scheduleOrInject(jobs.get(id));
+        scheduleOrInject(jobs.get(id)).catch(e => {
+          _lastError = e.message;
+          console.error('[relay] scheduleOrInject error:', e.message);
+        });
       }
       jsonReply(res, 200, { ok: true });
       return;
@@ -2050,14 +2154,44 @@ h2{color:#58a6ff}hr{border-color:#333}
       const updatedJob = jobs.get(id);
       io.emit('job_update', updatedJob);
       if (status === 'blocked' || status === 'done') {
-        scheduleOrInject(updatedJob);
+        scheduleOrInject(updatedJob).catch(e => {
+          _lastError = e.message;
+          console.error('[relay] scheduleOrInject error:', e.message);
+        });
       }
       jsonReply(res, 200, { ok: true });
       return;
     }
 
+    // ── /selfcheck — process health snapshot ─────────────────────
+    if (path === '/selfcheck' && req.method === 'GET') {
+      let buildVersion = 'unknown';
+      try {
+        const pkgPath = join(__dirname, 'package.json');
+        const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+        buildVersion = pkg.version || 'unknown';
+      } catch { /* leave as unknown */ }
+      jsonReply(res, 200, {
+        pid: process.pid,
+        uptime_seconds: Math.floor(process.uptime()),
+        rss_mb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+        socket_client_count: io.sockets.sockets.size,
+        last_request_ts: _lastRequestTs,
+        last_error: _lastError,
+        build_version: buildVersion,
+      });
+      return;
+    }
+
     // Fallback
     res.writeHead(404); res.end();
+    } catch (err) {
+      _lastError = err.message;
+      console.error('[relay] unhandled request error:', err);
+      if (!res.writableEnded) {
+        jsonReply(res, 500, { error: 'Internal server error' });
+      }
+    }
   });
 
   return {
