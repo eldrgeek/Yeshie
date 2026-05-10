@@ -17,6 +17,7 @@ const DISPATCH_DIR = process.env.DISPATCH_DIR || join(homedir(), '.dispatch');
 const PULSE_REPLIES_PATH = join(DISPATCH_DIR, 'pulse_replies.jsonl');
 const RELAY_SECRET_PATH = join(DISPATCH_DIR, 'relay.secret');
 const INBOX_PATH = join(DISPATCH_DIR, 'inbox.jsonl');
+const DEE_REPLIES_PATH = join(DISPATCH_DIR, 'dee_replies.jsonl');
 
 let _cachedSecret = null;
 let _cachedSecretMtime = 0;
@@ -714,6 +715,95 @@ export function createRelay(port = 3333) {
       return;
     }
 
+    // ── harvested tabs store ──────────────────────────────────────────────────
+    const HARVEST_DIR = join(homedir(), 'Vault/Resources/Tab Captures/Harvested');
+    const HARVEST_INDEX = join(HARVEST_DIR, '_index.jsonl');
+
+    if (path === '/artifacts/harvested-tabs' && req.method === 'GET') {
+      const statusFilter = url.searchParams.get('status') || 'open';
+      const limit = parseInt(url.searchParams.get('limit') || '100', 10);
+      try {
+        if (!existsSync(HARVEST_INDEX)) { jsonReply(res, 200, { items: [], total: 0 }); return; }
+        const lines = readFileSync(HARVEST_INDEX, 'utf8').trim().split('\n').filter(Boolean);
+        // Build a map of id → latest index entry (last write wins for status)
+        const seen = new Map();
+        for (const line of lines) {
+          try {
+            const entry = JSON.parse(line);
+            seen.set(entry.id, entry);
+          } catch { /* skip */ }
+        }
+        // Merge with per-tab JSON for full record
+        let items = [];
+        for (const [id, indexEntry] of seen) {
+          const tabFile = join(HARVEST_DIR, `${id}.json`);
+          try {
+            const full = JSON.parse(readFileSync(tabFile, 'utf8'));
+            items.push(full);
+          } catch {
+            items.push(indexEntry);
+          }
+        }
+        if (statusFilter !== 'all') {
+          items = items.filter(i => i.interest_status === statusFilter);
+        }
+        items.sort((a, b) => (b.harvested_at || '').localeCompare(a.harvested_at || ''));
+        const page = items.slice(0, limit);
+        jsonReply(res, 200, { items: page, total: items.length });
+      } catch (e) {
+        jsonReply(res, 500, { error: e.message });
+      }
+      return;
+    }
+
+    const harvestStatusM = path.match(/^\/artifacts\/harvested-tabs\/([a-f0-9]{12})\/status$/);
+    if (harvestStatusM && req.method === 'POST') {
+      const id = harvestStatusM[1];
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const { status } = body;
+      if (!['archive', 'done'].includes(status)) {
+        jsonReply(res, 400, { error: 'status must be archive or done' }); return;
+      }
+      const tabFile = join(HARVEST_DIR, `${id}.json`);
+      if (!existsSync(tabFile)) { jsonReply(res, 404, { error: 'Not found' }); return; }
+      try {
+        const record = JSON.parse(readFileSync(tabFile, 'utf8'));
+        record.interest_status = status;
+        record.status_updated_at = new Date().toISOString();
+        writeFileSync(tabFile, JSON.stringify(record, null, 2));
+        // Append updated entry to index
+        const indexLine = JSON.stringify({ id, url: record.url, title: record.title,
+          harvested_at: record.harvested_at, interest_status: status });
+        appendFileSync(HARVEST_INDEX, indexLine + '\n');
+        jsonReply(res, 200, { ok: true, id, status });
+      } catch (e) {
+        jsonReply(res, 500, { error: e.message });
+      }
+      return;
+    }
+
+    const harvestDeleteM = path.match(/^\/artifacts\/harvested-tabs\/([a-f0-9]{12})$/);
+    if (harvestDeleteM && req.method === 'DELETE') {
+      const id = harvestDeleteM[1];
+      const tabFile = join(HARVEST_DIR, `${id}.json`);
+      if (!existsSync(tabFile)) { jsonReply(res, 404, { error: 'Not found' }); return; }
+      try {
+        const record = JSON.parse(readFileSync(tabFile, 'utf8'));
+        if (record.interest_status !== 'done') {
+          jsonReply(res, 409, { error: `Cannot delete: status is '${record.interest_status}', must be 'done'` }); return;
+        }
+        // Per spec: no hard delete this round — leave file, mark deleted in index
+        const indexLine = JSON.stringify({ id, url: record.url, title: record.title,
+          harvested_at: record.harvested_at, interest_status: 'deleted', deleted_at: new Date().toISOString() });
+        appendFileSync(HARVEST_INDEX, indexLine + '\n');
+        jsonReply(res, 200, { ok: true, id, note: 'Marked deleted in index; file retained until sweeper runs.' });
+      } catch (e) {
+        jsonReply(res, 500, { error: e.message });
+      }
+      return;
+    }
+
     // ── activity feed: newest-first file stream across SOMA dirs ──
     if (path === '/artifacts/activity' && req.method === 'GET') {
       const sinceMs = parseInt(url.searchParams.get('since') || '0', 10);
@@ -782,6 +872,46 @@ export function createRelay(port = 3333) {
       } catch (e) {
         jsonReply(res, 500, { error: 'Failed to write' });
       }
+      return;
+    }
+
+    // ── /dispatch/conversation: merged Pulse thread (Mike + Dee) ─────────────
+    // Returns inbox.jsonl entries with source starting with "pulse" merged with
+    // dee_replies.jsonl, sorted by timestamp ascending.
+    // Query params: since=<ISO ts>, limit=<n> (default 200, max 500)
+    if (path === '/dispatch/conversation' && req.method === 'GET') {
+      const params = new URL(req.url, 'http://x').searchParams;
+      const sinceStr = params.get('since');
+      const limit = Math.min(parseInt(params.get('limit') || '200', 10), 500);
+      const sinceDate = sinceStr ? new Date(sinceStr) : null;
+
+      const parseJsonlFile = (fpath) => {
+        try {
+          return readFileSync(fpath, 'utf8')
+            .split('\n')
+            .filter(l => l.trim())
+            .map(l => { try { return JSON.parse(l); } catch { return null; } })
+            .filter(Boolean);
+        } catch { return []; }
+      };
+
+      const mikeMessages = parseJsonlFile(INBOX_PATH)
+        .filter(e => typeof e.source === 'string' && e.source.startsWith('pulse'))
+        .map(e => ({ from: 'mike', ts: e.timestamp, body: e.body, source: e.source }));
+
+      const deeMessages = parseJsonlFile(DEE_REPLIES_PATH)
+        .filter(e => e.source === 'dee')
+        .map(e => ({ from: 'dee', ts: e.timestamp, body: e.body, in_reply_to: e.in_reply_to }));
+
+      let messages = [...mikeMessages, ...deeMessages]
+        .sort((a, b) => new Date(a.ts) - new Date(b.ts));
+
+      if (sinceDate) {
+        messages = messages.filter(m => new Date(m.ts) > sinceDate);
+      }
+      messages = messages.slice(-limit);
+
+      jsonReply(res, 200, { messages });
       return;
     }
 
