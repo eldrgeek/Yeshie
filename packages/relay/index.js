@@ -17,7 +17,79 @@ const DISPATCH_DIR = process.env.DISPATCH_DIR || join(homedir(), '.dispatch');
 const PULSE_REPLIES_PATH = join(DISPATCH_DIR, 'pulse_replies.jsonl');
 const RELAY_SECRET_PATH = join(DISPATCH_DIR, 'relay.secret');
 const INBOX_PATH = join(DISPATCH_DIR, 'inbox.jsonl');
+const INBOX_COMPRESSED_PATH = join(DISPATCH_DIR, 'inbox_compressed.jsonl');
 const DEE_REPLIES_PATH = join(DISPATCH_DIR, 'dee_replies.jsonl');
+
+// Cost-ledger path: ~/Projects/SOMA/services/cost-ledger/<date>.jsonl
+const COST_LEDGER_DIR = join(homedir(), 'Projects', 'SOMA', 'services', 'cost-ledger');
+
+// Gemini Flash compression helper.
+// Returns {compressed_text, asks, dropped, input_tokens, output_tokens, usd} or throws.
+async function callGeminiFlash(text) {
+  const secretsPath = join(homedir(), 'Projects', 'CIE', 'secrets.yaml');
+  let apiKey = '';
+  try {
+    const raw = readFileSync(secretsPath, 'utf8');
+    const m = raw.match(/GEMINI_API_KEY\s*:\s*["']?([^\s"'\n]+)/);
+    if (m) apiKey = m[1];
+  } catch {}
+  if (!apiKey) throw new Error('GEMINI_API_KEY not found in ~/Projects/CIE/secrets.yaml');
+
+  const model = 'gemini-2.5-flash';
+  const prompt = `Compress this message preserving meaning. Output JSON only — no markdown, no code fences:
+{"compressed_text": "...", "asks": ["verbatim user asks/requests, unchanged"], "dropped": ["items judged redundant — short summaries OK"]}
+
+Rules:
+- compressed_text: shorter rewrite that preserves meaning
+- asks: verbatim copies of explicit requests, questions, or action items. Never paraphrase. Include constraints (e.g. "only on Tuesdays", "don't include X") verbatim.
+- dropped: brief summaries of items omitted as redundant context
+
+Message:
+${text}`;
+
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { response_mime_type: 'application/json', temperature: 0.1 },
+  });
+
+  const resp = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }
+  );
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`Gemini API error ${resp.status}: ${errText.slice(0, 200)}`);
+  }
+  const data = await resp.json();
+  const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch { parsed = { compressed_text: text, asks: [], dropped: [] }; }
+
+  const inputTokens = data?.usageMetadata?.promptTokenCount || 0;
+  const outputTokens = data?.usageMetadata?.candidatesTokenCount || 0;
+  // Gemini 2.5 Flash pricing: $0.15/1M input, $0.60/1M output (non-thinking)
+  const usd = inputTokens / 1_000_000 * 0.15 + outputTokens / 1_000_000 * 0.60;
+
+  return {
+    compressed_text: (parsed.compressed_text || text).toString(),
+    asks: Array.isArray(parsed.asks) ? parsed.asks : [],
+    dropped: Array.isArray(parsed.dropped) ? parsed.dropped : [],
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
+    usd,
+  };
+}
+
+function appendCostLedger(entry) {
+  try {
+    mkdirSync(COST_LEDGER_DIR, { recursive: true });
+    const date = new Date().toISOString().slice(0, 10);
+    const ledgerPath = join(COST_LEDGER_DIR, `${date}.jsonl`);
+    appendFileSync(ledgerPath, JSON.stringify(entry) + '\n');
+  } catch (e) {
+    console.error('[relay] cost-ledger write error:', e.message);
+  }
+}
 
 let _cachedSecret = null;
 let _cachedSecretMtime = 0;
@@ -961,6 +1033,123 @@ export function createRelay(port = 3333) {
         return;
       }
       jsonReply(res, 200, { ok: true, queued: true, timestamp: entry.timestamp });
+      return;
+    }
+
+    // ── /dispatch_input_compressed: Mike → Dee via Gemini Flash compression ──
+    // Spec: ~/Projects/Sidekick-android feedback_long_message_protocol.md
+    if (path === '/dispatch_input_compressed' && req.method === 'POST') {
+      const clientIp = extractClientIp(req);
+      if (!isAllowedClientIp(clientIp)) {
+        jsonReply(res, 403, { error: 'Forbidden: source IP not allowed', ip: clientIp });
+        return;
+      }
+      const secret = loadRelaySecret();
+      if (!secret) {
+        jsonReply(res, 503, { error: 'Relay secret not configured' });
+        return;
+      }
+      const provided = req.headers['x-dispatch-token'] || '';
+      if (provided !== secret) {
+        jsonReply(res, 401, { error: 'Bad token' });
+        return;
+      }
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const message = (body?.message || '').toString();
+      const source = (body?.source || 'pulse-compressed').toString();
+      const expand = body?.expand === 'raw';
+      if (!message.trim()) {
+        jsonReply(res, 400, { error: 'message required' });
+        return;
+      }
+      if (message.length > 32000) {
+        jsonReply(res, 413, { error: 'message too large (max 32000 chars)' });
+        return;
+      }
+
+      const ts = new Date().toISOString();
+
+      // Run compression via Gemini Flash
+      let compressionResult;
+      try {
+        compressionResult = await callGeminiFlash(message);
+      } catch (compErr) {
+        // Degrade gracefully: pass raw message through without compression
+        console.error('[relay] Gemini compression failed:', compErr.message);
+        compressionResult = {
+          compressed_text: message,
+          asks: [],
+          dropped: [],
+          input_tokens: 0,
+          output_tokens: 0,
+          usd: 0,
+        };
+      }
+
+      const compressedBody = expand ? message : compressionResult.compressed_text;
+
+      // Write compressed body to inbox.jsonl (what the dispatcher reads)
+      const inboxEntry = {
+        body: compressedBody,
+        source,
+        client_ip: clientIp,
+        timestamp: ts,
+        compressed: !expand,
+        compression_id: ts,
+      };
+      try {
+        mkdirSync(DISPATCH_DIR, { recursive: true });
+        appendFileSync(INBOX_PATH, JSON.stringify(inboxEntry) + '\n');
+      } catch (e) {
+        _lastError = e.message;
+        console.error('[relay] Failed to append to inbox.jsonl:', e.message);
+        jsonReply(res, 500, { error: 'Failed to queue message' });
+        return;
+      }
+
+      // Write full raw+compressed record to inbox_compressed.jsonl for audit/expand
+      const compressedRecord = {
+        compression_id: ts,
+        raw: message,
+        compressed_text: compressionResult.compressed_text,
+        asks: compressionResult.asks,
+        dropped: compressionResult.dropped,
+        source,
+        client_ip: clientIp,
+        timestamp: ts,
+        cost: {
+          input_tokens: compressionResult.input_tokens,
+          output_tokens: compressionResult.output_tokens,
+          usd: compressionResult.usd,
+        },
+      };
+      try {
+        appendFileSync(INBOX_COMPRESSED_PATH, JSON.stringify(compressedRecord) + '\n');
+      } catch (e) {
+        console.error('[relay] Failed to append to inbox_compressed.jsonl:', e.message);
+      }
+
+      // Log cost to SOMA cost-ledger
+      appendCostLedger({
+        timestamp: ts,
+        service: 'dispatch_input_compressed',
+        model: 'gemini-2.5-flash',
+        input_tokens: compressionResult.input_tokens,
+        output_tokens: compressionResult.output_tokens,
+        usd: compressionResult.usd,
+        source,
+      });
+
+      jsonReply(res, 200, {
+        ok: true,
+        queued: true,
+        timestamp: ts,
+        compressed_text: compressionResult.compressed_text,
+        asks: compressionResult.asks,
+        dropped: compressionResult.dropped,
+        cost: { input_tokens: compressionResult.input_tokens, output_tokens: compressionResult.output_tokens, usd: compressionResult.usd },
+      });
       return;
     }
 
@@ -2320,6 +2509,48 @@ h2{color:#58a6ff}hr{border-color:#333}
         last_request_ts: _lastRequestTs,
         last_error: _lastError,
         build_version: buildVersion,
+      });
+      return;
+    }
+
+    // ── /dispatch/cross-vendor: invoke a cross-vendor worker via dispatch.py ──
+    if (path === '/dispatch/cross-vendor' && req.method === 'POST') {
+      const clientIp = extractClientIp(req);
+      if (!isAllowedClientIp(clientIp)) {
+        jsonReply(res, 403, { error: 'Forbidden' }); return;
+      }
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const vendor = (body?.vendor || 'gemini').toString();
+      const model = (body?.model || 'gemini-2.5-flash').toString();
+      const prompt = (body?.prompt || '').toString();
+      if (!prompt.trim()) { jsonReply(res, 400, { error: 'prompt required' }); return; }
+
+      const dispatchPy = join(homedir(), 'Projects', 'SOMA', 'services', 'cross-vendor', 'dispatch.py');
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const outputDir = join(homedir(), 'Projects', 'SOMA', 'services', 'cross-vendor', 'runs', ts);
+      mkdirSync(outputDir, { recursive: true });
+
+      // Write prompt to temp file
+      const promptFile = join(outputDir, 'prompt.txt');
+      writeFileSync(promptFile, prompt);
+
+      // Run dispatch.py async; return paths immediately
+      const python = process.env.PYTHON || '/opt/homebrew/bin/python3';
+      const child = spawn(python, [dispatchPy, '--vendor', vendor, '--model', model, '--prompt-file', promptFile, '--output-dir', outputDir], {
+        detached: true,
+        stdio: 'ignore',
+      });
+      child.unref();
+
+      jsonReply(res, 202, {
+        ok: true,
+        output_dir: outputDir,
+        report_path: join(outputDir, 'REPORT.md'),
+        digest_path: join(outputDir, 'digest.yaml'),
+        vendor,
+        model,
+        run_id: ts,
       });
       return;
     }
