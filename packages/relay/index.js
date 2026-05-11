@@ -924,11 +924,11 @@ export function createRelay(port = 3333) {
       return;
     }
 
-    // ── pulse/capture: quick-capture from Pulse UI (localhost-only, no token) ──
+    // ── pulse/capture: quick-capture from Pulse UI (localhost + Tailscale, no token) ──
     if (path === '/pulse/capture' && req.method === 'POST') {
       const clientIp = extractClientIp(req);
-      if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(clientIp)) {
-        jsonReply(res, 403, { error: 'localhost only' });
+      if (!isAllowedClientIp(clientIp)) {
+        jsonReply(res, 403, { error: 'Forbidden: source IP not allowed', ip: clientIp });
         return;
       }
       let body;
@@ -1044,15 +1044,20 @@ export function createRelay(port = 3333) {
         jsonReply(res, 403, { error: 'Forbidden: source IP not allowed', ip: clientIp });
         return;
       }
-      const secret = loadRelaySecret();
-      if (!secret) {
-        jsonReply(res, 503, { error: 'Relay secret not configured' });
-        return;
-      }
-      const provided = req.headers['x-dispatch-token'] || '';
-      if (provided !== secret) {
-        jsonReply(res, 401, { error: 'Bad token' });
-        return;
+      // Localhost + Tailscale CGNAT bypass: 127.0.0.1/::1 plus 100.64.0.0/10 (Mike's tailnet). Token required only from outside the trusted network.
+      const isLocalhostCaller = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(clientIp);
+      const isTailscaleCaller = /^(::ffff:)?100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\./.test(clientIp);
+      if (!isLocalhostCaller && !isTailscaleCaller) {
+        const secret = loadRelaySecret();
+        if (!secret) {
+          jsonReply(res, 503, { error: 'Relay secret not configured' });
+          return;
+        }
+        const provided = req.headers['x-dispatch-token'] || '';
+        if (provided !== secret) {
+          jsonReply(res, 401, { error: 'Bad token' });
+          return;
+        }
       }
       let body;
       try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
