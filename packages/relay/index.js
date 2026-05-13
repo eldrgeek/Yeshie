@@ -605,6 +605,69 @@ export function createRelay(port = 3333) {
       return;
     }
 
+    // --- Observed skills endpoints ---
+    const OBSERVED_SKILLS_DIR = join(homedir(), '.yeshie', 'skills', 'observed');
+
+    if (path === '/skills/observed' && req.method === 'GET') {
+      try {
+        mkdirSync(OBSERVED_SKILLS_DIR, { recursive: true });
+        const files = readdirSync(OBSERVED_SKILLS_DIR).filter(f => f.endsWith('.json'));
+        const skills = files.map(f => {
+          try { return JSON.parse(readFileSync(join(OBSERVED_SKILLS_DIR, f), 'utf8')); } catch { return null; }
+        }).filter(Boolean);
+        jsonReply(res, 200, skills);
+      } catch (e) {
+        jsonReply(res, 500, { error: e.message });
+      }
+      return;
+    }
+
+    if (path === '/skills/observed' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const { skill, safeName } = body;
+      if (!skill || !safeName) { jsonReply(res, 400, { error: 'Missing skill or safeName' }); return; }
+      try {
+        mkdirSync(OBSERVED_SKILLS_DIR, { recursive: true });
+        const filePath = join(OBSERVED_SKILLS_DIR, `${safeName}.json`);
+        writeFileSync(filePath, JSON.stringify(skill, null, 2));
+        console.log('[relay] Saved observed skill:', safeName);
+        jsonReply(res, 200, { ok: true, path: filePath });
+      } catch (e) {
+        jsonReply(res, 500, { error: e.message });
+      }
+      return;
+    }
+
+    if (path === '/skills/observed/usage' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const { fingerprint } = body;
+      if (!fingerprint) { jsonReply(res, 400, { error: 'Missing fingerprint' }); return; }
+      try {
+        mkdirSync(OBSERVED_SKILLS_DIR, { recursive: true });
+        const files = readdirSync(OBSERVED_SKILLS_DIR).filter(f => f.endsWith('.json'));
+        let updated = false;
+        for (const f of files) {
+          const fp = join(OBSERVED_SKILLS_DIR, f);
+          try {
+            const skill = JSON.parse(readFileSync(fp, 'utf8'));
+            if (skill.fingerprint === fingerprint) {
+              skill.usage_count = (skill.usage_count || 1) + 1;
+              skill.last_used = new Date().toISOString();
+              writeFileSync(fp, JSON.stringify(skill, null, 2));
+              updated = true;
+              break;
+            }
+          } catch { /* skip corrupt files */ }
+        }
+        jsonReply(res, 200, { ok: true, updated });
+      } catch (e) {
+        jsonReply(res, 500, { error: e.message });
+      }
+      return;
+    }
+
     // --- Existing endpoints ---
 
     if (path === '/status' && req.method === 'GET') {
@@ -934,10 +997,19 @@ export function createRelay(port = 3333) {
       let body;
       try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
       const text = (body?.text || '').toString().trim();
-      if (!text) { jsonReply(res, 400, { error: 'text required' }); return; }
-      if (text.length > 4000) { jsonReply(res, 413, { error: 'too large' }); return; }
+      const image = body?.image || null;
+      if (!text && !image) { jsonReply(res, 400, { error: 'text or image required' }); return; }
+      if (text.length > 4000) { jsonReply(res, 413, { error: 'text too large' }); return; }
+      if (image) {
+        if (typeof image.data !== 'string' || !image.mediaType) {
+          jsonReply(res, 400, { error: 'image must have data and mediaType' }); return;
+        }
+        if (image.data.length > 6_000_000) { jsonReply(res, 413, { error: 'image too large (max ~4.5MB)' }); return; }
+      }
       try { mkdirSync(DISPATCH_DIR, { recursive: true }); } catch {}
       const entry = { body: text, source: 'pulse-quickcapture', timestamp: new Date().toISOString() };
+      if (image) entry.image = { data: image.data, mediaType: image.mediaType };
+      if (body?.client_id) entry.client_id = String(body.client_id).slice(0, 64);
       try {
         appendFileSync(INBOX_PATH, JSON.stringify(entry) + '\n');
         jsonReply(res, 200, { ok: true, timestamp: entry.timestamp });
@@ -969,7 +1041,12 @@ export function createRelay(port = 3333) {
 
       const mikeMessages = parseJsonlFile(INBOX_PATH)
         .filter(e => typeof e.source === 'string' && e.source.startsWith('pulse'))
-        .map(e => ({ from: 'mike', ts: e.timestamp, body: e.body, source: e.source }));
+        .map(e => {
+          const m = { from: 'mike', ts: e.timestamp, body: e.body, source: e.source };
+          if (e.image) m.image = e.image;
+          if (e.client_id) m.client_id = e.client_id;
+          return m;
+        });
 
       const deeMessages = parseJsonlFile(DEE_REPLIES_PATH)
         .filter(e => e.source === 'dee')
@@ -984,6 +1061,76 @@ export function createRelay(port = 3333) {
       messages = messages.slice(-limit);
 
       jsonReply(res, 200, { messages });
+      return;
+    }
+
+    // ── /conversation/search: case-insensitive substring search across Pulse thread ──
+    // GET /conversation/search?q=<query>&since=<ts>&source=inbox|replies|all
+    // Returns up to 50 matches DESC by timestamp with snippet centered on match.
+    if (path === '/conversation/search' && req.method === 'GET') {
+      const params = new URL(req.url, 'http://x').searchParams;
+      const q = (params.get('q') || '').trim();
+      if (!q) {
+        jsonReply(res, 400, { error: 'q parameter required' });
+        return;
+      }
+      const sinceStr = params.get('since');
+      const source = params.get('source') || 'all';
+      const sinceDate = sinceStr ? new Date(sinceStr) : null;
+      const queryLower = q.toLowerCase();
+
+      const parseJsonlLines = (fpath) => {
+        try {
+          return readFileSync(fpath, 'utf8')
+            .split('\n')
+            .filter(l => l.trim())
+            .map(l => { try { return JSON.parse(l); } catch { return null; } })
+            .filter(Boolean);
+        } catch { return []; }
+      };
+
+      let candidates = [];
+
+      if (source !== 'replies') {
+        parseJsonlLines(INBOX_PATH)
+          .filter(e => typeof e.source === 'string' && e.source.startsWith('pulse'))
+          .forEach(e => candidates.push({ from: 'mike', ts: e.timestamp, body: e.body || '', source: e.source }));
+      }
+
+      if (source !== 'inbox') {
+        parseJsonlLines(DEE_REPLIES_PATH)
+          .filter(e => e.source === 'dee')
+          .forEach(e => candidates.push({ from: 'dee', ts: e.timestamp, body: e.body || '', source: e.source }));
+      }
+
+      if (sinceDate) {
+        candidates = candidates.filter(m => new Date(m.ts) > sinceDate);
+      }
+
+      const results = [];
+      for (const m of candidates) {
+        const bodyLower = m.body.toLowerCase();
+        const idx = bodyLower.indexOf(queryLower);
+        if (idx === -1) continue;
+        const snippetStart = Math.max(0, idx - 50);
+        const snippetEnd = Math.min(m.body.length, idx + q.length + 70);
+        const prefix = snippetStart > 0 ? '…' : '';
+        const suffix = snippetEnd < m.body.length ? '…' : '';
+        const snippet = prefix + m.body.slice(snippetStart, snippetEnd) + suffix;
+        const matchInSnippet = prefix.length + (idx - snippetStart);
+        results.push({
+          timestamp: m.ts,
+          source: m.from,
+          body: m.body,
+          snippet,
+          match_indices: [matchInSnippet, matchInSnippet + q.length],
+        });
+      }
+
+      results.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      const truncated = results.length > 50;
+      const sliced = results.slice(0, 50);
+      jsonReply(res, 200, { results: sliced, count: sliced.length, truncated });
       return;
     }
 
@@ -1102,6 +1249,7 @@ export function createRelay(port = 3333) {
         timestamp: ts,
         compressed: !expand,
         compression_id: ts,
+        ...(body?.client_id ? { client_id: String(body.client_id).slice(0, 64) } : {}),
       };
       try {
         mkdirSync(DISPATCH_DIR, { recursive: true });
