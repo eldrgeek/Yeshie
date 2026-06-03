@@ -116,17 +116,39 @@
   }
 
   // ── Vue 3 / bridge-aware input setter ─────────────────────────────────────
-  async function sIV(selector, value) {
-    if (_bridgeAvail) {
-      try { await _callBridge('focusAndType', { selector, text: value }); return value; } catch (_) {}
+  // Accepts selector (string) or element directly. Returns the resulting text.
+  async function sIV(selectorOrEl, value) {
+    if (_bridgeAvail && typeof selectorOrEl === 'string') {
+      try { await _callBridge('focusAndType', { selector: selectorOrEl, text: value }); return value; } catch (_) {}
     }
-    const el = document.querySelector(selector); if (!el) return null;
+    const el = typeof selectorOrEl === 'string' ? document.querySelector(selectorOrEl) : selectorOrEl;
+    if (!el) return null;
+
+    if (el.isContentEditable) {
+      // contenteditable (ProseMirror / Lexical / ChatGPT #prompt-textarea):
+      // Use Selection API to select all existing content, then insertText.
+      el.focus();
+      const r = document.createRange(); r.selectNodeContents(el);
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      // Dispatch beforeinput so ProseMirror/Lexical replace their internal state.
+      el.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: value }));
+      document.execCommand('insertText', false, value);
+      // If execCommand didn't land (some browsers/sandboxes), set textContent directly.
+      if (el.textContent !== value) { el.textContent = value; }
+      el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: value }));
+      return el.textContent;
+    }
+
+    // Native input / textarea path (React / Vue 3 controlled inputs).
     el.focus(); el.click(); el.select();
     document.execCommand('selectAll', false, null);
     document.execCommand('delete', false, null);
     document.execCommand('insertText', false, value);
     if (el.value !== value) {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, value);
+      const proto = el instanceof HTMLTextAreaElement
+        ? Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')
+        : Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+      if (proto?.set) proto.set.call(el, value);
       el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: value }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
     }
@@ -186,8 +208,9 @@
         const value = I(step.value, { ...params, ...buf });
         const res = rT(step.target, at);
         if (!res) throw new Error('Cannot resolve target: ' + step.target);
-        const sel = res.selector || '#' + res.el.id;
-        const actual = await sIV(sel, value);
+        // Pass element directly when selector is unavailable (e.g. contenteditable with no id).
+        const selectorOrEl = res.selector || (res.el?.id ? '#' + res.el.id : res.el);
+        const actual = await sIV(selectorOrEl, value);
         if (res.selector && at[step.target]) { at[step.target].cachedSelector = res.selector; at[step.target].cachedConfidence = res.confidence; at[step.target].resolvedOn = new Date().toISOString(); }
         return { stepId: step.stepId, action: a, status: 'ok', target: step.target, value: actual, selector: res.selector, confidence: res.confidence, resolvedVia: res.resolvedVia, durationMs: Date.now() - t0 };
       }
@@ -230,7 +253,13 @@
       if (a === 'read') {
         const candidates = step.candidates || (step.selector ? [step.selector] : []);
         let text = null;
-        for (const sel of candidates) { const e = document.querySelector(sel); if (e) { text = e.textContent?.trim(); break; } }
+        for (const sel of candidates) {
+          const e = document.querySelector(sel);
+          if (!e) continue;
+          const tag = e.tagName.toLowerCase();
+          text = (tag === 'input' || tag === 'textarea') ? (e.value?.trim() ?? null) : (e.textContent?.trim() ?? null);
+          break;
+        }
         if (step.store_as) buf[step.store_as] = text;
         return { stepId: step.stepId, action: a, status: 'ok', text, storedAs: step.store_as, durationMs: Date.now() - t0 };
       }
