@@ -458,9 +458,12 @@ export class StepExecutor {
           : (step.selector ? { element: this.doc.querySelector(step.selector), selector: step.selector, confidence: 0.7, resolvedVia: 'css_cascade' as const } : null);
         if (!res || res.resolvedVia === 'escalate') throw new Error('Cannot resolve target: ' + (step.target ?? step.selector));
         // In jsdom: set value for inputs/textareas; textContent for contenteditable.
+        // Note: jsdom does not implement .isContentEditable, so we fall back to getAttribute.
         if (res.element) {
-          if ((res.element as HTMLElement).isContentEditable) {
-            res.element.textContent = value;
+          const el = res.element as HTMLElement;
+          const isContentEditable = el.isContentEditable || el.getAttribute('contenteditable') != null;
+          if (isContentEditable) {
+            el.textContent = value;
           } else if ('value' in res.element) {
             (res.element as HTMLInputElement).value = value;
           }

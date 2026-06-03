@@ -150,6 +150,32 @@ describe('type action', () => {
     expect((r as any).outcome).toBe('ambiguous');
     expect((r as any).responseSignature?.matched).toBe(false);
   });
+
+  it('types into contenteditable div via direct selector', () => {
+    document.body.innerHTML = '<div id="prompt-textarea" contenteditable="true" role="textbox"></div>';
+    const ex = new StepExecutor(document, {}, {}, {});
+    const r = ex.execute({ stepId: 'ce1', action: 'type', selector: '#prompt-textarea', value: 'Hello ChatGPT' });
+    expect(r.status).toBe('ok');
+    expect((document.querySelector('#prompt-textarea') as HTMLElement).textContent).toBe('Hello ChatGPT');
+  });
+
+  it('read returns textContent for contenteditable after type', () => {
+    document.body.innerHTML = '<div id="prompt-textarea" contenteditable="true" role="textbox">Hello ChatGPT</div>';
+    const ex = new StepExecutor(document, {}, {}, {});
+    const r = ex.execute({ stepId: 'cer1', action: 'read', candidates: ['#prompt-textarea'] });
+    expect(r.status).toBe('ok');
+    expect((r as any).text).toBe('Hello ChatGPT');
+  });
+
+  it('read returns .value for native input (not textContent)', () => {
+    document.body.innerHTML = '<input id="native-input" type="text" value="typed value">';
+    const el = document.querySelector('#native-input') as HTMLInputElement;
+    el.value = 'typed value';
+    const ex = new StepExecutor(document, {}, {}, {});
+    const r = ex.execute({ stepId: 'rin1', action: 'read', candidates: ['#native-input'] });
+    expect(r.status).toBe('ok');
+    expect((r as any).text).toBe('typed value');
+  });
 });
 
 // ── click ─────────────────────────────────────────────────────────────────────
