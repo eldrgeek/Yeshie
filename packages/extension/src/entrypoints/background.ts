@@ -748,7 +748,16 @@ export default defineBackground(() => {
   function PRE_GUARDED_READ(candidates: string[]) {
     for (const sel of (candidates || [])) {
       const el = document.querySelector(sel);
-      if (el) return { text: el.textContent?.trim() || null, selector: sel, found: true };
+      if (!el) continue;
+      // Use .value for native inputs/textareas; textContent for contenteditable.
+      const tag = el.tagName.toLowerCase();
+      let text: string | null;
+      if (tag === 'input' || tag === 'textarea') {
+        text = (el as HTMLInputElement).value?.trim() || null;
+      } else {
+        text = el.textContent?.trim() || null;
+      }
+      return { text, selector: sel, found: true };
     }
     return { text: null, found: false };
   }
@@ -1613,9 +1622,25 @@ export default defineBackground(() => {
     const isTextarea = tagResult?.value === 'textarea';
     const isNativeInput = tagResult?.value === 'input';
 
-    // Focus + select-all
+    // Focus + select-all. For <input>/<textarea> el.select() selects the value. For
+    // contenteditable (ProseMirror/Lexical) there is no el.select(); we must select the node
+    // contents via the Selection API so the upcoming Input.insertText REPLACES existing text.
+    // (The old Ctrl+A keystroke approach is unreliable on macOS, where Ctrl+A moves the caret
+    // to line-start in contenteditable instead of selecting all — leaving stale draft text that
+    // accumulates on every type. ChatGPT persists the composer draft to localStorage, so a
+    // re-type without a real select-all silently appends.)
     await chrome.debugger.sendCommand(target, 'Runtime.evaluate', {
-      expression: `(function(){const el=document.querySelector(${JSON.stringify(selector)});if(!el)return false;el.focus();el.click();el.select&&el.select();return true;})()`,
+      expression: `(function(){
+        const el=document.querySelector(${JSON.stringify(selector)});
+        if(!el)return false;
+        el.focus();el.click();
+        if(typeof el.select==='function'){el.select();}
+        else if(el.isContentEditable){
+          const r=document.createRange();r.selectNodeContents(el);
+          const s=window.getSelection();s.removeAllRanges();s.addRange(r);
+        }
+        return true;
+      })()`,
       returnByValue: true
     });
     await new Promise(r => setTimeout(r, 80));
@@ -1640,9 +1665,10 @@ export default defineBackground(() => {
         returnByValue: true
       });
     } else {
-      // contenteditable: use CDP insertText (produces isTrusted input events)
-      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65 });
-      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65 });
+      // contenteditable (ProseMirror/Lexical): the node contents are already selected above,
+      // so Input.insertText replaces them. CDP insertText fires trusted beforeinput/input
+      // events with inputType 'insertText', which is exactly what ProseMirror and Lexical
+      // listen for to update their internal document state (and enable the send button).
       await chrome.debugger.sendCommand(target, 'Input.insertText', { text });
     }
 
@@ -1669,14 +1695,16 @@ export default defineBackground(() => {
           returnByValue: true
         }) as { result: { value: boolean } };
         if (!clickResult?.value) {
-          // Fallback: Enter key if no send button found
-          await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Return', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
-          await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Return', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+          // Fallback: Enter key if no send button found. key must be 'Enter' — that's the DOM
+          // KeyboardEvent.key value editors check (key:'Return' silently fails the e.key==='Enter' test).
+          await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+          await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
         }
       } else {
-        // contenteditable chat UIs (Claude.ai, ChatGPT, Gemini): Enter key submits
-        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Return', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
-        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Return', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+        // contenteditable chat UIs (Claude.ai, ChatGPT, Gemini): Enter key submits. key must be
+        // 'Enter' (the DOM KeyboardEvent.key); 'Return' does not match e.key==='Enter' handlers.
+        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
       }
     } else {
       await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
