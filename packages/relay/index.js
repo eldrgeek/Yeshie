@@ -1666,6 +1666,25 @@ export function createRelay(port = 3333) {
       return;
     }
 
+    // Pending asks for polling clients (Pulse). The HUD overlay got these via
+    // socket.io; Pulse polls. Answered/stale asks are pruned here so the Map
+    // stays bounded — 1h is far past any caller's --timeout.
+    if (path === '/hud/asks' && req.method === 'GET') {
+      // Prune by age only — answered asks must linger so the asker's
+      // GET /hud/response/:id poll (0.5s cadence) can still read the answer.
+      const cutoff = Date.now() - 60 * 60 * 1000;
+      for (const [id, ask] of hudAsks) {
+        if (ask.createdAt < cutoff) hudAsks.delete(id);
+      }
+      const pending = [...hudAsks.values()].filter(a => a.response === null).map(a => ({
+        id: a.id, message: a.message, createdAt: a.createdAt,
+        ageSeconds: Math.round((Date.now() - a.createdAt) / 1000),
+      }));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ asks: pending }));
+      return;
+    }
+
     if (path === '/hud' && req.method === 'GET') {
       const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Yeshie HUD</title>
