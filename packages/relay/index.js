@@ -939,6 +939,44 @@ export function createRelay(port = 3333) {
       return;
     }
 
+    // ── daemon-decisions: email-daemon forward/dispatch log for Pulse Triage ──
+    if (path === '/artifacts/daemon-decisions' && req.method === 'GET') {
+      const limit = parseInt(url.searchParams.get('limit') || '30', 10);
+      const logsDir = join(homedir(), 'Projects/claude-email-daemon/logs');
+      try {
+        const files = readdirSync(logsDir)
+          .filter(f => f.startsWith('decisions_') && f.endsWith('.jsonl'))
+          .sort()
+          .reverse();
+        const items = [];
+        for (const f of files) {
+          if (items.length >= limit) break;
+          const lines = readFileSync(join(logsDir, f), 'utf8').split('\n').filter(Boolean).reverse();
+          for (const line of lines) {
+            if (items.length >= limit) break;
+            try {
+              const entry = JSON.parse(line);
+              const action = entry.action_result || '';
+              if (!action.startsWith('forwarded') && !action.startsWith('auto_replied')) continue;
+              items.push({
+                logged_at: entry.logged_at,
+                from: entry.email?.from || '',
+                subject: entry.email?.subject || '',
+                summary: entry.decision?.summary || '',
+                action: action,
+                decision: entry.decision?.action || '',
+              });
+            } catch { /* skip malformed lines */ }
+          }
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify({ items }));
+      } catch (e) {
+        jsonReply(res, 500, { error: e.message });
+      }
+      return;
+    }
+
     // ── activity feed: newest-first file stream across SOMA dirs ──
     if (path === '/artifacts/activity' && req.method === 'GET') {
       const sinceMs = parseInt(url.searchParams.get('since') || '0', 10);
@@ -984,6 +1022,39 @@ export function createRelay(port = 3333) {
       const result = items.slice(0, limit).map(i => ({ ...i, mtime: new Date(i.mtime).toISOString() }));
       res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
       res.end(JSON.stringify({ items: result }));
+      return;
+    }
+
+    // ── pulse/projects: SOMA project list for Kanban board ──
+    if (path === '/pulse/projects' && req.method === 'GET') {
+      const stateDir = join(homedir(), 'Projects/SOMA/state');
+      try {
+        // Find the most-recent master-project-list-*.json
+        const files = readdirSync(stateDir)
+          .filter(f => f.startsWith('master-project-list-') && f.endsWith('.json'))
+          .sort()
+          .reverse();
+        if (files.length === 0) {
+          jsonReply(res, 200, { projects: [] });
+          return;
+        }
+        const raw = JSON.parse(readFileSync(join(stateDir, files[0]), 'utf8'));
+        const projects = (raw.projects || []).map(p => ({
+          id: p.id,
+          name: p.name,
+          description: p.description || '',
+          status: p.status || 'Active',
+          last_touched: p.last_touched || '',
+          owner: p.owner || '',
+          open_mike_actions: p.open_mike_actions || [],
+          recent_artifact: p.recent_artifact || '',
+          cost_to_date_usd: p.cost_usd ?? null,
+        }));
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify({ projects }));
+      } catch (e) {
+        jsonReply(res, 500, { error: e.message });
+      }
       return;
     }
 
