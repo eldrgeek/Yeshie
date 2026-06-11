@@ -1,0 +1,125 @@
+{
+  "_meta": {
+    "task": "export-data",
+    "description": "Trigger Claude.ai data export. Navigates to Settings → Privacy → Export data. The export zip downloads directly to the browser's download folder.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "params": {
+      "settings_url": {
+        "required": false,
+        "default": "https://claude.ai/settings",
+        "description": "Claude.ai settings page URL — must be logged in"
+      }
+    },
+    "humanSteps": [
+      "After skill completes: check ~/Downloads/ for a new conversations-*.zip file",
+      "Move the zip to ~/Downloads/chat-exports/"
+    ]
+  },
+  "params": {
+    "settings_url": "https://claude.ai/settings"
+  },
+  "abstractTargets": {
+    "export_button": {
+      "description": "Export data button in the Privacy section of Settings",
+      "anchors": {
+        "ariaLabel": "Export data"
+      },
+      "fallbackSelectors": [
+        "button[aria-label='Export data']",
+        "button:contains('Export')",
+        "[data-testid='export-data-button']"
+      ]
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://claude.ai/settings",
+      "note": "Navigate directly to Claude.ai settings"
+    },
+    {
+      "stepId": "s2",
+      "action": "assess_state",
+      "stateGraph": {
+        "nodes": {
+          "auth_required": {
+            "signals": [
+              { "type": "url_matches", "pattern": "claude\\.ai/login" }
+            ]
+          }
+        }
+      },
+      "onMismatch": "continue",
+      "note": "Fail fast if redirected to login"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for settings page to load"
+    },
+    {
+      "stepId": "s4",
+      "action": "probe_affordances",
+      "note": "Survey available buttons and links on the settings page for debugging"
+    },
+    {
+      "stepId": "s5",
+      "action": "click_text",
+      "text": "Export data",
+      "note": "Click the Export data button"
+    },
+    {
+      "stepId": "s6",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for download or confirmation dialog"
+    },
+    {
+      "stepId": "s7",
+      "action": "assess_state",
+      "stateGraph": {
+        "nodes": {
+          "confirm_dialog": {
+            "signals": [
+              { "type": "element_visible", "selector": "[role='dialog']" },
+              { "type": "element_visible", "selector": "[role='alertdialog']" }
+            ]
+          }
+        }
+      },
+      "onMismatch": "continue",
+      "note": "Check if a confirmation dialog appeared"
+    },
+    {
+      "stepId": "s8",
+      "action": "click_text",
+      "text": "Export",
+      "note": "Click Export/OK in any confirmation dialog (no-op if already triggered download)"
+    },
+    {
+      "stepId": "s9",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Allow download to initiate"
+    },
+    {
+      "stepId": "s10",
+      "action": "read",
+      "candidates": [
+        "[role='dialog'] p",
+        "[role='status']",
+        ".toast",
+        "[aria-live='polite']",
+        "main"
+      ],
+      "store_as": "result_text",
+      "note": "Capture any success/status message"
+    }
+  ],
+  "site": "claude.ai",
+  "mode": "exploratory"
+}
