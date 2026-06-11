@@ -1,0 +1,159 @@
+{
+  "_meta": {
+    "task": "export-data",
+    "description": "Trigger ChatGPT data export. Navigates to Settings → Data controls → Export data → Confirm. ChatGPT emails a download link asynchronously — the skill requests the export and the email-link step is a separate manual/async action.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "params": {
+      "base_url": {
+        "required": false,
+        "default": "https://chatgpt.com",
+        "description": "ChatGPT home page — must be logged in"
+      }
+    },
+    "humanSteps": [
+      "After skill completes: check your email (mw@mike-wolf.com) for 'Your ChatGPT data export is ready'",
+      "Click the download link in the email to get the zip file",
+      "Move the downloaded zip to ~/Downloads/chat-exports/"
+    ]
+  },
+  "params": {
+    "base_url": "https://chatgpt.com"
+  },
+  "abstractTargets": {
+    "profile_button": {
+      "description": "Profile/account button in the bottom-left sidebar",
+      "anchors": {
+        "ariaLabel": "Open account menu"
+      },
+      "fallbackSelectors": [
+        "[data-testid='profile-button']",
+        "button[aria-label*='account']",
+        "nav button:last-child",
+        "[aria-label='Open account menu']",
+        "button[aria-haspopup='menu']"
+      ]
+    },
+    "settings_menu_item": {
+      "description": "Settings option in the account dropdown menu",
+      "fallbackSelectors": [
+        "[data-testid='settings-menu-item']",
+        "a[href*='settings']",
+        "button[aria-label='Settings']"
+      ]
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://chatgpt.com",
+      "note": "Navigate to ChatGPT home"
+    },
+    {
+      "stepId": "s2",
+      "action": "assess_state",
+      "stateGraph": {
+        "nodes": {
+          "auth_required": {
+            "signals": [
+              { "type": "url_matches", "pattern": "chatgpt\\.com/auth" },
+              { "type": "url_matches", "pattern": "accounts\\.openai\\.com" }
+            ]
+          }
+        }
+      },
+      "onMismatch": "continue",
+      "note": "Fail fast if not logged in"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for sidebar to fully render"
+    },
+    {
+      "stepId": "s4",
+      "action": "click",
+      "target": "profile_button",
+      "note": "Open account menu (bottom-left profile button)"
+    },
+    {
+      "stepId": "s5",
+      "action": "delay",
+      "ms": 800,
+      "note": "Wait for dropdown to open"
+    },
+    {
+      "stepId": "s6",
+      "action": "click_text",
+      "text": "Settings",
+      "note": "Click Settings in the account dropdown"
+    },
+    {
+      "stepId": "s7",
+      "action": "wait_for",
+      "selector": "[role='dialog'], [role='tablist'], .modal",
+      "state": { "visible": true },
+      "timeout": 8000,
+      "note": "Wait for Settings dialog to open"
+    },
+    {
+      "stepId": "s8",
+      "action": "delay",
+      "ms": 600,
+      "note": "Let dialog animate in"
+    },
+    {
+      "stepId": "s9",
+      "action": "click_text",
+      "text": "Data controls",
+      "note": "Click Data controls tab in Settings"
+    },
+    {
+      "stepId": "s10",
+      "action": "delay",
+      "ms": 800,
+      "note": "Wait for Data controls tab to load"
+    },
+    {
+      "stepId": "s11",
+      "action": "click_text",
+      "text": "Export",
+      "note": "Click Export button in Data controls section (may be 'Export data')"
+    },
+    {
+      "stepId": "s12",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Wait for confirmation modal"
+    },
+    {
+      "stepId": "s13",
+      "action": "click_text",
+      "text": "Confirm export",
+      "note": "Confirm the export in the modal dialog"
+    },
+    {
+      "stepId": "s14",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Allow confirmation to register"
+    },
+    {
+      "stepId": "s15",
+      "action": "read",
+      "candidates": [
+        "[role='dialog'] p",
+        "[role='alertdialog'] p",
+        ".modal-body p",
+        "[role='status']"
+      ],
+      "store_as": "confirmation_text",
+      "note": "Capture confirmation message (should say email was sent)"
+    }
+  ],
+  "site": "chatgpt.com",
+  "mode": "exploratory"
+}
