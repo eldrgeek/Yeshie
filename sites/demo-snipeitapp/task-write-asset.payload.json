@@ -1,0 +1,109 @@
+{
+  "_meta": {
+    "task": "create-asset-falsifier-test-2026-06-12",
+    "description": "Create a new asset named 'Falsifier Test 2026-06-12' — uses Select2 click-search-select pattern",
+    "mode": "exploratory"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://demo.snipeitapp.com/hardware/create"
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 3000
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "selector": "span[aria-labelledby=\"select2-status_select_id-container\"],#select2-status_select_id-container"
+    },
+    {
+      "stepId": "s4",
+      "action": "delay",
+      "ms": 400
+    },
+    {
+      "stepId": "s5",
+      "action": "type",
+      "selector": "input.select2-search__field",
+      "value": "Ready to Deploy"
+    },
+    {
+      "stepId": "s6",
+      "action": "delay",
+      "ms": 600
+    },
+    {
+      "stepId": "s7",
+      "action": "click",
+      "selector": ".select2-results__option"
+    },
+    {
+      "stepId": "s8",
+      "action": "delay",
+      "ms": 400
+    },
+    {
+      "stepId": "s9",
+      "action": "click",
+      "selector": "#select2-model_select_id-container"
+    },
+    {
+      "stepId": "s10",
+      "action": "delay",
+      "ms": 400
+    },
+    {
+      "stepId": "s11",
+      "action": "type",
+      "selector": "input.select2-search__field",
+      "value": "Macbook"
+    },
+    {
+      "stepId": "s12",
+      "action": "delay",
+      "ms": 800
+    },
+    {
+      "stepId": "s13",
+      "action": "click",
+      "selector": ".select2-results__option"
+    },
+    {
+      "stepId": "s14",
+      "action": "delay",
+      "ms": 400
+    },
+    {
+      "stepId": "s15",
+      "action": "type",
+      "selector": "input[name=\"name\"]",
+      "value": "Falsifier Test 2026-06-12",
+      "method": "set_value"
+    },
+    {
+      "stepId": "s16",
+      "action": "click",
+      "selector": "button.btn-success"
+    },
+    {
+      "stepId": "s17",
+      "action": "delay",
+      "ms": 3500
+    },
+    {
+      "stepId": "s18",
+      "action": "read",
+      "store_as": "post_submit"
+    },
+    {
+      "stepId": "s19",
+      "action": "js",
+      "code": "dumpText('created')",
+      "store_as": "answer"
+    }
+  ]
+}
