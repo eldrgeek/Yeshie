@@ -1,0 +1,36 @@
+{
+  "_meta": {
+    "task": "count-ready-to-deploy-assets",
+    "description": "Count assets listed as Ready to Deploy on the hardware page",
+    "mode": "exploratory"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://demo.snipeitapp.com/hardware"
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 3000
+    },
+    {
+      "stepId": "s3",
+      "action": "read",
+      "store_as": "page_snapshot"
+    },
+    {
+      "stepId": "s4",
+      "action": "js",
+      "code": "dumpText('Ready to Deploy')",
+      "store_as": "rtd_leaves"
+    },
+    {
+      "stepId": "s5",
+      "action": "js",
+      "code": "dumpText('Showing')",
+      "store_as": "pagination_info"
+    }
+  ]
+}
