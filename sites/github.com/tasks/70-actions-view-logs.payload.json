@@ -1,0 +1,32 @@
+{
+  "_meta": {
+    "task": "actions-view-logs",
+    "description": "View the logs for a specific job in a GitHub Actions workflow run. Public for public repos.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "none_public_repo", "note": "Public repos accessible without login" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "run_id": { "required": true, "description": "Workflow run ID" }
+    },
+    "risk": "safe",
+    "needs_live_verification": false
+  },
+  "runId": "github-actions-view-logs-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "run_id": "{{run_id}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/actions/runs/{{run_id}}" },
+    { "stepId": "s2", "action": "delay", "ms": 2000 },
+    { "stepId": "s3", "action": "click", "selector": ".job-name, [data-job-name], .js-job-link", "note": "Click on first job to view its logs" },
+    { "stepId": "s4", "action": "delay", "ms": 1500 },
+    { "stepId": "s5", "action": "read", "store_as": "job_logs" }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "task": "file-upload",
+    "description": "Upload a file to a GitHub repository via the drag-and-drop upload UI. Requires active GitHub session and write access. Note: file must be accessible locally or via URL.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must have write access to upload files" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "branch": { "required": true, "description": "Branch to upload to" },
+      "commit_message": { "required": false, "description": "Commit message for the upload", "default": "Upload files via GitHub UI" }
+    },
+    "risk": "safe",
+    "needs_live_verification": true
+  },
+  "runId": "github-file-upload-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "branch": "{{branch}}",
+    "commit_message": "{{commit_message}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/upload/{{branch}}" },
+    { "stepId": "s2", "action": "wait_for", "selector": ".upload-enabled, input[type='file'], [data-upload-policy-url]", "timeout": 8000 },
+    { "stepId": "s3", "action": "read", "store_as": "upload_page_state", "note": "Read upload page — file input is present for drag-and-drop or file selection; actual file upload requires additional CDP file input automation" },
+    { "stepId": "s4", "action": "clear", "selector": "input[name='commit_message'], input[placeholder*='commit message']" },
+    { "stepId": "s5", "action": "type", "selector": "input[name='commit_message']", "value": "{{commit_message}}" },
+    { "stepId": "s6", "action": "read", "store_as": "upload_form_ready", "note": "Upload form is ready — file must be dropped or selected to proceed" }
+  ]
+}

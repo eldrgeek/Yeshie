@@ -1,0 +1,28 @@
+{
+  "_meta": {
+    "task": "collaborator-list",
+    "description": "List collaborators on a GitHub repository. Requires admin access for private repos. Auth required for settings pages.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Admin access required to view collaborators in settings" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" }
+    },
+    "risk": "safe",
+    "needs_live_verification": true
+  },
+  "runId": "github-collaborator-list-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/settings/access" },
+    { "stepId": "s2", "action": "delay", "ms": 1500 },
+    { "stepId": "s3", "action": "read", "store_as": "collaborators" }
+  ]
+}

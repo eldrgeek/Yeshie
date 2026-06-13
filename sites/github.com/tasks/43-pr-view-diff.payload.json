@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "task": "pr-view-diff",
+    "description": "View the file diff for a GitHub pull request. Shows all changed files with additions/deletions. Public repos accessible without login.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "none_public_repo", "note": "Public repos accessible without login" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "number": { "required": true, "description": "PR number" }
+    },
+    "risk": "safe",
+    "needs_live_verification": false
+  },
+  "runId": "github-pr-view-diff-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "number": "{{number}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/pull/{{number}}/files" },
+    { "stepId": "s2", "action": "delay", "ms": 2000 },
+    { "stepId": "s3", "action": "read", "store_as": "pr_diff", "note": "Read diff view — shows changed files and line diffs" }
+  ]
+}

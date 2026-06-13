@@ -1,0 +1,37 @@
+{
+  "_meta": {
+    "task": "issue-lock",
+    "description": "Lock the conversation on a GitHub issue, preventing further comments from non-collaborators. Requires admin/maintain access.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must have maintain or admin access" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "number": { "required": true, "description": "Issue number to lock" },
+      "reason": { "required": false, "description": "Lock reason: 'off-topic', 'too-heated', 'resolved', 'spam'", "default": "resolved" }
+    },
+    "risk": "confirm",
+    "needs_live_verification": true
+  },
+  "runId": "github-issue-lock-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "number": "{{number}}",
+    "reason": "{{reason}}"
+  },
+  "chain": [
+    { "stepId": "guard", "action": "assert", "condition": "false", "message": "DESTRUCTIVE: Locking an issue prevents non-collaborators from commenting. NEVER execute in testing." },
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/issues/{{number}}" },
+    { "stepId": "s2", "action": "wait_for", "selector": "[aria-label='Lock conversation'], button[aria-label*='Lock']", "timeout": 8000 },
+    { "stepId": "s3", "action": "click", "selector": "[aria-label='Lock conversation']", "note": "Open lock conversation dialog" },
+    { "stepId": "s4", "action": "wait_for", "selector": "dialog, .js-lock-reason-select", "timeout": 5000 },
+    { "stepId": "s5", "action": "click", "selector": "input[value='{{reason}}'] ~ label, [value='{{reason}}']", "note": "Select lock reason" },
+    { "stepId": "s6", "action": "click", "selector": "button[type='submit'][data-disable-with*='Lock']", "note": "Confirm lock" },
+    { "stepId": "s7", "action": "delay", "ms": 1000 }
+  ]
+}

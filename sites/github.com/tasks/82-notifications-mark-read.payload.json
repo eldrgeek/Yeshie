@@ -1,0 +1,24 @@
+{
+  "_meta": {
+    "task": "notifications-mark-read",
+    "description": "Mark all GitHub notifications as read. Requires active GitHub session.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must be logged in to manage notifications" },
+    "params": {},
+    "risk": "safe",
+    "needs_live_verification": true
+  },
+  "runId": "github-notifications-mark-read-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {},
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/notifications" },
+    { "stepId": "s2", "action": "wait_for", "selector": "[aria-label*='Mark all as read'], button[data-mark-all-as-read]", "timeout": 8000 },
+    { "stepId": "s3", "action": "click", "selector": "[aria-label*='Mark all as read'], button[data-mark-all-as-read]", "note": "Mark all notifications as read" },
+    { "stepId": "s4", "action": "delay", "ms": 1500 },
+    { "stepId": "s5", "action": "read", "store_as": "notifications_after" }
+  ]
+}

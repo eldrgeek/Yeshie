@@ -1,0 +1,26 @@
+{
+  "_meta": {
+    "task": "search-commits",
+    "description": "Search commits across GitHub repositories. No login required for public search.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "none", "note": "Public search accessible without login" },
+    "params": {
+      "query": { "required": true, "description": "Commit search query (e.g. 'fix memory leak author:torvalds')" }
+    },
+    "risk": "safe",
+    "needs_live_verification": false
+  },
+  "runId": "github-search-commits-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {
+    "query": "{{query}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/search?q={{query}}&type=commits" },
+    { "stepId": "s2", "action": "delay", "ms": 2000 },
+    { "stepId": "s3", "action": "read", "store_as": "commit_search_results" }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "_meta": {
+    "task": "branch-view-protection",
+    "description": "View branch protection rules for a GitHub repository. Requires at least read access to settings (admin for private repos).",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Requires admin access to view branch protection settings" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" }
+    },
+    "risk": "safe",
+    "needs_live_verification": true
+  },
+  "runId": "github-branch-view-protection-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/settings/branches" },
+    { "stepId": "s2", "action": "delay", "ms": 1500 },
+    { "stepId": "s3", "action": "read", "store_as": "branch_protection_rules" }
+  ]
+}

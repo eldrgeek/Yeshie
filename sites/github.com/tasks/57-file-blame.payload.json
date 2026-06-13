@@ -1,0 +1,32 @@
+{
+  "_meta": {
+    "task": "file-blame",
+    "description": "View the blame view for a file showing which commit last modified each line. Public repos accessible without login.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "none_public_repo", "note": "Public repos accessible without login" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "branch": { "required": true, "description": "Branch or commit SHA" },
+      "path": { "required": true, "description": "File path (e.g. src/index.js)" }
+    },
+    "risk": "safe",
+    "needs_live_verification": false
+  },
+  "runId": "github-file-blame-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "branch": "{{branch}}",
+    "path": "{{path}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/blame/{{branch}}/{{path}}" },
+    { "stepId": "s2", "action": "delay", "ms": 1500 },
+    { "stepId": "s3", "action": "read", "store_as": "blame_content" }
+  ]
+}

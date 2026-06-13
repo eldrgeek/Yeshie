@@ -1,0 +1,34 @@
+{
+  "_meta": {
+    "task": "release-delete",
+    "description": "Delete a release from a GitHub repository. DESTRUCTIVE — removes the release page and download links (does not delete the tag). Requires write access.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must have write access to delete releases" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "tag": { "required": true, "description": "Tag name of the release to delete" }
+    },
+    "risk": "confirm",
+    "needs_live_verification": true
+  },
+  "runId": "github-release-delete-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "tag": "{{tag}}"
+  },
+  "chain": [
+    { "stepId": "guard", "action": "assert", "condition": "false", "message": "DESTRUCTIVE: Deleting a release removes download links and the release page. NEVER execute in testing." },
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/releases/tag/{{tag}}" },
+    { "stepId": "s2", "action": "wait_for", "selector": "a[href*='/releases/edit/']", "timeout": 8000 },
+    { "stepId": "s3", "action": "click", "selector": "a[href*='/releases/edit/']", "note": "Go to edit page" },
+    { "stepId": "s4", "action": "wait_for", "selector": "button[data-disable-with*='Delete'], [aria-label*='Delete release']", "timeout": 8000 },
+    { "stepId": "s5", "action": "click", "selector": "button[data-disable-with*='Delete release'], [aria-label*='Delete release']", "note": "Click Delete release button on edit page" },
+    { "stepId": "s6", "action": "delay", "ms": 2000 }
+  ]
+}

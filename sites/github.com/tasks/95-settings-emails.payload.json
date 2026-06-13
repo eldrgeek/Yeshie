@@ -1,0 +1,22 @@
+{
+  "_meta": {
+    "task": "settings-emails",
+    "description": "View GitHub account email settings (primary email, notification email, email privacy). Requires active GitHub session.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must be logged in to view email settings" },
+    "params": {},
+    "risk": "safe",
+    "needs_live_verification": true
+  },
+  "runId": "github-settings-emails-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {},
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/settings/emails" },
+    { "stepId": "s2", "action": "delay", "ms": 1500 },
+    { "stepId": "s3", "action": "read", "store_as": "email_settings" }
+  ]
+}
