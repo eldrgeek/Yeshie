@@ -5,7 +5,7 @@ export default defineConfig({
   entrypointsDir: 'entrypoints',
   manifest: {
     name: 'Yeshie',
-    version: '0.1.412',
+    version: '0.1.458',
     permissions: ['activeTab', 'scripting', 'debugger', 'tabs', 'storage', 'alarms', 'sidePanel'],
     host_permissions: ['<all_urls>'],
     action: { default_title: 'Yeshie' },
@@ -15,7 +15,10 @@ export default defineConfig({
     commands: {
       'toggle-recording': {
         suggested_key: {
-          default: 'Ctrl+Alt+R',
+          // NOTE: 'Ctrl+Alt+R' as default is rejected by Chrome 149+ on macOS
+          // ("Invalid value for commands[N].default: Ctrl+Alt+R").
+          // Chrome rejects the extension at load time, causing --load-extension to silently fail.
+          // Mac-only key is sufficient since Yeshie is macOS-only in production.
           mac: 'MacCtrl+Alt+R',
         },
         description: 'Toggle Do-It-Once recording (⌃⌥R)',
