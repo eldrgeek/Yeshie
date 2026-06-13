@@ -6,11 +6,15 @@ import { StepExecutor } from '../../src/step-executor';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-describe('background.js action coverage', () => {
+describe('step-executor action coverage', () => {
   let bgSource: string;
 
   beforeAll(() => {
-    bgSource = readFileSync(resolve(__dirname, '../../packages/extension/background.js'), 'utf-8');
+    // Action handlers live in src/step-executor.ts (the canonical executor).
+    // The old check against packages/extension/background.js was wrong — that
+    // compiled artifact was never checked into git and the WXT build output is
+    // minified (patterns won't match).
+    bgSource = readFileSync(resolve(__dirname, '../../src/step-executor.ts'), 'utf-8');
   });
 
   const requiredActions = ['navigate','type','click','wait_for','read','assess_state','js','find_row','click_text','delay','hover','scroll','select','probe_affordances','assert','click_preset'];

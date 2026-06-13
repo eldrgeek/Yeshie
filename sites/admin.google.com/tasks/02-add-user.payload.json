@@ -91,6 +91,7 @@
       "cachedSelector": "input[aria-label='First name *']",
       "cachedConfidence": 0.92,
       "resolvedOn": "2026-04-13T00:00:00.000Z",
+      "semanticKeys": ["First name"],
       "resolveHint": "ariaLabel field confirmed via perceive: {'ariaLabel': 'First name *', 'tag': 'INPUT', 'type': 'text'}"
     },
     "gadmin-last-name": {
@@ -98,6 +99,7 @@
       "cachedSelector": "input[aria-label='Last name *']",
       "cachedConfidence": 0.92,
       "resolvedOn": "2026-04-13T00:00:00.000Z",
+      "semanticKeys": ["Last name"],
       "resolveHint": "ariaLabel field confirmed via perceive: {'ariaLabel': 'Last name *', 'tag': 'INPUT', 'type': 'text'}"
     },
     "gadmin-primary-email": {
@@ -105,6 +107,7 @@
       "cachedSelector": "input[aria-label='Primary email *']",
       "cachedConfidence": 0.92,
       "resolvedOn": "2026-04-13T00:00:00.000Z",
+      "semanticKeys": ["Primary email"],
       "resolveHint": "ariaLabel field confirmed via perceive: {'ariaLabel': 'Primary email *', 'tag': 'INPUT', 'type': 'text'}"
     }
   },
