@@ -1,0 +1,26 @@
+{
+  "_meta": {
+    "task": "team-list",
+    "description": "List teams in a GitHub organization. Requires organization membership. Only visible to org members.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must be an org member to view teams" },
+    "params": {
+      "org": { "required": true, "description": "Organization name" }
+    },
+    "risk": "safe",
+    "needs_live_verification": true
+  },
+  "runId": "github-team-list-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {
+    "org": "{{org}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/orgs/{{org}}/teams" },
+    { "stepId": "s2", "action": "delay", "ms": 1500 },
+    { "stepId": "s3", "action": "read", "store_as": "teams_list" }
+  ]
+}

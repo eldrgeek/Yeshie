@@ -1,0 +1,26 @@
+{
+  "_meta": {
+    "task": "org-members",
+    "description": "List public members of a GitHub organization. Visibility depends on org settings — public members visible without login, private members require org membership.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "none_public_repo", "note": "Public org members visible without login; private member visibility requires org membership" },
+    "params": {
+      "org": { "required": true, "description": "Organization name" }
+    },
+    "risk": "safe",
+    "needs_live_verification": false
+  },
+  "runId": "github-org-members-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {
+    "org": "{{org}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/orgs/{{org}}/people" },
+    { "stepId": "s2", "action": "delay", "ms": 1500 },
+    { "stepId": "s3", "action": "read", "store_as": "org_members" }
+  ]
+}

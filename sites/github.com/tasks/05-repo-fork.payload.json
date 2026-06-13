@@ -1,0 +1,31 @@
+{
+  "_meta": {
+    "task": "repo-fork",
+    "description": "Fork a GitHub repository to your account. Requires active GitHub session. Creates a new resource (fork) under your account.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must be logged in to GitHub" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" }
+    },
+    "risk": "safe",
+    "needs_live_verification": true
+  },
+  "runId": "github-repo-fork-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/fork" },
+    { "stepId": "s2", "action": "wait_for", "selector": "button[type='submit'][aria-label*='fork'], button[data-disable-with*='Fork']", "timeout": 8000 },
+    { "stepId": "s3", "action": "read", "store_as": "fork_form_state", "note": "Read form to confirm fork target before submitting" },
+    { "stepId": "s4", "action": "click", "selector": "button[type='submit'][data-disable-with*='Fork'], button[type='submit']", "note": "Submit fork creation" },
+    { "stepId": "s5", "action": "wait_for", "selector": "body", "timeout": 15000 },
+    { "stepId": "s6", "action": "read", "store_as": "fork_result" }
+  ]
+}

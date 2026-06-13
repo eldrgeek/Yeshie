@@ -1,0 +1,37 @@
+{
+  "_meta": {
+    "task": "issue-milestone",
+    "description": "Set a milestone on a GitHub issue via the Milestone sidebar picker. Requires write access.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must have write access" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "number": { "required": true, "description": "Issue number" },
+      "milestone": { "required": true, "description": "Milestone title (must already exist on the repo)" }
+    },
+    "risk": "safe",
+    "needs_live_verification": true
+  },
+  "runId": "github-issue-milestone-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "number": "{{number}}",
+    "milestone": "{{milestone}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/issues/{{number}}" },
+    { "stepId": "s2", "action": "wait_for", "selector": "[aria-label='Milestone'], [data-menu-trigger='milestone']", "timeout": 8000 },
+    { "stepId": "s3", "action": "click", "selector": "[aria-label='Milestone'], [data-menu-trigger='milestone']", "note": "Open milestone picker" },
+    { "stepId": "s4", "action": "wait_for", "selector": "input[placeholder*='Filter milestones'], [aria-label*='milestone filter']", "timeout": 5000 },
+    { "stepId": "s5", "action": "type", "selector": "input[placeholder*='Filter milestones']", "value": "{{milestone}}" },
+    { "stepId": "s6", "action": "click", "selector": "[data-milestone-title='{{milestone}}'], [aria-label*='{{milestone}}']", "note": "Select the milestone" },
+    { "stepId": "s7", "action": "click", "selector": "body", "note": "Close dropdown" },
+    { "stepId": "s8", "action": "delay", "ms": 1000 }
+  ]
+}

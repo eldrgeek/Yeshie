@@ -1,0 +1,26 @@
+{
+  "_meta": {
+    "task": "search-users",
+    "description": "Search GitHub users and organizations. No login required for public search.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "none", "note": "Public search accessible without login" },
+    "params": {
+      "query": { "required": true, "description": "User search query (e.g. 'location:Denver language:rust followers:>100')" }
+    },
+    "risk": "safe",
+    "needs_live_verification": false
+  },
+  "runId": "github-search-users-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {
+    "query": "{{query}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/search?q={{query}}&type=users" },
+    { "stepId": "s2", "action": "delay", "ms": 2000 },
+    { "stepId": "s3", "action": "read", "store_as": "user_search_results" }
+  ]
+}

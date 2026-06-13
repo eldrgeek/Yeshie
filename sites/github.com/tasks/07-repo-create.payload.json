@@ -1,0 +1,37 @@
+{
+  "_meta": {
+    "task": "repo-create",
+    "description": "Create a new GitHub repository. Requires active GitHub session. Fills out the new repository form and submits.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must be logged in to GitHub" },
+    "params": {
+      "repo_name": { "required": true, "description": "Repository name (alphanumeric, hyphens, underscores)" },
+      "description": { "required": false, "description": "Short description of the repo", "default": "" },
+      "visibility": { "required": false, "description": "'public' or 'private'", "default": "private" },
+      "auto_init": { "required": false, "description": "Initialize with README", "default": true }
+    },
+    "risk": "safe",
+    "needs_live_verification": true
+  },
+  "runId": "github-repo-create-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "repo_name": "{{repo_name}}",
+    "description": "{{description}}",
+    "visibility": "{{visibility}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/new" },
+    { "stepId": "s2", "action": "wait_for", "selector": "input[name='repository[name]']", "timeout": 8000 },
+    { "stepId": "s3", "action": "type", "selector": "input[name='repository[name]']", "value": "{{repo_name}}" },
+    { "stepId": "s4", "action": "type", "selector": "input[name='repository[description]'], textarea[name='repository[description]']", "value": "{{description}}" },
+    { "stepId": "s5", "action": "click", "selector": "input[value='private'][name='repository[visibility]'] ~ label, [aria-label='Private']", "note": "Select private visibility by default" },
+    { "stepId": "s6", "action": "click", "selector": "input[name='repository[auto_init]']", "note": "Check 'Initialize this repository with a README'" },
+    { "stepId": "s7", "action": "click", "selector": "button[type='submit'][data-disable-with*='Create repository']",
+      "responseSignature": [{ "type": "url_change", "matches": "/[^/]+/[^/]+$", "timeout": 15000 }],
+      "note": "Submit the form — redirects to new repo homepage" }
+  ]
+}

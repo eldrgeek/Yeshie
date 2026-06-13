@@ -1,0 +1,22 @@
+{
+  "_meta": {
+    "task": "settings-security",
+    "description": "View GitHub security settings (password, 2FA status, active sessions). Requires active GitHub session.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must be logged in to view security settings" },
+    "params": {},
+    "risk": "safe",
+    "needs_live_verification": true
+  },
+  "runId": "github-settings-security-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {},
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/settings/security" },
+    { "stepId": "s2", "action": "delay", "ms": 1500 },
+    { "stepId": "s3", "action": "read", "store_as": "security_settings" }
+  ]
+}

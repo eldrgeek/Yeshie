@@ -1,0 +1,28 @@
+{
+  "_meta": {
+    "task": "explore",
+    "description": "Browse GitHub Explore and trending repositories. No login required. Great for discovering popular projects.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "none", "note": "GitHub Explore accessible without login" },
+    "params": {
+      "language": { "required": false, "description": "Filter trending repos by programming language", "default": "" },
+      "since": { "required": false, "description": "Time range: 'daily', 'weekly', 'monthly'", "default": "daily" }
+    },
+    "risk": "safe",
+    "needs_live_verification": false
+  },
+  "runId": "github-explore-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {
+    "language": "{{language}}",
+    "since": "{{since}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/trending/{{language}}?since={{since}}" },
+    { "stepId": "s2", "action": "delay", "ms": 1500 },
+    { "stepId": "s3", "action": "read", "store_as": "trending_repos" }
+  ]
+}

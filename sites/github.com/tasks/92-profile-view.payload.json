@@ -1,0 +1,26 @@
+{
+  "_meta": {
+    "task": "profile-view",
+    "description": "View a GitHub user or organization profile page. No login required for public profiles.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "none", "note": "Public profiles accessible without login" },
+    "params": {
+      "username": { "required": true, "description": "GitHub username or org name" }
+    },
+    "risk": "safe",
+    "needs_live_verification": false
+  },
+  "runId": "github-profile-view-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {
+    "username": "{{username}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{username}}" },
+    { "stepId": "s2", "action": "delay", "ms": 1500 },
+    { "stepId": "s3", "action": "read", "store_as": "profile_content" }
+  ]
+}

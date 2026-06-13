@@ -1,0 +1,37 @@
+{
+  "_meta": {
+    "task": "issue-create",
+    "description": "Create a new issue on a GitHub repository. Requires active GitHub session.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must be logged in to GitHub" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "title": { "required": true, "description": "Issue title" },
+      "body": { "required": false, "description": "Issue body (supports Markdown)", "default": "" }
+    },
+    "risk": "safe",
+    "needs_live_verification": true
+  },
+  "runId": "github-issue-create-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "title": "{{title}}",
+    "body": "{{body}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/issues/new" },
+    { "stepId": "s2", "action": "wait_for", "selector": "input[name='issue[title]']", "timeout": 8000 },
+    { "stepId": "s3", "action": "type", "selector": "input[name='issue[title]']", "value": "{{title}}" },
+    { "stepId": "s4", "action": "type", "selector": "textarea[name='issue[body]'], #issue_body", "value": "{{body}}" },
+    { "stepId": "s5", "action": "click", "selector": "button[type='submit'][data-disable-with*='Submit']",
+      "responseSignature": [{ "type": "url_change", "matches": "/issues/\\d+", "timeout": 10000 }],
+      "note": "Submit creates the issue and redirects to issue detail page" },
+    { "stepId": "s6", "action": "read", "store_as": "issue_created" }
+  ]
+}

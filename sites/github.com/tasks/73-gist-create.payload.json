@@ -1,0 +1,37 @@
+{
+  "_meta": {
+    "task": "gist-create",
+    "description": "Create a new GitHub Gist. Requires active GitHub session.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must be logged in to create gists" },
+    "params": {
+      "description": { "required": false, "description": "Gist description", "default": "" },
+      "filename": { "required": true, "description": "Filename for the gist (e.g. snippet.py)" },
+      "content": { "required": true, "description": "File content" },
+      "public": { "required": false, "description": "true for public gist, false for secret", "default": false }
+    },
+    "risk": "safe",
+    "needs_live_verification": true
+  },
+  "runId": "github-gist-create-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "description": "{{description}}",
+    "filename": "{{filename}}",
+    "content": "{{content}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://gist.github.com" },
+    { "stepId": "s2", "action": "wait_for", "selector": "input[class*='gist-blob-name'], input[name='gist[contents][][name]']", "timeout": 8000 },
+    { "stepId": "s3", "action": "type", "selector": "input[name='gist[description]'], input[placeholder*='Gist description']", "value": "{{description}}" },
+    { "stepId": "s4", "action": "type", "selector": "input[class*='gist-blob-name'], input[placeholder*='Filename']", "value": "{{filename}}" },
+    { "stepId": "s5", "action": "click", "selector": ".CodeMirror, .cm-content, textarea[name='gist[contents][][content]']" },
+    { "stepId": "s6", "action": "type", "selector": ".CodeMirror textarea, textarea[name='gist[contents][][content]']", "value": "{{content}}" },
+    { "stepId": "s7", "action": "click", "selector": "button[name='gist[action]'][value='0'], [aria-label*='Create secret gist']", "note": "Create as secret gist by default" },
+    { "stepId": "s8", "action": "delay", "ms": 2000 },
+    { "stepId": "s9", "action": "read", "store_as": "gist_created" }
+  ]
+}

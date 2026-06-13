@@ -1,0 +1,28 @@
+{
+  "_meta": {
+    "task": "gist-view",
+    "description": "View a specific public gist by username and gist ID. No login required for public gists.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "none", "note": "Public gists accessible without login" },
+    "params": {
+      "username": { "required": true, "description": "GitHub username who owns the gist" },
+      "gist_id": { "required": true, "description": "Gist ID (hexadecimal hash)" }
+    },
+    "risk": "safe",
+    "needs_live_verification": false
+  },
+  "runId": "github-gist-view-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {
+    "username": "{{username}}",
+    "gist_id": "{{gist_id}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://gist.github.com/{{username}}/{{gist_id}}" },
+    { "stepId": "s2", "action": "delay", "ms": 1500 },
+    { "stepId": "s3", "action": "read", "store_as": "gist_content" }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "_meta": {
+    "task": "repo-archive",
+    "description": "Archive a GitHub repository, making it read-only. DESTRUCTIVE — archived repos cannot receive new issues, PRs, or commits without being unarchived. Requires owner permissions.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must be repo owner or org admin" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" }
+    },
+    "risk": "confirm",
+    "needs_live_verification": true
+  },
+  "runId": "github-repo-archive-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}"
+  },
+  "chain": [
+    { "stepId": "guard", "action": "assert", "condition": "false", "message": "DESTRUCTIVE: Archiving makes a repo read-only. No new issues, PRs, or commits can be created until unarchived. NEVER execute in testing." },
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/settings" },
+    { "stepId": "s2", "action": "wait_for", "selector": "button[aria-label*='Archive'], [data-target*='archive']", "timeout": 8000 },
+    { "stepId": "s3", "action": "click", "selector": "button[aria-label*='Archive this repository']", "note": "Click Archive button in Danger Zone" },
+    { "stepId": "s4", "action": "wait_for", "selector": "dialog[aria-label*='archive'], .Box--danger input", "timeout": 5000 },
+    { "stepId": "s5", "action": "type", "selector": "input[aria-label*='repository name'], input[placeholder*='{{repo}}']", "value": "{{owner}}/{{repo}}", "note": "Type repo name to confirm" },
+    { "stepId": "s6", "action": "click", "selector": "button[data-disable-with*='Archive']", "note": "Confirm archive action" }
+  ]
+}
