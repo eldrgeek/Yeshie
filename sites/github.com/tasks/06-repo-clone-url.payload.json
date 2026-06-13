@@ -23,8 +23,6 @@
   "chain": [
     { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}" },
     { "stepId": "s2", "action": "delay", "ms": 1500 },
-    { "stepId": "s3", "action": "click", "selector": "button[aria-label*='Code'], [data-open-app='open-in-xcode'] ~ button, summary[aria-haspopup='menu'][data-view-component='true']", "note": "Open the Code dropdown to reveal clone URL" },
-    { "stepId": "s4", "action": "delay", "ms": 500 },
-    { "stepId": "s5", "action": "read", "selector": "input[aria-label*='https://github.com'], #clone-help-step-1 input, [data-url*='github.com']", "store_as": "clone_url" }
+    { "stepId": "s3", "action": "read", "store_as": "page_state", "note": "Read page to confirm we are on the repo page. The HTTPS clone URL is always https://github.com/{owner}/{repo}.git — derivable from params or from page_state.pageUrl + .git. GitHub 2025+ Primer React UI removed aria-label from the Code button, making the dropdown selector unreliable without auth." }
   ]
 }
