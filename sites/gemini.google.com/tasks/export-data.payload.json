@@ -1,0 +1,153 @@
+{
+  "_meta": {
+    "task": "export-data",
+    "description": "Trigger Google Takeout export for Gemini Apps Activity. Navigates to takeout.google.com, deselects all, selects only Gemini Apps Activity, advances through the export wizard. Google emails a download link asynchronously (minutes to hours).",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "params": {
+      "takeout_url": {
+        "required": false,
+        "default": "https://takeout.google.com/settings/takeout",
+        "description": "Google Takeout URL — must be logged in as the correct Google account"
+      }
+    },
+    "humanSteps": [
+      "After skill completes: check email for 'Your Google data is ready to download'",
+      "Click the download button in the email to get the archive",
+      "Move the downloaded zip/tgz to ~/Downloads/chat-exports/",
+      "NOTE: Google may take minutes to hours to prepare the archive"
+    ]
+  },
+  "params": {
+    "takeout_url": "https://takeout.google.com/settings/takeout"
+  },
+  "abstractTargets": {
+    "deselect_all_button": {
+      "description": "Deselect all button to start fresh",
+      "fallbackSelectors": [
+        "button[aria-label*='Deselect all']",
+        "button[aria-label='Deselect all']",
+        ".deselect-all-btn"
+      ]
+    },
+    "gemini_checkbox": {
+      "description": "Checkbox for Gemini Apps Activity",
+      "fallbackSelectors": [
+        "[data-product='GeminiApps'] input[type='checkbox']",
+        "[data-product='Bard'] input[type='checkbox']",
+        "li[data-product='GeminiApps'] mat-checkbox"
+      ]
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://takeout.google.com/settings/takeout",
+      "note": "Navigate to Google Takeout"
+    },
+    {
+      "stepId": "s2",
+      "action": "assess_state",
+      "stateGraph": {
+        "nodes": {
+          "auth_required": {
+            "signals": [
+              { "type": "url_matches", "pattern": "accounts\\.google\\.com/signin" },
+              { "type": "url_matches", "pattern": "accounts\\.google\\.com/o/oauth" }
+            ]
+          }
+        }
+      },
+      "onMismatch": "continue",
+      "note": "Fail fast if not logged into Google"
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 2500,
+      "note": "Takeout has a long load time with many products"
+    },
+    {
+      "stepId": "s4",
+      "action": "click_text",
+      "text": "Deselect all",
+      "note": "Deselect all Google products to start clean"
+    },
+    {
+      "stepId": "s5",
+      "action": "delay",
+      "ms": 800,
+      "note": "Allow deselect to register"
+    },
+    {
+      "stepId": "s6",
+      "action": "js",
+      "code": "/*cdp*/ (function() { var items = document.querySelectorAll('[data-product]'); var found = []; items.forEach(function(el) { var text = el.textContent; if (text.includes('Gemini') || text.includes('Bard')) { found.push(text.trim().substring(0, 60)); var cb = el.querySelector('input[type=checkbox]') || el.querySelector('mat-checkbox'); if (cb && !cb.checked) { cb.click(); } } }); return { found: found }; })()",
+      "store_as": "gemini_item_search",
+      "note": "Find and check Gemini/Bard checkbox via JS (handles Angular mat-checkbox complexity)"
+    },
+    {
+      "stepId": "s7",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Allow selection to register"
+    },
+    {
+      "stepId": "s8",
+      "action": "scroll",
+      "direction": "down",
+      "amount": 2000,
+      "note": "Scroll down to find the Next step button"
+    },
+    {
+      "stepId": "s9",
+      "action": "delay",
+      "ms": 500
+    },
+    {
+      "stepId": "s10",
+      "action": "click_text",
+      "text": "Next step",
+      "note": "Proceed to delivery options"
+    },
+    {
+      "stepId": "s11",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for delivery options page"
+    },
+    {
+      "stepId": "s12",
+      "action": "probe_affordances",
+      "note": "Survey delivery page for button names before final click"
+    },
+    {
+      "stepId": "s13",
+      "action": "click_text",
+      "text": "Create export",
+      "note": "Trigger the export — Google will email a download link"
+    },
+    {
+      "stepId": "s14",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Allow submission to register"
+    },
+    {
+      "stepId": "s15",
+      "action": "read",
+      "candidates": [
+        "h1",
+        ".export-status",
+        "[role='main'] p:first-of-type",
+        "main p"
+      ],
+      "store_as": "confirmation_text",
+      "note": "Capture confirmation (should say export was requested)"
+    }
+  ],
+  "site": "gemini.google.com",
+  "mode": "exploratory"
+}
