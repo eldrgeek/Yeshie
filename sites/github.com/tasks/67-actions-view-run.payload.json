@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "task": "actions-view-run",
+    "description": "View a specific GitHub Actions workflow run by run ID. Public for public repos.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "none_public_repo", "note": "Public repos accessible without login" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "run_id": { "required": true, "description": "Workflow run ID (numeric)" }
+    },
+    "risk": "safe",
+    "needs_live_verification": false
+  },
+  "runId": "github-actions-view-run-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "run_id": "{{run_id}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/actions/runs/{{run_id}}" },
+    { "stepId": "s2", "action": "delay", "ms": 2000 },
+    { "stepId": "s3", "action": "read", "store_as": "run_detail" }
+  ]
+}

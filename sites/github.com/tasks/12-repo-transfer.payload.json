@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "task": "repo-transfer",
+    "description": "Transfer a GitHub repository to another user or organization. DESTRUCTIVE — removes the repo from your account. Requires owner permissions.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must be repo owner or org admin" },
+    "params": {
+      "owner": { "required": true, "description": "Current repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "new_owner": { "required": true, "description": "New owner username or org name" }
+    },
+    "risk": "confirm",
+    "needs_live_verification": true
+  },
+  "runId": "github-repo-transfer-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "new_owner": "{{new_owner}}"
+  },
+  "chain": [
+    { "stepId": "guard", "action": "assert", "condition": "false", "message": "DESTRUCTIVE: Transferring a repo removes it from your account and grants ownership to the new owner. NEVER execute in testing." },
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/settings" },
+    { "stepId": "s2", "action": "wait_for", "selector": "button[aria-label*='Transfer'], [data-target*='transfer']", "timeout": 8000 },
+    { "stepId": "s3", "action": "click", "selector": "button[aria-label*='Transfer this repository']", "note": "Click Transfer in Danger Zone" },
+    { "stepId": "s4", "action": "wait_for", "selector": "dialog, input[aria-label*='new owner']", "timeout": 5000 },
+    { "stepId": "s5", "action": "type", "selector": "input[aria-label*='new owner'], input[name*='transfer_user']", "value": "{{new_owner}}", "note": "Type new owner" },
+    { "stepId": "s6", "action": "type", "selector": "input[aria-label*='repository name']", "value": "{{owner}}/{{repo}}", "note": "Confirm with repo name" },
+    { "stepId": "s7", "action": "click", "selector": "button[data-disable-with*='Transfer'], button[type='submit']", "note": "Confirm transfer" }
+  ]
+}

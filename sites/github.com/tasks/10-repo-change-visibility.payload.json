@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "task": "repo-change-visibility",
+    "description": "Change a repository's visibility between public and private. DESTRUCTIVE — making a private repo public exposes all code and history. Requires owner permissions.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must be repo owner or org admin" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "visibility": { "required": true, "description": "'public' or 'private'" }
+    },
+    "risk": "confirm",
+    "needs_live_verification": true
+  },
+  "runId": "github-repo-change-visibility-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "visibility": "{{visibility}}"
+  },
+  "chain": [
+    { "stepId": "guard", "action": "assert", "condition": "false", "message": "DESTRUCTIVE: Making a private repo public exposes all code, commit history, and issues. NEVER execute in testing." },
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/settings" },
+    { "stepId": "s2", "action": "wait_for", "selector": "[aria-label*='Change visibility'], button[data-target*='visibility']", "timeout": 8000 },
+    { "stepId": "s3", "action": "click", "selector": "button[aria-label*='Change visibility']", "note": "Click Change Visibility in Danger Zone" },
+    { "stepId": "s4", "action": "wait_for", "selector": "dialog, .Box--danger", "timeout": 5000 },
+    { "stepId": "s5", "action": "click", "selector": "input[value='{{visibility}}'] ~ label", "note": "Select target visibility" },
+    { "stepId": "s6", "action": "type", "selector": "input[aria-label*='repository name']", "value": "{{owner}}/{{repo}}", "note": "Type repo name to confirm" },
+    { "stepId": "s7", "action": "click", "selector": "button[data-disable-with*='visibility'], button[type='submit']", "note": "Confirm visibility change" }
+  ]
+}

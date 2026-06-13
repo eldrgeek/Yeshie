@@ -1,0 +1,32 @@
+{
+  "_meta": {
+    "task": "file-view",
+    "description": "View a file's content on a specific branch and path in a GitHub repository. Public repos accessible without login.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "none_public_repo", "note": "Public repos accessible without login" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "branch": { "required": true, "description": "Branch or commit SHA" },
+      "path": { "required": true, "description": "File path relative to repo root (e.g. src/index.js)" }
+    },
+    "risk": "safe",
+    "needs_live_verification": false
+  },
+  "runId": "github-file-view-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "branch": "{{branch}}",
+    "path": "{{path}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/blob/{{branch}}/{{path}}" },
+    { "stepId": "s2", "action": "delay", "ms": 1500 },
+    { "stepId": "s3", "action": "read", "store_as": "file_content" }
+  ]
+}

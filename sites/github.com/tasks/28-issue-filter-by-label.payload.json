@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "task": "issue-filter-by-label",
+    "description": "Filter issues on a GitHub repository by label. Public repos accessible without login.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "none_public_repo", "note": "Public repos accessible without login" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "label": { "required": true, "description": "Label name to filter by" }
+    },
+    "risk": "safe",
+    "needs_live_verification": false
+  },
+  "runId": "github-issue-filter-by-label-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "label": "{{label}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/issues?q=is%3Aissue+is%3Aopen+label%3A%22{{label}}%22" },
+    { "stepId": "s2", "action": "delay", "ms": 1500 },
+    { "stepId": "s3", "action": "read", "store_as": "filtered_issues" }
+  ]
+}

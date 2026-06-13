@@ -1,0 +1,34 @@
+{
+  "_meta": {
+    "task": "repo-watch",
+    "description": "Watch a GitHub repository to receive notifications. Requires active GitHub session.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must be logged in to GitHub" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "watch_level": { "required": false, "description": "Watch level: 'watching', 'releases', 'issues', 'ignore'", "default": "watching" }
+    },
+    "risk": "safe",
+    "needs_live_verification": true
+  },
+  "runId": "github-repo-watch-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "watch_level": "{{watch_level}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}" },
+    { "stepId": "s2", "action": "wait_for", "selector": "[aria-label*='Watch'], .watch-button, [data-ga-click*='watch']", "timeout": 8000 },
+    { "stepId": "s3", "action": "click", "selector": "[aria-label*='Watch'], .watch-button", "note": "Open watch dropdown menu" },
+    { "stepId": "s4", "action": "delay", "ms": 500 },
+    { "stepId": "s5", "action": "click", "selector": "[aria-label*='Watching'], input[value='watching'] ~ label", "note": "Select 'Watching' notification level" },
+    { "stepId": "s6", "action": "delay", "ms": 1000 },
+    { "stepId": "s7", "action": "read", "store_as": "watch_state_after" }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "_meta": {
+    "task": "pr-review-request-changes",
+    "description": "Submit a 'Request changes' review on a GitHub pull request. Requires write access and cannot review own PRs.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must have write access; cannot review own PRs" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "number": { "required": true, "description": "PR number" },
+      "comment": { "required": true, "description": "Review comment explaining requested changes" }
+    },
+    "risk": "safe",
+    "needs_live_verification": true
+  },
+  "runId": "github-pr-review-request-changes-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "number": "{{number}}",
+    "comment": "{{comment}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/pull/{{number}}/files" },
+    { "stepId": "s2", "action": "wait_for", "selector": "button[aria-label*='Review changes'], #review-changes-popover-link", "timeout": 8000 },
+    { "stepId": "s3", "action": "click", "selector": "button[aria-label*='Review changes'], #review-changes-popover-link" },
+    { "stepId": "s4", "action": "wait_for", "selector": "textarea[name='pull_request_review[body]']", "timeout": 5000 },
+    { "stepId": "s5", "action": "type", "selector": "textarea[name='pull_request_review[body]']", "value": "{{comment}}" },
+    { "stepId": "s6", "action": "click", "selector": "input[value='request_changes'] ~ label, [for='review_type_request_changes']", "note": "Select 'Request changes'" },
+    { "stepId": "s7", "action": "click", "selector": "button[data-disable-with*='Submit review'], button[type='submit']", "note": "Submit the review" },
+    { "stepId": "s8", "action": "delay", "ms": 1500 }
+  ]
+}

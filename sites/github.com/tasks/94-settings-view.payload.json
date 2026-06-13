@@ -1,0 +1,22 @@
+{
+  "_meta": {
+    "task": "settings-view",
+    "description": "Navigate to GitHub account settings. Requires active GitHub session.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must be logged in to view settings" },
+    "params": {},
+    "risk": "safe",
+    "needs_live_verification": true
+  },
+  "runId": "github-settings-view-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {},
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/settings" },
+    { "stepId": "s2", "action": "delay", "ms": 1500 },
+    { "stepId": "s3", "action": "read", "store_as": "settings_content" }
+  ]
+}

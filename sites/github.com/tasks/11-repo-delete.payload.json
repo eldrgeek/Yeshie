@@ -1,0 +1,32 @@
+{
+  "_meta": {
+    "task": "repo-delete",
+    "description": "Permanently delete a GitHub repository. IRREVERSIBLE — all code, issues, PRs, and history will be gone. Requires owner permissions.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must be repo owner or org admin" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" }
+    },
+    "risk": "confirm",
+    "needs_live_verification": true
+  },
+  "runId": "github-repo-delete-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}"
+  },
+  "chain": [
+    { "stepId": "guard", "action": "assert", "condition": "false", "message": "IRREVERSIBLE: Deleting a repository permanently removes all code, issues, PRs, releases, and commit history. This cannot be undone. NEVER execute in testing." },
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/settings" },
+    { "stepId": "s2", "action": "wait_for", "selector": "button[aria-label*='Delete this repository'], [data-target*='delete']", "timeout": 8000 },
+    { "stepId": "s3", "action": "click", "selector": "button[aria-label*='Delete this repository']", "note": "Click Delete Repository in Danger Zone" },
+    { "stepId": "s4", "action": "wait_for", "selector": "dialog, input[aria-label*='repository name']", "timeout": 5000 },
+    { "stepId": "s5", "action": "type", "selector": "input[aria-label*='repository name'], input[placeholder*='{{repo}}']", "value": "{{owner}}/{{repo}}", "note": "Type full repo path to confirm deletion" },
+    { "stepId": "s6", "action": "click", "selector": "button[data-disable-with*='Delete'], button[type='submit']", "note": "Confirm delete" }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "_meta": {
+    "task": "pr-comment",
+    "description": "Post a comment on a GitHub pull request. Requires active GitHub session.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must be logged in to GitHub" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "number": { "required": true, "description": "PR number" },
+      "comment": { "required": true, "description": "Comment body (supports Markdown)" }
+    },
+    "risk": "safe",
+    "needs_live_verification": true
+  },
+  "runId": "github-pr-comment-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "number": "{{number}}",
+    "comment": "{{comment}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/pull/{{number}}" },
+    { "stepId": "s2", "action": "wait_for", "selector": "textarea[name='comment[body]'], #new_comment_field", "timeout": 8000 },
+    { "stepId": "s3", "action": "click", "selector": "textarea[name='comment[body]'], #new_comment_field" },
+    { "stepId": "s4", "action": "type", "selector": "textarea[name='comment[body]'], #new_comment_field", "value": "{{comment}}" },
+    { "stepId": "s5", "action": "click", "selector": "button[type='submit'][data-disable-with*='Comment']", "note": "Submit the comment" },
+    { "stepId": "s6", "action": "delay", "ms": 1500 },
+    { "stepId": "s7", "action": "read", "store_as": "comment_result" }
+  ]
+}

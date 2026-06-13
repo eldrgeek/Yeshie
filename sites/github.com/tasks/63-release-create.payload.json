@@ -1,0 +1,42 @@
+{
+  "_meta": {
+    "task": "release-create",
+    "description": "Create a new release on a GitHub repository. Requires active GitHub session and write access.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must have write access to create releases" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "tag": { "required": true, "description": "Tag name for the release (e.g. v1.2.0)" },
+      "title": { "required": true, "description": "Release title" },
+      "body": { "required": false, "description": "Release notes / description (supports Markdown)", "default": "" },
+      "prerelease": { "required": false, "description": "Mark as pre-release", "default": false }
+    },
+    "risk": "safe",
+    "needs_live_verification": true
+  },
+  "runId": "github-release-create-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "tag": "{{tag}}",
+    "title": "{{title}}",
+    "body": "{{body}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/releases/new" },
+    { "stepId": "s2", "action": "wait_for", "selector": "input[name='tag_name']", "timeout": 8000 },
+    { "stepId": "s3", "action": "type", "selector": "input[name='tag_name']", "value": "{{tag}}" },
+    { "stepId": "s4", "action": "clear", "selector": "input[name='release[name]']" },
+    { "stepId": "s5", "action": "type", "selector": "input[name='release[name]']", "value": "{{title}}" },
+    { "stepId": "s6", "action": "type", "selector": "textarea[name='release[body]'], .release-body", "value": "{{body}}" },
+    { "stepId": "s7", "action": "click", "selector": "button[data-disable-with*='Publish release'], button[type='submit']",
+      "responseSignature": [{ "type": "url_change", "matches": "/releases/tag/", "timeout": 15000 }],
+      "note": "Publish the release" },
+    { "stepId": "s8", "action": "read", "store_as": "release_created" }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "_meta": {
+    "task": "pr-create",
+    "description": "Create a pull request on GitHub. Requires active GitHub session. The head branch must already be pushed to the remote.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must be logged in to GitHub; head branch must exist on remote" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "head": { "required": true, "description": "Head branch name (the branch to merge from)" },
+      "base": { "required": false, "description": "Base branch to merge into", "default": "main" },
+      "title": { "required": true, "description": "PR title" },
+      "body": { "required": false, "description": "PR description (supports Markdown)", "default": "" }
+    },
+    "risk": "safe",
+    "needs_live_verification": true
+  },
+  "runId": "github-pr-create-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "head": "{{head}}",
+    "base": "{{base}}",
+    "title": "{{title}}",
+    "body": "{{body}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/compare/{{base}}...{{head}}?expand=1" },
+    { "stepId": "s2", "action": "wait_for", "selector": "input[name='pull_request[title]']", "timeout": 10000 },
+    { "stepId": "s3", "action": "clear", "selector": "input[name='pull_request[title]']" },
+    { "stepId": "s4", "action": "type", "selector": "input[name='pull_request[title]']", "value": "{{title}}" },
+    { "stepId": "s5", "action": "clear", "selector": "textarea[name='pull_request[body]']" },
+    { "stepId": "s6", "action": "type", "selector": "textarea[name='pull_request[body]']", "value": "{{body}}" },
+    { "stepId": "s7", "action": "click", "selector": "button[type='submit'][data-disable-with*='Create pull request']",
+      "responseSignature": [{ "type": "url_change", "matches": "/pull/\\d+", "timeout": 15000 }],
+      "note": "Submit PR creation — redirects to PR detail" },
+    { "stepId": "s8", "action": "read", "store_as": "pr_created" }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "task": "repo-clone-url",
+    "description": "Read the HTTPS clone URL from a GitHub repository page. Public repos accessible without login.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "none_public_repo", "note": "Public repos accessible without login" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" }
+    },
+    "risk": "safe",
+    "needs_live_verification": false
+  },
+  "runId": "github-repo-clone-url-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}" },
+    { "stepId": "s2", "action": "delay", "ms": 1500 },
+    { "stepId": "s3", "action": "click", "selector": "button[aria-label*='Code'], [data-open-app='open-in-xcode'] ~ button, summary[aria-haspopup='menu'][data-view-component='true']", "note": "Open the Code dropdown to reveal clone URL" },
+    { "stepId": "s4", "action": "delay", "ms": 500 },
+    { "stepId": "s5", "action": "read", "selector": "input[aria-label*='https://github.com'], #clone-help-step-1 input, [data-url*='github.com']", "store_as": "clone_url" }
+  ]
+}

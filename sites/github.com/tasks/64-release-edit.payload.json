@@ -1,0 +1,41 @@
+{
+  "_meta": {
+    "task": "release-edit",
+    "description": "Edit an existing release on a GitHub repository. Requires active GitHub session and write access.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must have write access to edit releases" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "tag": { "required": true, "description": "Tag name of the release to edit" },
+      "title": { "required": false, "description": "New release title", "default": "" },
+      "body": { "required": false, "description": "New release notes", "default": "" }
+    },
+    "risk": "confirm",
+    "needs_live_verification": true
+  },
+  "runId": "github-release-edit-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "tag": "{{tag}}",
+    "title": "{{title}}",
+    "body": "{{body}}"
+  },
+  "chain": [
+    { "stepId": "guard", "action": "assert", "condition": "false", "message": "DESTRUCTIVE: Editing a published release modifies what users see. Confirm the changes are intentional." },
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/releases/tag/{{tag}}" },
+    { "stepId": "s2", "action": "wait_for", "selector": "a[href*='/releases/edit/'], [aria-label*='Edit release']", "timeout": 8000 },
+    { "stepId": "s3", "action": "click", "selector": "a[href*='/releases/edit/'], [aria-label*='Edit release']", "note": "Navigate to edit form" },
+    { "stepId": "s4", "action": "wait_for", "selector": "input[name='release[name]']", "timeout": 8000 },
+    { "stepId": "s5", "action": "clear", "selector": "input[name='release[name]']" },
+    { "stepId": "s6", "action": "type", "selector": "input[name='release[name]']", "value": "{{title}}" },
+    { "stepId": "s7", "action": "clear", "selector": "textarea[name='release[body]']" },
+    { "stepId": "s8", "action": "type", "selector": "textarea[name='release[body]']", "value": "{{body}}" },
+    { "stepId": "s9", "action": "click", "selector": "button[data-disable-with*='Update release']", "note": "Save the edit" }
+  ]
+}

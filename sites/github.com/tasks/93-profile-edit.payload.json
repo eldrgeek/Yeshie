@@ -1,0 +1,41 @@
+{
+  "_meta": {
+    "task": "profile-edit",
+    "description": "Edit own GitHub profile settings (name, bio, location, website). Requires active GitHub session.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must be logged in to edit own profile" },
+    "params": {
+      "name": { "required": false, "description": "Display name", "default": "" },
+      "bio": { "required": false, "description": "Profile bio (max 160 chars)", "default": "" },
+      "location": { "required": false, "description": "Location text", "default": "" },
+      "website": { "required": false, "description": "Website URL", "default": "" }
+    },
+    "risk": "safe",
+    "needs_live_verification": true
+  },
+  "runId": "github-profile-edit-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "name": "{{name}}",
+    "bio": "{{bio}}",
+    "location": "{{location}}",
+    "website": "{{website}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/settings/profile" },
+    { "stepId": "s2", "action": "wait_for", "selector": "input[name='user[name]']", "timeout": 8000 },
+    { "stepId": "s3", "action": "clear", "selector": "input[name='user[name]']" },
+    { "stepId": "s4", "action": "type", "selector": "input[name='user[name]']", "value": "{{name}}" },
+    { "stepId": "s5", "action": "clear", "selector": "textarea[name='user[bio]']" },
+    { "stepId": "s6", "action": "type", "selector": "textarea[name='user[bio]']", "value": "{{bio}}" },
+    { "stepId": "s7", "action": "clear", "selector": "input[name='user[location]']" },
+    { "stepId": "s8", "action": "type", "selector": "input[name='user[location]']", "value": "{{location}}" },
+    { "stepId": "s9", "action": "clear", "selector": "input[name='user[blog]']" },
+    { "stepId": "s10", "action": "type", "selector": "input[name='user[blog]']", "value": "{{website}}" },
+    { "stepId": "s11", "action": "click", "selector": "button[data-disable-with*='Update profile'], button[type='submit']", "note": "Save profile changes" },
+    { "stepId": "s12", "action": "delay", "ms": 1500 }
+  ]
+}

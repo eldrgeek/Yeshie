@@ -1,0 +1,39 @@
+{
+  "_meta": {
+    "task": "file-delete",
+    "description": "Delete a file from a GitHub repository via the web UI. DESTRUCTIVE — creates a commit removing the file. Requires write access.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must have write access to delete files" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "branch": { "required": true, "description": "Branch to delete the file from" },
+      "path": { "required": true, "description": "File path to delete" },
+      "commit_message": { "required": false, "description": "Commit message", "default": "Delete {{path}}" }
+    },
+    "risk": "confirm",
+    "needs_live_verification": true
+  },
+  "runId": "github-file-delete-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "branch": "{{branch}}",
+    "path": "{{path}}",
+    "commit_message": "{{commit_message}}"
+  },
+  "chain": [
+    { "stepId": "guard", "action": "assert", "condition": "false", "message": "DESTRUCTIVE: Deleting a file creates a commit removing it from the branch. NEVER execute in testing." },
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/blob/{{branch}}/{{path}}" },
+    { "stepId": "s2", "action": "wait_for", "selector": "button[aria-label*='Delete this file'], [data-ga-click*='delete']", "timeout": 8000 },
+    { "stepId": "s3", "action": "click", "selector": "button[aria-label*='Delete this file'], button[aria-label*='delete']", "note": "Click delete button on file view" },
+    { "stepId": "s4", "action": "wait_for", "selector": "input[name='commit_message']", "timeout": 5000 },
+    { "stepId": "s5", "action": "clear", "selector": "input[name='commit_message']" },
+    { "stepId": "s6", "action": "type", "selector": "input[name='commit_message']", "value": "{{commit_message}}" },
+    { "stepId": "s7", "action": "click", "selector": "button[type='submit'][data-disable-with*='Commit']", "note": "Commit deletion" }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "_meta": {
+    "task": "gist-list-public",
+    "description": "Browse public gists on gist.github.com. No login required.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "none", "note": "Public gist discovery accessible without login" },
+    "params": {},
+    "risk": "safe",
+    "needs_live_verification": false
+  },
+  "runId": "github-gist-list-public-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {},
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://gist.github.com/discover" },
+    { "stepId": "s2", "action": "delay", "ms": 1500 },
+    { "stepId": "s3", "action": "read", "store_as": "public_gists" }
+  ]
+}
