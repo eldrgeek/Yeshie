@@ -5,7 +5,7 @@ export default defineConfig({
   entrypointsDir: 'entrypoints',
   manifest: {
     name: 'Yeshie',
-    version: '0.1.410',
+    version: '0.1.412',
     permissions: ['activeTab', 'scripting', 'debugger', 'tabs', 'storage', 'alarms', 'sidePanel'],
     host_permissions: ['<all_urls>'],
     action: { default_title: 'Yeshie' },
