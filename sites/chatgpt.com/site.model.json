@@ -56,10 +56,10 @@
       ]
     },
     "auth_wall": {
-      "description": "Login indicator when session expired",
+      "description": "Login indicator when session expired (redirect URL or logged-out home page)",
+      "notes": "On redirect: URL matches chatgpt.com/auth. On expired session: home page shows Log in + Sign up buttons with no aria-labels — detect via body text, not element selector.",
       "fallbackSelectors": [
-        "a[href='/auth/login']",
-        "button[aria-label*='Log in']"
+        "a[href='/auth/login']"
       ]
     }
   },
@@ -83,6 +83,13 @@
       "auth_required": {
         "signals": [
           { "type": "url_matches", "pattern": "chatgpt\\.com/auth" }
+        ]
+      },
+      "auth_required_loggedout": {
+        "description": "Expired session — home page shows Log in + Sign up buttons",
+        "signals": [
+          { "type": "element_text", "selector": "body", "text": "Log in" },
+          { "type": "element_text", "selector": "body", "text": "Sign up" }
         ]
       }
     }
