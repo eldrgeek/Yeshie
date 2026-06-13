@@ -96,6 +96,41 @@ StepResult {
 | `click_preset` | Click a preset/chip element |
 | `probe_affordances` | Discover interactive elements on page |
 | `delay` | Wait N milliseconds |
+| `key` | Send keyboard input — single key ("t", "/"), named key ("Enter", "Escape", "Tab", "ArrowDown"), modifier chord ("ctrl+a", "meta+a", "shift+tab"), or sequence ("g c" or keys:[]) |
+| `wait` | Duration wait (ms param) OR wait-for-selector (selector + optional timeout) |
+| `extract_text` | Read text from selector into buffer (selector + store_as) |
+
+## `key` Action Schema
+
+| Field | Type | Example | Notes |
+|-------|------|---------|-------|
+| `key` | string | `"t"`, `"Enter"`, `"ctrl+a"`, `"g c"` | Single key, named key, modifier chord, or space-separated sequence |
+| `keys` | string[] | `["g", "c"]` | Explicit sequence (alternative to space-separated in `key`) |
+
+**Named keys:** Enter, Escape (or esc), Tab, ArrowDown, ArrowUp, ArrowLeft, ArrowRight, Backspace, Delete, Home, End, PageUp, PageDown, Space (or " ")
+
+**Modifier prefixes:** `ctrl`, `meta` (or cmd), `shift`, `alt` — combine with `+`: `ctrl+shift+k`
+
+**Sequences:** Two forms: `key: "g c"` (space-separated) or `keys: ["g", "c"]` (array). A small delay (60ms) is inserted between keys in the real extension to allow GitHub's keyboard shortcut handler to settle.
+
+## `wait` Action Schema
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `ms` | number | Duration to wait in milliseconds |
+| `selector` | string | CSS selector to wait to become present |
+| `timeout` | number | Max wait time in ms for selector (default 5000) |
+
+`wait` with only `ms` is equivalent to `delay`. `wait` with a `selector` polls until the element appears or timeout elapses.
+
+## `extract_text` Action Schema
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `selector` | string | CSS selector for the element to read |
+| `store_as` | string | Buffer key to store the extracted text |
+
+Returns `text` in the step result. For `<input>` and `<textarea>`, reads `.value`; for all other elements, reads `.textContent`.
 
 ## js Action Routing (PRE_RUN_DOMQUERY)
 

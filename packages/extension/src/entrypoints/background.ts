@@ -1807,6 +1807,55 @@ export default defineBackground(() => {
     }
   }
 
+  async function dispatchKeyChordCDP(tabId: number, spec: string) {
+    const parts = spec.toLowerCase().split('+');
+    const rawKey = parts[parts.length - 1];
+    const ctrl = parts.includes('ctrl') || parts.includes('control');
+    const meta = parts.includes('meta') || parts.includes('cmd') || parts.includes('command');
+    const shift = parts.includes('shift');
+    const alt = parts.includes('alt');
+
+    const KEY_MAP: Record<string, { key: string; code: string; vkCode: number }> = {
+      enter:     { key: 'Enter',      code: 'Enter',      vkCode: 13 },
+      return:    { key: 'Enter',      code: 'Enter',      vkCode: 13 },
+      escape:    { key: 'Escape',     code: 'Escape',     vkCode: 27 },
+      esc:       { key: 'Escape',     code: 'Escape',     vkCode: 27 },
+      tab:       { key: 'Tab',        code: 'Tab',        vkCode: 9  },
+      backspace: { key: 'Backspace',  code: 'Backspace',  vkCode: 8  },
+      space:     { key: ' ',          code: 'Space',      vkCode: 32 },
+      arrowdown: { key: 'ArrowDown',  code: 'ArrowDown',  vkCode: 40 },
+      arrowup:   { key: 'ArrowUp',    code: 'ArrowUp',    vkCode: 38 },
+      arrowleft: { key: 'ArrowLeft',  code: 'ArrowLeft',  vkCode: 37 },
+      arrowright:{ key: 'ArrowRight', code: 'ArrowRight', vkCode: 39 },
+      delete:    { key: 'Delete',     code: 'Delete',     vkCode: 46 },
+      home:      { key: 'Home',       code: 'Home',       vkCode: 36 },
+      end:       { key: 'End',        code: 'End',        vkCode: 35 },
+      pageup:    { key: 'PageUp',     code: 'PageUp',     vkCode: 33 },
+      pagedown:  { key: 'PageDown',   code: 'PageDown',   vkCode: 34 },
+      '/':       { key: '/',          code: 'Slash',      vkCode: 191 },
+      slash:     { key: '/',          code: 'Slash',      vkCode: 191 },
+    };
+
+    const mapped = KEY_MAP[rawKey] ?? {
+      key: rawKey.length === 1 ? rawKey : rawKey.charAt(0).toUpperCase() + rawKey.slice(1),
+      code: rawKey.length === 1 ? 'Key' + rawKey.toUpperCase() : rawKey.charAt(0).toUpperCase() + rawKey.slice(1),
+      vkCode: rawKey.length === 1 ? rawKey.toUpperCase().charCodeAt(0) : 0,
+    };
+
+    const modifiers = (alt ? 1 : 0) | (ctrl ? 2 : 0) | (meta ? 4 : 0) | (shift ? 8 : 0);
+
+    const base = {
+      key: mapped.key,
+      code: mapped.code,
+      windowsVirtualKeyCode: mapped.vkCode,
+      nativeVirtualKeyCode: mapped.vkCode,
+      modifiers,
+    };
+
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchKeyEvent', { type: 'keyDown', ...base });
+    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchKeyEvent', { type: 'keyUp', ...base });
+  }
+
   // ── Trusted click via chrome.debugger Runtime.evaluate ───────────────────────
   // CDP Runtime.evaluate click events work with Vuetify menus (chrome.scripting.executeScript doesn't).
   // Debugger stays attached across the chain to prevent viewport resize closing menus.
@@ -2360,6 +2409,50 @@ export default defineBackground(() => {
         return { stepId: step.stepId, action: a, status: 'ok', message, durationMs: Date.now() - t0 };
       }
 
+      if (a === 'key') {
+        const spec = step.key || step.value || '';
+        const specs: string[] = Array.isArray(step.keys) ? step.keys
+          : (spec.includes(' ') ? spec.split(/\s+/).filter(Boolean) : [spec]);
+        if (!specs.length || !specs[0]) throw new Error('key action requires key or value');
+        await ensureDebugger(tabId);
+        for (const s of specs) {
+          await dispatchKeyChordCDP(tabId, s);
+          if (specs.length > 1) await new Promise(r => setTimeout(r, 60));
+        }
+        return { stepId: step.stepId, action: a, status: 'ok', value: spec, keys: specs, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'wait') {
+        const ms = step.ms || 0;
+        if (step.selector) {
+          const sel = interpolate(step.selector, { ...params, ...buffer });
+          const tout = (step.timeout as number) || ms || 5000;
+          const start = Date.now();
+          while (Date.now() - start < tout) {
+            const found = await execInTab(tabId, (s: string) => !!document.querySelector(s), [sel]);
+            if (found) return { stepId: step.stepId, action: a, status: 'ok', selector: sel, durationMs: Date.now() - t0 };
+            await new Promise(r => setTimeout(r, 200));
+          }
+          throw new Error('wait timeout: ' + sel);
+        }
+        if (ms > 0) await new Promise(r => setTimeout(r, ms));
+        return { stepId: step.stepId, action: a, status: 'ok', delayMs: ms, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'extract_text') {
+        const sel = interpolate(step.selector || '', { ...params, ...buffer });
+        if (!sel) throw new Error('extract_text requires selector');
+        const text = await execInTab(tabId, (s: string) => {
+          const el = document.querySelector(s);
+          if (!el) return null;
+          const tag = el.tagName.toLowerCase();
+          if (tag === 'input' || tag === 'textarea') return (el as HTMLInputElement).value?.trim() || null;
+          return el.textContent?.trim() || null;
+        }, [sel]);
+        if (step.store_as) buffer[step.store_as] = text;
+        return { stepId: step.stepId, action: a, status: 'ok', text, selector: sel, storedAs: step.store_as, durationMs: Date.now() - t0 };
+      }
+
       return { stepId: step.stepId, action: a, status: 'unsupported', durationMs: Date.now() - t0 };
 
     } catch (err: any) {
@@ -2593,7 +2686,17 @@ export default defineBackground(() => {
       } else {
         // Fallback: find any tab with the base_url or any http tab
         const baseUrl = params?.base_url;
-        const allTabs = await chrome.tabs.query({ url: baseUrl ? `${baseUrl}/*` : 'https://*/*' });
+        // For github.com: also search subdomains (gist.github.com, etc.)
+        let tabQueryUrl = baseUrl ? `${baseUrl}/*` : 'https://*/*';
+        try {
+          if (baseUrl) {
+            const bHost = new URL(baseUrl).hostname;
+            if (bHost === 'github.com' || bHost.endsWith('.github.com')) {
+              tabQueryUrl = 'https://*.github.com/*';
+            }
+          }
+        } catch { /* ignore malformed URL */ }
+        const allTabs = await chrome.tabs.query({ url: tabQueryUrl });
         if (allTabs[0]?.id) {
           tabId = allTabs[0].id;
           console.log('[Yeshie] Found matching tab:', tabId, allTabs[0].url);
