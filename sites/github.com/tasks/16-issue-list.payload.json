@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "task": "issue-list",
+    "description": "List issues on a GitHub repository. Supports filtering by state (open/closed). Public repos accessible without login.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "none_public_repo", "note": "Public repos accessible without login" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "state": { "required": false, "description": "'open' or 'closed'", "default": "open" }
+    },
+    "risk": "safe",
+    "needs_live_verification": false
+  },
+  "runId": "github-issue-list-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "state": "{{state}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/issues?q=is%3Aissue+is%3A{{state}}" },
+    { "stepId": "s2", "action": "delay", "ms": 1500 },
+    { "stepId": "s3", "action": "read", "store_as": "issues_list" }
+  ]
+}

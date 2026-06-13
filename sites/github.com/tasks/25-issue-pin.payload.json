@@ -1,0 +1,31 @@
+{
+  "_meta": {
+    "task": "issue-pin",
+    "description": "Pin a GitHub issue to the top of the issues list. Requires admin or write access. Max 3 pinned issues per repo.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must have admin access to pin issues" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "number": { "required": true, "description": "Issue number to pin" }
+    },
+    "risk": "safe",
+    "needs_live_verification": true
+  },
+  "runId": "github-issue-pin-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "number": "{{number}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/issues/{{number}}" },
+    { "stepId": "s2", "action": "wait_for", "selector": "[aria-label='Pin issue'], button[aria-label*='Pin']", "timeout": 8000 },
+    { "stepId": "s3", "action": "click", "selector": "[aria-label='Pin issue'], button[aria-label*='Pin this issue']", "note": "Click Pin issue in the sidebar" },
+    { "stepId": "s4", "action": "delay", "ms": 1000 }
+  ]
+}

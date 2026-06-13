@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "task": "issue-view",
+    "description": "View a specific issue on a GitHub repository by number. Public repos accessible without login.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "none_public_repo", "note": "Public repos accessible without login" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "number": { "required": true, "description": "Issue number" }
+    },
+    "risk": "safe",
+    "needs_live_verification": false
+  },
+  "runId": "github-issue-view-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "number": "{{number}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/issues/{{number}}" },
+    { "stepId": "s2", "action": "delay", "ms": 1500 },
+    { "stepId": "s3", "action": "read", "store_as": "issue_content" }
+  ]
+}

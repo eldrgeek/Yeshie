@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "task": "pr-filter-author",
+    "description": "Filter pull requests by author on a GitHub repository. Public repos accessible without login.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "none_public_repo", "note": "Public repos accessible without login" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "author": { "required": true, "description": "GitHub username to filter PRs by" }
+    },
+    "risk": "safe",
+    "needs_live_verification": false
+  },
+  "runId": "github-pr-filter-author-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "author": "{{author}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/pulls?q=is%3Apr+is%3Aopen+author%3A{{author}}" },
+    { "stepId": "s2", "action": "delay", "ms": 1500 },
+    { "stepId": "s3", "action": "read", "store_as": "author_prs" }
+  ]
+}

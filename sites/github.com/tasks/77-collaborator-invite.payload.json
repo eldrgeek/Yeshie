@@ -1,0 +1,37 @@
+{
+  "_meta": {
+    "task": "collaborator-invite",
+    "description": "Invite a collaborator to a GitHub repository. Sends an invitation email. Requires admin access.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must have admin access to invite collaborators" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "username": { "required": true, "description": "GitHub username to invite" },
+      "permission": { "required": false, "description": "Permission level: 'read', 'triage', 'write', 'maintain', 'admin'", "default": "write" }
+    },
+    "risk": "confirm",
+    "needs_live_verification": true
+  },
+  "runId": "github-collaborator-invite-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "username": "{{username}}",
+    "permission": "{{permission}}"
+  },
+  "chain": [
+    { "stepId": "guard", "action": "assert", "condition": "false", "message": "DESTRUCTIVE: Inviting a collaborator grants them access to the repository. NEVER execute in testing." },
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/settings/access" },
+    { "stepId": "s2", "action": "wait_for", "selector": "button[aria-label*='Invite collaborator'], [data-add-member]", "timeout": 8000 },
+    { "stepId": "s3", "action": "click", "selector": "button[aria-label*='Invite collaborator'], [data-add-member]" },
+    { "stepId": "s4", "action": "wait_for", "selector": "input[placeholder*='Search by username'], input[name*='collaborator']", "timeout": 5000 },
+    { "stepId": "s5", "action": "type", "selector": "input[placeholder*='Search by username'], input[aria-label*='collaborator']", "value": "{{username}}" },
+    { "stepId": "s6", "action": "click", "selector": "[data-login='{{username}}'], [aria-label*='{{username}}']", "note": "Select from autocomplete" },
+    { "stepId": "s7", "action": "click", "selector": "button[data-disable-with*='Invite'], button[type='submit']", "note": "Send invitation" }
+  ]
+}

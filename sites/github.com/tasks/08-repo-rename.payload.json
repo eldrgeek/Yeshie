@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "task": "repo-rename",
+    "description": "Rename a GitHub repository via Settings. DESTRUCTIVE — changes URLs and may break existing references. Requires owner permissions.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "github_session", "note": "Must be repo owner or org admin" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Current repo name" },
+      "new_name": { "required": true, "description": "New repository name" }
+    },
+    "risk": "confirm",
+    "needs_live_verification": true
+  },
+  "runId": "github-repo-rename-{{timestamp}}",
+  "mode": "action",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "new_name": "{{new_name}}"
+  },
+  "chain": [
+    { "stepId": "guard", "action": "assert", "condition": "false", "message": "DESTRUCTIVE: Renaming a repo changes its URL and may break existing clones, integrations, and links. Requires manual confirmation before executing." },
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/settings" },
+    { "stepId": "s2", "action": "wait_for", "selector": "input[name='repo[name]']", "timeout": 8000 },
+    { "stepId": "s3", "action": "clear", "selector": "input[name='repo[name]']" },
+    { "stepId": "s4", "action": "type", "selector": "input[name='repo[name]']", "value": "{{new_name}}" },
+    { "stepId": "s5", "action": "click", "selector": "button[data-disable-with*='Rename']",
+      "responseSignature": [{ "type": "url_change", "matches": "/{{owner}}/{{new_name}}", "timeout": 10000 }],
+      "note": "Submit rename — redirects to new repo URL" }
+  ]
+}

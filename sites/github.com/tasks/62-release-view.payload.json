@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "task": "release-view",
+    "description": "View a specific release by tag on a GitHub repository. Public repos accessible without login.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "none_public_repo", "note": "Public repos accessible without login" },
+    "params": {
+      "owner": { "required": true, "description": "Repo owner (user or org)" },
+      "repo": { "required": true, "description": "Repo name" },
+      "tag": { "required": true, "description": "Release tag name (e.g. v1.0.0)" }
+    },
+    "risk": "safe",
+    "needs_live_verification": false
+  },
+  "runId": "github-release-view-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {
+    "owner": "{{owner}}",
+    "repo": "{{repo}}",
+    "tag": "{{tag}}"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/releases/tag/{{tag}}" },
+    { "stepId": "s2", "action": "delay", "ms": 1500 },
+    { "stepId": "s3", "action": "read", "store_as": "release_detail" }
+  ]
+}
