@@ -11,7 +11,7 @@ Hand-authored recipe set for GitHub.com browser automation via the Yeshie RSI sy
 | Confirm (destructive / irreversible) | 28 |
 | Auth required (github_session) | 58 |
 | No auth required (public) | 42 |
-| Live verified (port 9223) | 0 (port unavailable at authoring time) |
+| Live verified (port 9223) | 38 of 38 public recipes (2026-06-13) |
 
 ## Categories
 
@@ -35,12 +35,12 @@ Hand-authored recipe set for GitHub.com browser automation via the Yeshie RSI sy
 
 | # | Slug | Description | Category | Risk | Auth | Verified |
 |---|------|-------------|----------|------|------|---------|
-| 01 | repo-view | Read repo description/stats/README | Repos | safe | none_public_repo | - |
+| 01 | repo-view | Read repo description/stats/README | Repos | safe | none_public_repo | ✓ |
 | 02 | repo-star | Star a repository | Repos | safe | github_session | - |
 | 03 | repo-unstar | Unstar a repository | Repos | safe | github_session | - |
 | 04 | repo-watch | Watch a repository (select notification level) | Repos | safe | github_session | - |
 | 05 | repo-fork | Fork a repository to your account | Repos | safe | github_session | - |
-| 06 | repo-clone-url | Read HTTPS clone URL from repo page | Repos | safe | none_public_repo | - |
+| 06 | repo-clone-url | Read HTTPS clone URL from repo page | Repos | safe | none_public_repo | ✓* |
 | 07 | repo-create | Create a new repository | Repos | safe | github_session | - |
 | 08 | repo-rename | Rename a repository via Settings | Repos | **confirm** | github_session | - |
 | 09 | repo-archive | Archive a repository (make read-only) | Repos | **confirm** | github_session | - |
@@ -49,10 +49,10 @@ Hand-authored recipe set for GitHub.com browser automation via the Yeshie RSI sy
 | 12 | repo-transfer | Transfer repo to another owner | Repos | **confirm** | github_session | - |
 | 13 | repo-topics-edit | Edit repository topics/tags | Repos | safe | github_session | - |
 | 14 | repo-description-edit | Edit repository description & website | Repos | safe | github_session | - |
-| 15 | repo-list-forks | View forks / fork network members | Repos | safe | none_public_repo | - |
-| 16 | issue-list | List issues (open or closed) | Issues | safe | none_public_repo | - |
+| 15 | repo-list-forks | View forks / fork network members | Repos | safe | none_public_repo | ✓ |
+| 16 | issue-list | List issues (open or closed) | Issues | safe | none_public_repo | ✓ |
 | 17 | issue-create | Create a new issue | Issues | safe | github_session | - |
-| 18 | issue-view | View a specific issue by number | Issues | safe | none_public_repo | - |
+| 18 | issue-view | View a specific issue by number | Issues | safe | none_public_repo | ✓ |
 | 19 | issue-comment | Post a comment on an issue | Issues | safe | github_session | - |
 | 20 | issue-close | Close an issue (with optional comment) | Issues | safe | github_session | - |
 | 21 | issue-reopen | Reopen a closed issue | Issues | safe | github_session | - |
@@ -61,12 +61,12 @@ Hand-authored recipe set for GitHub.com browser automation via the Yeshie RSI sy
 | 24 | issue-milestone | Set milestone on an issue | Issues | safe | github_session | - |
 | 25 | issue-pin | Pin an issue to the repo | Issues | safe | github_session | - |
 | 26 | issue-lock | Lock issue conversation | Issues | **confirm** | github_session | - |
-| 27 | issue-search | Search issues with query syntax | Issues | safe | none_public_repo | - |
-| 28 | issue-filter-by-label | Filter issues by label | Issues | safe | none_public_repo | - |
-| 29 | issue-filter-by-assignee | Filter issues by assignee | Issues | safe | none_public_repo | - |
+| 27 | issue-search | Search issues with query syntax | Issues | safe | none_public_repo | ✓ |
+| 28 | issue-filter-by-label | Filter issues by label | Issues | safe | none_public_repo | ✓ |
+| 29 | issue-filter-by-assignee | Filter issues by assignee | Issues | safe | none_public_repo | ✓ |
 | 30 | issue-mark-duplicate | Mark as duplicate via closing comment | Issues | safe | github_session | - |
-| 31 | pr-list | List pull requests (open or closed) | PRs | safe | none_public_repo | - |
-| 32 | pr-view | View a specific PR by number | PRs | safe | none_public_repo | - |
+| 31 | pr-list | List pull requests (open or closed) | PRs | safe | none_public_repo | ✓ |
+| 32 | pr-view | View a specific PR by number | PRs | safe | none_public_repo | ✓ |
 | 33 | pr-create | Create a pull request | PRs | safe | github_session | - |
 | 34 | pr-comment | Comment on a PR | PRs | safe | github_session | - |
 | 35 | pr-review-approve | Approve a PR review | PRs | safe | github_session | - |
@@ -77,36 +77,36 @@ Hand-authored recipe set for GitHub.com browser automation via the Yeshie RSI sy
 | 40 | pr-merge | Merge a pull request | PRs | **confirm** | github_session | - |
 | 41 | pr-close | Close PR without merging | PRs | safe | github_session | - |
 | 42 | pr-link-issue | Link PR to issue via closing keyword | PRs | safe | github_session | - |
-| 43 | pr-view-diff | View PR file diff | PRs | safe | none_public_repo | - |
-| 44 | pr-view-checks | View CI/CD check statuses | PRs | safe | none_public_repo | - |
-| 45 | pr-filter-open | Filter PRs to open only | PRs | safe | none_public_repo | - |
-| 46 | pr-filter-author | Filter PRs by author | PRs | safe | none_public_repo | - |
-| 47 | branch-list | List all branches | Branches | safe | none_public_repo | - |
+| 43 | pr-view-diff | View PR file diff | PRs | safe | none_public_repo | ✓ |
+| 44 | pr-view-checks | View CI/CD check statuses | PRs | safe | none_public_repo | ✓ |
+| 45 | pr-filter-open | Filter PRs to open only | PRs | safe | none_public_repo | ✓ |
+| 46 | pr-filter-author | Filter PRs by author | PRs | safe | none_public_repo | ✓ |
+| 47 | branch-list | List all branches | Branches | safe | none_public_repo | ✓ |
 | 48 | branch-create | Create a branch via branch picker UI | Branches | safe | github_session | - |
 | 49 | branch-switch-default | Change the default branch | Branches | **confirm** | github_session | - |
 | 50 | branch-delete | Delete a branch | Branches | **confirm** | github_session | - |
 | 51 | branch-view-protection | View branch protection rules | Branches | safe | github_session | - |
-| 52 | file-view | View file content on a branch | Files | safe | none_public_repo | - |
+| 52 | file-view | View file content on a branch | Files | safe | none_public_repo | ✓ |
 | 53 | file-create | Create a new file via web UI | Files | safe | github_session | - |
 | 54 | file-edit | Edit an existing file via web UI | Files | safe | github_session | - |
 | 55 | file-delete | Delete a file via web UI | Files | **confirm** | github_session | - |
 | 56 | file-upload | Navigate to file upload form | Files | safe | github_session | - |
-| 57 | file-blame | View blame for a file | Files | safe | none_public_repo | - |
-| 58 | code-search | Search code within repos | Files | safe | none_public_repo | - |
-| 59 | file-history | View commit history for a file | Files | safe | none_public_repo | - |
-| 60 | repo-file-find | Use T shortcut file finder | Files | safe | none_public_repo | - |
-| 61 | release-list | List releases | Releases | safe | none_public_repo | - |
-| 62 | release-view | View a release by tag | Releases | safe | none_public_repo | - |
+| 57 | file-blame | View blame for a file | Files | safe | none_public_repo | ✓ |
+| 58 | code-search | Search code within repos | Files | safe | none_public_repo | ✓ |
+| 59 | file-history | View commit history for a file | Files | safe | none_public_repo | ✓ |
+| 60 | repo-file-find | Use T shortcut file finder | Files | safe | none_public_repo | ✓ |
+| 61 | release-list | List releases | Releases | safe | none_public_repo | ✓ |
+| 62 | release-view | View a release by tag | Releases | safe | none_public_repo | ✓ |
 | 63 | release-create | Create a new release | Releases | safe | github_session | - |
 | 64 | release-edit | Edit an existing release | Releases | **confirm** | github_session | - |
 | 65 | release-delete | Delete a release | Releases | **confirm** | github_session | - |
-| 66 | actions-list | List workflow runs | Actions | safe | none_public_repo | - |
-| 67 | actions-view-run | View a specific workflow run | Actions | safe | none_public_repo | - |
+| 66 | actions-list | List workflow runs | Actions | safe | none_public_repo | ✓ |
+| 67 | actions-view-run | View a specific workflow run | Actions | safe | none_public_repo | ✓ |
 | 68 | actions-rerun | Re-run a workflow | Actions | safe | github_session | - |
 | 69 | actions-cancel | Cancel a running workflow | Actions | **confirm** | github_session | - |
-| 70 | actions-view-logs | View workflow run logs | Actions | safe | none_public_repo | - |
-| 71 | gist-list-public | Browse public gists discover page | Gists | safe | none | - |
-| 72 | gist-view | View a specific public gist | Gists | safe | none | - |
+| 70 | actions-view-logs | View workflow run logs | Actions | safe | none_public_repo | ✓ |
+| 71 | gist-list-public | Browse public gists discover page | Gists | safe | none | ✓ |
+| 72 | gist-view | View a specific public gist | Gists | safe | none | ✓ |
 | 73 | gist-create | Create a new gist | Gists | safe | github_session | - |
 | 74 | gist-edit | Edit a gist | Gists | safe | github_session | - |
 | 75 | gist-delete | Delete a gist | Gists | **confirm** | github_session | - |
@@ -120,21 +120,21 @@ Hand-authored recipe set for GitHub.com browser automation via the Yeshie RSI sy
 | 83 | notifications-subscribe | Subscribe / Watch a repo | Notifications | safe | github_session | - |
 | 84 | notifications-unsubscribe | Unsubscribe / Ignore a repo | Notifications | safe | github_session | - |
 | 85 | notifications-filter-unread | Filter to unread notifications | Notifications | safe | github_session | - |
-| 86 | search-repos | Search repositories | Search | safe | none | - |
-| 87 | search-code | Search code | Search | safe | none | - |
-| 88 | search-issues | Search issues and PRs | Search | safe | none | - |
-| 89 | search-users | Search users and orgs | Search | safe | none | - |
-| 90 | search-commits | Search commits | Search | safe | none | - |
-| 91 | search-topics | Search topics | Search | safe | none | - |
-| 92 | profile-view | View a user/org profile | Profile | safe | none | - |
+| 86 | search-repos | Search repositories | Search | safe | none | ✓ |
+| 87 | search-code | Search code | Search | safe | none | ✓ |
+| 88 | search-issues | Search issues and PRs | Search | safe | none | ✓ |
+| 89 | search-users | Search users and orgs | Search | safe | none | ✓ |
+| 90 | search-commits | Search commits | Search | safe | none | ✓ |
+| 91 | search-topics | Search topics | Search | safe | none | ✓ |
+| 92 | profile-view | View a user/org profile | Profile | safe | none | ✓ |
 | 93 | profile-edit | Edit own profile (name, bio, location) | Profile | safe | github_session | - |
 | 94 | settings-view | View account settings root | Profile | safe | github_session | - |
 | 95 | settings-emails | View email settings | Profile | safe | github_session | - |
 | 96 | settings-security | View security settings | Profile | safe | github_session | - |
-| 97 | org-view | View organization profile | Orgs | safe | none | - |
-| 98 | org-repos | List organization repositories | Orgs | safe | none | - |
-| 99 | org-members | List organization members | Orgs | safe | none_public_repo | - |
-| 100 | explore | GitHub Explore / trending repos | Explore | safe | none | - |
+| 97 | org-view | View organization profile | Orgs | safe | none | ✓ |
+| 98 | org-repos | List organization repositories | Orgs | safe | none | ✓ |
+| 99 | org-members | List organization members | Orgs | safe | none_public_repo | ✓ |
+| 100 | explore | GitHub Explore / trending repos | Explore | safe | none | ✓ |
 
 ---
 
@@ -166,16 +166,13 @@ Plus the entire repo destructive group (08-12) and PR merge (40).
 
 ## Live Verification Status
 
-Port 9223 was unavailable at authoring time (2026-06-13). No live tests were run.
+**Verified 2026-06-13 on port 9223 (ChromeTest profile, isolated, no GitHub session).**
 
-**Payloads ready for live verification without GitHub login (public, read-only):**
-- 01-repo-view, 06-repo-clone-url, 15-repo-list-forks
-- 16-issue-list, 18-issue-view, 27-issue-search, 28-issue-filter-by-label, 29-issue-filter-by-assignee
-- 31-pr-list, 32-pr-view, 43-pr-view-diff, 44-pr-view-checks, 45-pr-filter-open, 46-pr-filter-author
-- 47-branch-list, 52-file-view, 57-file-blame, 58-code-search, 59-file-history, 60-repo-file-find
-- 61-release-list, 62-release-view, 66-actions-list, 67-actions-view-run, 70-actions-view-logs
-- 71-gist-list-public, 72-gist-view
-- 86-search-repos, 87-search-code, 88-search-issues, 89-search-users, 90-search-commits, 91-search-topics
-- 92-profile-view, 97-org-view, 98-org-repos, 99-org-members, 100-explore
+All 38 public/no-auth recipes were run against the relay at http://localhost:3333.
 
-**Remaining payloads need an active GitHub session** to verify (58 recipes).
+- 37 passed on first run (✓)
+- 1 was fixed and re-verified (06-repo-clone-url, ✓*)
+
+**Fix applied:** 06-repo-clone-url — GitHub 2025+ Primer React UI removed `aria-label` from the Code dropdown button, making the old selector `button[aria-label*="Code"]` fail. Payload updated to navigate to the repo page and read `page_state`, from which the HTTPS clone URL is always derivable as `https://github.com{page_state.pageUrl}.git`. Brittle click-to-open-dropdown removed.
+
+**Remaining payloads need an active GitHub session** to verify (58 recipes, marked `-`).
