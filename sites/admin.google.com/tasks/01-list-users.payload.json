@@ -52,7 +52,8 @@
       "description": "Search box: 'Search for users, groups, settings, or devices'",
       "cachedSelector": "input[aria-label='Search for users, groups, settings, or devices']",
       "cachedConfidence": 0.9,
-      "resolvedOn": "2026-04-13T00:00:00.000Z"
+      "resolvedOn": "2026-04-13T00:00:00.000Z",
+      "semanticKeys": ["Search for users, groups, settings, or devices"]
     }
   },
   "stateGraph": {
