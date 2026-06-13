@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "site": "gist.github.com",
+    "base_url": "https://gist.github.com",
+    "auth": {
+      "type": "none",
+      "note": "Public gists require no auth; private gists require GitHub session (same cookie as github.com)"
+    },
+    "subdomain_of": "github.com",
+    "note": "Gists run on a separate origin from github.com. The extension's <all_urls> host_permissions covers this origin. Payloads targeting gist.github.com must use base_url: https://gist.github.com. Do NOT use github.com base_url for gist payloads — the tab discovery will not find gist tabs."
+  },
+  "stateGraph": {
+    "nodes": {
+      "gist_list": {
+        "signals": [{ "type": "url_matches", "pattern": "^https://gist\\.github\\.com/[^/]+/?$" }]
+      },
+      "gist_view": {
+        "signals": [{ "type": "url_matches", "pattern": "^https://gist\\.github\\.com/[^/]+/[a-f0-9]+" }]
+      }
+    }
+  },
+  "abstractTargets": {},
+  "urlSchema": {
+    "gist_list": { "template": "https://gist.github.com/{username}" },
+    "gist_view": { "template": "https://gist.github.com/{username}/{gist_id}" }
+  }
+}
