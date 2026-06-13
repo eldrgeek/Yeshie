@@ -4,10 +4,131 @@
 
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import { appendFileSync, mkdirSync, existsSync, readFileSync, writeFileSync } from 'fs';
+import { appendFileSync, mkdirSync, existsSync, readFileSync, readdirSync, writeFileSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { execFile, spawn } from 'child_process';
+import { homedir } from 'os';
+
+// ====================== dispatch_input config ======================
+// See ~/Projects/SOMA/specs/heartbeat-pattern-v1.md
+
+const DISPATCH_DIR = process.env.DISPATCH_DIR || join(homedir(), '.dispatch');
+const PULSE_REPLIES_PATH = join(DISPATCH_DIR, 'pulse_replies.jsonl');
+const RELAY_SECRET_PATH = join(DISPATCH_DIR, 'relay.secret');
+const INBOX_PATH = join(DISPATCH_DIR, 'inbox.jsonl');
+const INBOX_COMPRESSED_PATH = join(DISPATCH_DIR, 'inbox_compressed.jsonl');
+const DEE_REPLIES_PATH = join(DISPATCH_DIR, 'dee_replies.jsonl');
+
+// Cost-ledger path: ~/Projects/SOMA/services/cost-ledger/<date>.jsonl
+const COST_LEDGER_DIR = join(homedir(), 'Projects', 'SOMA', 'services', 'cost-ledger');
+
+// Gemini Flash compression helper.
+// Returns {compressed_text, asks, dropped, input_tokens, output_tokens, usd} or throws.
+async function callGeminiFlash(text) {
+  const secretsPath = join(homedir(), 'Projects', 'CIE', 'secrets.yaml');
+  let apiKey = '';
+  try {
+    const raw = readFileSync(secretsPath, 'utf8');
+    const m = raw.match(/GEMINI_API_KEY\s*:\s*["']?([^\s"'\n]+)/);
+    if (m) apiKey = m[1];
+  } catch {}
+  if (!apiKey) throw new Error('GEMINI_API_KEY not found in ~/Projects/CIE/secrets.yaml');
+
+  const model = 'gemini-2.5-flash';
+  const prompt = `Compress this message preserving meaning. Output JSON only — no markdown, no code fences:
+{"compressed_text": "...", "asks": ["verbatim user asks/requests, unchanged"], "dropped": ["items judged redundant — short summaries OK"]}
+
+Rules:
+- compressed_text: shorter rewrite that preserves meaning
+- asks: verbatim copies of explicit requests, questions, or action items. Never paraphrase. Include constraints (e.g. "only on Tuesdays", "don't include X") verbatim.
+- dropped: brief summaries of items omitted as redundant context
+
+Message:
+${text}`;
+
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { response_mime_type: 'application/json', temperature: 0.1 },
+  });
+
+  const resp = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }
+  );
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`Gemini API error ${resp.status}: ${errText.slice(0, 200)}`);
+  }
+  const data = await resp.json();
+  const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch { parsed = { compressed_text: text, asks: [], dropped: [] }; }
+
+  const inputTokens = data?.usageMetadata?.promptTokenCount || 0;
+  const outputTokens = data?.usageMetadata?.candidatesTokenCount || 0;
+  // Gemini 2.5 Flash pricing: $0.15/1M input, $0.60/1M output (non-thinking)
+  const usd = inputTokens / 1_000_000 * 0.15 + outputTokens / 1_000_000 * 0.60;
+
+  return {
+    compressed_text: (parsed.compressed_text || text).toString(),
+    asks: Array.isArray(parsed.asks) ? parsed.asks : [],
+    dropped: Array.isArray(parsed.dropped) ? parsed.dropped : [],
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
+    usd,
+  };
+}
+
+function appendCostLedger(entry) {
+  try {
+    mkdirSync(COST_LEDGER_DIR, { recursive: true });
+    const date = new Date().toISOString().slice(0, 10);
+    const ledgerPath = join(COST_LEDGER_DIR, `${date}.jsonl`);
+    appendFileSync(ledgerPath, JSON.stringify(entry) + '\n');
+  } catch (e) {
+    console.error('[relay] cost-ledger write error:', e.message);
+  }
+}
+
+let _cachedSecret = null;
+let _cachedSecretMtime = 0;
+function loadRelaySecret() {
+  try {
+    const { mtimeMs } = statSync(RELAY_SECRET_PATH);
+    if (mtimeMs !== _cachedSecretMtime) {
+      _cachedSecret = readFileSync(RELAY_SECRET_PATH, 'utf8').trim();
+      _cachedSecretMtime = mtimeMs;
+    }
+    return _cachedSecret;
+  } catch {
+    return null;
+  }
+}
+
+function extractClientIp(req) {
+  // Prefer the socket's remoteAddress; fall back to X-Forwarded-For only if local.
+  const raw = req.socket?.remoteAddress || '';
+  // Strip IPv4-mapped-IPv6 prefix
+  return raw.replace(/^::ffff:/, '');
+}
+
+function isAllowedClientIp(ip) {
+  if (!ip) return false;
+  // Localhost
+  if (ip === '127.0.0.1' || ip === '::1') return true;
+  // LAN (RFC1918)
+  if (/^192\.168\./.test(ip)) return true;
+  if (/^10\./.test(ip)) return true;
+  if (/^172\.(1[6-9]|2[0-9]|3[01])\./.test(ip)) return true;
+  // Tailscale CGNAT 100.64.0.0/10
+  const m = ip.match(/^100\.(\d+)\./);
+  if (m) {
+    const second = parseInt(m[1], 10);
+    if (second >= 64 && second <= 127) return true;
+  }
+  return false;
+}
 
 // ====================== Conversation Logger ======================
 
@@ -63,6 +184,23 @@ async function runOsascript(message, title = 'Yeshie', retries = 3) {
   console.error(`[relay] notify failed after ${retries} attempts: ${message}`);
   return false;
 }
+
+// ====================== Process-level error handlers ======================
+// Must be registered once at module load. Guard against duplicate registration
+// in test mode where createRelay is called multiple times.
+if (!global.__relayErrorHandlersRegistered) {
+  global.__relayErrorHandlersRegistered = true;
+  process.on('uncaughtException', (err) => {
+    console.error('[relay] uncaughtException:', err);
+  });
+  process.on('unhandledRejection', (reason) => {
+    console.error('[relay] unhandledRejection:', reason);
+  });
+}
+
+// ====================== Module-level telemetry (for /selfcheck) ======================
+let _lastRequestTs = null;
+let _lastError = null;
 
 // ====================== Server factory ======================
 
@@ -305,7 +443,10 @@ export function createRelay(port = 3333) {
 
   function jsonReply(res, status, obj) {
     if (res.writableEnded) return;
-    res.writeHead(status, { 'Content-Type': 'application/json' });
+    res.writeHead(status, {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    });
     res.end(JSON.stringify(obj));
   }
 
@@ -424,11 +565,24 @@ export function createRelay(port = 3333) {
 
   // HTTP handler
   httpServer.on('request', async (req, res) => {
+    _lastRequestTs = new Date().toISOString();
+    try {
     const url = new URL(req.url, 'http://localhost');
     const path = url.pathname;
 
     // Let Socket.IO/engine.io handle its own paths
     if (path.startsWith("/socket.io")) return;
+
+    // CORS preflight — allow browser fetches from Pulse (localhost:8088)
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Dispatch-Token',
+      });
+      res.end();
+      return;
+    }
 
     // --- Auth flow observability log ---
     // In-memory ring buffer for auth flow events from extension
@@ -451,10 +605,813 @@ export function createRelay(port = 3333) {
       return;
     }
 
+    // --- Observed skills endpoints ---
+    const OBSERVED_SKILLS_DIR = join(homedir(), '.yeshie', 'skills', 'observed');
+
+    if (path === '/skills/observed' && req.method === 'GET') {
+      try {
+        mkdirSync(OBSERVED_SKILLS_DIR, { recursive: true });
+        const files = readdirSync(OBSERVED_SKILLS_DIR).filter(f => f.endsWith('.json'));
+        const skills = files.map(f => {
+          try { return JSON.parse(readFileSync(join(OBSERVED_SKILLS_DIR, f), 'utf8')); } catch { return null; }
+        }).filter(Boolean);
+        jsonReply(res, 200, skills);
+      } catch (e) {
+        jsonReply(res, 500, { error: e.message });
+      }
+      return;
+    }
+
+    if (path === '/skills/observed' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const { skill, safeName } = body;
+      if (!skill || !safeName) { jsonReply(res, 400, { error: 'Missing skill or safeName' }); return; }
+      try {
+        mkdirSync(OBSERVED_SKILLS_DIR, { recursive: true });
+        const filePath = join(OBSERVED_SKILLS_DIR, `${safeName}.json`);
+        writeFileSync(filePath, JSON.stringify(skill, null, 2));
+        console.log('[relay] Saved observed skill:', safeName);
+        jsonReply(res, 200, { ok: true, path: filePath });
+      } catch (e) {
+        jsonReply(res, 500, { error: e.message });
+      }
+      return;
+    }
+
+    if (path === '/skills/observed/usage' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const { fingerprint } = body;
+      if (!fingerprint) { jsonReply(res, 400, { error: 'Missing fingerprint' }); return; }
+      try {
+        mkdirSync(OBSERVED_SKILLS_DIR, { recursive: true });
+        const files = readdirSync(OBSERVED_SKILLS_DIR).filter(f => f.endsWith('.json'));
+        let updated = false;
+        for (const f of files) {
+          const fp = join(OBSERVED_SKILLS_DIR, f);
+          try {
+            const skill = JSON.parse(readFileSync(fp, 'utf8'));
+            if (skill.fingerprint === fingerprint) {
+              skill.usage_count = (skill.usage_count || 1) + 1;
+              skill.last_used = new Date().toISOString();
+              writeFileSync(fp, JSON.stringify(skill, null, 2));
+              updated = true;
+              break;
+            }
+          } catch { /* skip corrupt files */ }
+        }
+        jsonReply(res, 200, { ok: true, updated });
+      } catch (e) {
+        jsonReply(res, 500, { error: e.message });
+      }
+      return;
+    }
+
     // --- Existing endpoints ---
 
     if (path === '/status' && req.method === 'GET') {
       jsonReply(res, 200, { ok: true, extensionConnected: !!extensionSocket, pending: pending.size });
+      return;
+    }
+
+    if (path === '/health' && req.method === 'GET') {
+      const healthPath = join(homedir(), 'Projects/SOMA/state/health-latest.json');
+      try {
+        const raw = readFileSync(healthPath, 'utf8');
+        const data = JSON.parse(raw);
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        });
+        res.end(JSON.stringify(data));
+      } catch (e) {
+        jsonReply(res, 500, { error: `Failed to read health: ${e.message}` });
+      }
+      return;
+    }
+
+    if (path === '/artifacts/cc-dispatch' && req.method === 'GET') {
+      const since = parseInt(url.searchParams.get('since') || '0', 10);
+      const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+      const logsDir = join(homedir(), 'Projects/cc-dispatch/logs');
+      const auditsDir = join(homedir(), 'Projects/SOMA/audits');
+
+      // Load tag config (graceful — missing file is fine)
+      let tagConfig = { explicit: {}, prefix_map: {} };
+      try {
+        const tagPath = join(homedir(), 'Projects/SOMA/state/job-tags.json');
+        tagConfig = JSON.parse(readFileSync(tagPath, 'utf8'));
+      } catch { /* use defaults */ }
+      const deriveTags = (taskName) => {
+        if (tagConfig.explicit[taskName]) return tagConfig.explicit[taskName];
+        const prefix = taskName.split('-')[0];
+        if (tagConfig.prefix_map[prefix]) return [tagConfig.prefix_map[prefix]];
+        return [prefix];
+      };
+
+      try {
+        const logFiles = readdirSync(logsDir)
+          .filter(f => f.endsWith('.log'))
+          .sort()
+          .reverse();
+        const items = [];
+        for (const logFile of logFiles) {
+          const m = logFile.match(/^(\d{8}T\d{6}Z)-(.+)\.log$/);
+          if (!m) continue;
+          const [, tsStr, taskName] = m;
+          const yr = tsStr.slice(0,4), mo = tsStr.slice(4,6), dy = tsStr.slice(6,8);
+          const hr = tsStr.slice(9,11), mn = tsStr.slice(11,13), sc = tsStr.slice(13,15);
+          const startedAt = `${yr}-${mo}-${dy}T${hr}:${mn}:${sc}Z`;
+          const startedMs = new Date(startedAt).getTime();
+          if (since && startedMs < since) continue;
+
+          const logPath = join(logsDir, logFile);
+          const logStat = statSync(logPath);
+
+          // Try exact timestamp+taskname match in audits
+          const reportFile = `${tsStr}-${taskName}.md`;
+          const reportFullPath = join(auditsDir, reportFile);
+          const hasReport = existsSync(reportFullPath);
+
+          let status = 'running';
+          let finishedAt = null;
+          let sizeBytes = logStat.size;
+
+          try {
+            const logContent = readFileSync(logPath, 'utf8');
+            if (logContent.includes('=== cc-dispatch complete (exit 0) ===')) {
+              status = 'complete';
+            } else if (/=== cc-dispatch complete \(exit [^0]/.test(logContent)) {
+              status = 'failed';
+            }
+          } catch { /* ignore */ }
+
+          if (hasReport) {
+            const rStat = statSync(reportFullPath);
+            finishedAt = rStat.mtime.toISOString();
+            sizeBytes = rStat.size;
+            if (status === 'running') status = 'complete';
+          } else if (status !== 'running') {
+            finishedAt = logStat.mtime.toISOString();
+          }
+
+          items.push({
+            task_name: taskName,
+            log_path: `~/${logPath.slice(homedir().length + 1)}`,
+            report_path: hasReport ? `~/${reportFullPath.slice(homedir().length + 1)}` : null,
+            started_at: startedAt,
+            finished_at: finishedAt,
+            status,
+            size_bytes: sizeBytes,
+            tags: deriveTags(taskName),
+          });
+          if (items.length >= limit) break;
+        }
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        });
+        res.end(JSON.stringify({ items }));
+      } catch (e) {
+        jsonReply(res, 500, { error: e.message });
+      }
+      return;
+    }
+
+    if (path === '/artifacts/tags' && req.method === 'GET') {
+      const logsDir = join(homedir(), 'Projects/cc-dispatch/logs');
+      const auditsDir = join(homedir(), 'Projects/SOMA/audits');
+      let tagConfig = { explicit: {}, prefix_map: {} };
+      try {
+        const tagPath = join(homedir(), 'Projects/SOMA/state/job-tags.json');
+        tagConfig = JSON.parse(readFileSync(tagPath, 'utf8'));
+      } catch { /* use defaults */ }
+      const deriveTags = (taskName) => {
+        if (tagConfig.explicit[taskName]) return tagConfig.explicit[taskName];
+        const prefix = taskName.split('-')[0];
+        if (tagConfig.prefix_map[prefix]) return [tagConfig.prefix_map[prefix]];
+        return [prefix];
+      };
+      try {
+        const logFiles = readdirSync(logsDir).filter(f => f.endsWith('.log'));
+        const counts = {};
+        for (const logFile of logFiles) {
+          const m = logFile.match(/^(\d{8}T\d{6}Z)-(.+)\.log$/);
+          if (!m) continue;
+          const taskName = m[2];
+          for (const tag of deriveTags(taskName)) {
+            counts[tag] = (counts[tag] || 0) + 1;
+          }
+        }
+        const tags = Object.keys(counts).sort();
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        });
+        res.end(JSON.stringify({ tags, counts }));
+      } catch (e) {
+        jsonReply(res, 500, { error: e.message });
+      }
+      return;
+    }
+
+    if (path === '/artifacts/file' && req.method === 'GET') {
+      const filePath = url.searchParams.get('path');
+      if (!filePath) { jsonReply(res, 400, { error: 'path required' }); return; }
+      const absPath = filePath.startsWith('~')
+        ? join(homedir(), filePath.slice(1))
+        : filePath;
+      const allowed = [
+        join(homedir(), 'Projects/SOMA'),
+        join(homedir(), 'Projects/cc-dispatch'),
+        join(homedir(), 'Library/Application Support/Claude/local-agent-mode-sessions'),
+      ];
+      const safe = allowed.some(p => absPath.startsWith(p + '/') || absPath === p);
+      if (!safe) { jsonReply(res, 403, { error: 'Path not allowed' }); return; }
+      try {
+        let content = readFileSync(absPath, 'utf8');
+        const tailParam = url.searchParams.get('tail');
+        if (tailParam) {
+          const n = parseInt(tailParam, 10);
+          if (n > 0) {
+            const lines = content.split('\n');
+            content = lines.slice(Math.max(0, lines.length - n)).join('\n');
+          }
+        }
+        res.writeHead(200, {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Access-Control-Allow-Origin': '*',
+        });
+        res.end(content);
+      } catch (e) {
+        jsonReply(res, 404, { error: `Not found: ${e.message}` });
+      }
+      return;
+    }
+
+    // ── harvested tabs store ──────────────────────────────────────────────────
+    const HARVEST_DIR = join(homedir(), 'Vault/Resources/Tab Captures/Harvested');
+    const HARVEST_INDEX = join(HARVEST_DIR, '_index.jsonl');
+
+    if (path === '/artifacts/harvested-tabs' && req.method === 'GET') {
+      const statusFilter = url.searchParams.get('status') || 'open';
+      const limit = parseInt(url.searchParams.get('limit') || '100', 10);
+      try {
+        if (!existsSync(HARVEST_INDEX)) { jsonReply(res, 200, { items: [], total: 0 }); return; }
+        const lines = readFileSync(HARVEST_INDEX, 'utf8').trim().split('\n').filter(Boolean);
+        // Build a map of id → latest index entry (last write wins for status)
+        const seen = new Map();
+        for (const line of lines) {
+          try {
+            const entry = JSON.parse(line);
+            seen.set(entry.id, entry);
+          } catch { /* skip */ }
+        }
+        // Merge with per-tab JSON for full record
+        let items = [];
+        for (const [id, indexEntry] of seen) {
+          const tabFile = join(HARVEST_DIR, `${id}.json`);
+          try {
+            const full = JSON.parse(readFileSync(tabFile, 'utf8'));
+            items.push(full);
+          } catch {
+            items.push(indexEntry);
+          }
+        }
+        if (statusFilter !== 'all') {
+          items = items.filter(i => i.interest_status === statusFilter);
+        }
+        items.sort((a, b) => (b.harvested_at || '').localeCompare(a.harvested_at || ''));
+        const page = items.slice(0, limit);
+        jsonReply(res, 200, { items: page, total: items.length });
+      } catch (e) {
+        jsonReply(res, 500, { error: e.message });
+      }
+      return;
+    }
+
+    const harvestStatusM = path.match(/^\/artifacts\/harvested-tabs\/([a-f0-9]{12})\/status$/);
+    if (harvestStatusM && req.method === 'POST') {
+      const id = harvestStatusM[1];
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const { status } = body;
+      if (!['archive', 'done'].includes(status)) {
+        jsonReply(res, 400, { error: 'status must be archive or done' }); return;
+      }
+      const tabFile = join(HARVEST_DIR, `${id}.json`);
+      if (!existsSync(tabFile)) { jsonReply(res, 404, { error: 'Not found' }); return; }
+      try {
+        const record = JSON.parse(readFileSync(tabFile, 'utf8'));
+        record.interest_status = status;
+        record.status_updated_at = new Date().toISOString();
+        writeFileSync(tabFile, JSON.stringify(record, null, 2));
+        // Append updated entry to index
+        const indexLine = JSON.stringify({ id, url: record.url, title: record.title,
+          harvested_at: record.harvested_at, interest_status: status });
+        appendFileSync(HARVEST_INDEX, indexLine + '\n');
+        jsonReply(res, 200, { ok: true, id, status });
+      } catch (e) {
+        jsonReply(res, 500, { error: e.message });
+      }
+      return;
+    }
+
+    const harvestDeleteM = path.match(/^\/artifacts\/harvested-tabs\/([a-f0-9]{12})$/);
+    if (harvestDeleteM && req.method === 'DELETE') {
+      const id = harvestDeleteM[1];
+      const tabFile = join(HARVEST_DIR, `${id}.json`);
+      if (!existsSync(tabFile)) { jsonReply(res, 404, { error: 'Not found' }); return; }
+      try {
+        const record = JSON.parse(readFileSync(tabFile, 'utf8'));
+        if (record.interest_status !== 'done') {
+          jsonReply(res, 409, { error: `Cannot delete: status is '${record.interest_status}', must be 'done'` }); return;
+        }
+        // Per spec: no hard delete this round — leave file, mark deleted in index
+        const indexLine = JSON.stringify({ id, url: record.url, title: record.title,
+          harvested_at: record.harvested_at, interest_status: 'deleted', deleted_at: new Date().toISOString() });
+        appendFileSync(HARVEST_INDEX, indexLine + '\n');
+        jsonReply(res, 200, { ok: true, id, note: 'Marked deleted in index; file retained until sweeper runs.' });
+      } catch (e) {
+        jsonReply(res, 500, { error: e.message });
+      }
+      return;
+    }
+
+    // ── daemon-decisions: email-daemon forward/dispatch log for Pulse Triage ──
+    if (path === '/artifacts/daemon-decisions' && req.method === 'GET') {
+      const limit = parseInt(url.searchParams.get('limit') || '30', 10);
+      const logsDir = join(homedir(), 'Projects/claude-email-daemon/logs');
+      try {
+        const files = readdirSync(logsDir)
+          .filter(f => f.startsWith('decisions_') && f.endsWith('.jsonl'))
+          .sort()
+          .reverse();
+        const items = [];
+        for (const f of files) {
+          if (items.length >= limit) break;
+          const lines = readFileSync(join(logsDir, f), 'utf8').split('\n').filter(Boolean).reverse();
+          for (const line of lines) {
+            if (items.length >= limit) break;
+            try {
+              const entry = JSON.parse(line);
+              const action = entry.action_result || '';
+              if (!action.startsWith('forwarded') && !action.startsWith('auto_replied')) continue;
+              items.push({
+                logged_at: entry.logged_at,
+                from: entry.email?.from || '',
+                subject: entry.email?.subject || '',
+                summary: entry.decision?.summary || '',
+                action: action,
+                decision: entry.decision?.action || '',
+              });
+            } catch { /* skip malformed lines */ }
+          }
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify({ items }));
+      } catch (e) {
+        jsonReply(res, 500, { error: e.message });
+      }
+      return;
+    }
+
+    // ── activity feed: newest-first file stream across SOMA dirs ──
+    if (path === '/artifacts/activity' && req.method === 'GET') {
+      const sinceMs = parseInt(url.searchParams.get('since') || '0', 10);
+      const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+      const home = homedir();
+      const scanDirs = [
+        { dir: join(home, 'Projects/SOMA/audits'), kind: 'audit' },
+        { dir: join(home, 'Projects/SOMA/specs'), kind: 'spec' },
+        { dir: join(home, 'Projects/SOMA/state/ccdd-reports'), kind: 'report' },
+        { dir: join(home, 'Projects/SOMA/state/dispatch-dee-to-ccdd'), kind: 'report' },
+        { dir: join(home, 'Projects/cc-dispatch/logs'), kind: 'log' },
+      ];
+      const singleFiles = [
+        { file: join(home, 'Projects/SOMA/wall.md'), kind: 'wall' },
+      ];
+      const items = [];
+      for (const { dir, kind } of scanDirs) {
+        try {
+          const files = readdirSync(dir);
+          for (const f of files) {
+            if (f.startsWith('.')) continue;
+            const fullPath = join(dir, f);
+            try {
+              const st = statSync(fullPath);
+              if (!st.isFile()) continue;
+              const mtime = st.mtime.getTime();
+              if (sinceMs && mtime <= sinceMs) continue;
+              items.push({ path: `~/${fullPath.slice(home.length + 1)}`, kind, mtime, size_bytes: st.size, name: f });
+            } catch { /* skip */ }
+          }
+        } catch { /* dir missing */ }
+      }
+      for (const { file, kind } of singleFiles) {
+        try {
+          const st = statSync(file);
+          const mtime = st.mtime.getTime();
+          if (!sinceMs || mtime > sinceMs) {
+            items.push({ path: `~/${file.slice(home.length + 1)}`, kind, mtime, size_bytes: st.size, name: file.split('/').pop() });
+          }
+        } catch { /* missing */ }
+      }
+      items.sort((a, b) => b.mtime - a.mtime);
+      const result = items.slice(0, limit).map(i => ({ ...i, mtime: new Date(i.mtime).toISOString() }));
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ items: result }));
+      return;
+    }
+
+    // ── pulse/projects: SOMA project list for Kanban board ──
+    if (path === '/pulse/projects' && req.method === 'GET') {
+      const stateDir = join(homedir(), 'Projects/SOMA/state');
+      try {
+        // Find the most-recent master-project-list-*.json
+        const files = readdirSync(stateDir)
+          .filter(f => f.startsWith('master-project-list-') && f.endsWith('.json'))
+          .sort()
+          .reverse();
+        if (files.length === 0) {
+          jsonReply(res, 200, { projects: [] });
+          return;
+        }
+        const raw = JSON.parse(readFileSync(join(stateDir, files[0]), 'utf8'));
+        const projects = (raw.projects || []).map(p => ({
+          id: p.id,
+          name: p.name,
+          description: p.description || '',
+          status: p.status || 'Active',
+          last_touched: p.last_touched || '',
+          owner: p.owner || '',
+          open_mike_actions: p.open_mike_actions || [],
+          recent_artifact: p.recent_artifact || '',
+          cost_to_date_usd: p.cost_usd ?? null,
+        }));
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify({ projects }));
+      } catch (e) {
+        jsonReply(res, 500, { error: e.message });
+      }
+      return;
+    }
+
+    // ── pulse/capture: quick-capture from Pulse UI (localhost + Tailscale, no token) ──
+    if (path === '/pulse/capture' && req.method === 'POST') {
+      const clientIp = extractClientIp(req);
+      if (!isAllowedClientIp(clientIp)) {
+        jsonReply(res, 403, { error: 'Forbidden: source IP not allowed', ip: clientIp });
+        return;
+      }
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const text = (body?.text || '').toString().trim();
+      const image = body?.image || null;
+      if (!text && !image) { jsonReply(res, 400, { error: 'text or image required' }); return; }
+      if (text.length > 4000) { jsonReply(res, 413, { error: 'text too large' }); return; }
+      if (image) {
+        if (typeof image.data !== 'string' || !image.mediaType) {
+          jsonReply(res, 400, { error: 'image must have data and mediaType' }); return;
+        }
+        if (image.data.length > 6_000_000) { jsonReply(res, 413, { error: 'image too large (max ~4.5MB)' }); return; }
+      }
+      try { mkdirSync(DISPATCH_DIR, { recursive: true }); } catch {}
+      const entry = { body: text, source: 'pulse-quickcapture', timestamp: new Date().toISOString() };
+      if (image) entry.image = { data: image.data, mediaType: image.mediaType };
+      if (body?.client_id) entry.client_id = String(body.client_id).slice(0, 64);
+      try {
+        appendFileSync(INBOX_PATH, JSON.stringify(entry) + '\n');
+        jsonReply(res, 200, { ok: true, timestamp: entry.timestamp });
+      } catch (e) {
+        jsonReply(res, 500, { error: 'Failed to write' });
+      }
+      return;
+    }
+
+    // ── /dispatch/conversation: merged Pulse thread (Mike + Dee) ─────────────
+    // Returns inbox.jsonl entries with source starting with "pulse" merged with
+    // dee_replies.jsonl, sorted by timestamp ascending.
+    // Query params: since=<ISO ts>, limit=<n> (default 200, max 500)
+    if (path === '/dispatch/conversation' && req.method === 'GET') {
+      const params = new URL(req.url, 'http://x').searchParams;
+      const sinceStr = params.get('since');
+      const limit = Math.min(parseInt(params.get('limit') || '200', 10), 500);
+      const sinceDate = sinceStr ? new Date(sinceStr) : null;
+
+      const parseJsonlFile = (fpath) => {
+        try {
+          return readFileSync(fpath, 'utf8')
+            .split('\n')
+            .filter(l => l.trim())
+            .map(l => { try { return JSON.parse(l); } catch { return null; } })
+            .filter(Boolean);
+        } catch { return []; }
+      };
+
+      const mikeMessages = parseJsonlFile(INBOX_PATH)
+        .filter(e => typeof e.source === 'string' && e.source.startsWith('pulse'))
+        .map(e => {
+          const m = { from: 'mike', ts: e.timestamp, body: e.body, source: e.source };
+          if (e.image) m.image = e.image;
+          if (e.client_id) m.client_id = e.client_id;
+          return m;
+        });
+
+      const deeMessages = parseJsonlFile(DEE_REPLIES_PATH)
+        .filter(e => e.source === 'dee')
+        .map(e => ({ from: 'dee', ts: e.timestamp, body: e.body, in_reply_to: e.in_reply_to }));
+
+      let messages = [...mikeMessages, ...deeMessages]
+        .sort((a, b) => new Date(a.ts) - new Date(b.ts));
+
+      if (sinceDate) {
+        messages = messages.filter(m => new Date(m.ts) > sinceDate);
+      }
+      messages = messages.slice(-limit);
+
+      jsonReply(res, 200, { messages });
+      return;
+    }
+
+    // ── /conversation/search: case-insensitive substring search across Pulse thread ──
+    // GET /conversation/search?q=<query>&since=<ts>&source=inbox|replies|all
+    // Returns up to 50 matches DESC by timestamp with snippet centered on match.
+    if (path === '/conversation/search' && req.method === 'GET') {
+      const params = new URL(req.url, 'http://x').searchParams;
+      const q = (params.get('q') || '').trim();
+      if (!q) {
+        jsonReply(res, 400, { error: 'q parameter required' });
+        return;
+      }
+      const sinceStr = params.get('since');
+      const source = params.get('source') || 'all';
+      const sinceDate = sinceStr ? new Date(sinceStr) : null;
+      const queryLower = q.toLowerCase();
+
+      const parseJsonlLines = (fpath) => {
+        try {
+          return readFileSync(fpath, 'utf8')
+            .split('\n')
+            .filter(l => l.trim())
+            .map(l => { try { return JSON.parse(l); } catch { return null; } })
+            .filter(Boolean);
+        } catch { return []; }
+      };
+
+      let candidates = [];
+
+      if (source !== 'replies') {
+        parseJsonlLines(INBOX_PATH)
+          .filter(e => typeof e.source === 'string' && e.source.startsWith('pulse'))
+          .forEach(e => candidates.push({ from: 'mike', ts: e.timestamp, body: e.body || '', source: e.source }));
+      }
+
+      if (source !== 'inbox') {
+        parseJsonlLines(DEE_REPLIES_PATH)
+          .filter(e => e.source === 'dee')
+          .forEach(e => candidates.push({ from: 'dee', ts: e.timestamp, body: e.body || '', source: e.source }));
+      }
+
+      if (sinceDate) {
+        candidates = candidates.filter(m => new Date(m.ts) > sinceDate);
+      }
+
+      const results = [];
+      for (const m of candidates) {
+        const bodyLower = m.body.toLowerCase();
+        const idx = bodyLower.indexOf(queryLower);
+        if (idx === -1) continue;
+        const snippetStart = Math.max(0, idx - 50);
+        const snippetEnd = Math.min(m.body.length, idx + q.length + 70);
+        const prefix = snippetStart > 0 ? '…' : '';
+        const suffix = snippetEnd < m.body.length ? '…' : '';
+        const snippet = prefix + m.body.slice(snippetStart, snippetEnd) + suffix;
+        const matchInSnippet = prefix.length + (idx - snippetStart);
+        results.push({
+          timestamp: m.ts,
+          source: m.from,
+          body: m.body,
+          snippet,
+          match_indices: [matchInSnippet, matchInSnippet + q.length],
+        });
+      }
+
+      results.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      const truncated = results.length > 50;
+      const sliced = results.slice(0, 50);
+      jsonReply(res, 200, { results: sliced, count: sliced.length, truncated });
+      return;
+    }
+
+    // ── dispatch_input: Pulse → Heartbeat ingest ─────────────────
+    // Spec: ~/Projects/SOMA/specs/heartbeat-pattern-v1.md
+    if (path === '/dispatch_input' && req.method === 'POST') {
+      const clientIp = extractClientIp(req);
+      if (!isAllowedClientIp(clientIp)) {
+        jsonReply(res, 403, { error: 'Forbidden: source IP not allowed', ip: clientIp });
+        return;
+      }
+      const secret = loadRelaySecret();
+      if (!secret) {
+        jsonReply(res, 503, { error: 'Relay secret not configured' });
+        return;
+      }
+      const provided = req.headers['x-dispatch-token'] || '';
+      if (provided !== secret) {
+        jsonReply(res, 401, { error: 'Bad token' });
+        return;
+      }
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const message = (body?.message || '').toString();
+      const source = (body?.source || 'unknown').toString();
+      if (!message.trim()) {
+        jsonReply(res, 400, { error: 'message required' });
+        return;
+      }
+      if (message.length > 8000) {
+        jsonReply(res, 413, { error: 'message too large (max 8000 chars)' });
+        return;
+      }
+      try { mkdirSync(DISPATCH_DIR, { recursive: true }); } catch {}
+      const entry = {
+        body: message,
+        source,
+        client_ip: clientIp,
+        timestamp: new Date().toISOString(),
+      };
+      try {
+        appendFileSync(PULSE_REPLIES_PATH, JSON.stringify(entry) + '\n');
+      } catch (e) {
+        _lastError = e.message;
+        console.error('[relay] Failed to append to pulse_replies:', e.message);
+        jsonReply(res, 500, { error: 'Failed to queue message' });
+        return;
+      }
+      jsonReply(res, 200, { ok: true, queued: true, timestamp: entry.timestamp });
+      return;
+    }
+
+    // ── /dispatch_input_compressed: Mike → Dee via Gemini Flash compression ──
+    // Spec: ~/Projects/Sidekick-android feedback_long_message_protocol.md
+    if (path === '/dispatch_input_compressed' && req.method === 'POST') {
+      const clientIp = extractClientIp(req);
+      if (!isAllowedClientIp(clientIp)) {
+        jsonReply(res, 403, { error: 'Forbidden: source IP not allowed', ip: clientIp });
+        return;
+      }
+      // Localhost + Tailscale CGNAT bypass: 127.0.0.1/::1 plus 100.64.0.0/10 (Mike's tailnet). Token required only from outside the trusted network.
+      const isLocalhostCaller = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(clientIp);
+      const isTailscaleCaller = /^(::ffff:)?100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\./.test(clientIp);
+      if (!isLocalhostCaller && !isTailscaleCaller) {
+        const secret = loadRelaySecret();
+        if (!secret) {
+          jsonReply(res, 503, { error: 'Relay secret not configured' });
+          return;
+        }
+        const provided = req.headers['x-dispatch-token'] || '';
+        if (provided !== secret) {
+          jsonReply(res, 401, { error: 'Bad token' });
+          return;
+        }
+      }
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const message = (body?.message || '').toString();
+      const source = (body?.source || 'pulse-compressed').toString();
+      const expand = body?.expand === 'raw';
+      if (!message.trim()) {
+        jsonReply(res, 400, { error: 'message required' });
+        return;
+      }
+      if (message.length > 32000) {
+        jsonReply(res, 413, { error: 'message too large (max 32000 chars)' });
+        return;
+      }
+
+      const ts = new Date().toISOString();
+
+      // Run compression via Gemini Flash
+      let compressionResult;
+      try {
+        compressionResult = await callGeminiFlash(message);
+      } catch (compErr) {
+        // Degrade gracefully: pass raw message through without compression
+        console.error('[relay] Gemini compression failed:', compErr.message);
+        compressionResult = {
+          compressed_text: message,
+          asks: [],
+          dropped: [],
+          input_tokens: 0,
+          output_tokens: 0,
+          usd: 0,
+        };
+      }
+
+      const compressedBody = expand ? message : compressionResult.compressed_text;
+
+      // Write compressed body to inbox.jsonl (what the dispatcher reads)
+      const inboxEntry = {
+        body: compressedBody,
+        source,
+        client_ip: clientIp,
+        timestamp: ts,
+        compressed: !expand,
+        compression_id: ts,
+        ...(body?.client_id ? { client_id: String(body.client_id).slice(0, 64) } : {}),
+      };
+      try {
+        mkdirSync(DISPATCH_DIR, { recursive: true });
+        appendFileSync(INBOX_PATH, JSON.stringify(inboxEntry) + '\n');
+      } catch (e) {
+        _lastError = e.message;
+        console.error('[relay] Failed to append to inbox.jsonl:', e.message);
+        jsonReply(res, 500, { error: 'Failed to queue message' });
+        return;
+      }
+
+      // Write full raw+compressed record to inbox_compressed.jsonl for audit/expand
+      const compressedRecord = {
+        compression_id: ts,
+        raw: message,
+        compressed_text: compressionResult.compressed_text,
+        asks: compressionResult.asks,
+        dropped: compressionResult.dropped,
+        source,
+        client_ip: clientIp,
+        timestamp: ts,
+        cost: {
+          input_tokens: compressionResult.input_tokens,
+          output_tokens: compressionResult.output_tokens,
+          usd: compressionResult.usd,
+        },
+      };
+      try {
+        appendFileSync(INBOX_COMPRESSED_PATH, JSON.stringify(compressedRecord) + '\n');
+      } catch (e) {
+        console.error('[relay] Failed to append to inbox_compressed.jsonl:', e.message);
+      }
+
+      // Log cost to SOMA cost-ledger
+      appendCostLedger({
+        timestamp: ts,
+        service: 'dispatch_input_compressed',
+        model: 'gemini-2.5-flash',
+        input_tokens: compressionResult.input_tokens,
+        output_tokens: compressionResult.output_tokens,
+        usd: compressionResult.usd,
+        source,
+      });
+
+      jsonReply(res, 200, {
+        ok: true,
+        queued: true,
+        timestamp: ts,
+        compressed_text: compressionResult.compressed_text,
+        asks: compressionResult.asks,
+        dropped: compressionResult.dropped,
+        cost: { input_tokens: compressionResult.input_tokens, output_tokens: compressionResult.output_tokens, usd: compressionResult.usd },
+      });
+      return;
+    }
+
+    if (path === '/dispatch_input/pending' && req.method === 'GET') {
+      const clientIp = extractClientIp(req);
+      if (!isAllowedClientIp(clientIp)) {
+        jsonReply(res, 403, { error: 'Forbidden: source IP not allowed' });
+        return;
+      }
+      const secret = loadRelaySecret();
+      const provided = req.headers['x-dispatch-token'] || '';
+      if (!secret || provided !== secret) {
+        jsonReply(res, 401, { error: 'Bad token' });
+        return;
+      }
+      const sinceParam = url.searchParams.get('since') || '';
+      let sinceMs = 0;
+      if (sinceParam) {
+        const t = Date.parse(sinceParam);
+        if (Number.isFinite(t)) sinceMs = t;
+      }
+      let lines = [];
+      try {
+        const raw = readFileSync(INBOX_PATH, 'utf8');
+        lines = raw.split('\n').filter(Boolean);
+      } catch {
+        jsonReply(res, 200, { events: [] });
+        return;
+      }
+      const events = [];
+      for (const line of lines) {
+        try {
+          const e = JSON.parse(line);
+          const ts = Date.parse(e.timestamp || '');
+          if (!sinceMs || (Number.isFinite(ts) && ts > sinceMs)) events.push(e);
+        } catch {}
+      }
+      jsonReply(res, 200, { events });
       return;
     }
 
@@ -630,6 +1587,31 @@ export function createRelay(port = 3333) {
     // ── HUD panel ──────────────────────────────────────────────────────────────
 
 
+    // ── Pulse context sidecar (read side; write side added by Pulse task) ────
+    // GET /context?from=<iso>&to=<iso> → { events: [...] }
+    // For now this returns whatever pulseEvents have been pushed by the sibling
+    // Pulse-on-Pixel task. If empty or unimplemented, returns { events: [] }.
+    if (path === '/context' && req.method === 'GET') {
+      try {
+        const u = new URL(req.url, 'http://x');
+        const from = u.searchParams.get('from');
+        const to = u.searchParams.get('to');
+        const fromMs = from ? Date.parse(from) : -Infinity;
+        const toMs = to ? Date.parse(to) : Infinity;
+        // global pulseEvents may be undefined until the Pulse write endpoint exists
+        const all = (typeof pulseEvents !== 'undefined' && Array.isArray(pulseEvents)) ? pulseEvents : [];
+        const filtered = all.filter(e => {
+          const t = Date.parse(e.ts || '');
+          return Number.isFinite(t) && t >= fromMs && t <= toMs;
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ events: filtered }));
+      } catch (e) {
+        res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+      }
+      return;
+    }
+
     // ── HUD ask / respond (human-in-the-loop confirm/failed/partial) ─────────
     if (path === '/hud/ask' && req.method === 'POST') {
       let body = '';
@@ -684,6 +1666,25 @@ export function createRelay(port = 3333) {
       return;
     }
 
+    // Pending asks for polling clients (Pulse). The HUD overlay got these via
+    // socket.io; Pulse polls. Answered/stale asks are pruned here so the Map
+    // stays bounded — 1h is far past any caller's --timeout.
+    if (path === '/hud/asks' && req.method === 'GET') {
+      // Prune by age only — answered asks must linger so the asker's
+      // GET /hud/response/:id poll (0.5s cadence) can still read the answer.
+      const cutoff = Date.now() - 60 * 60 * 1000;
+      for (const [id, ask] of hudAsks) {
+        if (ask.createdAt < cutoff) hudAsks.delete(id);
+      }
+      const pending = [...hudAsks.values()].filter(a => a.response === null).map(a => ({
+        id: a.id, message: a.message, createdAt: a.createdAt,
+        ageSeconds: Math.round((Date.now() - a.createdAt) / 1000),
+      }));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ asks: pending }));
+      return;
+    }
+
     if (path === '/hud' && req.method === 'GET') {
       const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Yeshie HUD</title>
@@ -696,29 +1697,38 @@ body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-
 #header span{font-size:10px;color:#555}
 #jobs{flex:1;overflow-y:auto;padding:8px}
 .empty{color:#555;text-align:center;padding:40px;font-size:11px}
-.job{background:#242424;border-radius:6px;padding:8px 10px;margin-bottom:6px;border-left:3px solid #444;display:grid;grid-template-columns:1fr auto;gap:4px}
-.job.running{border-color:#3b82f6;animation:pulse 1.5s infinite}
+.job{background:#242424;border-radius:6px;padding:8px 10px;margin-bottom:6px;border-left:3px solid #444;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start}
+.job.running{border-color:#3b82f6}
 .job.done,.job.completed{border-color:#3fb950}
 .job.error,.job.failed{border-color:#f85149}
-.job.blocked{border-color:#d29922;animation:pulse 1.5s infinite}
+.job.blocked{border-color:#d29922}
 .job.pending{border-color:#555}
-.job.notify_pending{border-color:#8b5cf6;animation:pulse 1.5s infinite}
-.job.needs_action{border-color:#f97316;animation:pulse 1.5s infinite}
+.job.notify_pending{border-color:#8b5cf6}
+.job.needs_action{border-color:#f97316}
 .job-status.needs_action{color:#f97316}
 .btn-copy{background:#f97316;color:#fff}.btn-copy:hover{background:#ea6c10}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
-.job-title{font-weight:500;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.job-title{font-weight:500;font-size:12px;white-space:normal;word-break:break-word;overflow-wrap:anywhere;line-height:1.25;min-width:0}
 .job-meta{font-size:10px;color:#777;margin-top:2px}
 .job-step{font-size:10px;color:#666;margin-top:3px;font-style:italic}
 .job-progress-wrap{height:4px;background:#333;border-radius:2px;margin-top:5px;overflow:hidden;max-width:200px}
 .job-progress-bar{height:100%;background:#3b82f6;border-radius:2px;transition:width .3s ease}
-.job-status{font-size:10px;text-align:right;font-weight:600}
+.job-status{font-size:10px;text-align:right;font-weight:600;align-self:start;white-space:nowrap;flex-shrink:0}
 .job-status.running{color:#3b82f6}
 .job-status.pending{color:#666}
 .job-status.done,.job-status.completed{color:#3fb950}
 .job-status.error,.job-status.failed{color:#f85149}
 .job-status.blocked{color:#d29922}
 .job-status.notify_pending{color:#8b5cf6}
+#svc-strip{display:flex;flex-wrap:wrap;gap:6px;padding:6px 8px;border-top:1px solid #2a2a2a;font-size:9px;color:#888;align-items:center;flex-shrink:0}
+#svc-strip:empty{display:none}
+.svc-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border-radius:8px;background:#1c1c1c;border:1px solid #2a2a2a}
+.svc-pill .svc-dot{width:6px;height:6px;border-radius:50%;background:#3fb950}
+.svc-pill.failed .svc-dot,.svc-pill.error .svc-dot{background:#f85149}
+.svc-pill.blocked .svc-dot{background:#d29922}
+.svc-pill.notify_pending .svc-dot,.svc-pill.needs_action .svc-dot{background:#f97316}
+.svc-pill.pending .svc-dot{background:#666}
+.svc-pill .svc-name{color:#aaa}
+.svc-pill.failed .svc-name,.svc-pill.error .svc-name{color:#f85149}
 .job-elapsed{font-size:10px;color:#555;text-align:right}
 .notify-row{margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .btn{padding:3px 9px;border-radius:4px;border:none;cursor:pointer;font-size:10px;font-weight:600;font-family:inherit}
@@ -737,10 +1747,22 @@ body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-
 .hud-btn-failed{background:#ef4444;color:#fff}
 #btn-digest{padding:3px 9px;border-radius:4px;border:1px solid #444;cursor:pointer;font-size:10px;font-weight:600;font-family:inherit;background:#2a2a2a;color:#888}
 #btn-digest:hover{background:#333;color:#ccc}
+.job{cursor:pointer}.job:hover{background:#2a2a2a}
+.svc-pill{cursor:pointer}.svc-pill:hover{background:#252525}
+#detail-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;align-items:center;justify-content:center}
+#detail-overlay.open{display:flex}
+#detail-modal{background:#1a1a1a;border:1px solid #444;border-radius:10px;width:92%;max-width:480px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.7)}
+#detail-header{padding:10px 14px;border-bottom:1px solid #333;display:flex;justify-content:space-between;align-items:center}
+#detail-title{font-weight:600;font-size:13px;color:#e0e0e0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+#detail-close{background:none;border:none;color:#888;font-size:18px;cursor:pointer;padding:0 4px;line-height:1}
+#detail-close:hover{color:#fff}
+#detail-meta{padding:8px 14px;font-size:10px;color:#888;border-bottom:1px solid #2a2a2a}
+#detail-meta span{margin-right:12px}
+#detail-tail{flex:1;overflow-y:auto;padding:10px 14px;font-family:'SF Mono',Menlo,monospace;font-size:10px;line-height:1.5;color:#aaa;background:#111;white-space:pre-wrap;word-break:break-all;min-height:80px;max-height:50vh}
 </style></head>
 <body>
-<div id="header"><h1>YESHIE HUD</h1><div style="display:flex;align-items:center;gap:8px"><button id="btn-digest" onclick="copyDigest()">📋 Copy Digest</button><span id="conn">connecting…</span></div></div>
-<div id="jobs"><div class="empty">No active jobs</div></div>
+<div id="header"><h1>YESHIE HUD</h1><div style="display:flex;align-items:center;gap:8px"><button id="btn-digest" onclick="copyDigest()">📋 Copy Digest</button><span id="conn">connecting…</span><span id="last-poll" style="font-size:9px;color:#444;margin-left:6px"></span></div></div>
+<div id="jobs"><div class="empty">No active jobs</div></div><div id="svc-strip"></div>
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const jobsEl = document.getElementById('jobs');
@@ -822,15 +1844,17 @@ function buildDigest() {
 function copyDigest() {
   const text = buildDigest();
   const btn = document.getElementById('btn-digest');
-  navigator.clipboard.writeText(text).then(() => {
+  // Always use server-side pbcopy — navigator.clipboard silently no-ops in WKWebView
+  fetch('/clipboard', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({text})
+  }).then(() => {
     btn.textContent = '✓ Copied!';
     setTimeout(() => { btn.textContent = '📋 Copy Digest'; }, 1500);
   }).catch(() => {
-    fetch('/clipboard', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({text})
-    }).then(() => {
+    // Fallback to browser clipboard API
+    navigator.clipboard.writeText(text).then(() => {
       btn.textContent = '✓ Copied!';
       setTimeout(() => { btn.textContent = '📋 Copy Digest'; }, 1500);
     });
@@ -839,10 +1863,27 @@ function copyDigest() {
 
 function render() {
   const now = Date.now();
-  const active = [...jobs.values()].filter(j => {
-    if (['running','blocked','pending','notify_pending','needs_action'].includes(j.status)) return true;
+  // Service tiles (id starts with 'svc-') render in a compact footer strip, NOT the main job list.
+  // This keeps long-running daemons from being visual noise.
+  const allActive = [...jobs.values()].filter(j => {
+    if (['running','blocked','pending','notify_pending','needs_action','failed','error'].includes(j.status)) return true;
     return (now - j.updatedAt) < (j.status === 'needs_action' ? 600000 : 60000);
   });
+  const services = allActive.filter(j => (j.id || '').startsWith('svc-'));
+  const active = allActive.filter(j => !(j.id || '').startsWith('svc-'));
+  // Render service strip
+  const stripEl = document.getElementById('svc-strip');
+  if (stripEl) {
+    if (services.length === 0) {
+      stripEl.innerHTML = '';
+    } else {
+      stripEl.innerHTML = services.map(s2 => {
+        const cls = (s2.status || 'unknown').replace(/_/g, '-');
+        const name = (s2.id || '').replace(/^svc-/, '');
+        return '<span class="svc-pill ' + cls + '" title="' + (s2.step || '').replace(/"/g, '&amp;quot;') + '" onclick="openDetail(\\'svc-' + name.replace(/'/g, '') + '\\')">' + '<span class="svc-dot"></span><span class="svc-name">' + name + '</span></span>';
+      }).join('');
+    }
+  }
   if (!active.length) { jobsEl.innerHTML = '<div class="empty">No active jobs</div>'; return; }
   jobsEl.innerHTML = active.map(j => {
     const el   = elapsed(now - j.createdAt);
@@ -874,10 +1915,11 @@ function render() {
                       : j.status === 'failed'         ? 'FAILED'
                       : j.status.toUpperCase();
 
-    return \`<div class="job \${j.status}">
+    return \`<div class="job \${j.status}" onclick="openDetail('\${esc(j.id)}')">
       <div>
         <div class="job-title">\${esc(j.title || j.id)}</div>
-        <div class="job-meta">\${esc(j.id)}\${step}</div>
+        <div class="job-meta">\${esc(j.id)}</div>
+        \${j.step ? '<div class="job-step">' + esc(j.step) + '</div>' : ''}
         \${notifyHtml}\${actionHtml}
       </div>
       <div>
@@ -900,6 +1942,22 @@ socket.on('connect', () => {
 socket.on('disconnect', () => { connEl.textContent = 'offline'; connEl.style.color = '#f85149'; });
 socket.on('job_update', job => { jobs.set(job.id, job); render(); });
 socket.on('jobs_snapshot', list => { jobs.clear(); list.forEach(j => jobs.set(j.id, j)); render(); });
+
+// Periodic re-render + snapshot refresh — keeps HUD fresh even if socket events miss.
+// Re-render every 10s so time-based filters (done jobs older than 60s, etc.) re-evaluate.
+// Full snapshot refresh every 30s in case the relay evicted jobs via TTL and we missed it.
+function refreshAndRender() {
+  fetch('/jobs/status?filter=all').then(r=>r.json()).then(d => {
+    if (Array.isArray(d.jobs)) {
+      jobs.clear();
+      d.jobs.forEach(j => jobs.set(j.id, j));
+    }
+    render();
+  }).catch(() => { render(); });
+}
+setInterval(render, 10000);
+setInterval(refreshAndRender, 30000);
+
 
 // HUD ask — human-in-the-loop confirm/partial/failed
 let _askId = null;
@@ -925,8 +1983,15 @@ function pollJobs() {
   fetch('/jobs/status?filter=all').then(r=>r.json()).then(d => {
     d.jobs.forEach(j => jobs.set(j.id, j));
     render();
-  }).catch(()=>{});
+    const p = document.getElementById('last-poll');
+    if (p) { const t = new Date(); p.textContent = t.getHours()+':'+String(t.getMinutes()).padStart(2,'0')+':'+String(t.getSeconds()).padStart(2,'0'); }
+  }).catch(e => {
+    const p = document.getElementById('last-poll');
+    if (p) p.textContent = 'poll ERR';
+  });
 }
+// Fire immediately on load, then every 5s
+pollJobs();
 setInterval(pollJobs, 5000);
 setInterval(render, 1000);
 
@@ -949,6 +2014,58 @@ setInterval(render, 1000);
     else if (e.key === '0') { e.preventDefault(); applyScale(1.0); }
   });
 })();
+
+// ── Click-to-drill detail modal ──────────────────────────────
+let _detailId = null;
+let _detailTimer = null;
+
+function openDetail(jobId) {
+  _detailId = jobId;
+  document.getElementById('detail-overlay').classList.add('open');
+  fetchDetail();
+  _detailTimer = setInterval(fetchDetail, 2000);
+}
+
+function closeDetail() {
+  _detailId = null;
+  document.getElementById('detail-overlay').classList.remove('open');
+  if (_detailTimer) { clearInterval(_detailTimer); _detailTimer = null; }
+}
+
+function fetchDetail() {
+  if (!_detailId) return;
+  fetch('/jobs/' + encodeURIComponent(_detailId) + '/detail')
+    .then(r => r.json())
+    .then(d => {
+      if (!_detailId) return;
+      document.getElementById('detail-title').textContent = d.title || d.id;
+      const statusEl = document.getElementById('detail-status');
+      statusEl.textContent = (d.status || '').toUpperCase();
+      statusEl.style.color = ({running:'#3b82f6',done:'#3fb950',completed:'#3fb950',failed:'#f85149',error:'#f85149',blocked:'#d29922',stuck:'#d29922'})[d.status] || '#888';
+      document.getElementById('detail-elapsed').textContent = d.createdAt ? elapsed(Date.now() - d.createdAt) : '';
+      document.getElementById('detail-step').textContent = d.step || '';
+      const tail = document.getElementById('detail-tail');
+      if (d.pane_tail != null) {
+        tail.textContent = d.pane_tail || '(empty pane)';
+      } else if (d.last_log_lines && d.last_log_lines.length) {
+        let txt = d.last_log_lines.join('\\n');
+        if (d.process_state) txt += '\\n\\n── state ──\\n' + JSON.stringify(d.process_state, null, 2);
+        tail.textContent = txt;
+      } else {
+        let txt = 'Status: ' + (d.status || 'unknown');
+        if (d.step) txt += '\\nStep: ' + d.step;
+        if (d.updatedAt) txt += '\\nUpdated: ' + new Date(d.updatedAt).toLocaleTimeString();
+        tail.textContent = txt;
+      }
+    })
+    .catch(() => {
+      document.getElementById('detail-tail').textContent = 'Failed to fetch detail';
+    });
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && _detailId) closeDetail();
+});
 </script>
 
 <div id="hud-ask-overlay">
@@ -957,6 +2074,13 @@ setInterval(render, 1000);
     <button class="hud-btn hud-btn-confirm" onclick="hudRespond('confirm')">✅ Confirm</button>
     <button class="hud-btn hud-btn-partial" onclick="hudRespond('partial')">⚠️ Partial</button>
     <button class="hud-btn hud-btn-failed"  onclick="hudRespond('failed')">❌ Failed</button>
+  </div>
+</div>
+<div id="detail-overlay" onclick="if(event.target===this)closeDetail()">
+  <div id="detail-modal">
+    <div id="detail-header"><span id="detail-title"></span><button id="detail-close" onclick="closeDetail()">✕</button></div>
+    <div id="detail-meta"><span id="detail-status"></span><span id="detail-elapsed"></span><span id="detail-step"></span></div>
+    <div id="detail-tail">Loading…</div>
   </div>
 </div>
 </body></html>`;
@@ -1309,7 +2433,10 @@ h2{color:#58a6ff}hr{border-color:#333}
       if (!existing) showHudPanel();
       // Smart inject/notify on blocked or done
       if (status === 'blocked' || status === 'done') {
-        scheduleOrInject(jobs.get(id));
+        scheduleOrInject(jobs.get(id)).catch(e => {
+          _lastError = e.message;
+          console.error('[relay] scheduleOrInject error:', e.message);
+        });
       }
       jsonReply(res, 200, { ok: true });
       return;
@@ -1419,6 +2546,56 @@ h2{color:#58a6ff}hr{border-color:#333}
         io.emit('job_update', upd);
       }
       jsonReply(res, 200, { ok: true });
+      return;
+    }
+
+    // ── Job detail (click-to-drill) ─────────────────────────────
+    const detailM = path.match(/^\/jobs\/([^/]+)\/detail$/);
+    if (detailM && req.method === 'GET') {
+      const jobId = decodeURIComponent(detailM[1]);
+      const job = jobs.get(jobId);
+      const base = job
+        ? { id: job.id, status: job.status, step: job.step, title: job.title, updatedAt: job.updatedAt, createdAt: job.createdAt }
+        : { id: jobId, status: 'unknown', step: null, title: jobId, updatedAt: null, createdAt: null };
+
+      // svc-* → supervisor log + state
+      if (jobId.startsWith('svc-')) {
+        const svcName = jobId.replace(/^svc-/, '');
+        let last_log_lines = [];
+        let process_state = null;
+        try {
+          const logPath = join(process.env.HOME || '/Users/mikewolf', '.local', 'share', 'soma-supervisor.log');
+          const { readFileSync: rfs2 } = await import('fs');
+          const lines = rfs2(logPath, 'utf8').split('\n');
+          last_log_lines = lines.filter(l => l.includes('| ' + svcName + ' |')).slice(-10);
+        } catch {}
+        try {
+          const statePath = join(process.env.HOME || '/Users/mikewolf', '.local', 'share', 'soma-supervisor.state.json');
+          const { readFileSync: rfs3 } = await import('fs');
+          const allState = JSON.parse(rfs3(statePath, 'utf8'));
+          process_state = allState[svcName] || null;
+        } catch {}
+        jsonReply(res, 200, { ...base, last_log_lines, process_state });
+        return;
+      }
+
+      // ntm-* → tmux pane capture
+      if (jobId.startsWith('ntm-')) {
+        let pane_tail = '';
+        try {
+          const parts = jobId.match(/^ntm-(.+?)-pane(\d+)/);
+          if (parts) {
+            const [, session, paneNum] = parts;
+            const { execFileSync } = await import('child_process');
+            const tmuxBin = '/opt/homebrew/bin/tmux';
+            pane_tail = execFileSync(tmuxBin, ['capture-pane', '-t', session + ':0.' + paneNum, '-p', '-S', '-30'], { timeout: 5000, encoding: 'utf8' });
+          }
+        } catch (e) { pane_tail = 'capture failed: ' + e.message; }
+        jsonReply(res, 200, { ...base, pane_tail });
+        return;
+      }
+
+      jsonReply(res, 200, base);
       return;
     }
 
@@ -1550,14 +2727,86 @@ h2{color:#58a6ff}hr{border-color:#333}
       const updatedJob = jobs.get(id);
       io.emit('job_update', updatedJob);
       if (status === 'blocked' || status === 'done') {
-        scheduleOrInject(updatedJob);
+        scheduleOrInject(updatedJob).catch(e => {
+          _lastError = e.message;
+          console.error('[relay] scheduleOrInject error:', e.message);
+        });
       }
       jsonReply(res, 200, { ok: true });
       return;
     }
 
+    // ── /selfcheck — process health snapshot ─────────────────────
+    if (path === '/selfcheck' && req.method === 'GET') {
+      let buildVersion = 'unknown';
+      try {
+        const pkgPath = join(__dirname, 'package.json');
+        const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+        buildVersion = pkg.version || 'unknown';
+      } catch { /* leave as unknown */ }
+      jsonReply(res, 200, {
+        pid: process.pid,
+        uptime_seconds: Math.floor(process.uptime()),
+        rss_mb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+        socket_client_count: io.sockets.sockets.size,
+        last_request_ts: _lastRequestTs,
+        last_error: _lastError,
+        build_version: buildVersion,
+      });
+      return;
+    }
+
+    // ── /dispatch/cross-vendor: invoke a cross-vendor worker via dispatch.py ──
+    if (path === '/dispatch/cross-vendor' && req.method === 'POST') {
+      const clientIp = extractClientIp(req);
+      if (!isAllowedClientIp(clientIp)) {
+        jsonReply(res, 403, { error: 'Forbidden' }); return;
+      }
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const vendor = (body?.vendor || 'gemini').toString();
+      const model = (body?.model || 'gemini-2.5-flash').toString();
+      const prompt = (body?.prompt || '').toString();
+      if (!prompt.trim()) { jsonReply(res, 400, { error: 'prompt required' }); return; }
+
+      const dispatchPy = join(homedir(), 'Projects', 'SOMA', 'services', 'cross-vendor', 'dispatch.py');
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const outputDir = join(homedir(), 'Projects', 'SOMA', 'services', 'cross-vendor', 'runs', ts);
+      mkdirSync(outputDir, { recursive: true });
+
+      // Write prompt to temp file
+      const promptFile = join(outputDir, 'prompt.txt');
+      writeFileSync(promptFile, prompt);
+
+      // Run dispatch.py async; return paths immediately
+      const python = process.env.PYTHON || '/opt/homebrew/bin/python3';
+      const child = spawn(python, [dispatchPy, '--vendor', vendor, '--model', model, '--prompt-file', promptFile, '--output-dir', outputDir], {
+        detached: true,
+        stdio: 'ignore',
+      });
+      child.unref();
+
+      jsonReply(res, 202, {
+        ok: true,
+        output_dir: outputDir,
+        report_path: join(outputDir, 'REPORT.md'),
+        digest_path: join(outputDir, 'digest.yaml'),
+        vendor,
+        model,
+        run_id: ts,
+      });
+      return;
+    }
+
     // Fallback
     res.writeHead(404); res.end();
+    } catch (err) {
+      _lastError = err.message;
+      console.error('[relay] unhandled request error:', err);
+      if (!res.writableEnded) {
+        jsonReply(res, 500, { error: 'Internal server error' });
+      }
+    }
   });
 
   return {

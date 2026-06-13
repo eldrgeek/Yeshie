@@ -104,6 +104,12 @@ export default defineBackground(() => {
       }
     });
 
+    // Relay asks to toggle Do-It-Once recording (programmatic, headless-friendly)
+    socket.on('record_toggle', async (ack: (result: any) => void) => {
+      await toggleRecording();
+      ack({ active: recordingState.active, episodeId: recordingState.episodeId });
+    });
+
     // Relay injects a chat message into a specific tab's side-panel conversation.
     // The message appears as if the user typed it, then flows through the normal
     // chat path so the listener receives it just like any user-initiated message.
@@ -341,6 +347,66 @@ export default defineBackground(() => {
 
   function startKeepalive() { /* no-op: always-on keepalive handles this */ }
   function stopKeepalive() { /* no-op: keep alive even when idle for relay connection */ }
+
+  // ── Do-It-Once recording state ───────────────────────────────────────────────
+  const BRIDGE_URL = import.meta.env.WXT_DIO_BRIDGE_URL || 'http://127.0.0.1:27184';
+
+  const recordingState = {
+    active: false,
+    episodeId: null as string | null,
+  };
+
+  async function forwardToBridge(envelope: object) {
+    const line = JSON.stringify(envelope) + '\n';
+    try {
+      await fetch(`${BRIDGE_URL}/yeshie`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-ndjson' },
+        body: line,
+      });
+    } catch (_) {
+      // Bridge not running — fail silently (fail-closed means recording proceeds locally)
+    }
+  }
+
+  async function broadcastRecordState(active: boolean, episodeId: string | null) {
+    const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
+    for (const tab of tabs) {
+      if (!tab.id) continue;
+      try {
+        await chrome.tabs.sendMessage(tab.id, active
+          ? { type: 'record_start', episodeId }
+          : { type: 'record_stop' }
+        );
+      } catch (_) { /* tab may not have content script */ }
+    }
+    // Notify side panel
+    chrome.runtime.sendMessage({ type: 'recording_state_changed', active, episodeId }).catch(() => {});
+  }
+
+  async function toggleRecording() {
+    if (recordingState.active) {
+      recordingState.active = false;
+      await broadcastRecordState(false, null);
+      const prevId = recordingState.episodeId;
+      recordingState.episodeId = null;
+      console.log('[Yeshie] Recording stopped, episode:', prevId);
+    } else {
+      const id = crypto.randomUUID();
+      recordingState.active = true;
+      recordingState.episodeId = id;
+      await broadcastRecordState(true, id);
+      console.log('[Yeshie] Recording started, episode:', id);
+    }
+    await chrome.storage.session.set({ __yeshieRecording: recordingState });
+  }
+
+  // Keyboard shortcut: ⌃⌥R (Ctrl+Alt+R)
+  chrome.commands.onCommand.addListener((command) => {
+    if (command === 'toggle-recording') {
+      toggleRecording();
+    }
+  });
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
   function interpolate(str: string, params: Record<string, any>): string {
@@ -748,7 +814,16 @@ export default defineBackground(() => {
   function PRE_GUARDED_READ(candidates: string[]) {
     for (const sel of (candidates || [])) {
       const el = document.querySelector(sel);
-      if (el) return { text: el.textContent?.trim() || null, selector: sel, found: true };
+      if (!el) continue;
+      // Use .value for native inputs/textareas; textContent for contenteditable.
+      const tag = el.tagName.toLowerCase();
+      let text: string | null;
+      if (tag === 'input' || tag === 'textarea') {
+        text = (el as HTMLInputElement).value?.trim() || null;
+      } else {
+        text = el.textContent?.trim() || null;
+      }
+      return { text, selector: sel, found: true };
     }
     return { text: null, found: false };
   }
@@ -1613,9 +1688,25 @@ export default defineBackground(() => {
     const isTextarea = tagResult?.value === 'textarea';
     const isNativeInput = tagResult?.value === 'input';
 
-    // Focus + select-all
+    // Focus + select-all. For <input>/<textarea> el.select() selects the value. For
+    // contenteditable (ProseMirror/Lexical) there is no el.select(); we must select the node
+    // contents via the Selection API so the upcoming Input.insertText REPLACES existing text.
+    // (The old Ctrl+A keystroke approach is unreliable on macOS, where Ctrl+A moves the caret
+    // to line-start in contenteditable instead of selecting all — leaving stale draft text that
+    // accumulates on every type. ChatGPT persists the composer draft to localStorage, so a
+    // re-type without a real select-all silently appends.)
     await chrome.debugger.sendCommand(target, 'Runtime.evaluate', {
-      expression: `(function(){const el=document.querySelector(${JSON.stringify(selector)});if(!el)return false;el.focus();el.click();el.select&&el.select();return true;})()`,
+      expression: `(function(){
+        const el=document.querySelector(${JSON.stringify(selector)});
+        if(!el)return false;
+        el.focus();el.click();
+        if(typeof el.select==='function'){el.select();}
+        else if(el.isContentEditable){
+          const r=document.createRange();r.selectNodeContents(el);
+          const s=window.getSelection();s.removeAllRanges();s.addRange(r);
+        }
+        return true;
+      })()`,
       returnByValue: true
     });
     await new Promise(r => setTimeout(r, 80));
@@ -1640,9 +1731,10 @@ export default defineBackground(() => {
         returnByValue: true
       });
     } else {
-      // contenteditable: use CDP insertText (produces isTrusted input events)
-      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65 });
-      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65 });
+      // contenteditable (ProseMirror/Lexical): the node contents are already selected above,
+      // so Input.insertText replaces them. CDP insertText fires trusted beforeinput/input
+      // events with inputType 'insertText', which is exactly what ProseMirror and Lexical
+      // listen for to update their internal document state (and enable the send button).
       await chrome.debugger.sendCommand(target, 'Input.insertText', { text });
     }
 
@@ -1669,14 +1761,16 @@ export default defineBackground(() => {
           returnByValue: true
         }) as { result: { value: boolean } };
         if (!clickResult?.value) {
-          // Fallback: Enter key if no send button found
-          await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Return', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
-          await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Return', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+          // Fallback: Enter key if no send button found. key must be 'Enter' — that's the DOM
+          // KeyboardEvent.key value editors check (key:'Return' silently fails the e.key==='Enter' test).
+          await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+          await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
         }
       } else {
-        // contenteditable chat UIs (Claude.ai, ChatGPT, Gemini): Enter key submits
-        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Return', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
-        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Return', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+        // contenteditable chat UIs (Claude.ai, ChatGPT, Gemini): Enter key submits. key must be
+        // 'Enter' (the DOM KeyboardEvent.key); 'Return' does not match e.key==='Enter' handlers.
+        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
       }
     } else {
       await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
@@ -1790,9 +1884,10 @@ export default defineBackground(() => {
   }
 
   // ── Navigation ────────────────────────────────────────────────────────────────
-  function navigateAndWait(tabId: number, url: string): Promise<{ ok: boolean; url: string }> {
+  async function navigateAndWait(tabId: number, url: string): Promise<{ ok: boolean; url: string }> {
+    await chrome.tabs.update(tabId, { url });
+    if (chrome.runtime.lastError) throw new Error(chrome.runtime.lastError.message);
     return new Promise((resolve) => {
-      chrome.tabs.update(tabId, { url });
       function listener(updatedTabId: number, info: chrome.tabs.TabChangeInfo) {
         if (updatedTabId === tabId && info.status === 'complete') {
           chrome.tabs.onUpdated.removeListener(listener);
@@ -1949,7 +2044,8 @@ export default defineBackground(() => {
 
     try {
       if (a === 'navigate') {
-        const url = interpolate(step.url, { ...params, ...buffer });
+        const url = interpolate(step.url || step.value || '', { ...params, ...buffer });
+        if (!url) throw new Error('navigate step missing url');
         const r = await navigateAndWait(tabId, url);
         // Mid-chain auth detection: check if navigate landed on /login
         const currentUrl = await execInTab(tabId, () => window.location.href, []);
@@ -1976,9 +2072,11 @@ export default defineBackground(() => {
       }
 
       if (a === 'open_tab') {
-        const url = interpolate(step.url, { ...params, ...buffer });
+        const url = interpolate(step.url || step.value || '', { ...params, ...buffer });
+        if (!url) throw new Error('open_tab step missing url');
         const r = await openTabAndWait(url);
         if (step.store_tab_id) buffer[step.store_tab_id] = r.tabId;
+        run.tabId = r.tabId;
         return { stepId: step.stepId, action: a, status: 'ok', url: r.url, tabId: r.tabId, durationMs: Date.now() - t0 };
       }
 
@@ -2938,5 +3036,27 @@ export default defineBackground(() => {
       return false;
     }
     if (msg.type === 'content_ready') return false;
+    if (msg.type === 'observer_ready') return false;
+
+    // ── Do-It-Once recording ────────────────────────────────────────────────────
+    if (msg.type === 'record_toggle') {
+      // Programmatic toggle (from relay or test)
+      (async () => {
+        await toggleRecording();
+        sendResponse({ active: recordingState.active, episodeId: recordingState.episodeId });
+      })();
+      return true;
+    }
+    if (msg.type === 'record_status') {
+      sendResponse({ active: recordingState.active, episodeId: recordingState.episodeId });
+      return true;
+    }
+    if (msg.type === 'record_event') {
+      // Content script forwards a captured DOM event
+      if (msg.envelope) {
+        forwardToBridge(msg.envelope);
+      }
+      return false;
+    }
   });
 });

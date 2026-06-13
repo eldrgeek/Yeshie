@@ -11,11 +11,29 @@ Usage: python3 hud.py [--port 3334]
 import sys
 import json
 import queue
+import subprocess
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import objc
 import AppKit
 from Foundation import NSMakeRect, NSURL, NSURLRequest, NSTimer, NSRunLoop
+
+AFK_THRESHOLD_S = 600  # 10 minutes of user idle → auto-surface HUD
+
+
+def _get_idle_seconds():
+    try:
+        result = subprocess.run(
+            ['ioreg', '-c', 'IOHIDSystem'],
+            capture_output=True, text=True, timeout=3,
+        )
+        for line in result.stdout.split('\n'):
+            if 'HIDIdleTime' in line:
+                ns = int(line.split('=')[-1].strip())
+                return ns / 1_000_000_000
+    except Exception:
+        pass
+    return 0
 
 # WebKit isn't a top-level pyobjc package — load via bundle
 _wk = {}
@@ -71,10 +89,15 @@ def _show_panel():
         return
     # Move to whichever Space the user is on right now (Stationary would pin it
     # to its original Space and Mike would never see it after switching).
-    panel.setCollectionBehavior_(AppKit.NSWindowCollectionBehaviorCanJoinAllSpaces)
-    panel.setLevel_(AppKit.NSFloatingWindowLevel)
+    panel.setCollectionBehavior_(
+        AppKit.NSWindowCollectionBehaviorCanJoinAllSpaces |
+        AppKit.NSWindowCollectionBehaviorStationary
+    )
+    # NSStatusWindowLevel (25) sits above NSFloatingWindowLevel (3) and full-screen apps.
+    panel.setLevel_(AppKit.NSStatusWindowLevel)
     # orderFrontRegardless reliably surfaces a NonactivatingPanel; makeKey is a no-op for those.
     panel.orderFrontRegardless()
+    print(f"[hud] _show_panel: orderFrontRegardless called, visible={panel.isVisible()}", flush=True)
 
 class CtrlHandler(BaseHTTPRequestHandler):
     def _handle(self, path):
@@ -214,8 +237,12 @@ class AppDelegate(AppKit.NSObject):
             False
         )
         panel.setTitle_("Yeshie HUD")
-        panel.setLevel_(AppKit.NSFloatingWindowLevel)
-        panel.setCollectionBehavior_(AppKit.NSWindowCollectionBehaviorCanJoinAllSpaces)
+        panel.setLevel_(AppKit.NSStatusWindowLevel)
+        panel.setCollectionBehavior_(
+            AppKit.NSWindowCollectionBehaviorCanJoinAllSpaces |
+            AppKit.NSWindowCollectionBehaviorStationary
+        )
+        panel.setHidesOnDeactivate_(False)
         panel.setDelegate_(self)
 
         # Embed WKWebView (saved globally for reload_panel + wv-status)
@@ -239,6 +266,20 @@ class AppDelegate(AppKit.NSObject):
             None, True
         )
 
+        # Separate 60s AFK check timer — surfaces HUD if user has been idle past threshold
+        NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+            60.0, self,
+            objc.selector(None, selector=b'afkCheck:', isClassMethod=False),
+            None, True
+        )
+
+        # Startup auto-show: surface the panel ~2s after launch so it's actually visible
+        NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+            2.0, self,
+            objc.selector(None, selector=b'startupShow:', isClassMethod=False),
+            None, False
+        )
+
         # Start control server in background
         t = threading.Thread(target=run_ctrl_server, daemon=True)
         t.start()
@@ -250,6 +291,26 @@ class AppDelegate(AppKit.NSObject):
                 fn()
         except queue.Empty:
             pass
+
+    def afkCheck_(self, timer):
+        idle = _get_idle_seconds()
+        if idle > AFK_THRESHOLD_S and panel:
+            # Only auto-show if there are active jobs in the relay
+            try:
+                import urllib.request
+                r = urllib.request.urlopen('http://localhost:3333/jobs/status', timeout=1)
+                import json as _json
+                data = _json.loads(r.read())
+                has_jobs = len(data.get('jobs', [])) > 0
+            except Exception:
+                has_jobs = False
+            if has_jobs:
+                print(f"[hud] AFK auto-show: idle={idle:.0f}s > {AFK_THRESHOLD_S}s, {len(data.get("jobs",[]))} jobs", flush=True)
+                _show_panel()
+
+    def startupShow_(self, timer):
+        print("[hud] startup auto-show", flush=True)
+        _show_panel()
 
     def show_panel(self):
         if panel:

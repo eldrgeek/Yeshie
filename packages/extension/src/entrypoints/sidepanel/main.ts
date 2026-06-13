@@ -298,6 +298,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return false;
   }
 
+  if (msg.type === 'recording_state_changed') {
+    const banner = document.getElementById('rec-banner');
+    if (banner) {
+      if (msg.active) {
+        banner.classList.add('active');
+      } else {
+        banner.classList.remove('active');
+      }
+    }
+    return false;
+  }
+
   if (msg.type === 'show_response') {
     // Response for an injected message
     if (currentTabId === msg.tabId) {
