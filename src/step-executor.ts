@@ -6,7 +6,7 @@ export type StepAction =
   | 'assess_state' | 'navigate' | 'open_tab' | 'type' | 'click' | 'click_preset'
   | 'wait_for' | 'read' | 'hover' | 'scroll' | 'assert' | 'js' | 'select'
   | 'probe_affordances' | 'delay' | 'perceive' | 'find_row' | 'click_text'
-  | 'capture_entities' | 'navigate_to_entity';
+  | 'capture_entities' | 'navigate_to_entity' | 'key' | 'wait' | 'extract_text';
 
 export interface StepResult {
   stepId: string;
@@ -33,6 +33,8 @@ export interface StepResult {
   storedAs?: string;
   reason?: string;
   error?: string;
+  delayMs?: number;
+  keys?: string[];
   surpriseEvidence?: import('./runtime-contract.js').SurpriseEvidence[];
 }
 
@@ -105,6 +107,8 @@ export interface Step {
   candidates?: string[];
   store_as?: string;
   code?: string;
+  key?: string;
+  keys?: string[];
   [key: string]: unknown;
 }
 
@@ -339,6 +343,47 @@ export class StepExecutor {
       return !!el && el.getAttribute(sig.attribute) === (sig.value ?? null);
     }
     return false;
+  }
+
+  private parseKeyChord(spec: string): { key: string; ctrl: boolean; meta: boolean; shift: boolean; alt: boolean } {
+    const parts = spec.split('+');
+    const rawKey = parts[parts.length - 1];
+    const mods = parts.slice(0, -1).map(p => p.toLowerCase());
+    const ctrl = mods.includes('ctrl') || mods.includes('control');
+    const meta = mods.includes('meta') || mods.includes('cmd') || mods.includes('command');
+    const shift = mods.includes('shift');
+    const alt = mods.includes('alt');
+
+    const KEY_MAP: Record<string, string> = {
+      enter: 'Enter',
+      return: 'Enter',
+      escape: 'Escape',
+      esc: 'Escape',
+      tab: 'Tab',
+      backspace: 'Backspace',
+      space: ' ',
+      arrowdown: 'ArrowDown',
+      arrowup: 'ArrowUp',
+      arrowleft: 'ArrowLeft',
+      arrowright: 'ArrowRight',
+      delete: 'Delete',
+      home: 'Home',
+      end: 'End',
+      pageup: 'PageUp',
+      pagedown: 'PageDown',
+    };
+
+    const normalized = rawKey.toLowerCase();
+    const key = KEY_MAP[normalized] ?? (rawKey.length === 1 ? rawKey : rawKey.charAt(0).toUpperCase() + rawKey.slice(1));
+
+    return { key, ctrl, meta, shift, alt };
+  }
+
+  private dispatchKey(key: string, ctrlKey = false, metaKey = false, shiftKey = false, altKey = false) {
+    const target = this.doc.activeElement ?? this.doc.body;
+    const opts: KeyboardEventInit = { key, ctrlKey, metaKey, shiftKey, altKey, bubbles: true, cancelable: true };
+    target.dispatchEvent(new KeyboardEvent('keydown', opts));
+    target.dispatchEvent(new KeyboardEvent('keyup', opts));
   }
 
   private matchesWaitState(step: Step): boolean {
@@ -661,6 +706,37 @@ export class StepExecutor {
         }).filter(a => a.text || a.ariaLabel || a.title);
         if (step.store_as) this.buffer[step.store_as] = affordances;
         return { stepId: step.stepId, action: a, status: 'ok', affordances, storedAs: step.store_as, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'key') {
+        const spec = step.key ?? step.value ?? '';
+        const specs = Array.isArray(step.keys) ? step.keys : (spec.includes(' ') ? spec.split(/\s+/).filter(Boolean) : [spec]);
+        for (const s of specs) {
+          const { key, ctrl, meta, shift, alt } = this.parseKeyChord(s);
+          this.dispatchKey(key, ctrl, meta, shift, alt);
+        }
+        return { stepId: step.stepId, action: a, status: 'ok', value: spec, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'wait') {
+        const ms = (step.ms as number) ?? (step.timeout as number) ?? 0;
+        if (step.selector) {
+          const el = this.doc.querySelector(this.I(step.selector));
+          if (!el) throw new Error('wait timeout: ' + step.selector);
+        }
+        return { stepId: step.stepId, action: a, status: 'ok', delayMs: ms, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'extract_text') {
+        const sel = this.I(step.selector ?? '');
+        if (!sel) throw new Error('extract_text requires selector');
+        const el = this.doc.querySelector(sel);
+        const tag = el?.tagName?.toLowerCase();
+        const text = (tag === 'input' || tag === 'textarea')
+          ? (el as HTMLInputElement)?.value?.trim() ?? null
+          : el?.textContent?.trim() ?? null;
+        if (step.store_as) this.buffer[step.store_as] = text;
+        return { stepId: step.stepId, action: a, status: 'ok', text, selector: sel, storedAs: step.store_as, durationMs: Date.now() - t0 };
       }
 
             return { stepId: step.stepId, action: a, status: 'unsupported', durationMs: Date.now() - t0 };
