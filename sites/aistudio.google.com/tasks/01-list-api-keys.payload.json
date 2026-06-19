@@ -1,0 +1,65 @@
+{
+  "_meta": {
+    "task": "list-api-keys",
+    "description": "Navigate to Google AI Studio API keys page and read the keys table: key suffix, project name, created date, billing tier, and any warning badges.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "google_session",
+      "account": "u/1",
+      "email": "mw.personalmail@gmail.com",
+      "note": "Must be signed in as /u/1/. Pass project param to scope to a specific GCP project."
+    },
+    "params": {
+      "project": {
+        "required": false,
+        "description": "GCP project ID to scope the key list",
+        "default": "gen-lang-client-0695633629"
+      }
+    },
+    "risk": "safe",
+    "needs_live_verification": false,
+    "selectorNotes": "Angular SPA — ng-tns-* classes are unstable. Table is inside ms-api-keys-overview. Wait for mat-table or h2 before reading."
+  },
+  "runId": "aistudio-list-api-keys-{{timestamp}}",
+  "mode": "verification",
+  "site": "aistudio.google.com",
+  "params": {
+    "project": "{{project}}"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://aistudio.google.com/app/u/1/api-keys?project={{project}}"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "button[aria-label=\"Copy API key\"], ms-api-keys-overview table",
+      "timeout": 15000
+    },
+    {
+      "stepId": "s3",
+      "action": "read",
+      "store_as": "keys_page",
+      "note": "Read API keys table: key suffixes, project names, created dates, billing tier, warning badges. IMPORTANT: never log full key values."
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "api-keys-list": {
+        "signals": [
+          { "type": "url_matches", "pattern": "/api-keys" },
+          { "type": "element_present", "selector": "ms-api-keys-overview" }
+        ]
+      },
+      "not-signed-in": {
+        "signals": [
+          { "type": "url_matches", "pattern": "accounts.google.com" }
+        ]
+      }
+    }
+  }
+}

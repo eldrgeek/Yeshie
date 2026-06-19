@@ -1,0 +1,120 @@
+{
+  "_meta": {
+    "task": "create-api-key",
+    "description": "Open the Create API key dialog in Google AI Studio, fill the key name, and STOP before the final submit. A human must click 'Create key' to avoid bot detection.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "google_session",
+      "account": "u/1",
+      "email": "mw.personalmail@gmail.com",
+      "note": "Must be signed in as /u/1/."
+    },
+    "params": {
+      "key_name": {
+        "required": true,
+        "description": "Display name for the new API key",
+        "example": "My App Key"
+      },
+      "project": {
+        "required": false,
+        "description": "GCP project ID — used as URL param to pre-select project in dialog",
+        "default": "gen-lang-client-0695633629"
+      }
+    },
+    "risk": "safe",
+    "needs_live_verification": true,
+    "botDetection": {
+      "wall": "Google server-side bot detection on 'Create key' submit — returns 'Failed to generate API key, The request is suspicious' for automated clicks.",
+      "strategy": "Recipe stops after filling the key name. Human must click 'Create key' to complete.",
+      "humanStep": "Click the 'Create key' button in the open dialog."
+    },
+    "selectorNotes": "The 'Create API key' page button shares class ms-button-primary with the nav toggle, account switcher, and ToS dismiss banner. Use text-content matching (abstractTarget create-api-key-btn) not bare CSS. Dialog input has stable aria-label 'Name your key'. Dialog submit has stable combined class xap-inline-dialog ms-button-primary."
+  },
+  "runId": "aistudio-create-api-key-{{timestamp}}",
+  "mode": "action",
+  "site": "aistudio.google.com",
+  "params": {
+    "key_name": "{{key_name}}",
+    "project": "{{project}}"
+  },
+  "abstractTargets": {
+    "create-api-key-btn": {
+      "match": {
+        "name_contains": ["Create API key"]
+      },
+      "fallbackSelectors": [
+        "button.ms-button-primary:not(.dismiss-button):not(.account-switcher-button):not(.ms-button-large)"
+      ],
+      "description": "Main 'Create API key' button on the API keys list page. Uses text matching because ms-button-primary class is shared with nav toggle, account switcher, and banner dismiss buttons.",
+      "anchors": {
+        "text": "Create API key"
+      }
+    },
+    "key-name-input": {
+      "match": {
+        "vuetify_label": ["Name your key"]
+      },
+      "anchors": {
+        "ariaLabel": "Name your key"
+      },
+      "cachedSelector": "input[aria-label=\"Name your key\"]",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-06-19T00:00:00Z",
+      "description": "Key name text input inside the Create API key dialog. The id attribute is a generated UUID and changes per session — use aria-label instead."
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://aistudio.google.com/app/u/1/api-keys?project={{project}}"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "button[aria-label=\"Copy API key\"], ms-api-keys-overview table",
+      "timeout": 15000
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "target": "create-api-key-btn",
+      "note": "Click 'Create API key'. Text matching resolves to the correct button even when ms-button-primary banner/dismiss buttons are present."
+    },
+    {
+      "stepId": "s4",
+      "action": "wait_for",
+      "selector": "mat-dialog-container, [role=\"dialog\"], ms-create-api-key-dialog",
+      "timeout": 8000
+    },
+    {
+      "stepId": "s5",
+      "action": "type",
+      "target": "key-name-input",
+      "value": "{{key_name}}",
+      "note": "Fill the key name. aria-label 'Name your key' is stable."
+    },
+    {
+      "stepId": "s6",
+      "action": "read",
+      "store_as": "dialog_state",
+      "note": "STOP — bot detection wall. Read dialog state for confirmation that name is filled. Human must click 'Create key' (button.xap-inline-dialog.ms-button-primary) to submit. DO NOT automate the final click."
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "api-keys-list": {
+        "signals": [
+          { "type": "url_matches", "pattern": "/api-keys" }
+        ]
+      },
+      "create-dialog-open": {
+        "signals": [
+          { "type": "element_present", "selector": "mat-dialog-container, [role=\"dialog\"]" }
+        ]
+      }
+    }
+  }
+}
