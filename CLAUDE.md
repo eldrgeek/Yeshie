@@ -23,30 +23,45 @@ Chrome extension + local relay server: Claude sends payload JSON → extension e
 | Claude CLI flags | `--output-format stream-json` requires `--verbose` with `-p`; omit `--input-format` for plain prompt strings |
 | Outer loop | Edits to `background.ts` / `target-resolver.ts`. Inner loop = model JSON only. |
 | Health check | `curl -s http://localhost:3333/status` — expect `{"ok":true,"extensionConnected":true}` |
-| Chrome debug | `chrome-debug-restart` — **preferred for surveys**: kills Chrome, relaunches with main Default profile + port 9222. No login needed — YeshID session carries over. `chrome-debug` — separate ChromeDebug profile alongside existing Chrome (needs one-time login). |
+| Chrome debug | `chrome-debug` / `chrome-debug-restart` — both aliases launch the canonical `ChromeMain` user-data-dir on port 9222. No login needed because `ChromeMain` was copied from the old default Chrome dir. |
 
 ## Chrome DevTools (for site surveys)
 
-The `chrome-devtools-mcp` connects to Chrome on **port 9222**. Normal Chrome does not expose this port.
+The `chrome-devtools-mcp` connects to Chrome on **port 9222**. The canonical launch path is `ChromeMain`, not the macOS default Chrome user-data-dir.
 
-**Preferred workflow (no login prompt):**
+**Preferred workflow:**
 ```bash
-chrome-debug-restart  # kills Chrome, relaunches with ~/Library/.../Google/Chrome Default profile
-                      # your mw@mike-wolf.com YeshID session is already active
-                      # Chrome will offer to restore previous tabs on next normal launch
+chrome-debug          # launches/consolidates ChromeMain on port 9222
+chrome-debug-restart  # same launcher; kept for muscle memory
 ```
 
-**Alternative (keep normal Chrome open, needs one-time login):**
-```bash
-chrome-debug          # starts separate ChromeDebug profile on port 9222
-                      # ~/Library/.../Google/ChromeDebug/Default — requires manual sign-in once
-```
-
-**Profile for both aliases:** `~/Library/Application Support/Google/ChromeDebug` / `Default`
-— `ChromeDebug/Default` is a **symlink** to the main Chrome `Default` profile, so all sessions
-(`mw@mike-wolf.com`, YeshID, etc.) are already active. The main Chrome user data dir does NOT
-expose the debug port; only ChromeDebug does. Do not change the user-data-dir to the main Chrome dir.
+**Profile for both aliases:** `~/Library/Application Support/Google/ChromeMain` / `Default`.
+Chrome 136+ silently drops `--remote-debugging-port` for the default user-data-dir
+(`~/Library/Application Support/Google/Chrome`), so do not point launchers back there.
+`ChromeDebug` is retired legacy state; do not recreate the old symlinked-profile trick.
 
 **Session check:** `curl -s http://localhost:9222/json/version | python3 -m json.tool`
 
 **Auth state check (app.yeshid.com):** Navigate to `https://app.yeshid.com/` — if redirected to `/login`, session expired. Use `chrome-debug-restart` to get a fresh session.
+
+## Yeshie HUD — retired 2026-07-01 (Mike's call)
+
+Mike: "it's just a box that pops up and shows no information." Confirmed and retired.
+
+**What it was:** `com.yeshie.hud` launchd job running `scripts/hud.py` (native macOS panel app, `:3334` control port). It polls the relay for active jobs and force-shows a native panel (`orderFrontRegardless`) whenever it thinks a job is running; the panel content is a WKWebView pointed at `localhost:3333/hud`. At retirement time the WKWebView had never successfully loaded (`GET :3334/wv-status` → `{"loaded": false}`), so the panel popped with nothing rendered inside it — hence the empty box. Root cause was investigated 2026-04-30 (see `HUD-INVESTIGATION-RESULTS.md`, `HUD-FINDINGS-*.md`) — leading hypotheses were a WKWebView load/cache failure and a `jobMap`/`hud_update` vs `jobs`/`job_update` bookkeeping split between job writers and the HUD's event subscription — but it was never fixed. A prior note (in `mac-controller/KNOWLEDGE.md`) claimed this was already retired 2026-06-10; it wasn't — the plist was still `RunAtLoad`/`KeepAlive=true` and the process was live (PID 777) until this pass.
+
+**What was disabled:**
+```bash
+launchctl bootout gui/$(id -u)/com.yeshie.hud
+mv ~/Library/LaunchAgents/com.yeshie.hud.plist ~/Library/LaunchAgents/com.yeshie.hud.plist.disabled
+# backup also kept at ~/Library/LaunchAgents/com.yeshie.hud.plist.bak
+```
+
+**To re-enable:**
+```bash
+mv ~/Library/LaunchAgents/com.yeshie.hud.plist.disabled ~/Library/LaunchAgents/com.yeshie.hud.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.yeshie.hud.plist
+```
+Fix the WKWebView load failure (or the job-bookkeeping split) first, or it'll just be an empty box again.
+
+**Confirmed unaffected by the retirement:** `com.yeshie.relay` (`:3333/status`), the Pulse asks path (`:3333/hud/asks`, `cc hud-ask`), `com.yeshie.listener`, `com.yeshie.watcher`, and the ⌃⌥R recording toggle (`do-it-once`, dio-phase-a) — none of these depend on the `com.yeshie.hud` process.
