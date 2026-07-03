@@ -1,123 +1,72 @@
 {
   "_meta": {
     "task": "export-data",
-    "description": "Trigger Claude.ai data export. Navigates to Settings → Privacy → Export data. The export zip downloads directly to the browser's download folder.",
+    "description": "Trigger Claude.ai data export. Settings are a hash-addressed modal as of ~2026-07: open a NEW tab directly on claude.ai/new#settings/data-privacy-controls and wait_for the dialog \u2014 the modal renders seconds AFTER tab 'complete' on a cold SPA load, so fixed delays race it (that raced-delay bug is why the 07-02/07-03 nightly runs failed with 'Text not found'). A mid-chain hashchange (navigate on an already-open tab) is NOT reliable \u2014 claude.ai's router only honors #settings at page load. Click 'Export data', then 'Export' in the confirm sub-dialog. FLOW CHANGE ~2026-07: the export is no longer a direct browser download \u2014 Anthropic emails a download link to the account email (expires in 24h).",
     "selfImproving": true,
     "runCount": 0,
-    "lastSuccess": null,
-    "params": {
-      "settings_url": {
-        "required": false,
-        "default": "https://claude.ai/settings",
-        "description": "Claude.ai settings page URL — must be logged in"
-      }
-    },
+    "lastSuccess": "2026-07-03",
+    "flowChangeLog": [
+      "2026-07-03: old flow (navigate claude.ai/settings -> click Export data -> direct zip download) is dead. claude.ai/settings now redirects to the most recent chat. Rebuilt around the #settings hash modal. Export now emails a link instead of downloading directly. Verified live 2026-07-03 by Dee."
+    ],
     "humanSteps": [
-      "After skill completes: check ~/Downloads/ for a new conversations-*.zip file",
-      "Move the zip to ~/Downloads/chat-exports/"
+      "Anthropic emails a download link to the claude.ai account email (mw@mike-wolf.com). Link expires in 24 hours.",
+      "Click the link; the zip lands in ~/Downloads. The next nightly run (or acquire_exports) imports it \u2014 no manual move needed if it matches conversations*.zip / contains conversations.json."
     ]
   },
-  "params": {
-    "settings_url": "https://claude.ai/settings"
-  },
-  "abstractTargets": {
-    "export_button": {
-      "description": "Export data button in the Privacy section of Settings",
-      "anchors": {
-        "ariaLabel": "Export data"
-      },
-      "fallbackSelectors": [
-        "button[aria-label='Export data']",
-        "button:contains('Export')",
-        "[data-testid='export-data-button']"
-      ]
-    }
-  },
+  "params": {},
   "chain": [
     {
       "stepId": "s1",
-      "action": "navigate",
-      "url": "https://claude.ai/settings",
-      "note": "Navigate directly to Claude.ai settings"
+      "action": "open_tab",
+      "url": "https://claude.ai/new#settings/data-privacy-controls",
+      "note": "New tab, hash in the load URL \u2014 NEVER 'navigate' as the first step: with tabId null the runner hijacks Mike's active tab (that's what the 07-01..07-03 version did)"
     },
     {
       "stepId": "s2",
-      "action": "assess_state",
-      "stateGraph": {
-        "nodes": {
-          "auth_required": {
-            "signals": [
-              { "type": "url_matches", "pattern": "claude\\.ai/login" }
-            ]
-          }
-        }
-      },
-      "onMismatch": "continue",
-      "note": "Fail fast if redirected to login"
+      "action": "wait_for",
+      "selector": "[role='dialog']",
+      "timeout": 30000,
+      "note": "Settings modal renders seconds after tab 'complete' on a cold SPA load \u2014 poll, don't fixed-delay"
     },
     {
       "stepId": "s3",
       "action": "delay",
-      "ms": 1500,
-      "note": "Wait for settings page to load"
+      "ms": 1000,
+      "note": "Let the Privacy pane content settle inside the dialog"
     },
     {
       "stepId": "s4",
-      "action": "probe_affordances",
-      "note": "Survey available buttons and links on the settings page for debugging"
+      "action": "click_text",
+      "text": "Export data",
+      "note": "Opens the export confirm sub-dialog (range: All/30/90/Custom, defaults to All)"
     },
     {
       "stepId": "s5",
-      "action": "click_text",
-      "text": "Export data",
-      "note": "Click the Export data button"
+      "action": "delay",
+      "ms": 1500
     },
     {
       "stepId": "s6",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for download or confirmation dialog"
+      "action": "click_text",
+      "text": "Export",
+      "note": "Confirm. On success the sub-dialog closes back to the Privacy pane and Anthropic queues the email"
     },
     {
       "stepId": "s7",
-      "action": "assess_state",
-      "stateGraph": {
-        "nodes": {
-          "confirm_dialog": {
-            "signals": [
-              { "type": "element_visible", "selector": "[role='dialog']" },
-              { "type": "element_visible", "selector": "[role='alertdialog']" }
-            ]
-          }
-        }
-      },
-      "onMismatch": "continue",
-      "note": "Check if a confirmation dialog appeared"
+      "action": "delay",
+      "ms": 2500
     },
     {
       "stepId": "s8",
-      "action": "click_text",
-      "text": "Export",
-      "note": "Click Export/OK in any confirmation dialog (no-op if already triggered download)"
-    },
-    {
-      "stepId": "s9",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Allow download to initiate"
-    },
-    {
-      "stepId": "s10",
       "action": "read",
       "candidates": [
-        "[role='dialog'] p",
+        "[role='dialog']",
         "[role='status']",
-        ".toast",
         "[aria-live='polite']",
-        "main"
+        "body"
       ],
       "store_as": "result_text",
-      "note": "Capture any success/status message"
+      "note": "Capture post-click state. Success signature: dialog text is back to the Privacy pane (contains 'Your data' / 'Export data' but not 'download link will be sent')"
     }
   ],
   "site": "claude.ai",
