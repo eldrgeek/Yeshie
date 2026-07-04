@@ -1,0 +1,77 @@
+{
+  "_meta": {
+    "task": "export-download",
+    "description": "Given the emailed 'Your data is ready for download' link, open it in a NEW tab and click through to trigger the actual zip download into ~/Downloads. FLOW: as of 2026-07, this link lands on an authenticated claude.ai page — it is NOT a signed one-shot download URL, so a bare page load (or a raw HTTP GET without the browser session) never produces a zip. The page requires a UI action (a 'Download' control) before the browser actually starts the file download. Root-caused 2026-07-04 by Dee (WQ export-ingest fix): the 07-03 test forward failed both the daemon's direct HTTP GET (auth wall — HTML, not a zip) and its old passive Chrome-CDP-poll fallback (opened the tab but never clicked anything, so no download ever started).",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "flowChangeLog": [
+      "2026-07-04: created — the export-data.payload.json flow only *requests* the export (emails a link). This new payload is step 2: consume that link and actually pull the zip. Selectors below are best-effort/defensive (multiple candidate texts+selectors) because no live 'download ready' page has been observed yet — the 07-03 test link had already gone stale by the time this was diagnosed. First real nightly Phase-B export cycle that lands a genuine Anthropic email is the first live test; update flowChangeLog with the confirmed selector once it fires."
+    ],
+    "humanSteps": [
+      "None expected if this payload succeeds — it should replace the manual 'click the emailed link' step entirely for the daemon's automated path.",
+      "If this payload's selectors miss (site changed again), the emailed link is still there as a manual fallback — click it in the browser directly."
+    ]
+  },
+  "params": {
+    "export_url": "https://claude.ai/PLACEHOLDER"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "open_tab",
+      "url": "{{export_url}}",
+      "note": "Open the exact link from the export-ready email. New tab so it never hijacks Mike's active tab."
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "body",
+      "timeout": 15000,
+      "note": "Basic page-load gate before probing for auth wall or download control."
+    },
+    {
+      "stepId": "s3",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Let the SPA hydrate — same race documented in export-data.payload.json."
+    },
+    {
+      "stepId": "s4",
+      "action": "read",
+      "candidates": [
+        "a[href*='/login']",
+        "button[aria-label*='Sign in']",
+        "body"
+      ],
+      "store_as": "page_state",
+      "note": "Cheap auth-wall probe. If this contains a login control, the Chrome session is not authenticated for claude.ai — the whole Chrome strategy is moot and the daemon should fall back to notifying Mike with the raw link."
+    },
+    {
+      "stepId": "s5",
+      "action": "js",
+      "code": "(function(){ var candidates = []; try { candidates = candidates.concat(Array.from(document.querySelectorAll(\"a[href$='.zip'], a[download]\"))); } catch(e) {} try { var textish = Array.from(document.querySelectorAll('button, a, [role=\"button\"]')); candidates = candidates.concat(textish.filter(function(el){ var t = (el.textContent||'').trim().toLowerCase(); return t.indexOf('download') !== -1; })); } catch(e) {} var seen = new Set(); var clicked = null; for (var i=0;i<candidates.length;i++){ var el = candidates[i]; if (!el || seen.has(el)) continue; seen.add(el); try { el.click(); clicked = (el.textContent||el.getAttribute('href')||el.tagName||'').trim().slice(0,80); break; } catch(e) {} } return { clicked: clicked, candidateCount: candidates.length }; })()",
+      "store_as": "click_result",
+      "note": "Single best-effort step (never throws — the daemon decides success purely from whether a zip lands in ~/Downloads afterward, not from this step's outcome). Tries every href$='.zip'/[download] anchor first, then any button/link/role=button whose text contains 'download'. Update the candidate list here once a real export-ready page has been observed (see _meta.flowChangeLog)."
+    },
+    {
+      "stepId": "s8",
+      "action": "delay",
+      "ms": 3000,
+      "note": "Give the click time to start the browser download before the daemon starts polling ~/Downloads."
+    },
+    {
+      "stepId": "s9",
+      "action": "read",
+      "candidates": [
+        "[role='status']",
+        "[aria-live='polite']",
+        "body"
+      ],
+      "store_as": "result_text",
+      "note": "Capture post-click page state for the daemon's log — not used for pass/fail (that's decided by whether a zip actually lands in ~/Downloads)."
+    }
+  ],
+  "site": "claude.ai",
+  "mode": "exploratory"
+}
