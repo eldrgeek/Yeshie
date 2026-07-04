@@ -15,22 +15,25 @@ Chrome extension + local relay server: Claude sends payload JSON → extension e
 | Site payloads | `~/Projects/yeshie/sites/` |
 | Full spec | `~/Projects/yeshie/SPECIFICATION.md` |
 
-## Recipe count (corrected 2026-07-04, WQ-122)
+## Recipe count (corrected 2026-07-04, WQ-122; re-verified 2026-07-04, WQ-124 sweep)
 
 A "recipe" is a `sites/<domain>/tasks/*.payload.json` file (that's what the per-site
 `README.md` files, e.g. `sites/github.com/README.md`, call them). The top-level
 `recipes/` directory is a one-off (`auth-flow-handler` only, added whole 2026-05-05,
 no history since) — not the repo's actual recipe home; don't count only that dir.
 
-True count as of 2026-07-04: **188 git-tracked recipes** (209 on disk incl. in-progress
-untracked work) across 27 site dirs. `github.com` is the largest set (100 recipes, of
+True count as of 2026-07-04: **188 git-tracked recipes** (208 on disk incl. in-progress
+untracked work — corrected from 209, off-by-one in the original WQ-122 pass, re-verified
+2026-07-04 WQ-124: `find sites -name '*.payload.json' | wc -l` = 208) across 30 site dirs
+(corrected from 27 — `find sites -mindepth 1 -maxdepth 1 -type d | wc -l` = 30).
+`github.com` is the largest set (100 recipes, of
 which 38 are "live verified," per its own README — the rest need an authenticated
 session to verify). Full per-site breakdown: `find sites -name "*.payload.json" | sed
 's#/tasks/.*##' | sort | uniq -c | sort -rn`.
 
 The prior "46+ recipes" figure (root `~/Projects/CLAUDE.md`) never matched any point in
 git history — count went 6 (Mar 30) → 24 (Apr 10) → 28 (Apr 12) → 84 (Jun 12) → 184
-(Jun 13) → 188 (Jun 19) → 209 (today, WIP). It was never 46 at any commit; likely an
+(Jun 13) → 188 (Jun 19) → 208 (today, WIP; corrected from 209). It was never 46 at any commit; likely an
 early guess that got carried forward without re-measuring when the corpus grew. No
 recipes were lost — only a handful of superseded `sites/okta/tasks/*` files were
 deleted/renamed as that set matured; corpus size only ever grew.
@@ -59,6 +62,8 @@ chrome-debug-restart  # same launcher; kept for muscle memory
 Chrome 136+ silently drops `--remote-debugging-port` for the default user-data-dir
 (`~/Library/Application Support/Google/Chrome`), so do not point launchers back there.
 `ChromeDebug` is retired legacy state; do not recreate the old symlinked-profile trick.
+(Verified 2026-07-04, WQ-124 sweep: `~/Library/Application Support/Google/ChromeDebug`
+still exists on disk — retired from use, not deleted; safe to remove but not required.)
 
 **Session check:** `curl -s http://localhost:9222/json/version | python3 -m json.tool`
 
