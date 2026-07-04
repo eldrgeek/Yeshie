@@ -323,7 +323,8 @@ export function createRelay(port = 3333) {
   const notifyTimers = new Map();   // jobId → intervalId
   const COUNTDOWN_S  = 30;          // auto-fire after this many seconds
   const IDLE_FIRE_S  = 10;          // also auto-fire if user idle >= this long
-  const AX_INJECT    = '/Users/mikewolf/Projects/yeshie/scripts/yeshie-inject';
+  const AX_INJECT    = process.env.YESHIE_AX_INJECT
+    || join(homedir(), 'Projects', 'yeshie', 'scripts', 'yeshie-inject');
 
   function getIdleSecondsAsync() {
     return new Promise(resolve => {
@@ -2564,13 +2565,13 @@ h2{color:#58a6ff}hr{border-color:#333}
         let last_log_lines = [];
         let process_state = null;
         try {
-          const logPath = join(process.env.HOME || '/Users/mikewolf', '.local', 'share', 'soma-supervisor.log');
+          const logPath = join(homedir(), '.local', 'share', 'soma-supervisor.log');
           const { readFileSync: rfs2 } = await import('fs');
           const lines = rfs2(logPath, 'utf8').split('\n');
           last_log_lines = lines.filter(l => l.includes('| ' + svcName + ' |')).slice(-10);
         } catch {}
         try {
-          const statePath = join(process.env.HOME || '/Users/mikewolf', '.local', 'share', 'soma-supervisor.state.json');
+          const statePath = join(homedir(), '.local', 'share', 'soma-supervisor.state.json');
           const { readFileSync: rfs3 } = await import('fs');
           const allState = JSON.parse(rfs3(statePath, 'utf8'));
           process_state = allState[svcName] || null;
