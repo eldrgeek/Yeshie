@@ -1,23 +1,22 @@
 {
   "site": "chatgpt.com",
-  "framework": "react-lexical",
-  "description": "ChatGPT chat interface — Lexical contenteditable input, React UI",
+  "framework": "react-prosemirror",
+  "description": "ChatGPT chat interface — ProseMirror contenteditable composer (#prompt-textarea), React UI. Migrated off Lexical; the old data-lexical-editor attr and data-testid='prompt-textarea' are gone.",
   "abstractTargets": {
     "prompt_input": {
-      "description": "Main chat prompt input area (Lexical contenteditable editor)",
+      "description": "Main chat prompt composer (ProseMirror contenteditable div, id=prompt-textarea, aria-label 'Chat with ChatGPT')",
       "match": {
-        "name_contains": ["Message ChatGPT", "Send a message"]
+        "name_contains": ["Chat with ChatGPT"]
       },
       "anchors": {
-        "ariaLabel": "Message ChatGPT",
-        "dataTestId": "prompt-textarea"
+        "ariaLabel": "Chat with ChatGPT"
       },
       "fallbackSelectors": [
         "#prompt-textarea",
-        "[data-testid='prompt-textarea']",
-        "[contenteditable='true'][data-lexical-editor='true']",
-        "div[contenteditable='true']"
-      ]
+        "div#prompt-textarea[contenteditable='true']",
+        "#prompt-textarea.ProseMirror"
+      ],
+      "notes": "GOTCHA: rendered assistant/user messages are ALSO ProseMirror contenteditable divs (class 'ProseMirror markdown prose'), and they appear before the composer in DOM order. A bare div[contenteditable='true'] fallback resolves to the wrong element — always scope to the #prompt-textarea id. SUBMIT: a CDP-dispatched Enter key no longer submits the composer; click send_button instead (see sites/chatgpt.com/tasks/01-submit-prompt.payload.json)."
     },
     "send_button": {
       "description": "Send prompt button",
@@ -53,7 +52,18 @@
       "fallbackSelectors": [
         "[data-message-author-role='assistant']:last-of-type",
         "[data-message-author-role='assistant']:last-child"
-      ]
+      ],
+      "notes": "CAVEAT: :last-of-type does NOT return the latest assistant message in a MULTI-turn conversation — each turn is its own wrapper, so querySelector (first match in document order) returns an EARLIER turn. It is only correct on a fresh single-turn chat. The submit-prompt recipe navigates to base_url first specifically to guarantee a single turn. Reading the true last message on a multi-turn page requires querySelectorAll(...).pop(), which PRE_GUARDED_READ (querySelector-based) can't express."
+    },
+    "generation_complete": {
+      "description": "Reliable 'answer fully rendered' signal — the per-message Copy action button. Present only after generation completes; absent during streaming AND during the thinking phase of gpt-5-*-thinking models.",
+      "anchors": {
+        "dataTestId": "copy-turn-action-button"
+      },
+      "fallbackSelectors": [
+        "[data-testid='copy-turn-action-button']"
+      ],
+      "notes": "Prefer this over waiting for stop_button to disappear: on thinking models the stop button toggles off during the think→answer transition, so a stop-button wait returns while the answer is still empty (container class 'result-thinking', empty <p>)."
     },
     "auth_wall": {
       "description": "Login indicator when session expired (redirect URL or logged-out home page)",

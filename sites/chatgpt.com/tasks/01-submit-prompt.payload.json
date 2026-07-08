@@ -17,7 +17,9 @@
     },
     "selfImproving": true,
     "runCount": 0,
-    "lastSuccess": null
+    "lastSuccess": null,
+    "callerContract": "Pass tabId = an already-authenticated chatgpt.com tab (resolve it via GET /tabs/list). Do NOT rely on tabId auto-discovery: with no tabId the extension picks the active tab of the last-focused window (chrome.tabs.query {active,lastFocusedWindow}), which is usually NOT the ChatGPT tab, and the recipe would then run against the wrong page. This recipe does NOT open its own tab: a cold-opened chatgpt.com tab intermittently redirects to /login (unauthenticated) so the composer never mounts. A durable class-wide fix (prefer a base_url-host tab during discovery) is proposed for background.ts startRun — see _estate/errors / the repair note doc.",
+    "repairNote": "2026-07-08: ChatGPT composer migrated Lexical -> ProseMirror. Two root causes behind the silent {status:ok,value:''} failure, both fixed here: (1) The old bare div[contenteditable='true'] fallback matched a RENDERED MESSAGE (also a ProseMirror contenteditable div, earlier in DOM order) instead of the composer -> selectors now scope to the #prompt-textarea id + aria-label 'Chat with ChatGPT', so a wrong tab now fails LOUDLY ('Cannot resolve: prompt_input') instead of silently succeeding. (2) A CDP-dispatched Enter no longer submits ChatGPT's ProseMirror composer (verified: text stays in the composer, no send) -> now type with submit:false and click send_button explicitly. data-testid='prompt-textarea' and data-lexical-editor are gone from the composer; #prompt-textarea (id) and [data-testid='send-button'] remain valid."
   },
   "params": {
     "base_url": "https://chatgpt.com/",
@@ -25,16 +27,43 @@
   },
   "abstractTargets": {
     "prompt_input": {
-      "description": "Lexical contenteditable prompt textarea",
+      "description": "ProseMirror contenteditable prompt composer (#prompt-textarea, aria-label 'Chat with ChatGPT')",
+      "match": {
+        "name_contains": ["Chat with ChatGPT"]
+      },
       "anchors": {
-        "ariaLabel": "Message ChatGPT",
-        "dataTestId": "prompt-textarea"
+        "ariaLabel": "Chat with ChatGPT"
       },
       "fallbackSelectors": [
         "#prompt-textarea",
-        "[data-testid='prompt-textarea']",
-        "[contenteditable='true'][data-lexical-editor='true']",
-        "div[contenteditable='true']"
+        "div#prompt-textarea[contenteditable='true']",
+        "#prompt-textarea.ProseMirror"
+      ],
+      "notes": "Do NOT use a bare div[contenteditable='true'] fallback: rendered messages are also ProseMirror contenteditable divs and querySelector returns the message element (first in DOM) instead of the composer. Always scope to the #prompt-textarea id."
+    },
+    "send_button": {
+      "description": "Send prompt button (present + enabled once the composer has text)",
+      "match": {
+        "name_contains": ["Send prompt"]
+      },
+      "anchors": {
+        "dataTestId": "send-button",
+        "ariaLabel": "Send prompt"
+      },
+      "fallbackSelectors": [
+        "[data-testid='send-button']",
+        "button[aria-label='Send prompt']",
+        "button[aria-label*='Send' i]"
+      ]
+    },
+    "disable_temp_chat": {
+      "description": "Composer-header toggle to leave Temporary Chat. Exists ONLY while temporary chat is active; clicking it drops the ephemeral chat and returns to a fresh normal chat.",
+      "anchors": {
+        "ariaLabel": "Turn off temporary chat"
+      },
+      "fallbackSelectors": [
+        "[aria-label='Turn off temporary chat']",
+        "button[aria-label='Turn off temporary chat']"
       ]
     }
   },
@@ -55,53 +84,125 @@
         }
       },
       "onMismatch": "continue",
-      "note": "Check for auth wall"
+      "note": "MUST stay chain[0]: startRun only skips its pre-chain auth-wait when the first step is assess_state. If a navigate step is placed first, the pre-chain auth check fires and times out with 'user did not complete login'. Checks for the /auth wall; onMismatch:continue."
     },
     {
       "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}",
+      "note": "Navigate the (caller-provided, already-authenticated) tab to base_url. Default base_url=chatgpt.com/ gives a fresh single-turn conversation, which keeps the s10 read reliable: [data-message-author-role='assistant']:last-of-type resolves via querySelector (first match in document order), so on a multi-turn page it would return an EARLIER turn's response, not the latest. NOTE: navigate (existing authenticated tab), NOT open_tab — a cold-opened tab intermittently redirects to /login."
+    },
+    {
+      "stepId": "s2-settle",
       "action": "delay",
-      "ms": 800
+      "ms": 1500,
+      "note": "Let the SPA fully hydrate before the s2a temporary-chat check. Without this, s2a can race the render and read 'Turn on temporary chat' (normal) during a brief pre-hydration window even though the page then settles into Temporary Chat."
+    },
+    {
+      "stepId": "s2a",
+      "action": "assess_state",
+      "stateGraph": {
+        "nodes": {
+          "temporary_on": {
+            "signals": [
+              { "type": "element_visible", "selector": "[aria-label='Turn off temporary chat']" }
+            ]
+          },
+          "normal": {
+            "signals": [
+              { "type": "element_visible", "selector": "[aria-label='Turn on temporary chat']" }
+            ]
+          }
+        }
+      },
+      "expect": { "state": "normal" },
+      "onMismatch": "branch:disable_temp",
+      "note": "SELF-HEAL: ChatGPT temporary chat can be a sticky account/session default that a full-page navigate re-enters; a submit into it is discarded (no persisted/readable answer). If temporary chat is ON (the 'Turn off temporary chat' toggle is present), branch to disable_temp to turn it off, dropping the ephemeral chat and returning to a fresh normal chat. When temporary chat is already OFF ('Turn on temporary chat' present), state=='normal' matches expect and no branch runs — safe/no-op on normal accounts."
+    },
+    {
+      "stepId": "s2b",
+      "action": "wait_for",
+      "url_pattern": "^https://chatgpt\\.com/(?!.*temporary-chat=true)",
+      "timeout": 8000,
+      "note": "GUARD (belt-and-suspenders after the s2a self-heal): fail fast if we are STILL in Temporary Chat. Ephemeral temp submits are discarded, so without this the recipe would type+submit then hang 180s on the s8 copy-button wait. Negative-lookahead pattern matches a normal chat instantly (pass) but never '?temporary-chat=true', so a temporary chat times out in 8s with a clear 'wait_for url timeout'."
     },
     {
       "stepId": "s3",
+      "action": "delay",
+      "ms": 1200,
+      "note": "Let the ProseMirror composer mount + settle after navigation before typing"
+    },
+    {
+      "stepId": "s4",
       "action": "type",
       "target": "prompt_input",
       "value": "{{prompt}}",
       "submit": true,
-      "note": "Type prompt and press Enter"
-    },
-    {
-      "stepId": "s4",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Allow generation to start"
+      "note": "submit:true sends Enter after the text. On current ChatGPT ProseMirror a CDP Enter is a harmless no-op (does NOT submit, does NOT insert a newline — verified), so the text stays in the composer intact; the real submit is the explicit send_button click in s6. (submit:false is avoided: it makes trustedType press Tab, which moved focus off the composer and the send button failed to resolve on the next step.)"
     },
     {
       "stepId": "s5",
-      "action": "wait_for",
-      "selector": "[data-testid='stop-button']",
-      "state": {
-        "visible": false
-      },
-      "timeout": 120000,
-      "note": "Wait until stop button disappears \u2014 generation complete"
+      "action": "delay",
+      "ms": 400,
+      "note": "Let ProseMirror register the inserted text and enable the send button"
     },
     {
       "stepId": "s6",
-      "action": "delay",
-      "ms": 500
+      "action": "click",
+      "target": "send_button",
+      "note": "Click Send — the reliable submit path on current ChatGPT"
     },
     {
       "stepId": "s7",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Allow generation to start"
+    },
+    {
+      "stepId": "s8",
+      "action": "wait_for",
+      "selector": "[data-testid='copy-turn-action-button']",
+      "state": {
+        "visible": true
+      },
+      "timeout": 180000,
+      "note": "Wait until the assistant message's Copy action button appears — the RELIABLE 'answer fully rendered' signal. Do NOT wait on [data-testid='stop-button'] going invisible: for thinking models (e.g. gpt-5-*-thinking) the stop button toggles off during the think→answer transition, so that wait completes while the answer is still empty (assistant container class 'result-thinking', empty <p>), and the read captures ''. The copy button only appears once generation is truly complete. RELIES on s2's fresh single-turn chat: on a multi-turn page prior turns already have copy buttons, so this would pass immediately. 180s timeout accommodates deep thinking-model latency."
+    },
+    {
+      "stepId": "s9",
+      "action": "delay",
+      "ms": 600,
+      "note": "Let the final assistant message finish painting into the DOM"
+    },
+    {
+      "stepId": "s10",
       "action": "read",
       "candidates": [
         "[data-message-author-role='assistant']:last-of-type",
         "[data-message-author-role='assistant']:last-child"
       ],
       "store_as": "response",
-      "note": "Capture last assistant message"
+      "note": "Capture last assistant message. Reliable because s2 navigated to a fresh single-turn chat (only one assistant message present)."
     }
   ],
+  "branches": {
+    "disable_temp": {
+      "steps": [
+        {
+          "stepId": "heal-1",
+          "action": "click",
+          "target": "disable_temp_chat",
+          "note": "Turn OFF temporary chat — drops the ephemeral chat, returns to a fresh normal chat"
+        },
+        {
+          "stepId": "heal-2",
+          "action": "delay",
+          "ms": 1000,
+          "note": "Let the toggle-off settle (URL drops temporary-chat=true, fresh composer mounts) before the s2b guard re-checks"
+        }
+      ]
+    }
+  },
   "site": "chatgpt.com",
   "mode": "exploratory"
 }
