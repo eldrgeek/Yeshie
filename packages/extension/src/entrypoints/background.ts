@@ -2685,6 +2685,10 @@ export default defineBackground(() => {
     // when base_url isn't set or no matching tab exists.
     if (!tabId) {
       const baseUrl = params?.base_url;
+      // Normalize: chrome.tabs.query match patterns need `https://host/*` — a
+      // trailing slash on base_url (e.g. "https://chatgpt.com/") would produce
+      // an invalid "https://chatgpt.com//*" that matches nothing.
+      const baseUrlForMatch = baseUrl ? String(baseUrl).replace(/\/+$/, '') : baseUrl;
       let baseHost: string | null = null;
       try { if (baseUrl) baseHost = new URL(baseUrl).hostname; } catch { /* malformed */ }
       const hostMatches = (u?: string) => {
@@ -2701,7 +2705,7 @@ export default defineBackground(() => {
 
       if (baseHost && !hostMatches(activeTab?.url)) {
         // Active tab is on the wrong site (or there's none) — look for a base_url-host tab.
-        const queryUrl = (baseHost === 'github.com' || baseHost.endsWith('.github.com')) ? 'https://*.github.com/*' : `${baseUrl}/*`;
+        const queryUrl = (baseHost === 'github.com' || baseHost.endsWith('.github.com')) ? 'https://*.github.com/*' : `${baseUrlForMatch}/*`;
         const matching = await chrome.tabs.query({ url: queryUrl });
         // Prefer an active/focused matching tab, else the first matching tab.
         const chosen = matching.find(t => t.active) || matching[0];
@@ -2719,7 +2723,7 @@ export default defineBackground(() => {
         console.log('[Yeshie] Auto-discovered active tab:', tabId, activeTab.url);
       } else {
         // No active tab at all — last resort: any http tab (or base_url host tab).
-        const allTabs = await chrome.tabs.query({ url: baseUrl ? `${baseUrl}/*` : 'https://*/*' });
+        const allTabs = await chrome.tabs.query({ url: baseUrlForMatch ? `${baseUrlForMatch}/*` : 'https://*/*' });
         if (allTabs[0]?.id) {
           tabId = allTabs[0].id;
           console.log('[Yeshie] Found matching tab:', tabId, allTabs[0].url);
