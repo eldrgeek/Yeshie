@@ -2677,26 +2677,49 @@ export default defineBackground(() => {
 
   // ── Chain runner ──────────────────────────────────────────────────────────────
   async function startRun(runId: string, payload: any, params: Record<string, any>, tabId: number) {
-    // Auto-discover active tab if none provided
+    // Auto-discover the target tab if none provided.
+    // Prefer a tab whose host matches params.base_url over the arbitrary active tab.
+    // The active tab of the last-focused window is very often NOT the site the recipe
+    // targets — grabbing it silently ran the whole chain against the wrong page (the
+    // 2026-07 chatgpt.com silent-failure class). We only fall back to the active tab
+    // when base_url isn't set or no matching tab exists.
     if (!tabId) {
-      const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-      if (tabs[0]?.id) {
-        tabId = tabs[0].id;
-        console.log('[Yeshie] Auto-discovered active tab:', tabId, tabs[0].url);
+      const baseUrl = params?.base_url;
+      let baseHost: string | null = null;
+      try { if (baseUrl) baseHost = new URL(baseUrl).hostname; } catch { /* malformed */ }
+      const hostMatches = (u?: string) => {
+        if (!u || !baseHost) return false;
+        let h: string;
+        try { h = new URL(u).hostname; } catch { return false; }
+        if (h === baseHost) return true;
+        // github.com recipes also run on subdomains (gist.github.com, etc.)
+        if ((baseHost === 'github.com' || baseHost.endsWith('.github.com')) && (h === 'github.com' || h.endsWith('.github.com'))) return true;
+        return false;
+      };
+
+      const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+
+      if (baseHost && !hostMatches(activeTab?.url)) {
+        // Active tab is on the wrong site (or there's none) — look for a base_url-host tab.
+        const queryUrl = (baseHost === 'github.com' || baseHost.endsWith('.github.com')) ? 'https://*.github.com/*' : `${baseUrl}/*`;
+        const matching = await chrome.tabs.query({ url: queryUrl });
+        // Prefer an active/focused matching tab, else the first matching tab.
+        const chosen = matching.find(t => t.active) || matching[0];
+        if (chosen?.id) {
+          tabId = chosen.id;
+          console.log('[Yeshie] Selected base_url-matching tab over active tab:', tabId, chosen.url);
+        } else if (activeTab?.id) {
+          tabId = activeTab.id;
+          console.warn('[Yeshie] No tab on base_url host', baseHost, '— falling back to active tab:', tabId, activeTab.url);
+        } else {
+          throw new Error('No active tab found. Open a browser tab first.');
+        }
+      } else if (activeTab?.id) {
+        tabId = activeTab.id;
+        console.log('[Yeshie] Auto-discovered active tab:', tabId, activeTab.url);
       } else {
-        // Fallback: find any tab with the base_url or any http tab
-        const baseUrl = params?.base_url;
-        // For github.com: also search subdomains (gist.github.com, etc.)
-        let tabQueryUrl = baseUrl ? `${baseUrl}/*` : 'https://*/*';
-        try {
-          if (baseUrl) {
-            const bHost = new URL(baseUrl).hostname;
-            if (bHost === 'github.com' || bHost.endsWith('.github.com')) {
-              tabQueryUrl = 'https://*.github.com/*';
-            }
-          }
-        } catch { /* ignore malformed URL */ }
-        const allTabs = await chrome.tabs.query({ url: tabQueryUrl });
+        // No active tab at all — last resort: any http tab (or base_url host tab).
+        const allTabs = await chrome.tabs.query({ url: baseUrl ? `${baseUrl}/*` : 'https://*/*' });
         if (allTabs[0]?.id) {
           tabId = allTabs[0].id;
           console.log('[Yeshie] Found matching tab:', tabId, allTabs[0].url);
