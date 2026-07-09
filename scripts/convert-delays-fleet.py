@@ -30,7 +30,12 @@ GENERIC_SETTLE = "main, [role='main'], .v-main, .v-data-table, .application-main
 def next_target(nxt):
     if not isinstance(nxt, dict):
         return None
-    if nxt.get('action') not in ('click', 'type', 'wait_for', 'select', 'select_entity'):
+    # NOTE: 'wait_for' deliberately excluded. A delay sitting before a wait_for
+    # is a SETTLE ("let the thing appear before we wait for it") — converting it
+    # to wait_for(that same target, visible) creates a fragile transient wait
+    # that hard-fails when the target flashes by (e.g. a stop-streaming button on
+    # a fast LLM response). Those fall through to the settle+onTimeout branch.
+    if nxt.get('action') not in ('click', 'type', 'select', 'select_entity'):
         return None
     if nxt.get('target'):
         return ('target', nxt['target'])

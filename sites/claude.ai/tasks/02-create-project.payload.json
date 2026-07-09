@@ -140,7 +140,8 @@
         "visible": true
       },
       "timeout": 8000,
-      "note": "wait for [role='dialog'], [data-radix-dialog-content], [aria-modal='true'] before next step (was delay 800ms)"
+      "note": "wait for [role='dialog'], [data-radix-dialog-content], [aria-modal='true'] before next step (was delay 800ms) [softened: redundant transient wait]",
+      "onTimeout": "continue"
     },
     {
       "stepId": "s7",
