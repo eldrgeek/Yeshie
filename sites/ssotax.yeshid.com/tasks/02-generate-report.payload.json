@@ -2,13 +2,13 @@
   "_meta": {
     "name": "ssotax-generate-report",
     "site": "ssotax.yeshid.com",
-    "description": "Click 'Generate Research Report' — the primary CTA on ssotax.yeshid.com. Captures what the report flow looks like: form fields, required inputs, output format.",
+    "description": "Click 'Generate Research Report' \u2014 the primary CTA on ssotax.yeshid.com. Captures what the report flow looks like: form fields, required inputs, output format.",
     "version": "1.0.0",
     "verified": false,
     "verifiedDate": null,
     "author": "session-2026-04-14",
     "anomalies": [
-      "Report generation flow unknown — needs exploration to determine if it requires login, email, or org name",
+      "Report generation flow unknown \u2014 needs exploration to determine if it requires login, email, or org name",
       "May be a multi-step wizard or single-page form"
     ]
   },
@@ -28,9 +28,11 @@
     },
     {
       "stepId": "s2",
-      "action": "delay",
-      "ms": 3000,
-      "note": "Wait for SPA render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s3",
@@ -40,9 +42,11 @@
     },
     {
       "stepId": "s4",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for modal/next page to load"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s5",
@@ -60,7 +64,7 @@
         }
       },
       "report-form": {
-        "description": "Report generation form or modal — inputs TBD"
+        "description": "Report generation form or modal \u2014 inputs TBD"
       }
     }
   }

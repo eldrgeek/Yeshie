@@ -7,10 +7,10 @@
     "verified": true,
     "verifiedDate": "2026-04-16",
     "author": "session-2026-04-16",
-    "warning": "Destructive action — removes app access. User will lose access to the app immediately.",
+    "warning": "Destructive action \u2014 removes app access. User will lose access to the app immediately.",
     "auth": {
       "type": "manual_required",
-      "note": "Okta OAuth PKCE — session must already be active."
+      "note": "Okta OAuth PKCE \u2014 session must already be active."
     },
     "params": {
       "userId": {
@@ -42,11 +42,11 @@
       "okta-workflows-oauth": "0oa11ld7enlSeDeYv698"
     },
     "anomalies": [
-      "DOM: App row selector is tr[data-se='{appInstanceId}'] — each row is keyed by app instance ID",
-      "DOM: Delete button is a.app-user-delete-link (icon-only X button) in .app-actions — NOT a text link",
+      "DOM: App row selector is tr[data-se='{appInstanceId}'] \u2014 each row is keyed by app instance ID",
+      "DOM: Delete button is a.app-user-delete-link (icon-only X button) in .app-actions \u2014 NOT a text link",
       "DOM: Confirmation modal title is 'Unassign Application' with input[type='submit'][value='OK'] to confirm",
-      "DOM: Confirmation OK is input[type='submit'][value='OK'] — NOT a text link, use selector not click_text",
-      "Only directly-assigned apps appear in the app table with a delete button — group-assigned apps cannot be removed here",
+      "DOM: Confirmation OK is input[type='submit'][value='OK'] \u2014 NOT a text link, use selector not click_text",
+      "Only directly-assigned apps appear in the app table with a delete button \u2014 group-assigned apps cannot be removed here",
       "Apps assigned via group show group name in .app-assignment-type, not 'Individual'"
     ]
   },
@@ -64,8 +64,13 @@
     },
     {
       "stepId": "s2",
-      "action": "delay",
-      "ms": 3000
+      "action": "wait_for",
+      "selector": "a[href*='#tab-apps']",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for a[href*='#tab-apps'] before next step (was delay 3000ms)"
     },
     {
       "stepId": "s3",
@@ -75,8 +80,11 @@
     },
     {
       "stepId": "s4",
-      "action": "delay",
-      "ms": 2000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s5",
@@ -92,9 +100,11 @@
     },
     {
       "stepId": "s7",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for Unassign Application confirmation modal"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s8",
@@ -106,13 +116,15 @@
       "stepId": "s9",
       "action": "click",
       "selector": "input[type='submit'][value='OK']",
-      "note": "Confirm unassignment. Button is input[type='submit'][value='OK'] — NOT a text link."
+      "note": "Confirm unassignment. Button is input[type='submit'][value='OK'] \u2014 NOT a text link."
     },
     {
       "stepId": "s10",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for unassignment to process"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s11",

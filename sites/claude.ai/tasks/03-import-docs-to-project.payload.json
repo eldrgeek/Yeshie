@@ -6,11 +6,11 @@
     "version": "1.0.0",
     "verified": false,
     "verifiedDate": null,
-    "verificationNotes": "Built 2026-05-21. The knowledge base 'Add content' dialog UI must be verified on a live project. Claude.ai may present different modal structures; perceive steps capture the actual tree. File upload path via js action is stubbed — text paste is the primary flow.",
+    "verificationNotes": "Built 2026-05-21. The knowledge base 'Add content' dialog UI must be verified on a live project. Claude.ai may present different modal structures; perceive steps capture the actual tree. File upload path via js action is stubbed \u2014 text paste is the primary flow.",
     "anomalies": [
-      "Google Drive doc URLs cannot be directly added as URL references — claude.ai knowledge base (as of mid-2025) only accepts file uploads and text paste. Use 03b-gdrive-extract.payload.json (future) or pass exported text as content_text.",
-      "File upload via browser file input requires a local file path and a js action shim — stubbed in this payload; text paste is V1 primary path.",
-      "The 'Add content' dialog may be a slide-over sheet rather than a dialog element — perceive step captures actual structure."
+      "Google Drive doc URLs cannot be directly added as URL references \u2014 claude.ai knowledge base (as of mid-2025) only accepts file uploads and text paste. Use 03b-gdrive-extract.payload.json (future) or pass exported text as content_text.",
+      "File upload via browser file input requires a local file path and a js action shim \u2014 stubbed in this payload; text paste is V1 primary path.",
+      "The 'Add content' dialog may be a slide-over sheet rather than a dialog element \u2014 perceive step captures actual structure."
     ],
     "params": {
       "project_url": {
@@ -32,7 +32,7 @@
       "file_path": {
         "required": false,
         "default": "",
-        "description": "STUB — local file path for file upload (PDF, DOCX, TXT). V1 text paste only; file upload shim is not yet wired.",
+        "description": "STUB \u2014 local file path for file upload (PDF, DOCX, TXT). V1 text paste only; file upload shim is not yet wired.",
         "hint": "Leave empty unless you know file upload is implemented"
       }
     },
@@ -128,9 +128,11 @@
     },
     {
       "stepId": "s2",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Let project page load including knowledge panel"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s3",
@@ -139,17 +141,23 @@
         "nodes": {
           "auth_required": {
             "signals": [
-              { "type": "url_matches", "pattern": "claude\\.ai/login" }
+              {
+                "type": "url_matches",
+                "pattern": "claude\\.ai/login"
+              }
             ]
           },
           "wrong_page": {
             "signals": [
-              { "type": "url_not_matches", "pattern": "claude\\.ai/project/" }
+              {
+                "type": "url_not_matches",
+                "pattern": "claude\\.ai/project/"
+              }
             ]
           }
         }
       },
-      "onMatch": "exit_with_error:not-on-project-page — check project_url param",
+      "onMatch": "exit_with_error:not-on-project-page \u2014 check project_url param",
       "onMismatch": "continue",
       "note": "Fail fast if project_url led somewhere unexpected"
     },
@@ -163,19 +171,25 @@
       "stepId": "s5",
       "action": "click",
       "target": "add_content_button",
-      "note": "Open Add content dialog. If this fails, check perceive output — button may be labeled differently."
+      "note": "Open Add content dialog. If this fails, check perceive output \u2014 button may be labeled differently."
     },
     {
       "stepId": "s6",
-      "action": "delay",
-      "ms": 800,
-      "note": "Wait for dialog/sheet to render"
+      "action": "wait_for",
+      "selector": "[role='dialog'], [aria-modal='true'], [data-radix-dialog-content]",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for [role='dialog'], [aria-modal='true'], [data-radix-dialog-content] before next step (was delay 800ms)"
     },
     {
       "stepId": "s7",
       "action": "wait_for",
       "selector": "[role='dialog'], [aria-modal='true'], [data-radix-dialog-content]",
-      "state": { "visible": true },
+      "state": {
+        "visible": true
+      },
       "timeout": 8000,
       "note": "Confirm dialog is open"
     },
@@ -183,7 +197,7 @@
       "stepId": "s8",
       "action": "perceive",
       "store_as": "add_content_dialog_structure",
-      "note": "Capture the dialog structure — which tabs/options are available (Upload, Paste, URL, etc.)"
+      "note": "Capture the dialog structure \u2014 which tabs/options are available (Upload, Paste, URL, etc.)"
     },
     {
       "stepId": "s9",
@@ -193,16 +207,20 @@
     },
     {
       "stepId": "s10",
-      "action": "delay",
-      "ms": 500,
-      "note": "Let text tab render"
+      "action": "wait_for",
+      "target": "knowledge_title_input",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for knowledge_title_input before next step (was delay 500ms)"
     },
     {
       "stepId": "s11",
       "action": "type",
       "target": "knowledge_title_input",
       "value": "{{doc_title}}",
-      "note": "Fill title field if present — target resolution will skip if element not found"
+      "note": "Fill title field if present \u2014 target resolution will skip if element not found"
     },
     {
       "stepId": "s12",
@@ -213,9 +231,13 @@
     },
     {
       "stepId": "s13",
-      "action": "delay",
-      "ms": 400,
-      "note": "Settle before save"
+      "action": "wait_for",
+      "target": "save_knowledge_button",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for save_knowledge_button before next step (was delay 400ms)"
     },
     {
       "stepId": "s14",
@@ -232,9 +254,11 @@
     },
     {
       "stepId": "s15",
-      "action": "delay",
-      "ms": 1000,
-      "note": "Let success state settle"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s16",
@@ -249,14 +273,23 @@
       "project_page": {
         "description": "Viewing a Claude project",
         "signals": [
-          { "type": "url_matches", "pattern": "claude\\.ai/project/" },
-          { "type": "url_not_matches", "pattern": "/login" }
+          {
+            "type": "url_matches",
+            "pattern": "claude\\.ai/project/"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login"
+          }
         ]
       },
       "auth_required": {
         "description": "Not logged in",
         "signals": [
-          { "type": "url_matches", "pattern": "claude\\.ai/login" }
+          {
+            "type": "url_matches",
+            "pattern": "claude\\.ai/login"
+          }
         ]
       }
     }

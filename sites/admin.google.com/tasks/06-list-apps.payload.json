@@ -8,16 +8,35 @@
     "verifiedDate": null,
     "author": "session-2026-04-14",
     "anomalies": [
-      "Google Admin SPA — perceive required",
+      "Google Admin SPA \u2014 perceive required",
       "Apps section has sub-sections: Web and mobile apps, Google Workspace, Additional Google services",
-      "SAML apps appear under Web and mobile apps — look for YeshID here to confirm SSO integration"
+      "SAML apps appear under Web and mobile apps \u2014 look for YeshID here to confirm SSO integration"
     ]
   },
-  "params": { "base_url": "https://admin.google.com" },
+  "params": {
+    "base_url": "https://admin.google.com"
+  },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://admin.google.com/ac/apps/unified", "note": "Navigate to Web and mobile apps — SAML apps are here" },
-    { "stepId": "s2", "action": "delay", "ms": 3500 },
-    { "stepId": "s3", "action": "perceive", "store_as": "apps_snap", "note": "Perceive apps list. Look for YeshID SAML app, Okta, or other SSO providers. Report all app names, types (SAML/OIDC/OAuth), and status." }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://admin.google.com/ac/apps/unified",
+      "note": "Navigate to Web and mobile apps \u2014 SAML apps are here"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3500ms); resolves on content root, proceeds on timeout"
+    },
+    {
+      "stepId": "s3",
+      "action": "perceive",
+      "store_as": "apps_snap",
+      "note": "Perceive apps list. Look for YeshID SAML app, Okta, or other SSO providers. Report all app names, types (SAML/OIDC/OAuth), and status."
+    }
   ],
   "stateGraph": {
     "initial": "apps-list",

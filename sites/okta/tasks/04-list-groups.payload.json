@@ -2,12 +2,12 @@
   "_meta": {
     "name": "okta-list-groups",
     "site": "trial-8689388-admin.okta.com",
-    "description": "List all groups in the Okta admin console. Uses perceive (not read) because Okta is a React SPA — read returns null after client-side navigation.",
+    "description": "List all groups in the Okta admin console. Uses perceive (not read) because Okta is a React SPA \u2014 read returns null after client-side navigation.",
     "version": "1.0.0",
     "verified": true,
     "verifiedDate": "2026-04-13",
     "anomalies": [
-      "perceive required instead of read — SPA navigation does not reinitialize content script",
+      "perceive required instead of read \u2014 SPA navigation does not reinitialize content script",
       "Table has 2 rows (Everyone + Okta Administrators) in fresh trial org"
     ]
   },
@@ -19,13 +19,15 @@
       "stepId": "s1",
       "action": "navigate",
       "url": "https://trial-8689388-admin.okta.com/admin/groups",
-      "note": "Hard-coded admin subdomain. DO NOT use relative URLs — extension resolves them against chrome-extension:// origin."
+      "note": "Hard-coded admin subdomain. DO NOT use relative URLs \u2014 extension resolves them against chrome-extension:// origin."
     },
     {
       "stepId": "s2",
-      "action": "delay",
-      "ms": 3000,
-      "note": "Wait for React render. MUI tables need ~2-3s after navigate."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s3",
@@ -37,7 +39,11 @@
   "abstractTargets": {
     "groups-table": {
       "description": "MUI data table listing all groups",
-      "tableHeaders": ["Group name", "People", "Applications"],
+      "tableHeaders": [
+        "Group name",
+        "People",
+        "Applications"
+      ],
       "note": "Groups are also visible as hrefs in mainActions with path /admin/group/{groupId}"
     },
     "search-field": {

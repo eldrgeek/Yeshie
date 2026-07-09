@@ -2,7 +2,7 @@
   "_meta": {
     "task": "q03-users-without-recovery-email",
     "queryType": "read_only",
-    "description": "Find all active users who are missing a personal/recovery email. Recovery email is not visible in the people list table — this payload iterates through each active user's detail page and checks whether the 'Personal / recovery email' field is populated. Returns a list of users missing it.",
+    "description": "Find all active users who are missing a personal/recovery email. Recovery email is not visible in the people list table \u2014 this payload iterates through each active user's detail page and checks whether the 'Personal / recovery email' field is populated. Returns a list of users missing it.",
     "selfImproving": false,
     "runCount": 0,
     "lastSuccess": null,
@@ -14,10 +14,10 @@
     },
     "notes": [
       "Recovery email is labeled 'Personal / recovery email' on the onboard form and person detail edit form.",
-      "It is NOT a column in the people list table — iteration through detail pages is required.",
+      "It is NOT a column in the people list table \u2014 iteration through detail pages is required.",
       "This payload uses for_each_row to visit each active user's detail page.",
       "With 28 active users and ~3s per detail page, expect ~90s total runtime.",
-      "The column-picker button (mdi-view-column-outline) may support adding a recovery-email column — not yet confirmed. If confirmed, simplify to a single perceive step."
+      "The column-picker button (mdi-view-column-outline) may support adding a recovery-email column \u2014 not yet confirmed. If confirmed, simplify to a single perceive step."
     ]
   },
   "runId": "yeshid-q03-users-without-recovery-email-{{timestamp}}",
@@ -28,23 +28,36 @@
   },
   "abstractTargets": {
     "pagination-footer": {
-      "match": { "css": ".v-data-table-footer" },
+      "match": {
+        "css": ".v-data-table-footer"
+      },
       "cachedSelector": ".v-data-table-footer",
       "cachedConfidence": 0.97
     },
     "items-per-page-select": {
-      "match": { "css": ".v-data-table-footer .v-select" },
+      "match": {
+        "css": ".v-data-table-footer .v-select"
+      },
       "cachedSelector": ".v-data-table-footer .v-select",
-      "cachedConfidence": 0.80,
+      "cachedConfidence": 0.8,
       "resolveHint": "The items-per-page dropdown in the table footer. Currently shows '10'. Click to open and select the highest available option (e.g. 100 or All)."
     },
     "people-table-body": {
-      "match": { "css": ".v-data-table tbody" },
+      "match": {
+        "css": ".v-data-table tbody"
+      },
       "cachedSelector": ".v-data-table tbody",
       "cachedConfidence": 0.95
     },
     "recovery-email-field": {
-      "match": { "role": "textbox", "vuetify_label": ["personal", "recovery", "backup"] },
+      "match": {
+        "role": "textbox",
+        "vuetify_label": [
+          "personal",
+          "recovery",
+          "backup"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0,
       "resolveHint": "On the person detail page, find the field labeled 'Personal / recovery email'. It appears in the Details tab of the person profile. May require clicking 'Edit' to reveal. Look for input with label containing 'personal', 'recovery', or 'backup'."
@@ -54,14 +67,16 @@
     {
       "stepId": "s1",
       "action": "assess_state",
-      "expect": { "state": "authenticated" },
+      "expect": {
+        "state": "authenticated"
+      },
       "onMismatch": "exit_with_error:not-authenticated"
     },
     {
       "stepId": "s2",
       "action": "navigate",
       "url": "{{base_url}}/organization/people?filters=status=ACTIVE",
-      "note": "Start with active users only — deactivated users missing recovery email are less actionable."
+      "note": "Start with active users only \u2014 deactivated users missing recovery email are less actionable."
     },
     {
       "stepId": "s3",
@@ -85,9 +100,11 @@
     },
     {
       "stepId": "s4c",
-      "action": "delay",
-      "ms": 1000,
-      "note": "Wait for table to reload with expanded item count."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s5",
@@ -95,7 +112,10 @@
       "selector": ".v-data-table tbody",
       "store_as": "all_active_people",
       "extract": "table_rows",
-      "columns": ["name", "primary_email"],
+      "columns": [
+        "name",
+        "primary_email"
+      ],
       "note": "Capture all active user rows (name, email). This list drives the iteration in s6."
     },
     {
@@ -130,7 +150,10 @@
           "then": {
             "action": "accumulate",
             "target": "missing_recovery_email",
-            "value": { "name": "{{row.name}}", "email": "{{row.primary_email}}" }
+            "value": {
+              "name": "{{row.name}}",
+              "email": "{{row.primary_email}}"
+            }
           }
         },
         {
@@ -152,8 +175,13 @@
       "stepId": "s7",
       "action": "respond",
       "data": {
-        "missing_recovery_email": { "source": "missing_recovery_email" },
-        "total_active_checked": { "source": "all_active_people", "extract": "count" }
+        "missing_recovery_email": {
+          "source": "missing_recovery_email"
+        },
+        "total_active_checked": {
+          "source": "all_active_people",
+          "extract": "count"
+        }
       },
       "note": "Return list of active users with no recovery email. Each entry: { name, email }."
     }
@@ -161,21 +189,43 @@
   "stateGraph": {
     "nodes": {
       "unauthenticated": {
-        "signals": [{ "type": "url_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }]
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
       },
       "authenticated": {
         "signals": [
-          { "type": "url_matches", "pattern": "app\\.yeshid\\.com" },
-          { "type": "url_not_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }
+          {
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
         ]
       },
       "people-list": {
-        "signals": [{ "type": "url_matches", "pattern": "/organization/people" }]
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people"
+          }
+        ]
       },
       "person-detail": {
         "signals": [
-          { "type": "url_matches", "pattern": "/organization/people/[a-z0-9-]+" },
-          { "type": "url_not_matches", "pattern": "/onboard|/offboard" }
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/[a-z0-9-]+"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/onboard|/offboard"
+          }
         ]
       }
     }

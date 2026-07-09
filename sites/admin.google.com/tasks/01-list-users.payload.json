@@ -26,9 +26,11 @@
     },
     {
       "stepId": "s2",
-      "action": "delay",
-      "ms": 3500,
-      "note": "Google Admin SPA needs ~3s to populate table from API."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s3",
@@ -53,7 +55,9 @@
       "cachedSelector": "input[aria-label='Search for users, groups, settings, or devices']",
       "cachedConfidence": 0.9,
       "resolvedOn": "2026-04-13T00:00:00.000Z",
-      "semanticKeys": ["Search for users, groups, settings, or devices"]
+      "semanticKeys": [
+        "Search for users, groups, settings, or devices"
+      ]
     }
   },
   "stateGraph": {

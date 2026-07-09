@@ -40,16 +40,20 @@
     },
     {
       "stepId": "s2b",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Allow Vue app to hydrate after SPA navigation before polling for DOM elements"
+      "action": "wait_for",
+      "selector": "input[placeholder='Search']",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for input[placeholder='Search'] before next step (was delay 2000ms)"
     },
     {
       "stepId": "s3",
       "action": "wait_for",
       "selector": "input[placeholder='Search']",
       "timeout": 12000,
-      "note": "Wait for Vuetify search input to mount — SPA navigation completes before Vue components render"
+      "note": "Wait for Vuetify search input to mount \u2014 SPA navigation completes before Vue components render"
     },
     {
       "stepId": "s4",
@@ -63,20 +67,22 @@
       "action": "type",
       "selector": "input[placeholder='Search']",
       "value": "{{search_term}}",
-      "note": "Type search term — uses CDP Input.insertText which triggers Vue v-model"
+      "note": "Type search term \u2014 uses CDP Input.insertText which triggers Vue v-model"
     },
     {
       "stepId": "s6",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for Vue reactive filter to settle"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s7",
       "action": "read",
       "selector": ".v-data-table tbody",
       "store_as": "search_results",
-      "note": "Read ALL rows from people table. The search input may not trigger Vue reactive filtering — always return the full table and filter by search_term in the final response. Match search_term against name and email text in each row."
+      "note": "Read ALL rows from people table. The search input may not trigger Vue reactive filtering \u2014 always return the full table and filter by search_term in the final response. Match search_term against name and email text in each row."
     }
   ],
   "stateGraph": {

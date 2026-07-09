@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "description": "Import users via CSV upload on /organization/people. Clicks Import → CSV option → attaches inline CSV content via DataTransfer → uploads.",
+    "description": "Import users via CSV upload on /organization/people. Clicks Import \u2192 CSV option \u2192 attaches inline CSV content via DataTransfer \u2192 uploads.",
     "requiresAuth": true,
     "baseUrl": "https://app.yeshid.com",
     "requiredParams": [
@@ -24,7 +24,7 @@
     },
     "notes": [
       "URL is /organization/people (NOT /people).",
-      "csv_content is the RAW CSV string — no file path needed.",
+      "csv_content is the RAW CSV string \u2014 no file path needed.",
       "File input is attached via DataTransfer+Blob in MAIN world. Uses find(r =>) pattern for whitelist.",
       "Import button opens a dropdown with options: CSV, Screenshot, AI Paste.",
       "Payloads 01/02/03 all import to the same /organization/people page."
@@ -130,9 +130,11 @@
     },
     {
       "stepId": "s3b",
-      "action": "delay",
-      "ms": 800,
-      "note": "Wait for dropdown to appear."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 800ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "p2",
@@ -148,9 +150,11 @@
     },
     {
       "stepId": "s4b",
-      "action": "delay",
-      "ms": 1000,
-      "note": "Wait for CSV upload modal/dialog to appear."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "p3",
@@ -162,13 +166,17 @@
       "stepId": "s5",
       "action": "js",
       "code": "Array.from(document.querySelectorAll('input')).find(r => r.type==='file' || r.accept?.includes('csv') || r.accept?.includes('text')) && (function(){const inp=Array.from(document.querySelectorAll('input')).find(r=>r.type==='file');if(!inp)return{error:'no file input found'};const content='{{csv_content}}';const fname='{{csv_filename}}'||'import.csv';const file=new File([content],fname,{type:'text/csv'});const dt=new DataTransfer();dt.items.add(file);inp.files=dt.files;inp.dispatchEvent(new Event('change',{bubbles:true}));inp.dispatchEvent(new Event('input',{bubbles:true}));return{ok:true,filename:fname,size:content.length};})() || {error:'file input not found'}",
-      "note": "Attach inline CSV content to file input using DataTransfer. Uses find(r =>) pattern (whitelisted). Creates File from csv_content string — no disk access needed."
+      "note": "Attach inline CSV content to file input using DataTransfer. Uses find(r =>) pattern (whitelisted). Creates File from csv_content string \u2014 no disk access needed."
     },
     {
       "stepId": "s5b",
-      "action": "delay",
-      "ms": 1000,
-      "note": "Wait for file to register and upload button to activate."
+      "action": "wait_for",
+      "target": "upload-confirm-button",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for upload-confirm-button before next step (was delay 1000ms)"
     },
     {
       "stepId": "s6",

@@ -8,10 +8,10 @@
     "verifiedDate": null,
     "author": "session-2026-04-14",
     "anomalies": [
-      "Heavy JavaScript SPA — read returns minimal content; perceive required",
-      "Dynamic content renders after JS execution — delay of 3s needed",
+      "Heavy JavaScript SPA \u2014 read returns minimal content; perceive required",
+      "Dynamic content renders after JS execution \u2014 delay of 3s needed",
       "Title shows 'YeshID: Connect anything with an API' but subdomain is ssotax.yeshid.com",
-      "Main CTA observed: 'Generate Research Report' — likely the core product action"
+      "Main CTA observed: 'Generate Research Report' \u2014 likely the core product action"
     ]
   },
   "params": {
@@ -26,9 +26,11 @@
     },
     {
       "stepId": "s2",
-      "action": "delay",
-      "ms": 3000,
-      "note": "Wait for JS-heavy SPA to fully render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s3",

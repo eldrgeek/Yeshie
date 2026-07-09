@@ -70,9 +70,11 @@
     },
     {
       "stepId": "s3c",
-      "action": "delay",
-      "ms": 1000,
-      "note": "Wait for search debounce."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s4",
@@ -122,9 +124,11 @@
     },
     {
       "stepId": "s10",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for search results to populate."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s11",
@@ -140,8 +144,11 @@
     },
     {
       "stepId": "s13",
-      "action": "delay",
-      "ms": 1000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s14",
@@ -156,9 +163,11 @@
     },
     {
       "stepId": "s15",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for member list to update."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s16",

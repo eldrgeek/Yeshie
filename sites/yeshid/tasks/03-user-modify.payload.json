@@ -151,9 +151,11 @@
     },
     {
       "stepId": "s5",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for detail page to load"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s6",
@@ -163,9 +165,11 @@
     },
     {
       "stepId": "s6b",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for edit form to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s6c",
@@ -206,9 +210,11 @@
     },
     {
       "stepId": "s11",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for save confirmation"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s12",
@@ -243,9 +249,11 @@
     },
     {
       "stepId": "s15b",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for Vue debounce."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s16",

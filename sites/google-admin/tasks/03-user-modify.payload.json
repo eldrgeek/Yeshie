@@ -21,8 +21,14 @@
         "hint": "Changing primary email triggers the Google Admin 'Rename user' flow. This changes sign-in address."
       }
     },
-    "requiredParams": ["user_identifier"],
-    "optionalParams": ["new_first_name", "new_last_name", "new_email"],
+    "requiredParams": [
+      "user_identifier"
+    ],
+    "optionalParams": [
+      "new_first_name",
+      "new_last_name",
+      "new_email"
+    ],
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
@@ -46,7 +52,11 @@
     "search-input": {
       "match": {
         "role": "textbox",
-        "name_contains": ["Search", "Filter", "search users"]
+        "name_contains": [
+          "Search",
+          "Filter",
+          "search users"
+        ]
       },
       "cachedSelector": null,
       "cachedConfidence": 0,
@@ -60,7 +70,9 @@
     "edit-first-name-input": {
       "match": {
         "role": "textbox",
-        "name_contains": ["First name"]
+        "name_contains": [
+          "First name"
+        ]
       },
       "cachedSelector": null,
       "cachedConfidence": 0,
@@ -74,7 +86,9 @@
     "edit-last-name-input": {
       "match": {
         "role": "textbox",
-        "name_contains": ["Last name"]
+        "name_contains": [
+          "Last name"
+        ]
       },
       "cachedSelector": null,
       "cachedConfidence": 0,
@@ -88,7 +102,11 @@
     "edit-email-input": {
       "match": {
         "role": "textbox",
-        "name_contains": ["Primary email", "Username", "New email"]
+        "name_contains": [
+          "Primary email",
+          "Username",
+          "New email"
+        ]
       },
       "cachedSelector": null,
       "cachedConfidence": 0,
@@ -102,7 +120,12 @@
     "save-button": {
       "match": {
         "role": "button",
-        "name_contains": ["Save", "Update", "Rename", "Done"]
+        "name_contains": [
+          "Save",
+          "Update",
+          "Rename",
+          "Done"
+        ]
       },
       "cachedSelector": null,
       "cachedConfidence": 0,
@@ -116,7 +139,11 @@
     "more-options-button": {
       "match": {
         "role": "button",
-        "name_contains": ["More options", "More", "Actions"]
+        "name_contains": [
+          "More options",
+          "More",
+          "Actions"
+        ]
       },
       "cachedSelector": null,
       "cachedConfidence": 0,
@@ -153,9 +180,11 @@
     },
     {
       "stepId": "s4",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for search results to filter"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s5",
@@ -172,14 +201,18 @@
     },
     {
       "stepId": "s7",
-      "action": "delay",
-      "ms": 1000,
-      "note": "Let the detail page fully render all sections"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s8",
       "action": "read",
-      "candidates": ["[role='main']"],
+      "candidates": [
+        "[role='main']"
+      ],
       "store_as": "user_detail_snapshot",
       "note": "Snapshot the user detail page to understand what sections and actions are available"
     },
@@ -223,10 +256,13 @@
     },
     {
       "stepId": "s14",
-      "action": "delay",
-      "ms": 2000,
-      "condition": "{{new_first_name}} || {{new_last_name}}",
-      "note": "Wait for save to complete"
+      "action": "wait_for",
+      "target": "more-options-button",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for more-options-button before next step (was delay 2000ms)"
     },
     {
       "stepId": "s15",
@@ -267,9 +303,11 @@
     },
     {
       "stepId": "s20",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for operation to complete"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s21",

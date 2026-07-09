@@ -38,7 +38,7 @@
       "Two import-related buttons: 'Import application list' (bulk) and 'Add application' (single).",
       "Add application modal has two paths: (1) Search pre-built catalog (2) Type custom app name.",
       "We use the custom path: type into [placeholder='Type application name'], then click 'Add'.",
-      "No dropdown needed — avoids click_text polling issues with catalog search.",
+      "No dropdown needed \u2014 avoids click_text polling issues with catalog search.",
       "Confirmed via live diag-12c run 2026-04-16."
     ],
     "id": "add-application",
@@ -77,7 +77,7 @@
       "cachedSelector": ".v-dialog input[type=\"text\"]",
       "cachedConfidence": 0.6,
       "resolvedOn": "2026-04-16",
-      "resolvedVia": "inference — modal search field not surveyed; pattern from Vuetify dialog",
+      "resolvedVia": "inference \u2014 modal search field not surveyed; pattern from Vuetify dialog",
       "fallbackSelectors": [
         ".v-dialog input[type=\"text\"]",
         ".v-dialog input",
@@ -94,7 +94,7 @@
       "cachedSelector": ".v-dialog .v-list-item:has-text('{{app_name}}')",
       "cachedConfidence": 0.65,
       "resolvedOn": "2026-04-16",
-      "resolvedVia": "inference — modal list items not surveyed"
+      "resolvedVia": "inference \u2014 modal list items not surveyed"
     },
     "applications-table": {
       "match": {
@@ -114,7 +114,7 @@
       "cachedSelector": "[placeholder='Type application name']",
       "cachedConfidence": 0.95,
       "resolvedOn": "2026-04-16",
-      "resolvedVia": "live-survey diag-12c — confirmed placeholder text",
+      "resolvedVia": "live-survey diag-12c \u2014 confirmed placeholder text",
       "fallbackSelectors": [
         "[placeholder='Type application name']",
         ".v-overlay--active [placeholder='Type application name']"
@@ -146,7 +146,7 @@
       "action": "wait_for",
       "selector": "[data-cy=\"username\"]",
       "timeout": 5000,
-      "note": "Confirm authenticated — username widget must be visible."
+      "note": "Confirm authenticated \u2014 username widget must be visible."
     },
     {
       "stepId": "s1",
@@ -193,7 +193,7 @@
     {
       "stepId": "p2",
       "action": "perceive",
-      "description": "Capture the 'Add application' modal — record search field, app list, any data-cy attributes, and available buttons",
+      "description": "Capture the 'Add application' modal \u2014 record search field, app list, any data-cy attributes, and available buttons",
       "store_as": "add_app_modal_state",
       "note": "LEARNING STEP: Modal contents not surveyed. Use this to discover search input selector and app list structure."
     },
@@ -206,9 +206,11 @@
     },
     {
       "stepId": "s4b",
-      "action": "delay",
-      "ms": 500,
-      "note": "Brief settle after typing app name."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s5",

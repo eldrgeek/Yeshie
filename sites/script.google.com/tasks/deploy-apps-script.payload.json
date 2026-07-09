@@ -33,8 +33,11 @@
     },
     {
       "stepId": "s02",
-      "action": "delay",
-      "ms": 3000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s03",
@@ -53,9 +56,11 @@
     },
     {
       "stepId": "s11",
-      "action": "delay",
-      "ms": 5000,
-      "note": "Wait for editor to fully bootstrap Monaco and load the default Code.gs file."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 5000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s12",
@@ -80,9 +85,11 @@
     },
     {
       "stepId": "s21",
-      "action": "delay",
-      "ms": 1000,
-      "note": "Allow Monaco to render the new content."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s22",
@@ -101,8 +108,11 @@
     },
     {
       "stepId": "s31",
-      "action": "delay",
-      "ms": 700
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 700ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s32",
@@ -119,8 +129,11 @@
     },
     {
       "stepId": "s34",
-      "action": "delay",
-      "ms": 300
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 300ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s35",
@@ -130,9 +143,11 @@
     },
     {
       "stepId": "s36",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for rename to commit and project to auto-save."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s37",
@@ -142,8 +157,11 @@
     },
     {
       "stepId": "s38",
-      "action": "delay",
-      "ms": 2000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s39",
@@ -162,8 +180,11 @@
     },
     {
       "stepId": "s51",
-      "action": "delay",
-      "ms": 1000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s52",
@@ -179,9 +200,11 @@
     },
     {
       "stepId": "s54",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for deployment dialog to render fully."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s55",
@@ -200,8 +223,11 @@
     },
     {
       "stepId": "s61",
-      "action": "delay",
-      "ms": 700
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 700ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s62",
@@ -217,9 +243,11 @@
     },
     {
       "stepId": "s64",
-      "action": "delay",
-      "ms": 1000,
-      "note": "Dialog reconfigures to show Web app specific fields."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s65",
@@ -239,8 +267,13 @@
     },
     {
       "stepId": "s71",
-      "action": "delay",
-      "ms": 300
+      "action": "wait_for",
+      "target": "gas-execute-as-dropdown",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for gas-execute-as-dropdown before next step (was delay 300ms)"
     },
     {
       "stepId": "s72",
@@ -250,8 +283,11 @@
     },
     {
       "stepId": "s73",
-      "action": "delay",
-      "ms": 700
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 700ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s74",
@@ -261,8 +297,13 @@
     },
     {
       "stepId": "s75",
-      "action": "delay",
-      "ms": 500
+      "action": "wait_for",
+      "target": "gas-access-dropdown",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for gas-access-dropdown before next step (was delay 500ms)"
     },
     {
       "stepId": "s76",
@@ -272,8 +313,11 @@
     },
     {
       "stepId": "s77",
-      "action": "delay",
-      "ms": 700
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 700ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s78",
@@ -289,8 +333,11 @@
     },
     {
       "stepId": "s80",
-      "action": "delay",
-      "ms": 500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s81",
@@ -309,9 +356,11 @@
     },
     {
       "stepId": "s91",
-      "action": "delay",
-      "ms": 4000,
-      "note": "Wait for either: deployment success dialog, or authorization required screen."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 4000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s92",
@@ -333,9 +382,11 @@
     },
     {
       "stepId": "s95",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for OAuth popup to open. Chrome may focus the popup as a new tab."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s96",
@@ -357,9 +408,11 @@
     },
     {
       "stepId": "s99",
-      "action": "delay",
-      "ms": 4000,
-      "note": "Wait for OAuth to complete and popup to close / redirect back to script.google.com deployment dialog."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 4000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s100",

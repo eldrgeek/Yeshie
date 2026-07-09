@@ -49,9 +49,13 @@
     },
     {
       "stepId": "s4",
-      "action": "delay",
-      "ms": 3000,
-      "note": "Wait for redirect to accounts.google.com."
+      "action": "wait_for",
+      "selector": "[data-email=\"{{google_account_email}}\"]",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for [data-email=\"{{google_account_email}}\"] before next step (was delay 3000ms)"
     },
     {
       "stepId": "s5",
