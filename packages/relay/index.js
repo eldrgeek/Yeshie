@@ -9,6 +9,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { execFile, spawn } from 'child_process';
 import { homedir } from 'os';
+import { YSocketIO } from 'y-socket.io/dist/server';
 
 // ====================== dispatch_input config ======================
 // See ~/Projects/SOMA/specs/heartbeat-pattern-v1.md
@@ -22,6 +23,77 @@ const DEE_REPLIES_PATH = join(DISPATCH_DIR, 'dee_replies.jsonl');
 
 // Cost-ledger path: ~/Projects/SOMA/services/cost-ledger/<date>.jsonl
 const COST_LEDGER_DIR = join(homedir(), 'Projects', 'SOMA', 'services', 'cost-ledger');
+
+// ====================== SOMA error telemetry ======================
+// Forward Yeshie recipe failures to the shared SOMA error-intake service
+// (soma-errors, POST /api/errors). System errors become WORKQUEUE tickets;
+// user/auth conditions are logged for usability review. This is the relay-side
+// half of the SOMA error-pipeline standard (client reference:
+// playmaker/src/lib/errorReport.ts). The relay — not the ephemeral MV3 service
+// worker — is the reporter: it's a persistent Node process with network access
+// that already sees every chain outcome. This code must NEVER throw: a broken
+// reporter must not break the relay it's instrumenting.
+const SOMA_ERROR_SERVICE_URL = (process.env.SOMA_ERROR_SERVICE_URL || 'http://localhost:4300').replace(/\/+$/, '');
+const YESHIE_BUILD_SHA = process.env.YESHIE_BUILD_SHA || null;
+// Light throttle: skip re-POSTing an identical (route+message) within this
+// window. soma-errors already dedups by fingerprint into one ticket, so this
+// only spares the service from retry-loop spam; correctness doesn't depend on it.
+const _errorReportThrottle = new Map(); // key -> last ts (ms)
+const ERROR_REPORT_THROTTLE_MS = 15_000;
+
+async function reportErrorToSoma({ message, kind, route, action, extra }) {
+  try {
+    if (!message || typeof message !== 'string') return;
+    const key = `${route || ''}|${message}`;
+    const now = Date.now();
+    const last = _errorReportThrottle.get(key);
+    if (last && now - last < ERROR_REPORT_THROTTLE_MS) return;
+    _errorReportThrottle.set(key, now);
+    const body = { app: 'yeshie', message: message.slice(0, 2000), kind };
+    if (route) body.route = route;
+    if (action) body.action = action;
+    if (YESHIE_BUILD_SHA) body.buildSha = YESHIE_BUILD_SHA;
+    if (extra) body.extra = extra;
+    const resp = await fetch(`${SOMA_ERROR_SERVICE_URL}/api/errors`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    if (!resp.ok) { console.error(`[relay] soma-errors responded ${resp.status}`); return; }
+    const j = await resp.json().catch(() => ({}));
+    if (j.ticketId) console.log(`[relay] reported yeshie ${kind} error -> ticket ${j.ticketId} (${route || 'no-route'})`);
+  } catch (e) {
+    console.error('[relay] soma-errors report failed:', e.message);
+  }
+}
+
+// Map a (failed) ChainResult to an error report. No-op on success.
+function reportChainOutcome(result, fallbackError) {
+  try {
+    if ((!result || result.success !== false) && !fallbackError) return;
+    const stepResults = (result && result.stepResults) || [];
+    const failing = stepResults.find((s) => s && (s.status === 'error' || s.status === 'auth_required'));
+    const site = result && result.site;
+    const name = result && (result.payloadName || result?.payload?._meta?.task);
+    const route = [site, name].filter(Boolean).join('/') || site || undefined;
+    const action = failing ? `${failing.stepId}:${failing.action}` : undefined;
+    const message = (result && result.error) || fallbackError || 'recipe failed';
+    // auth/login conditions are environmental, not engineering bugs -> 'user'.
+    const isAuth = (failing && failing.status === 'auth_required')
+      || /\bauth\b|login|not authenticated|did not complete login/i.test(message);
+    const kind = isAuth ? 'user' : 'system';
+    reportErrorToSoma({
+      message, kind, route, action,
+      extra: {
+        failingStep: failing
+          ? { stepId: failing.stepId, action: failing.action, selector: failing.selector, resolvedVia: failing.resolvedVia }
+          : null,
+        surprise: result?.surpriseEvidence ? result.surpriseEvidence.slice(0, 3) : undefined,
+        buildVersion: result?.buildVersion,
+      },
+    });
+  } catch (e) {
+    console.error('[relay] reportChainOutcome failed:', e.message);
+  }
+}
 
 // Gemini Flash compression helper.
 // Returns {compressed_text, asks, dropped, input_tokens, output_tokens, usd} or throws.
@@ -220,6 +292,58 @@ export function createRelay(port = 3333) {
   // a new job appears or a hud:ask is fired, so Mike actually sees the thing.
   function showHudPanel() {
     fetch('http://localhost:3334/show', { method: 'POST' }).catch(() => {});
+  }
+
+  // ── Collaborative editing (Phase 2): Yjs over the existing socket.io ─────────
+  // Each room is a base64url-encoded file path; the .md file is the persistent
+  // backing store. Load the file into the shared doc when the room opens; save
+  // (debounced) on every change; final save when the last client disconnects.
+  const COLLAB_TEXT = 'content';
+  const _collabSaveTimers = new Map();
+  const _collabDirty = new Set();        // rooms with unsaved edits
+  const _collabLastWrite = new Map();    // doc.name -> last content WE wrote to disk
+  function collabRoomToPath(name) {
+    try { const p = Buffer.from(name, 'base64url').toString('utf8'); return p.startsWith(homedir()) ? p : null; }
+    catch { return null; }
+  }
+  function collabSave(doc) {
+    const fp = collabRoomToPath(doc.name); if (!fp) return;
+    const content = doc.getText(COLLAB_TEXT).toString();
+    try {
+      // No-data-loss guard: if the file changed on disk since our last write
+      // (some other writer touched it), back that version up before we overwrite.
+      let disk = null; try { disk = readFileSync(fp, 'utf-8'); } catch {}
+      const last = _collabLastWrite.get(doc.name);
+      if (disk != null && disk !== last && disk !== content) {
+        const bak = fp + '.ext-' + Date.now() + '.bak';
+        try { writeFileSync(bak, disk, 'utf-8'); console.warn('[collab] external change backed up ->', bak); } catch {}
+      }
+      mkdirSync(dirname(fp), { recursive: true });
+      writeFileSync(fp, content, 'utf-8');
+      _collabLastWrite.set(doc.name, content);
+      _collabDirty.delete(doc.name);
+    } catch (e) { console.error('[collab] save failed', fp, e.message); }
+  }
+  function collabFlushAll() { for (const doc of collab.documents.values()) if (_collabDirty.has(doc.name)) collabSave(doc); }
+  const collab = new YSocketIO(io, { gcEnabled: true });
+  collab.initialize();
+  collab.on('document-loaded', (doc) => {
+    const fp = collabRoomToPath(doc.name);
+    console.log('[collab] room opened:', doc.name, '->', fp || '(rejected: not under home)');
+    if (!fp) return;
+    try { const txt = readFileSync(fp, 'utf-8'); const yt = doc.getText(COLLAB_TEXT); if (yt.length === 0) yt.insert(0, txt); _collabLastWrite.set(doc.name, txt); }
+    catch (e) { _collabLastWrite.set(doc.name, ''); }
+    doc.on('update', () => {
+      _collabDirty.add(doc.name);
+      clearTimeout(_collabSaveTimers.get(doc.name));
+      _collabSaveTimers.set(doc.name, setTimeout(() => collabSave(doc), 800));
+    });
+  });
+  collab.on('all-document-connections-closed', (doc) => { collabSave(doc); console.log('[collab] room closed + saved:', doc.name); });
+  // Durability: periodic backstop (crash safety) + flush-on-shutdown (relay restarts often).
+  const _collabFlush = setInterval(collabFlushAll, 20000); if (_collabFlush.unref) _collabFlush.unref();
+  for (const sig of ['SIGTERM', 'SIGINT']) {
+    process.on(sig, () => { try { for (const doc of collab.documents.values()) collabSave(doc); } catch (e) {} process.exit(0); });
   }
 
   // Track connected extensions — last registered is primary; others are fallbacks
@@ -497,6 +621,10 @@ export function createRelay(port = 3333) {
       });
 
       socket.on('chain_result', ({ commandId, result }) => {
+        // Report BEFORE the pending guard: a run whose HTTP /run already timed
+        // out has had its pending entry deleted, but the chain still settles
+        // here later — we still want the failure filed to soma-errors.
+        reportChainOutcome(result);
         const p = pending.get(commandId);
         if (!p) return;
         clearTimeout(p.timer);
@@ -505,6 +633,7 @@ export function createRelay(port = 3333) {
       });
 
       socket.on('chain_error', ({ commandId, error, result }) => {
+        reportChainOutcome(result, error);
         const p = pending.get(commandId);
         if (!p) return;
         clearTimeout(p.timer);
@@ -1693,12 +1822,12 @@ export function createRelay(port = 3333) {
 :root{--hud-scale:1}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-size:calc(12px * var(--hud-scale));overflow:hidden;height:100vh;display:flex;flex-direction:column;transform-origin:top left;transform:scale(var(--hud-scale));width:calc(100% / var(--hud-scale));height:calc(100vh / var(--hud-scale))}
-#header{padding:8px 12px;background:#111;border-bottom:1px solid #333;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
-#header h1{font-size:13px;font-weight:600;color:#aaa;letter-spacing:.5px}
+#header{padding:5px 9px;background:#111;border-bottom:1px solid #333;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+#header h1{font-size:11px;font-weight:600;color:#aaa;letter-spacing:.5px}
 #header span{font-size:10px;color:#555}
-#jobs{flex:1;overflow-y:auto;padding:8px}
-.empty{color:#555;text-align:center;padding:40px;font-size:11px}
-.job{background:#242424;border-radius:6px;padding:8px 10px;margin-bottom:6px;border-left:3px solid #444;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start}
+#jobs{flex:1;overflow-y:auto;padding:6px}
+.empty{color:#555;text-align:center;padding:16px;font-size:11px}
+.job{background:#242424;border-radius:6px;padding:6px 8px;margin-bottom:4px;border-left:3px solid #444;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start}
 .job.running{border-color:#3b82f6}
 .job.done,.job.completed{border-color:#3fb950}
 .job.error,.job.failed{border-color:#f85149}
@@ -1738,14 +1867,15 @@ body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-
 .countdown{font-size:10px;color:#7c3aed;font-variant-numeric:tabular-nums}
 
 /* HUD Ask overlay */
-#hud-ask-overlay{display:none;position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1a1a2e;border:1px solid #555;border-radius:12px;padding:18px 20px;min-width:300px;max-width:480px;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.6)}
-#hud-ask-message{color:#e0e0e0;font-size:13px;line-height:1.5;margin-bottom:14px}
-#hud-ask-btns{display:flex;gap:10px;justify-content:center}
-.hud-btn{padding:8px 18px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;transition:opacity .15s}
+#hud-ask-overlay{display:none;position:fixed;bottom:8px;left:8px;right:8px;background:#1a1a2e;border:1px solid #555;border-radius:10px;padding:10px 12px;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.6)}
+#hud-ask-message{color:#e0e0e0;font-size:11px;line-height:1.4;margin-bottom:8px}
+#hud-ask-btns{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+.hud-btn{padding:5px 10px;border-radius:6px;border:none;cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;transition:opacity .15s}
 .hud-btn:hover{opacity:.85}
 .hud-btn-confirm{background:#22c55e;color:#fff}
 .hud-btn-partial{background:#f59e0b;color:#fff}
 .hud-btn-failed{background:#ef4444;color:#fff}
+.hud-btn-open{background:#3b82f6;color:#fff}
 #btn-digest{padding:3px 9px;border-radius:4px;border:1px solid #444;cursor:pointer;font-size:10px;font-weight:600;font-family:inherit;background:#2a2a2a;color:#888}
 #btn-digest:hover{background:#333;color:#ccc}
 .job{cursor:pointer}.job:hover{background:#2a2a2a}
@@ -1960,13 +2090,34 @@ setInterval(render, 10000);
 setInterval(refreshAndRender, 30000);
 
 
-// HUD ask — human-in-the-loop confirm/partial/failed
+// HUD ask — human-in-the-loop. For "DONE: <task> — <path>" completion notices
+// we show a clean title + an Open-report button and hide partial/failed.
 let _askId = null;
+let _askPath = null;
 socket.on('hud:ask', ({id, message}) => {
   _askId = id;
-  document.getElementById('hud-ask-message').textContent = message;
+  var msg = String(message);
+  _askPath = null;
+  var toks = msg.split(' ');
+  for (var i=0;i<toks.length;i++){ var t=toks[i].trim(); if(t.charAt(0)==='/' && t.indexOf('.')>1){ _askPath=t; break; } }
+  var title = msg, isDone = false;
+  if (msg.indexOf('DONE:')===0){
+    isDone = true;
+    var cut = _askPath ? msg.indexOf(_askPath) : msg.length;
+    var head = msg.substring(5, cut);
+    while(head.length){ var c=head.charAt(head.length-1); if(c==='\u2014'||c==='-'||c===' '){head=head.substring(0,head.length-1);} else break; }
+    title = '\u2705 ' + head.trim();
+  }
+  var html = esc(title);
+  if (_askPath) html += '<div style="font-size:9px;color:#888;margin-top:3px;word-break:break-all">' + esc(_askPath.split('/').pop()) + '</div>';
+  document.getElementById('hud-ask-message').innerHTML = html;
+  document.getElementById('hud-ask-open').style.display = _askPath ? 'inline-block' : 'none';
+  document.getElementById('hud-ask-partial').style.display = isDone ? 'none' : 'inline-block';
+  document.getElementById('hud-ask-failed').style.display = isDone ? 'none' : 'inline-block';
+  document.getElementById('hud-ask-confirm').textContent = isDone ? '\u2713 Got it' : '\u2705 Confirm';
   document.getElementById('hud-ask-overlay').style.display = 'block';
 });
+function hudOpen(){ if(!_askPath) return; fetch('/open-path',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:_askPath})}).catch(function(){}); }
 function hudRespond(response) {
   if (!_askId) return;
   const id = _askId;
@@ -2072,9 +2223,10 @@ document.addEventListener('keydown', function(e) {
 <div id="hud-ask-overlay">
   <div id="hud-ask-message"></div>
   <div id="hud-ask-btns">
-    <button class="hud-btn hud-btn-confirm" onclick="hudRespond('confirm')">✅ Confirm</button>
-    <button class="hud-btn hud-btn-partial" onclick="hudRespond('partial')">⚠️ Partial</button>
-    <button class="hud-btn hud-btn-failed"  onclick="hudRespond('failed')">❌ Failed</button>
+    <button class="hud-btn hud-btn-open" id="hud-ask-open" onclick="hudOpen()" style="display:none">📄 Open report</button>
+    <button class="hud-btn hud-btn-confirm" id="hud-ask-confirm" onclick="hudRespond('confirm')">✅ Confirm</button>
+    <button class="hud-btn hud-btn-partial" id="hud-ask-partial" onclick="hudRespond('partial')">⚠️ Partial</button>
+    <button class="hud-btn hud-btn-failed"  id="hud-ask-failed" onclick="hudRespond('failed')">❌ Failed</button>
   </div>
 </div>
 <div id="detail-overlay" onclick="if(event.target===this)closeDetail()">
@@ -2688,6 +2840,94 @@ h2{color:#58a6ff}hr{border-color:#333}
     }
 
     // ── Clipboard helper (pbcopy fallback for WKWebView) ─────────────────────
+    if (path === '/editor.bundle.js' && req.method === 'GET') {
+      try {
+        const js = readFileSync(join(__dirname, 'editor.bundle.js'), 'utf-8');
+        res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+        res.end(js);
+      } catch (e) { res.writeHead(404); res.end('bundle missing'); }
+      return;
+    }
+
+    if (path === '/edit' && req.method === 'GET') {
+      try {
+        const html = readFileSync(join(__dirname, 'editor.html'), 'utf-8');
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(html);
+      } catch (e) { res.writeHead(500); res.end('editor.html missing: ' + e.message); }
+      return;
+    }
+
+    if (path === '/file' && req.method === 'GET') {
+      try {
+        const u = new URL(req.url, 'http://localhost');
+        const fp = u.searchParams.get('path') || '';
+        if (!fp.startsWith(homedir())) { res.writeHead(400); res.end('path must be under home'); return; }
+        const txt = readFileSync(fp, 'utf-8');
+        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end(txt);
+      } catch (e) { res.writeHead(404); res.end('not found'); }
+      return;
+    }
+
+    if (path === '/save' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'bad json' }); return; }
+      try {
+        const fp = String(body.path || '');
+        if (!fp.startsWith(homedir())) { res.writeHead(400); res.end('path must be under home'); return; }
+        mkdirSync(dirname(fp), { recursive: true });
+        writeFileSync(fp, String(body.content ?? ''), 'utf-8');
+        res.writeHead(200); res.end('ok');
+      } catch (e) { res.writeHead(500); res.end('error: ' + e.message); }
+      return;
+    }
+
+    if (path === '/dispatch-revision' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'bad json' }); return; }
+      const fp = String(body.path || ''); const instruction = String(body.instruction || '');
+      if (!fp.startsWith(homedir()) || !instruction) { res.writeHead(400); res.end('need path under home + instruction'); return; }
+      const ccd = join(homedir(), '.local/bin/cc-dispatch');
+      const collab = join(__dirname, 'collab-edit.mjs');
+      const node = process.execPath;
+      const taskName = 'revise-' + (fp.split('/').pop() || 'report').replace(/[^a-zA-Z0-9]+/g, '-').slice(0, 40);
+      const prompt = [
+        'You are revising a SOMA report collaboratively with a human who is watching the LIVE document in an editor.',
+        'Report file: ' + fp,
+        'First read the current content:  ' + node + ' ' + collab + ' --path "' + fp + '" read',
+        'Revision request from the human: ' + instruction,
+        'Produce the revision, then APPEND your contribution to the live document (do NOT overwrite the existing text). Pipe your markdown to:',
+        '  ' + node + ' ' + collab + ' --path "' + fp + '" --user "agent:reviser" --color "#a855f7" append -',
+        'Start your appended block with a heading like "## Revision — <short title>". Append exactly once, keep it focused, then stop.'
+      ].join('\n');
+      // Homebrew-first PATH so cc-dispatch's `env python3` finds 3.10+ (not system 3.9).
+      const dispatchEnv = { ...process.env, PATH: '/opt/homebrew/bin:/usr/local/bin:' + (process.env.PATH || '') };
+      execFile(ccd, ['--notify', 'none', taskName, prompt], { timeout: 8000, env: dispatchEnv }, () => {});
+      res.writeHead(200); res.end('ok');
+      return;
+    }
+
+    if (path === '/open-path' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      try {
+        const target = String(body.path || '');
+        if (target && target.startsWith(homedir())) {
+          const isText = /\.(md|markdown|txt|log|json|csv|ya?ml)$/i.test(target);
+          if (isText) {
+            // Open in the HUD-owned native editor window; fall back to the browser if the HUD is down.
+            fetch('http://localhost:3334/open-editor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: target }) })
+              .catch(() => { execFile('open', ['http://localhost:3333/edit?path=' + encodeURIComponent(target)], { timeout: 5000 }, () => {}); });
+          } else {
+            execFile('open', [target], { timeout: 5000 }, () => {});
+          }
+          res.writeHead(200); res.end('ok');
+        } else { res.writeHead(400); res.end('path must be under home'); }
+      } catch(e) { res.writeHead(500); res.end('error'); }
+      return;
+    }
+
     if (path === '/clipboard' && req.method === 'POST') {
       let body;
       try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
