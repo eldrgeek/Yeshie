@@ -16,6 +16,13 @@ export default defineContentScript({
       });
     });
 
+    // SOMA admin identity (window.__somaAdminToken) is now set by the
+    // MAIN-world content script soma-admin.content.ts, NOT by injecting an
+    // inline <script> tag here. Injecting a <script> with .textContent runs as
+    // a PAGE inline script and is blocked by any site with a strict script-src
+    // CSP ("Executing inline script violates ..."). A world:'MAIN' content
+    // script is extension-injected and CSP-exempt. See soma-admin.content.ts.
+
     // Signal relay is ready
     window.postMessage({ __yeshieExtReady: true }, '*');
     chrome.runtime.sendMessage({ type: 'content_ready', url: window.location.href });
