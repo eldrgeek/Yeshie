@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Fleet-wide delay -> wait_for converter (all sites except github.com, which has its
-own selector-specific converter, and chatgpt.com, which is hand-tuned).
+own selector-specific converter — scripts/convert-delays-to-waitfor.py).
 
 RULES (by the delay's next step):
   * next step has its own `target`/`selector` (click/type/wait_for/select):
@@ -24,7 +24,7 @@ still proceeds. Idempotent: skips files with no remaining `delay` steps.
 import json, glob, os, sys
 
 ROOT = os.path.expanduser('~/Projects/yeshie/sites')
-EXCLUDE_SITES = {'github.com', 'chatgpt.com'}
+EXCLUDE_SITES = {'github.com'}  # chatgpt.com graduated 2026-07-08 (verified)
 GENERIC_SETTLE = "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']"
 
 def next_target(nxt):

@@ -1,7 +1,7 @@
 {
   "_meta": {
     "task": "export-data",
-    "description": "Trigger ChatGPT data export. Navigates to Settings → Data controls → Export data → Confirm. ChatGPT emails a download link asynchronously — the skill requests the export and the email-link step is a separate manual/async action.",
+    "description": "Trigger ChatGPT data export. Navigates to Settings \u2192 Data controls \u2192 Export data \u2192 Confirm. ChatGPT emails a download link asynchronously \u2014 the skill requests the export and the email-link step is a separate manual/async action.",
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
@@ -9,7 +9,7 @@
       "base_url": {
         "required": false,
         "default": "https://chatgpt.com",
-        "description": "ChatGPT home page — must be logged in"
+        "description": "ChatGPT home page \u2014 must be logged in"
       }
     },
     "humanSteps": [
@@ -58,8 +58,14 @@
         "nodes": {
           "auth_required": {
             "signals": [
-              { "type": "url_matches", "pattern": "chatgpt\\.com/auth" },
-              { "type": "url_matches", "pattern": "accounts\\.openai\\.com" }
+              {
+                "type": "url_matches",
+                "pattern": "chatgpt\\.com/auth"
+              },
+              {
+                "type": "url_matches",
+                "pattern": "accounts\\.openai\\.com"
+              }
             ]
           }
         }
@@ -69,9 +75,13 @@
     },
     {
       "stepId": "s3",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for sidebar to fully render"
+      "action": "wait_for",
+      "target": "profile_button",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for profile_button before next step (was delay 1500ms)"
     },
     {
       "stepId": "s4",
@@ -81,9 +91,11 @@
     },
     {
       "stepId": "s5",
-      "action": "delay",
-      "ms": 800,
-      "note": "Wait for dropdown to open"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 800ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s6",
@@ -95,15 +107,19 @@
       "stepId": "s7",
       "action": "wait_for",
       "selector": "[role='dialog'], [role='tablist'], .modal",
-      "state": { "visible": true },
+      "state": {
+        "visible": true
+      },
       "timeout": 8000,
       "note": "Wait for Settings dialog to open"
     },
     {
       "stepId": "s8",
-      "action": "delay",
-      "ms": 600,
-      "note": "Let dialog animate in"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 600ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s9",
@@ -113,9 +129,11 @@
     },
     {
       "stepId": "s10",
-      "action": "delay",
-      "ms": 800,
-      "note": "Wait for Data controls tab to load"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 800ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s11",
@@ -125,9 +143,11 @@
     },
     {
       "stepId": "s12",
-      "action": "delay",
-      "ms": 1000,
-      "note": "Wait for confirmation modal"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s13",
@@ -137,9 +157,11 @@
     },
     {
       "stepId": "s14",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Allow confirmation to register"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s15",

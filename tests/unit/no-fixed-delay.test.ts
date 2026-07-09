@@ -20,9 +20,8 @@ const SITES_DIR = join(process.cwd(), 'sites');
 
 // Sites still pending conversion (delays intentionally kept for now). Keep this
 // list SHRINKING — a site graduates the moment its delays are gone.
-const PENDING = new Set<string>([
-  'chatgpt.com', // hand-tuned recipe with LLM-generation-adjacent waits; converting by hand
-]);
+// Empty: the whole fleet is off fixed delays as of 2026-07-08.
+const PENDING = new Set<string>([]);
 
 function findTaskPayloads(dir: string): string[] {
   const out: string[] = [];

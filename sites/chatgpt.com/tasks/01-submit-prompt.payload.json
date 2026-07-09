@@ -18,7 +18,7 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "callerContract": "Pass tabId = an already-authenticated chatgpt.com tab (resolve it via GET /tabs/list). Do NOT rely on tabId auto-discovery: with no tabId the extension picks the active tab of the last-focused window (chrome.tabs.query {active,lastFocusedWindow}), which is usually NOT the ChatGPT tab, and the recipe would then run against the wrong page. This recipe does NOT open its own tab: a cold-opened chatgpt.com tab intermittently redirects to /login (unauthenticated) so the composer never mounts. A durable class-wide fix (prefer a base_url-host tab during discovery) is proposed for background.ts startRun — see _estate/errors / the repair note doc.",
+    "callerContract": "Pass tabId = an already-authenticated chatgpt.com tab (resolve it via GET /tabs/list). Do NOT rely on tabId auto-discovery: with no tabId the extension picks the active tab of the last-focused window (chrome.tabs.query {active,lastFocusedWindow}), which is usually NOT the ChatGPT tab, and the recipe would then run against the wrong page. This recipe does NOT open its own tab: a cold-opened chatgpt.com tab intermittently redirects to /login (unauthenticated) so the composer never mounts. A durable class-wide fix (prefer a base_url-host tab during discovery) is proposed for background.ts startRun \u2014 see _estate/errors / the repair note doc.",
     "repairNote": "2026-07-08: ChatGPT composer migrated Lexical -> ProseMirror. Two root causes behind the silent {status:ok,value:''} failure, both fixed here: (1) The old bare div[contenteditable='true'] fallback matched a RENDERED MESSAGE (also a ProseMirror contenteditable div, earlier in DOM order) instead of the composer -> selectors now scope to the #prompt-textarea id + aria-label 'Chat with ChatGPT', so a wrong tab now fails LOUDLY ('Cannot resolve: prompt_input') instead of silently succeeding. (2) A CDP-dispatched Enter no longer submits ChatGPT's ProseMirror composer (verified: text stays in the composer, no send) -> now type with submit:false and click send_button explicitly. data-testid='prompt-textarea' and data-lexical-editor are gone from the composer; #prompt-textarea (id) and [data-testid='send-button'] remain valid."
   },
   "params": {
@@ -29,7 +29,9 @@
     "prompt_input": {
       "description": "ProseMirror contenteditable prompt composer (#prompt-textarea, aria-label 'Chat with ChatGPT')",
       "match": {
-        "name_contains": ["Chat with ChatGPT"]
+        "name_contains": [
+          "Chat with ChatGPT"
+        ]
       },
       "anchors": {
         "ariaLabel": "Chat with ChatGPT"
@@ -44,7 +46,9 @@
     "send_button": {
       "description": "Send prompt button (present + enabled once the composer has text)",
       "match": {
-        "name_contains": ["Send prompt"]
+        "name_contains": [
+          "Send prompt"
+        ]
       },
       "anchors": {
         "dataTestId": "send-button",
@@ -90,13 +94,15 @@
       "stepId": "s2",
       "action": "navigate",
       "url": "{{base_url}}",
-      "note": "Navigate the (caller-provided, already-authenticated) tab to base_url. Default base_url=chatgpt.com/ gives a fresh single-turn conversation, which keeps the s10 read reliable: [data-message-author-role='assistant']:last-of-type resolves via querySelector (first match in document order), so on a multi-turn page it would return an EARLIER turn's response, not the latest. NOTE: navigate (existing authenticated tab), NOT open_tab — a cold-opened tab intermittently redirects to /login."
+      "note": "Navigate the (caller-provided, already-authenticated) tab to base_url. Default base_url=chatgpt.com/ gives a fresh single-turn conversation, which keeps the s10 read reliable: [data-message-author-role='assistant']:last-of-type resolves via querySelector (first match in document order), so on a multi-turn page it would return an EARLIER turn's response, not the latest. NOTE: navigate (existing authenticated tab), NOT open_tab \u2014 a cold-opened tab intermittently redirects to /login."
     },
     {
       "stepId": "s2-settle",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Let the SPA fully hydrate before the s2a temporary-chat check. Without this, s2a can race the render and read 'Turn on temporary chat' (normal) during a brief pre-hydration window even though the page then settles into Temporary Chat."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s2a",
@@ -105,19 +111,27 @@
         "nodes": {
           "temporary_on": {
             "signals": [
-              { "type": "element_visible", "selector": "[aria-label='Turn off temporary chat']" }
+              {
+                "type": "element_visible",
+                "selector": "[aria-label='Turn off temporary chat']"
+              }
             ]
           },
           "normal": {
             "signals": [
-              { "type": "element_visible", "selector": "[aria-label='Turn on temporary chat']" }
+              {
+                "type": "element_visible",
+                "selector": "[aria-label='Turn on temporary chat']"
+              }
             ]
           }
         }
       },
-      "expect": { "state": "normal" },
+      "expect": {
+        "state": "normal"
+      },
       "onMismatch": "branch:disable_temp",
-      "note": "SELF-HEAL: ChatGPT temporary chat can be a sticky account/session default that a full-page navigate re-enters; a submit into it is discarded (no persisted/readable answer). If temporary chat is ON (the 'Turn off temporary chat' toggle is present), branch to disable_temp to turn it off, dropping the ephemeral chat and returning to a fresh normal chat. When temporary chat is already OFF ('Turn on temporary chat' present), state=='normal' matches expect and no branch runs — safe/no-op on normal accounts."
+      "note": "SELF-HEAL: ChatGPT temporary chat can be a sticky account/session default that a full-page navigate re-enters; a submit into it is discarded (no persisted/readable answer). If temporary chat is ON (the 'Turn off temporary chat' toggle is present), branch to disable_temp to turn it off, dropping the ephemeral chat and returning to a fresh normal chat. When temporary chat is already OFF ('Turn on temporary chat' present), state=='normal' matches expect and no branch runs \u2014 safe/no-op on normal accounts."
     },
     {
       "stepId": "s2b",
@@ -128,9 +142,13 @@
     },
     {
       "stepId": "s3",
-      "action": "delay",
-      "ms": 1200,
-      "note": "Let the ProseMirror composer mount + settle after navigation before typing"
+      "action": "wait_for",
+      "target": "prompt_input",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for prompt_input before next step (was delay 1200ms)"
     },
     {
       "stepId": "s4",
@@ -138,25 +156,31 @@
       "target": "prompt_input",
       "value": "{{prompt}}",
       "submit": true,
-      "note": "submit:true sends Enter after the text. On current ChatGPT ProseMirror a CDP Enter is a harmless no-op (does NOT submit, does NOT insert a newline — verified), so the text stays in the composer intact; the real submit is the explicit send_button click in s6. (submit:false is avoided: it makes trustedType press Tab, which moved focus off the composer and the send button failed to resolve on the next step.)"
+      "note": "submit:true sends Enter after the text. On current ChatGPT ProseMirror a CDP Enter is a harmless no-op (does NOT submit, does NOT insert a newline \u2014 verified), so the text stays in the composer intact; the real submit is the explicit send_button click in s6. (submit:false is avoided: it makes trustedType press Tab, which moved focus off the composer and the send button failed to resolve on the next step.)"
     },
     {
       "stepId": "s5",
-      "action": "delay",
-      "ms": 400,
-      "note": "Let ProseMirror register the inserted text and enable the send button"
+      "action": "wait_for",
+      "target": "send_button",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for send_button before next step (was delay 400ms)"
     },
     {
       "stepId": "s6",
       "action": "click",
       "target": "send_button",
-      "note": "Click Send — the reliable submit path on current ChatGPT"
+      "note": "Click Send \u2014 the reliable submit path on current ChatGPT"
     },
     {
       "stepId": "s7",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Allow generation to start"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s8",
@@ -166,13 +190,15 @@
         "visible": true
       },
       "timeout": 180000,
-      "note": "Wait until the assistant message's Copy action button appears — the RELIABLE 'answer fully rendered' signal. Do NOT wait on [data-testid='stop-button'] going invisible: for thinking models (e.g. gpt-5-*-thinking) the stop button toggles off during the think→answer transition, so that wait completes while the answer is still empty (assistant container class 'result-thinking', empty <p>), and the read captures ''. The copy button only appears once generation is truly complete. RELIES on s2's fresh single-turn chat: on a multi-turn page prior turns already have copy buttons, so this would pass immediately. 180s timeout accommodates deep thinking-model latency."
+      "note": "Wait until the assistant message's Copy action button appears \u2014 the RELIABLE 'answer fully rendered' signal. Do NOT wait on [data-testid='stop-button'] going invisible: for thinking models (e.g. gpt-5-*-thinking) the stop button toggles off during the think\u2192answer transition, so that wait completes while the answer is still empty (assistant container class 'result-thinking', empty <p>), and the read captures ''. The copy button only appears once generation is truly complete. RELIES on s2's fresh single-turn chat: on a multi-turn page prior turns already have copy buttons, so this would pass immediately. 180s timeout accommodates deep thinking-model latency."
     },
     {
       "stepId": "s9",
-      "action": "delay",
-      "ms": 600,
-      "note": "Let the final assistant message finish painting into the DOM"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 600ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s10",
@@ -192,13 +218,15 @@
           "stepId": "heal-1",
           "action": "click",
           "target": "disable_temp_chat",
-          "note": "Turn OFF temporary chat — drops the ephemeral chat, returns to a fresh normal chat"
+          "note": "Turn OFF temporary chat \u2014 drops the ephemeral chat, returns to a fresh normal chat"
         },
         {
           "stepId": "heal-2",
-          "action": "delay",
-          "ms": 1000,
-          "note": "Let the toggle-off settle (URL drops temporary-chat=true, fresh composer mounts) before the s2b guard re-checks"
+          "action": "wait_for",
+          "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+          "timeout": 6000,
+          "onTimeout": "continue",
+          "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
         }
       ]
     }
