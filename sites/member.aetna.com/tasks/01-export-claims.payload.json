@@ -1,0 +1,128 @@
+{
+  "_meta": {
+    "name": "aetna-medicare-export-claims",
+    "site": "member.aetna.com",
+    "description": "Navigate Aetna Medicare member portal, export Explanation of Benefits (EOB), claims history, and benefits summary.",
+    "version": "1.0.0",
+    "verified": false,
+    "verifiedDate": null,
+    "platform": "Aetna member portal — insurance, NOT a clinical records portal",
+    "myChart": false,
+    "provider": "Aetna Medicare (plan type: likely Medicare Advantage based on 'at-home health check' benefit)",
+    "authStrategy": "Aetna account (MW@mike-wolf.com). Login at member.aetna.com — interactive first run required.",
+    "exportFormats": ["EOB PDFs (per claim)", "Claims history CSV (if available)", "Benefits summary PDF"],
+    "localCachePath": "~/Documents/MedicalRecords/aetna-medicare/{YYYY-MM}/",
+    "anomalies": [
+      "Insurance portal — data is administrative (claims, costs, coverage), not clinical records",
+      "EOBs are separate from clinical data — useful for spend tracking and coverage verification",
+      "At-home health check communications suggest Medicare Advantage plan with HRA (Health Risk Assessment)",
+      "Portal URL may be myactivehealth.com or CVSHealth portal depending on plan configuration"
+    ]
+  },
+  "params": {
+    "base_url": "https://member.aetna.com",
+    "save_path": "~/Documents/MedicalRecords/aetna-medicare"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://member.aetna.com",
+      "note": "Aetna member portal. May redirect to secure.aetna.com or myaetna.com for login."
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for_auth",
+      "authSentinelPattern": "/dashboard|/home|/claims|/benefits",
+      "loginUrl": "https://member.aetna.com",
+      "note": "Halt if not authenticated. Interactive login required first run."
+    },
+    {
+      "stepId": "s3",
+      "action": "perceive",
+      "store_as": "member_home",
+      "note": "Capture portal navigation: expect Claims, Benefits, Coverage, Health Programs, Find Care."
+    },
+    {
+      "stepId": "s4",
+      "action": "click_text_or_navigate",
+      "candidates": [
+        "text:Claims",
+        "text:View claims",
+        "a[href*='claims']"
+      ],
+      "note": "Navigate to claims history."
+    },
+    {
+      "stepId": "s5",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s6",
+      "action": "perceive",
+      "store_as": "claims_list",
+      "note": "Capture claims list: date of service, provider, claim amount, plan paid, member responsibility. Filter for last 12 months."
+    },
+    {
+      "stepId": "s7",
+      "action": "click_first_match",
+      "candidates": [
+        "text:Download",
+        "text:Export",
+        "text:Export to CSV",
+        "button:has-text('Download')",
+        "a[href*='download']"
+      ],
+      "note": "Export claims history if download option available.",
+      "optional": true
+    },
+    {
+      "stepId": "s8",
+      "action": "click_text_or_navigate",
+      "candidates": [
+        "text:Benefits",
+        "text:Plan benefits",
+        "a[href*='benefits']",
+        "a[href*='coverage']"
+      ],
+      "note": "Navigate to benefits / coverage summary."
+    },
+    {
+      "stepId": "s9",
+      "action": "perceive",
+      "store_as": "benefits_summary",
+      "note": "Capture benefit categories: deductible, out-of-pocket max, copays, preventive care benefits, prescription drug coverage (Part D if applicable)."
+    },
+    {
+      "stepId": "s10",
+      "action": "click_first_match",
+      "candidates": [
+        "text:Print",
+        "text:Download summary",
+        "text:Benefits summary PDF",
+        "a[href*='summary.pdf']"
+      ],
+      "note": "Download benefits summary PDF if available.",
+      "optional": true
+    }
+  ],
+  "abstractTargets": {
+    "auth-sentinel": {
+      "description": "Element confirming authenticated Aetna session",
+      "cachedSelector": "[class*='member-name'], [class*='welcome-header'], #member-id, .member-info",
+      "cachedConfidence": 0.5,
+      "note": "Aetna portal is server-rendered HTML with some JS enhancement. Selectors more stable."
+    },
+    "claim-row": {
+      "description": "Individual claim row in claims table",
+      "cachedSelector": "tr.claim-row, [class*='claim-item'], [data-claim-id]",
+      "cachedConfidence": 0.4
+    },
+    "eob-download-link": {
+      "description": "EOB PDF download link per claim",
+      "cachedSelector": "a[href*='eob'], a[href*='explanation-of-benefits'], a:has-text('View EOB')",
+      "cachedConfidence": 0.5
+    }
+  }
+}

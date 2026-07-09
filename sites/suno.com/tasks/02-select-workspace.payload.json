@@ -1,0 +1,23 @@
+{
+  "_meta": {
+    "task": "select-workspace",
+    "description": "Select (open) an existing Suno workspace by name. Filters the Workspaces list via the search box, then clicks the matching workspace card.",
+    "auth": { "type": "suno_session", "note": "Requires being logged into suno.com" },
+    "params": {
+      "workspace_name": { "required": true, "description": "Name of the workspace to select" }
+    },
+    "risk": "safe (just switches the active workspace)",
+    "verified": "2026-06-18"
+  },
+  "runId": "suno-select-workspace-{{timestamp}}",
+  "mode": "verification",
+  "site": "suno.com",
+  "params": { "workspace_name": "{{workspace_name}}" },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://suno.com/create" },
+    { "stepId": "s2", "action": "wait_for", "selector": "input[aria-label=\"Search workspaces\"]", "timeout": 10000, "note": "Workspaces panel ready" },
+    { "stepId": "s3", "action": "type", "selector": "input[aria-label=\"Search workspaces\"]", "value": "{{workspace_name}}", "note": "filter the list" },
+    { "stepId": "s4", "action": "click_text", "text": "{{workspace_name}}", "exact": false, "note": "click the matching workspace card" },
+    { "stepId": "s5", "action": "read", "store_as": "result" }
+  ]
+}

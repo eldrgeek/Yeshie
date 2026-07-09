@@ -1,0 +1,266 @@
+{
+  "_meta": {
+    "task": "import-docs-to-claude-project",
+    "description": "Add a text document to a Claude Project's knowledge base. For Google Drive docs: export the content as text first (see STATUS file). Invoke once per document; loop at caller level for multiple docs.",
+    "site": "claude.ai",
+    "version": "1.0.0",
+    "verified": false,
+    "verifiedDate": null,
+    "verificationNotes": "Built 2026-05-21. The knowledge base 'Add content' dialog UI must be verified on a live project. Claude.ai may present different modal structures; perceive steps capture the actual tree. File upload path via js action is stubbed — text paste is the primary flow.",
+    "anomalies": [
+      "Google Drive doc URLs cannot be directly added as URL references — claude.ai knowledge base (as of mid-2025) only accepts file uploads and text paste. Use 03b-gdrive-extract.payload.json (future) or pass exported text as content_text.",
+      "File upload via browser file input requires a local file path and a js action shim — stubbed in this payload; text paste is V1 primary path.",
+      "The 'Add content' dialog may be a slide-over sheet rather than a dialog element — perceive step captures actual structure."
+    ],
+    "params": {
+      "project_url": {
+        "required": true,
+        "description": "Full URL of the target Claude Project (https://claude.ai/project/<uuid>)",
+        "hint": "Returned by 02-create-project as the final URL in project_page_state"
+      },
+      "content_text": {
+        "required": false,
+        "default": "",
+        "description": "Raw text content to paste into the knowledge base. Use this for text/markdown/exported Google Drive content.",
+        "hint": "If both content_text and file_path are empty, the payload will fail at the insert step."
+      },
+      "doc_title": {
+        "required": false,
+        "default": "Imported document",
+        "description": "Title/name for the document in the knowledge base (if the UI offers a title field)"
+      },
+      "file_path": {
+        "required": false,
+        "default": "",
+        "description": "STUB — local file path for file upload (PDF, DOCX, TXT). V1 text paste only; file upload shim is not yet wired.",
+        "hint": "Leave empty unless you know file upload is implemented"
+      }
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "prerequisite": "user-logged-in-to-claude-ai"
+  },
+  "params": {
+    "project_url": "",
+    "content_text": "",
+    "doc_title": "Imported document",
+    "file_path": ""
+  },
+  "abstractTargets": {
+    "add_content_button": {
+      "description": "Button in the project knowledge panel to open the add-content dialog",
+      "anchors": {
+        "ariaLabel": "Add content",
+        "text": "Add content"
+      },
+      "fallbackSelectors": [
+        "button[aria-label='Add content']",
+        "button[aria-label*='Add']",
+        "[data-testid='add-knowledge-button']",
+        "button:has-text('Add content')",
+        "button:has-text('Upload')"
+      ]
+    },
+    "paste_text_option": {
+      "description": "Option inside the add-content dialog to paste/type text (as opposed to file upload)",
+      "anchors": {
+        "text": "Paste text",
+        "ariaLabel": "Paste text"
+      },
+      "fallbackSelectors": [
+        "button[aria-label='Paste text']",
+        "[role='tab']:has-text('Paste')",
+        "[role='option']:has-text('Paste')",
+        "button:has-text('Paste text')",
+        "button:has-text('Text')"
+      ]
+    },
+    "knowledge_text_input": {
+      "description": "Textarea or contenteditable where document text is pasted",
+      "anchors": {
+        "placeholder": "Paste or type content here",
+        "ariaLabel": "Document content"
+      },
+      "fallbackSelectors": [
+        "textarea[placeholder*='Paste']",
+        "textarea[placeholder*='content']",
+        "[role='dialog'] textarea",
+        "[aria-modal='true'] textarea",
+        "[contenteditable='true'][role='textbox']"
+      ]
+    },
+    "knowledge_title_input": {
+      "description": "Optional title/name field for the document being added",
+      "anchors": {
+        "placeholder": "Document title",
+        "ariaLabel": "Document title"
+      },
+      "fallbackSelectors": [
+        "input[placeholder*='title']",
+        "input[placeholder*='Title']",
+        "input[placeholder*='Name']",
+        "[role='dialog'] input[type='text']"
+      ]
+    },
+    "save_knowledge_button": {
+      "description": "Button to save/confirm the new knowledge document",
+      "anchors": {
+        "text": "Save",
+        "ariaLabel": "Save"
+      },
+      "fallbackSelectors": [
+        "button[aria-label='Save']",
+        "button[type='submit']",
+        "[role='dialog'] button:last-of-type",
+        "button[aria-label*='Add']",
+        "button:has-text('Save')",
+        "button:has-text('Done')"
+      ]
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "{{project_url}}",
+      "note": "Navigate directly to the target project"
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Let project page load including knowledge panel"
+    },
+    {
+      "stepId": "s3",
+      "action": "assess_state",
+      "stateGraph": {
+        "nodes": {
+          "auth_required": {
+            "signals": [
+              { "type": "url_matches", "pattern": "claude\\.ai/login" }
+            ]
+          },
+          "wrong_page": {
+            "signals": [
+              { "type": "url_not_matches", "pattern": "claude\\.ai/project/" }
+            ]
+          }
+        }
+      },
+      "onMatch": "exit_with_error:not-on-project-page — check project_url param",
+      "onMismatch": "continue",
+      "note": "Fail fast if project_url led somewhere unexpected"
+    },
+    {
+      "stepId": "s4",
+      "action": "perceive",
+      "store_as": "project_page_structure",
+      "note": "Capture full project page to locate knowledge panel and Add content button"
+    },
+    {
+      "stepId": "s5",
+      "action": "click",
+      "target": "add_content_button",
+      "note": "Open Add content dialog. If this fails, check perceive output — button may be labeled differently."
+    },
+    {
+      "stepId": "s6",
+      "action": "delay",
+      "ms": 800,
+      "note": "Wait for dialog/sheet to render"
+    },
+    {
+      "stepId": "s7",
+      "action": "wait_for",
+      "selector": "[role='dialog'], [aria-modal='true'], [data-radix-dialog-content]",
+      "state": { "visible": true },
+      "timeout": 8000,
+      "note": "Confirm dialog is open"
+    },
+    {
+      "stepId": "s8",
+      "action": "perceive",
+      "store_as": "add_content_dialog_structure",
+      "note": "Capture the dialog structure — which tabs/options are available (Upload, Paste, URL, etc.)"
+    },
+    {
+      "stepId": "s9",
+      "action": "click",
+      "target": "paste_text_option",
+      "note": "Select the 'Paste text' / text tab option within the dialog"
+    },
+    {
+      "stepId": "s10",
+      "action": "delay",
+      "ms": 500,
+      "note": "Let text tab render"
+    },
+    {
+      "stepId": "s11",
+      "action": "type",
+      "target": "knowledge_title_input",
+      "value": "{{doc_title}}",
+      "note": "Fill title field if present — target resolution will skip if element not found"
+    },
+    {
+      "stepId": "s12",
+      "action": "type",
+      "target": "knowledge_text_input",
+      "value": "{{content_text}}",
+      "note": "Paste/type the document content into the textarea"
+    },
+    {
+      "stepId": "s13",
+      "action": "delay",
+      "ms": 400,
+      "note": "Settle before save"
+    },
+    {
+      "stepId": "s14",
+      "action": "click",
+      "target": "save_knowledge_button",
+      "responseSignature": [
+        {
+          "type": "element_visible",
+          "selector": "[role='alert'], [aria-live='polite'], .toast, [data-testid='success']",
+          "timeout": 8000
+        }
+      ],
+      "note": "Click Save/Done. Response signature watches for success toast or confirmation element."
+    },
+    {
+      "stepId": "s15",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Let success state settle"
+    },
+    {
+      "stepId": "s16",
+      "action": "perceive",
+      "store_as": "post_save_state",
+      "note": "Capture knowledge panel state to confirm the document appears in the list"
+    }
+  ],
+  "stateGraph": {
+    "initial": "project_page",
+    "nodes": {
+      "project_page": {
+        "description": "Viewing a Claude project",
+        "signals": [
+          { "type": "url_matches", "pattern": "claude\\.ai/project/" },
+          { "type": "url_not_matches", "pattern": "/login" }
+        ]
+      },
+      "auth_required": {
+        "description": "Not logged in",
+        "signals": [
+          { "type": "url_matches", "pattern": "claude\\.ai/login" }
+        ]
+      }
+    }
+  },
+  "site": "claude.ai",
+  "mode": "exploratory"
+}

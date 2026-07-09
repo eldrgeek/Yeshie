@@ -1,0 +1,21 @@
+{
+  "_meta": {
+    "task": "open-project",
+    "description": "Open an existing Claude project by name (filters the projects list, clicks the matching card).",
+    "auth": { "type": "claude_session", "note": "Requires being logged into claude.ai" },
+    "params": { "project_name": { "required": true, "description": "Name of the project to open" } },
+    "risk": "safe (navigation only)",
+    "verified": "2026-06-18"
+  },
+  "runId": "claude-open-project-{{timestamp}}",
+  "mode": "verification",
+  "site": "claude.ai",
+  "params": { "project_name": "{{project_name}}" },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://claude.ai/projects" },
+    { "stepId": "s2", "action": "wait_for", "selector": "input[placeholder=\"Search projects...\"]", "timeout": 10000 },
+    { "stepId": "s3", "action": "type", "selector": "input[placeholder=\"Search projects...\"]", "value": "{{project_name}}", "note": "filter the list" },
+    { "stepId": "s4", "action": "click_text", "text": "{{project_name}}", "exact": false, "note": "click the matching project card" },
+    { "stepId": "s5", "action": "wait_for", "selector": "[aria-label=\"Write your prompt to Claude\"]", "timeout": 10000, "note": "project page ready" }
+  ]
+}

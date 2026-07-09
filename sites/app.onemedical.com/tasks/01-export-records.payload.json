@@ -1,0 +1,160 @@
+{
+  "_meta": {
+    "name": "onemedical-export-records",
+    "site": "app.onemedical.com",
+    "description": "Navigate One Medical patient portal, collect visit summaries, lab results, prescriptions, and trigger PDF/FHIR exports.",
+    "version": "1.0.0",
+    "verified": false,
+    "verifiedDate": null,
+    "platform": "One Medical (proprietary — Amazon-owned)",
+    "myChart": false,
+    "provider": "Rachid Chakri, PA-C",
+    "authStrategy": "Google SSO (mw@mike-wolf.com) or email/password — interactive first run required",
+    "exportFormats": ["PDF per visit summary", "FHIR R4 via patient access API (21st Century Cures)"],
+    "localCachePath": "~/Documents/MedicalRecords/one-medical/{YYYY-MM}/",
+    "anomalies": [
+      "Amazon-owned SPA — heavy React; navigate alone may not populate records, use perceive or delay",
+      "Visit summaries are per-visit PDFs, not a bulk export — must iterate over visit list",
+      "FHIR API requires separate OAuth flow at fhir.onemedical.com — not automated here"
+    ]
+  },
+  "params": {
+    "base_url": "https://app.onemedical.com",
+    "save_path": "~/Documents/MedicalRecords/one-medical"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://app.onemedical.com",
+      "note": "Landing page. Will redirect to login if not authenticated."
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for_auth",
+      "authSentinelPattern": "/health|/home|/dashboard",
+      "loginUrl": "https://app.onemedical.com/login",
+      "note": "If redirected to login, halt and prompt Mike to authenticate manually. Resume from s3 after auth."
+    },
+    {
+      "stepId": "s3",
+      "action": "navigate",
+      "url": "https://app.onemedical.com/health",
+      "note": "Health overview / records section. Exact path may vary — perceive to confirm navigation."
+    },
+    {
+      "stepId": "s4",
+      "action": "perceive",
+      "store_as": "health_overview",
+      "note": "Capture page structure to identify links: Visit Summaries, Lab Results, Medications, Documents."
+    },
+    {
+      "stepId": "s5",
+      "action": "navigate_or_click",
+      "candidates": [
+        "a[href*='visits']",
+        "a[href*='visit-summaries']",
+        "text:Visit Summaries",
+        "text:Past Visits"
+      ],
+      "note": "Navigate to visit list. One Medical uses React router — links may be text-clickable."
+    },
+    {
+      "stepId": "s6",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s7",
+      "action": "perceive",
+      "store_as": "visit_list",
+      "note": "Capture list of visits with dates and provider names. rowCount = number of past visits available."
+    },
+    {
+      "stepId": "s8",
+      "action": "click_first_match",
+      "candidates": [
+        "button:Download",
+        "a:Download",
+        "button:Export",
+        "a[download]",
+        "text:Download summary",
+        "text:Download PDF"
+      ],
+      "note": "Download visit summary PDF for most recent visit. Repeat loop over visit_list for full history — not automated in v1.",
+      "optional": true
+    },
+    {
+      "stepId": "s9",
+      "action": "navigate",
+      "url": "https://app.onemedical.com/health/labs",
+      "note": "Lab results section. May also be /results or /labs."
+    },
+    {
+      "stepId": "s10",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s11",
+      "action": "perceive",
+      "store_as": "lab_results",
+      "note": "Capture lab results list: test name, date, result, reference range, ordering provider."
+    },
+    {
+      "stepId": "s12",
+      "action": "navigate",
+      "url": "https://app.onemedical.com/health/medications",
+      "note": "Active medications / prescriptions."
+    },
+    {
+      "stepId": "s13",
+      "action": "perceive",
+      "store_as": "medications",
+      "note": "Capture current medications list."
+    },
+    {
+      "stepId": "s14",
+      "action": "navigate",
+      "url": "https://app.onemedical.com/health/documents",
+      "note": "Uploaded documents / health records section."
+    },
+    {
+      "stepId": "s15",
+      "action": "perceive",
+      "store_as": "documents",
+      "note": "Capture document list. Note any CCDA or CCD export buttons."
+    }
+  ],
+  "abstractTargets": {
+    "auth-sentinel": {
+      "description": "Element present only when authenticated",
+      "cachedSelector": "nav[aria-label='Main navigation'], [data-testid='user-menu'], header .user-avatar",
+      "cachedConfidence": 0.6,
+      "note": "One Medical SPA — selector unverified. Use URL pattern /health or /home as primary auth check."
+    },
+    "visit-list-item": {
+      "description": "Individual visit row in visit history",
+      "cachedSelector": "[data-testid='visit-card'], .visit-item, li[class*='visit']",
+      "cachedConfidence": 0.4,
+      "note": "Unverified — perceive visit_list to discover actual selectors on first run."
+    },
+    "download-pdf-button": {
+      "description": "Download PDF button for visit summary",
+      "cachedSelector": "button[aria-label*='download'], a[aria-label*='PDF'], button:has-text('Download')",
+      "cachedConfidence": 0.5,
+      "note": "Unverified. Fall back to click_text('Download') if CSS selector fails."
+    }
+  },
+  "stateGraph": {
+    "initial": "portal-home",
+    "states": {
+      "portal-home": { "url": "/health", "transitions": ["visit-list", "lab-results", "medications"] },
+      "visit-list": { "url": "/health/visits", "transitions": ["visit-detail"] },
+      "visit-detail": { "url": "/health/visits/*", "transitions": ["visit-list"] },
+      "lab-results": { "url": "/health/labs", "transitions": ["portal-home"] },
+      "medications": { "url": "/health/medications", "transitions": ["portal-home"] }
+    }
+  },
+  "fhirExportNote": "One Medical exposes a FHIR R4 patient access endpoint. Authorization requires a separate OAuth 2.0 flow via developer.onemedical.com. Not automated in this payload — requires API key or patient-facing OAuth. For bulk export, consider the FHIR path over scraping."
+}
