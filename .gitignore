@@ -18,3 +18,8 @@ packages/extension/background.js
 # Local watcher state
 packages/extension/.build-count
 packages/extension/.cache/
+
+# Secrets — never commit (WXT env files carry the SOMA admin token at build time)
+packages/extension/.env
+packages/extension/.env.*
+!packages/extension/.env.example
