@@ -5,11 +5,23 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "github_session", "note": "Must own the gist to edit it" },
+    "auth": {
+      "type": "github_session",
+      "note": "Must own the gist to edit it"
+    },
     "params": {
-      "username": { "required": true, "description": "GitHub username who owns the gist" },
-      "gist_id": { "required": true, "description": "Gist ID (hexadecimal hash)" },
-      "content": { "required": true, "description": "New file content (replaces existing)" }
+      "username": {
+        "required": true,
+        "description": "GitHub username who owns the gist"
+      },
+      "gist_id": {
+        "required": true,
+        "description": "Gist ID (hexadecimal hash)"
+      },
+      "content": {
+        "required": true,
+        "description": "New file content (replaces existing)"
+      }
     },
     "risk": "safe",
     "needs_live_verification": true
@@ -23,12 +35,45 @@
     "content": "{{content}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://gist.github.com/{{username}}/{{gist_id}}/edit" },
-    { "stepId": "s2", "action": "wait_for", "selector": ".CodeMirror, .cm-content", "timeout": 8000 },
-    { "stepId": "s3", "action": "click", "selector": ".CodeMirror, .cm-content" },
-    { "stepId": "s4", "action": "key", "key": "ctrl+a, meta+a", "note": "Select all existing content" },
-    { "stepId": "s5", "action": "type", "selector": ".CodeMirror textarea, .cm-content", "value": "{{content}}" },
-    { "stepId": "s6", "action": "click", "selector": "button[data-disable-with*='Update gist'], button[type='submit']", "note": "Save changes" },
-    { "stepId": "s7", "action": "delay", "ms": 2000 }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://gist.github.com/{{username}}/{{gist_id}}/edit"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": ".CodeMirror, .cm-content",
+      "timeout": 8000
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "selector": ".CodeMirror, .cm-content"
+    },
+    {
+      "stepId": "s4",
+      "action": "key",
+      "key": "ctrl+a, meta+a",
+      "note": "Select all existing content"
+    },
+    {
+      "stepId": "s5",
+      "action": "type",
+      "selector": ".CodeMirror textarea, .cm-content",
+      "value": "{{content}}"
+    },
+    {
+      "stepId": "s6",
+      "action": "click",
+      "selector": "button[data-disable-with*='Update gist'], button[type='submit']",
+      "note": "Save changes"
+    },
+    {
+      "action": "wait_for",
+      "selector": "[role=\"alert\"], .flash, .js-flash-alert, [data-testid=\"toast\"]",
+      "timeout": 8000,
+      "stepId": "s7"
+    }
   ]
 }

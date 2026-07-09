@@ -5,11 +5,23 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "github_session", "note": "Must have write access to the repo" },
+    "auth": {
+      "type": "github_session",
+      "note": "Must have write access to the repo"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" },
-      "number": { "required": true, "description": "PR number (must be in draft state)" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      },
+      "number": {
+        "required": true,
+        "description": "PR number (must be in draft state)"
+      }
     },
     "risk": "safe",
     "needs_live_verification": true
@@ -23,9 +35,28 @@
     "number": "{{number}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/pull/{{number}}" },
-    { "stepId": "s2", "action": "wait_for", "selector": "button[aria-label='Ready for review'], button[data-disable-with*='Ready for review']", "timeout": 8000 },
-    { "stepId": "s3", "action": "click", "selector": "button[aria-label='Ready for review'], button[data-disable-with*='Ready for review']", "note": "Mark draft PR as ready for review" },
-    { "stepId": "s4", "action": "delay", "ms": 1500 }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}/pull/{{number}}"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "button[aria-label='Ready for review'], button[data-disable-with*='Ready for review']",
+      "timeout": 8000
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "selector": "button[aria-label='Ready for review'], button[data-disable-with*='Ready for review']",
+      "note": "Mark draft PR as ready for review"
+    },
+    {
+      "action": "wait_for",
+      "selector": "[role=\"alert\"], .flash, .js-flash-alert, [data-testid=\"toast\"]",
+      "timeout": 8000,
+      "stepId": "s4"
+    }
   ]
 }

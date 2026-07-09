@@ -5,10 +5,19 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "github_session", "note": "Must be logged in to GitHub" },
+    "auth": {
+      "type": "github_session",
+      "note": "Must be logged in to GitHub"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      }
     },
     "risk": "safe",
     "needs_live_verification": true
@@ -21,17 +30,61 @@
     "repo": "{{repo}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}" },
-    { "stepId": "s2", "action": "wait_for", "selector": "button[aria-label*='Star this repository'], button[aria-label*='Unstar this repository']", "timeout": 8000 },
-    { "stepId": "s3", "action": "read", "selector": "button[aria-label*='Star'], button[aria-label*='Unstar']", "store_as": "star_button_state", "note": "Read current state before clicking" },
-    { "stepId": "s4", "action": "click", "selector": "button[aria-label*='Star this repository']", "note": "Click Star button — only clicks if not already starred" },
-    { "stepId": "s5", "action": "delay", "ms": 1000 },
-    { "stepId": "s6", "action": "read", "selector": "button[aria-label*='Star'], button[aria-label*='Unstar']", "store_as": "star_button_after" }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "button[aria-label*='Star this repository'], button[aria-label*='Unstar this repository']",
+      "timeout": 8000
+    },
+    {
+      "stepId": "s3",
+      "action": "read",
+      "selector": "button[aria-label*='Star'], button[aria-label*='Unstar']",
+      "store_as": "star_button_state",
+      "note": "Read current state before clicking"
+    },
+    {
+      "stepId": "s4",
+      "action": "click",
+      "selector": "button[aria-label*='Star this repository']",
+      "note": "Click Star button \u2014 only clicks if not already starred"
+    },
+    {
+      "action": "wait_for",
+      "selector": ".application-main",
+      "timeout": 8000,
+      "stepId": "s5"
+    },
+    {
+      "stepId": "s6",
+      "action": "read",
+      "selector": "button[aria-label*='Star'], button[aria-label*='Unstar']",
+      "store_as": "star_button_after"
+    }
   ],
   "stateGraph": {
     "nodes": {
-      "repo-home": { "signals": [{ "type": "url_matches", "pattern": "/[^/]+/[^/]+$" }] },
-      "login": { "signals": [{ "type": "url_matches", "pattern": "/login" }] }
+      "repo-home": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/[^/]+/[^/]+$"
+          }
+        ]
+      },
+      "login": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/login"
+          }
+        ]
+      }
     }
   }
 }

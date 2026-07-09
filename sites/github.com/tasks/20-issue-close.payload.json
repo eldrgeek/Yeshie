@@ -5,12 +5,28 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "github_session", "note": "Must have write access to close issues" },
+    "auth": {
+      "type": "github_session",
+      "note": "Must have write access to close issues"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" },
-      "number": { "required": true, "description": "Issue number" },
-      "comment": { "required": false, "description": "Optional comment to add when closing", "default": "" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      },
+      "number": {
+        "required": true,
+        "description": "Issue number"
+      },
+      "comment": {
+        "required": false,
+        "description": "Optional comment to add when closing",
+        "default": ""
+      }
     },
     "risk": "safe",
     "needs_live_verification": true
@@ -25,11 +41,40 @@
     "comment": "{{comment}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/issues/{{number}}" },
-    { "stepId": "s2", "action": "wait_for", "selector": "button[name='comment_and_close'], [aria-label*='Close issue']", "timeout": 8000 },
-    { "stepId": "s3", "action": "type", "selector": "textarea[name='comment[body]'], #new_comment_field", "value": "{{comment}}", "note": "Add optional closing comment" },
-    { "stepId": "s4", "action": "click", "selector": "button[name='comment_and_close'], button[aria-label*='Close issue']", "note": "Close the issue (with or without comment)" },
-    { "stepId": "s5", "action": "delay", "ms": 1500 },
-    { "stepId": "s6", "action": "read", "store_as": "close_result" }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}/issues/{{number}}"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "button[name='comment_and_close'], [aria-label*='Close issue']",
+      "timeout": 8000
+    },
+    {
+      "stepId": "s3",
+      "action": "type",
+      "selector": "textarea[name='comment[body]'], #new_comment_field",
+      "value": "{{comment}}",
+      "note": "Add optional closing comment"
+    },
+    {
+      "stepId": "s4",
+      "action": "click",
+      "selector": "button[name='comment_and_close'], button[aria-label*='Close issue']",
+      "note": "Close the issue (with or without comment)"
+    },
+    {
+      "action": "wait_for",
+      "selector": ".application-main",
+      "timeout": 8000,
+      "stepId": "s5"
+    },
+    {
+      "stepId": "s6",
+      "action": "read",
+      "store_as": "close_result"
+    }
   ]
 }

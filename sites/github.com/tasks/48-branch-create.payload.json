@@ -5,12 +5,28 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "github_session", "note": "Must have write access to create branches" },
+    "auth": {
+      "type": "github_session",
+      "note": "Must have write access to create branches"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" },
-      "branch_name": { "required": true, "description": "New branch name" },
-      "from_branch": { "required": false, "description": "Source branch to create from", "default": "main" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      },
+      "branch_name": {
+        "required": true,
+        "description": "New branch name"
+      },
+      "from_branch": {
+        "required": false,
+        "description": "Source branch to create from",
+        "default": "main"
+      }
     },
     "risk": "safe",
     "needs_live_verification": true
@@ -25,12 +41,46 @@
     "from_branch": "{{from_branch}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/tree/{{from_branch}}" },
-    { "stepId": "s2", "action": "wait_for", "selector": "summary[aria-label*='Switch branches'], button[aria-label*='Switch branches']", "timeout": 8000 },
-    { "stepId": "s3", "action": "click", "selector": "summary[aria-label*='Switch branches'], button[aria-label*='branches']", "note": "Open branch picker" },
-    { "stepId": "s4", "action": "wait_for", "selector": "input[placeholder*='Find or create a branch'], input[aria-label*='branch name']", "timeout": 5000 },
-    { "stepId": "s5", "action": "type", "selector": "input[placeholder*='Find or create a branch']", "value": "{{branch_name}}" },
-    { "stepId": "s6", "action": "click", "selector": "[data-branch-name='{{branch_name}}'], button[aria-label*='Create branch']", "note": "Click 'Create branch' option that appears" },
-    { "stepId": "s7", "action": "delay", "ms": 2000 }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}/tree/{{from_branch}}"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "summary[aria-label*='Switch branches'], button[aria-label*='Switch branches']",
+      "timeout": 8000
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "selector": "summary[aria-label*='Switch branches'], button[aria-label*='branches']",
+      "note": "Open branch picker"
+    },
+    {
+      "stepId": "s4",
+      "action": "wait_for",
+      "selector": "input[placeholder*='Find or create a branch'], input[aria-label*='branch name']",
+      "timeout": 5000
+    },
+    {
+      "stepId": "s5",
+      "action": "type",
+      "selector": "input[placeholder*='Find or create a branch']",
+      "value": "{{branch_name}}"
+    },
+    {
+      "stepId": "s6",
+      "action": "click",
+      "selector": "[data-branch-name='{{branch_name}}'], button[aria-label*='Create branch']",
+      "note": "Click 'Create branch' option that appears"
+    },
+    {
+      "action": "wait_for",
+      "selector": "[role=\"alert\"], .flash, .js-flash-alert, [data-testid=\"toast\"]",
+      "timeout": 8000,
+      "stepId": "s7"
+    }
   ]
 }

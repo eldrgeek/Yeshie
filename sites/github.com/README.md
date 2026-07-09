@@ -31,6 +31,29 @@ Hand-authored recipe set for GitHub.com browser automation via the Yeshie RSI sy
 
 ---
 
+## Authoring rule: `wait_for`, not `delay`
+
+**Do not use fixed `delay` steps to wait for the page.** A fixed delay is fragile
+(too short → the next step acts before the content exists; too long → every run
+pays the worst case) and slow. Instead, take the first action, then **guard each
+subsequent action with `wait_for` the element it needs**. `wait_for` resolves the
+instant its target is present and visible (MutationObserver-driven) and only times
+out on a genuinely stuck page — so it is both faster and more robust.
+
+- Before a whole-page `read`, settle with `wait_for` `.application-main` (GitHub's
+  stable content wrapper, present+visible on every github.com page).
+- Before clicking an item in a menu/overlay, `wait_for` the menu
+  (`[role="menu"], [role="dialog"], [role="listbox"]`).
+- To confirm a state-changing action landed, `wait_for` the confirmation
+  (`[role="alert"], .flash, .js-flash-alert`) rather than sleeping.
+
+All recipes in this set were converted from `delay` to `wait_for` on 2026-06-18
+via `scripts/convert-delays-to-waitfor.py`. The guard against regressions is
+`tests/unit/no-fixed-delay.test.ts` (run by `npm test`), which fails if any recipe
+reintroduces a `delay` step.
+
+---
+
 ## Full Recipe Index
 
 | # | Slug | Description | Category | Risk | Auth | Verified |

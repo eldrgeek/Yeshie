@@ -5,12 +5,27 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "github_session", "note": "Must be logged in to GitHub" },
+    "auth": {
+      "type": "github_session",
+      "note": "Must be logged in to GitHub"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" },
-      "number": { "required": true, "description": "Issue number to mark as duplicate" },
-      "original_number": { "required": true, "description": "Original issue number (the one this duplicates)" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      },
+      "number": {
+        "required": true,
+        "description": "Issue number to mark as duplicate"
+      },
+      "original_number": {
+        "required": true,
+        "description": "Original issue number (the one this duplicates)"
+      }
     },
     "risk": "safe",
     "needs_live_verification": true
@@ -25,10 +40,34 @@
     "original_number": "{{original_number}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/issues/{{number}}" },
-    { "stepId": "s2", "action": "wait_for", "selector": "textarea[name='comment[body]'], #new_comment_field", "timeout": 8000 },
-    { "stepId": "s3", "action": "type", "selector": "textarea[name='comment[body]'], #new_comment_field", "value": "Duplicate of #{{original_number}}" },
-    { "stepId": "s4", "action": "click", "selector": "button[name='comment_and_close'], button[type='submit'][data-disable-with*='Comment']", "note": "Post comment and optionally close" },
-    { "stepId": "s5", "action": "delay", "ms": 1500 }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}/issues/{{number}}"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "textarea[name='comment[body]'], #new_comment_field",
+      "timeout": 8000
+    },
+    {
+      "stepId": "s3",
+      "action": "type",
+      "selector": "textarea[name='comment[body]'], #new_comment_field",
+      "value": "Duplicate of #{{original_number}}"
+    },
+    {
+      "stepId": "s4",
+      "action": "click",
+      "selector": "button[name='comment_and_close'], button[type='submit'][data-disable-with*='Comment']",
+      "note": "Post comment and optionally close"
+    },
+    {
+      "action": "wait_for",
+      "selector": "[role=\"alert\"], .flash, .js-flash-alert, [data-testid=\"toast\"]",
+      "timeout": 8000,
+      "stepId": "s5"
+    }
   ]
 }
