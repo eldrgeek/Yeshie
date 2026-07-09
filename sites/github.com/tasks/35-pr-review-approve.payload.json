@@ -5,12 +5,28 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "github_session", "note": "Must have write access; cannot approve own PRs" },
+    "auth": {
+      "type": "github_session",
+      "note": "Must have write access; cannot approve own PRs"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" },
-      "number": { "required": true, "description": "PR number" },
-      "comment": { "required": false, "description": "Optional review comment", "default": "" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      },
+      "number": {
+        "required": true,
+        "description": "PR number"
+      },
+      "comment": {
+        "required": false,
+        "description": "Optional review comment",
+        "default": ""
+      }
     },
     "risk": "safe",
     "needs_live_verification": true
@@ -25,13 +41,52 @@
     "comment": "{{comment}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/pull/{{number}}/files" },
-    { "stepId": "s2", "action": "wait_for", "selector": "button[aria-label*='Review changes'], #review-changes-popover-link", "timeout": 8000 },
-    { "stepId": "s3", "action": "click", "selector": "button[aria-label*='Review changes'], #review-changes-popover-link", "note": "Open review changes dropdown" },
-    { "stepId": "s4", "action": "wait_for", "selector": "textarea[name='pull_request_review[body]'], #pull_request_review_body", "timeout": 5000 },
-    { "stepId": "s5", "action": "type", "selector": "textarea[name='pull_request_review[body]']", "value": "{{comment}}" },
-    { "stepId": "s6", "action": "click", "selector": "input[value='approve'] ~ label, [for='review_type_approve']", "note": "Select Approve" },
-    { "stepId": "s7", "action": "click", "selector": "button[data-disable-with*='Submit review'], button[type='submit']", "note": "Submit the approval" },
-    { "stepId": "s8", "action": "delay", "ms": 1500 }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}/pull/{{number}}/files"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "button[aria-label*='Review changes'], #review-changes-popover-link",
+      "timeout": 8000
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "selector": "button[aria-label*='Review changes'], #review-changes-popover-link",
+      "note": "Open review changes dropdown"
+    },
+    {
+      "stepId": "s4",
+      "action": "wait_for",
+      "selector": "textarea[name='pull_request_review[body]'], #pull_request_review_body",
+      "timeout": 5000
+    },
+    {
+      "stepId": "s5",
+      "action": "type",
+      "selector": "textarea[name='pull_request_review[body]']",
+      "value": "{{comment}}"
+    },
+    {
+      "stepId": "s6",
+      "action": "click",
+      "selector": "input[value='approve'] ~ label, [for='review_type_approve']",
+      "note": "Select Approve"
+    },
+    {
+      "stepId": "s7",
+      "action": "click",
+      "selector": "button[data-disable-with*='Submit review'], button[type='submit']",
+      "note": "Submit the approval"
+    },
+    {
+      "action": "wait_for",
+      "selector": "[role=\"alert\"], .flash, .js-flash-alert, [data-testid=\"toast\"]",
+      "timeout": 8000,
+      "stepId": "s8"
+    }
   ]
 }

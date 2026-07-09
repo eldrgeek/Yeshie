@@ -5,14 +5,36 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "github_session", "note": "Must have write access to create files" },
+    "auth": {
+      "type": "github_session",
+      "note": "Must have write access to create files"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" },
-      "branch": { "required": true, "description": "Branch to create the file on" },
-      "path": { "required": true, "description": "File path to create (e.g. docs/notes.md)" },
-      "content": { "required": true, "description": "File content" },
-      "commit_message": { "required": false, "description": "Commit message", "default": "Create {{path}}" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      },
+      "branch": {
+        "required": true,
+        "description": "Branch to create the file on"
+      },
+      "path": {
+        "required": true,
+        "description": "File path to create (e.g. docs/notes.md)"
+      },
+      "content": {
+        "required": true,
+        "description": "File content"
+      },
+      "commit_message": {
+        "required": false,
+        "description": "Commit message",
+        "default": "Create {{path}}"
+      }
     },
     "risk": "safe",
     "needs_live_verification": true
@@ -29,14 +51,57 @@
     "commit_message": "{{commit_message}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/new/{{branch}}" },
-    { "stepId": "s2", "action": "wait_for", "selector": "input[placeholder*='Name your file'], .filename", "timeout": 8000 },
-    { "stepId": "s3", "action": "type", "selector": "input[placeholder*='Name your file'], .filename", "value": "{{path}}" },
-    { "stepId": "s4", "action": "click", "selector": ".CodeMirror, .cm-content, [role='textbox'][data-testid='file-editor']", "note": "Focus the code editor" },
-    { "stepId": "s5", "action": "type", "selector": ".CodeMirror textarea, .cm-content", "value": "{{content}}" },
-    { "stepId": "s6", "action": "clear", "selector": "input[name='commit_message'], input[placeholder*='commit message']" },
-    { "stepId": "s7", "action": "type", "selector": "input[name='commit_message'], input[placeholder*='commit message']", "value": "{{commit_message}}" },
-    { "stepId": "s8", "action": "click", "selector": "button[type='submit'][data-disable-with*='Commit'], button[value='propose-changes']", "note": "Commit the new file" },
-    { "stepId": "s9", "action": "delay", "ms": 2000 }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}/new/{{branch}}"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "input[placeholder*='Name your file'], .filename",
+      "timeout": 8000
+    },
+    {
+      "stepId": "s3",
+      "action": "type",
+      "selector": "input[placeholder*='Name your file'], .filename",
+      "value": "{{path}}"
+    },
+    {
+      "stepId": "s4",
+      "action": "click",
+      "selector": ".CodeMirror, .cm-content, [role='textbox'][data-testid='file-editor']",
+      "note": "Focus the code editor"
+    },
+    {
+      "stepId": "s5",
+      "action": "type",
+      "selector": ".CodeMirror textarea, .cm-content",
+      "value": "{{content}}"
+    },
+    {
+      "stepId": "s6",
+      "action": "clear",
+      "selector": "input[name='commit_message'], input[placeholder*='commit message']"
+    },
+    {
+      "stepId": "s7",
+      "action": "type",
+      "selector": "input[name='commit_message'], input[placeholder*='commit message']",
+      "value": "{{commit_message}}"
+    },
+    {
+      "stepId": "s8",
+      "action": "click",
+      "selector": "button[type='submit'][data-disable-with*='Commit'], button[value='propose-changes']",
+      "note": "Commit the new file"
+    },
+    {
+      "action": "wait_for",
+      "selector": "[role=\"alert\"], .flash, .js-flash-alert, [data-testid=\"toast\"]",
+      "timeout": 8000,
+      "stepId": "s9"
+    }
   ]
 }

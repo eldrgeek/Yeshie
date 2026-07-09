@@ -5,12 +5,27 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "github_session", "note": "Must have admin access to change collaborator permissions" },
+    "auth": {
+      "type": "github_session",
+      "note": "Must have admin access to change collaborator permissions"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" },
-      "username": { "required": true, "description": "GitHub username whose role to change" },
-      "new_role": { "required": true, "description": "New permission level: 'read', 'triage', 'write', 'maintain', 'admin'" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      },
+      "username": {
+        "required": true,
+        "description": "GitHub username whose role to change"
+      },
+      "new_role": {
+        "required": true,
+        "description": "New permission level: 'read', 'triage', 'write', 'maintain', 'admin'"
+      }
     },
     "risk": "confirm",
     "needs_live_verification": true
@@ -25,11 +40,40 @@
     "new_role": "{{new_role}}"
   },
   "chain": [
-    { "stepId": "guard", "action": "assert", "condition": "false", "message": "DESTRUCTIVE: Changing a collaborator's role modifies their access level. Granting admin is irreversible without explicit demotion. NEVER execute in testing." },
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/settings/access" },
-    { "stepId": "s2", "action": "wait_for", "selector": "[data-login='{{username}}']", "timeout": 8000 },
-    { "stepId": "s3", "action": "click", "selector": "[data-login='{{username}}'] [aria-label*='role'], [data-login='{{username}}'] select", "note": "Open role dropdown for the specific collaborator" },
-    { "stepId": "s4", "action": "click", "selector": "[value='{{new_role}}'], option[value='{{new_role}}']", "note": "Select new role" },
-    { "stepId": "s5", "action": "delay", "ms": 1000 }
+    {
+      "stepId": "guard",
+      "action": "assert",
+      "condition": "false",
+      "message": "DESTRUCTIVE: Changing a collaborator's role modifies their access level. Granting admin is irreversible without explicit demotion. NEVER execute in testing."
+    },
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}/settings/access"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "[data-login='{{username}}']",
+      "timeout": 8000
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "selector": "[data-login='{{username}}'] [aria-label*='role'], [data-login='{{username}}'] select",
+      "note": "Open role dropdown for the specific collaborator"
+    },
+    {
+      "stepId": "s4",
+      "action": "click",
+      "selector": "[value='{{new_role}}'], option[value='{{new_role}}']",
+      "note": "Select new role"
+    },
+    {
+      "action": "wait_for",
+      "selector": "[role=\"alert\"], .flash, .js-flash-alert, [data-testid=\"toast\"]",
+      "timeout": 8000,
+      "stepId": "s5"
+    }
   ]
 }

@@ -5,11 +5,23 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "none_public_repo", "note": "Public repos accessible without login" },
+    "auth": {
+      "type": "none_public_repo",
+      "note": "Public repos accessible without login"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" },
-      "number": { "required": true, "description": "Issue number" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      },
+      "number": {
+        "required": true,
+        "description": "Issue number"
+      }
     },
     "risk": "safe",
     "needs_live_verification": false
@@ -23,8 +35,21 @@
     "number": "{{number}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/issues/{{number}}" },
-    { "stepId": "s2", "action": "delay", "ms": 1500 },
-    { "stepId": "s3", "action": "read", "store_as": "issue_content" }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}/issues/{{number}}"
+    },
+    {
+      "action": "wait_for",
+      "selector": ".application-main",
+      "timeout": 8000,
+      "stepId": "s2"
+    },
+    {
+      "stepId": "s3",
+      "action": "read",
+      "store_as": "issue_content"
+    }
   ]
 }

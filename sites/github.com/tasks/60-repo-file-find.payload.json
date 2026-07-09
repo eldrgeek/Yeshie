@@ -5,11 +5,23 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "none_public_repo", "note": "Public repos accessible without login" },
+    "auth": {
+      "type": "none_public_repo",
+      "note": "Public repos accessible without login"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" },
-      "filename": { "required": true, "description": "Filename or partial path to search for" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      },
+      "filename": {
+        "required": true,
+        "description": "Filename or partial path to search for"
+      }
     },
     "risk": "safe",
     "needs_live_verification": false
@@ -23,12 +35,45 @@
     "filename": "{{filename}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}" },
-    { "stepId": "s2", "action": "delay", "ms": 1500 },
-    { "stepId": "s3", "action": "key", "key": "t", "note": "Press T to open file finder" },
-    { "stepId": "s4", "action": "wait_for", "selector": "#tree-finder-field, input[placeholder*='Go to file']", "timeout": 5000 },
-    { "stepId": "s5", "action": "type", "selector": "#tree-finder-field, input[placeholder*='Go to file']", "value": "{{filename}}" },
-    { "stepId": "s6", "action": "delay", "ms": 800 },
-    { "stepId": "s7", "action": "read", "store_as": "file_finder_results" }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}"
+    },
+    {
+      "action": "wait_for",
+      "selector": ".application-main",
+      "timeout": 8000,
+      "stepId": "s2"
+    },
+    {
+      "stepId": "s3",
+      "action": "key",
+      "key": "t",
+      "note": "Press T to open file finder"
+    },
+    {
+      "stepId": "s4",
+      "action": "wait_for",
+      "selector": "#tree-finder-field, input[placeholder*='Go to file']",
+      "timeout": 5000
+    },
+    {
+      "stepId": "s5",
+      "action": "type",
+      "selector": "#tree-finder-field, input[placeholder*='Go to file']",
+      "value": "{{filename}}"
+    },
+    {
+      "action": "wait_for",
+      "selector": ".application-main",
+      "timeout": 8000,
+      "stepId": "s6"
+    },
+    {
+      "stepId": "s7",
+      "action": "read",
+      "store_as": "file_finder_results"
+    }
   ]
 }

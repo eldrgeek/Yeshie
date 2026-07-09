@@ -5,11 +5,23 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "github_session", "note": "Must have write access to the repo" },
+    "auth": {
+      "type": "github_session",
+      "note": "Must have write access to the repo"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" },
-      "topics": { "required": true, "description": "Space-separated list of topics to set (replaces existing topics)" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      },
+      "topics": {
+        "required": true,
+        "description": "Space-separated list of topics to set (replaces existing topics)"
+      }
     },
     "risk": "safe",
     "needs_live_verification": true
@@ -23,14 +35,57 @@
     "topics": "{{topics}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}" },
-    { "stepId": "s2", "action": "wait_for", "selector": "button[aria-label='Edit repository metadata'], .octicon-gear ~ span", "timeout": 8000 },
-    { "stepId": "s3", "action": "click", "selector": "button[aria-label='Edit repository metadata']", "note": "Click gear icon to open edit metadata panel" },
-    { "stepId": "s4", "action": "wait_for", "selector": "input[name='topic']", "timeout": 5000 },
-    { "stepId": "s5", "action": "clear", "selector": ".topic-tag-input-wrapper, [data-target='topic-list.newTopic']" },
-    { "stepId": "s6", "action": "type", "selector": "input[name='topic'], input[aria-label*='topic']", "value": "{{topics}}" },
-    { "stepId": "s7", "action": "click", "selector": "button[data-disable-with*='Saving'], button[type='submit']", "note": "Save changes" },
-    { "stepId": "s8", "action": "delay", "ms": 1000 },
-    { "stepId": "s9", "action": "read", "selector": ".topic-tag, a[href*='/topics/']", "store_as": "topics_after" }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "button[aria-label='Edit repository metadata'], .octicon-gear ~ span",
+      "timeout": 8000
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "selector": "button[aria-label='Edit repository metadata']",
+      "note": "Click gear icon to open edit metadata panel"
+    },
+    {
+      "stepId": "s4",
+      "action": "wait_for",
+      "selector": "input[name='topic']",
+      "timeout": 5000
+    },
+    {
+      "stepId": "s5",
+      "action": "clear",
+      "selector": ".topic-tag-input-wrapper, [data-target='topic-list.newTopic']"
+    },
+    {
+      "stepId": "s6",
+      "action": "type",
+      "selector": "input[name='topic'], input[aria-label*='topic']",
+      "value": "{{topics}}"
+    },
+    {
+      "stepId": "s7",
+      "action": "click",
+      "selector": "button[data-disable-with*='Saving'], button[type='submit']",
+      "note": "Save changes"
+    },
+    {
+      "action": "wait_for",
+      "selector": ".application-main",
+      "timeout": 8000,
+      "stepId": "s8"
+    },
+    {
+      "stepId": "s9",
+      "action": "read",
+      "selector": ".topic-tag, a[href*='/topics/']",
+      "store_as": "topics_after"
+    }
   ]
 }

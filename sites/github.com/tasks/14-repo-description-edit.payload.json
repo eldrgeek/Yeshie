@@ -5,12 +5,28 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "github_session", "note": "Must have write access to the repo" },
+    "auth": {
+      "type": "github_session",
+      "note": "Must have write access to the repo"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" },
-      "description": { "required": true, "description": "New repository description (max 350 chars)" },
-      "website": { "required": false, "description": "Optional website URL for the repo", "default": "" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      },
+      "description": {
+        "required": true,
+        "description": "New repository description (max 350 chars)"
+      },
+      "website": {
+        "required": false,
+        "description": "Optional website URL for the repo",
+        "default": ""
+      }
     },
     "risk": "safe",
     "needs_live_verification": true
@@ -25,15 +41,62 @@
     "website": "{{website}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}" },
-    { "stepId": "s2", "action": "wait_for", "selector": "button[aria-label='Edit repository metadata']", "timeout": 8000 },
-    { "stepId": "s3", "action": "click", "selector": "button[aria-label='Edit repository metadata']", "note": "Open edit metadata panel" },
-    { "stepId": "s4", "action": "wait_for", "selector": "input[name='repo[description]'], input[aria-label='Short description of this repository']", "timeout": 5000 },
-    { "stepId": "s5", "action": "clear", "selector": "input[name='repo[description]'], input[aria-label='Short description of this repository']" },
-    { "stepId": "s6", "action": "type", "selector": "input[name='repo[description]'], input[aria-label*='description']", "value": "{{description}}" },
-    { "stepId": "s7", "action": "clear", "selector": "input[name='repo[website]'], input[aria-label*='website'], input[placeholder*='https://']" },
-    { "stepId": "s8", "action": "type", "selector": "input[name='repo[website]'], input[placeholder*='https://']", "value": "{{website}}" },
-    { "stepId": "s9", "action": "click", "selector": "button[data-disable-with*='Saving'], button[type='submit']", "note": "Save changes" },
-    { "stepId": "s10", "action": "delay", "ms": 1000 }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "button[aria-label='Edit repository metadata']",
+      "timeout": 8000
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "selector": "button[aria-label='Edit repository metadata']",
+      "note": "Open edit metadata panel"
+    },
+    {
+      "stepId": "s4",
+      "action": "wait_for",
+      "selector": "input[name='repo[description]'], input[aria-label='Short description of this repository']",
+      "timeout": 5000
+    },
+    {
+      "stepId": "s5",
+      "action": "clear",
+      "selector": "input[name='repo[description]'], input[aria-label='Short description of this repository']"
+    },
+    {
+      "stepId": "s6",
+      "action": "type",
+      "selector": "input[name='repo[description]'], input[aria-label*='description']",
+      "value": "{{description}}"
+    },
+    {
+      "stepId": "s7",
+      "action": "clear",
+      "selector": "input[name='repo[website]'], input[aria-label*='website'], input[placeholder*='https://']"
+    },
+    {
+      "stepId": "s8",
+      "action": "type",
+      "selector": "input[name='repo[website]'], input[placeholder*='https://']",
+      "value": "{{website}}"
+    },
+    {
+      "stepId": "s9",
+      "action": "click",
+      "selector": "button[data-disable-with*='Saving'], button[type='submit']",
+      "note": "Save changes"
+    },
+    {
+      "action": "wait_for",
+      "selector": "[role=\"alert\"], .flash, .js-flash-alert, [data-testid=\"toast\"]",
+      "timeout": 8000,
+      "stepId": "s10"
+    }
   ]
 }

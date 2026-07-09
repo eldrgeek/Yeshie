@@ -5,12 +5,27 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "github_session", "note": "Must have write/triage access to apply labels" },
+    "auth": {
+      "type": "github_session",
+      "note": "Must have write/triage access to apply labels"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" },
-      "number": { "required": true, "description": "Issue number" },
-      "label": { "required": true, "description": "Label name to apply (must already exist on the repo)" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      },
+      "number": {
+        "required": true,
+        "description": "Issue number"
+      },
+      "label": {
+        "required": true,
+        "description": "Label name to apply (must already exist on the repo)"
+      }
     },
     "risk": "safe",
     "needs_live_verification": true
@@ -25,13 +40,52 @@
     "label": "{{label}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/issues/{{number}}" },
-    { "stepId": "s2", "action": "wait_for", "selector": "[aria-label='Labels'], [data-menu-trigger='labels']", "timeout": 8000 },
-    { "stepId": "s3", "action": "click", "selector": "[aria-label='Labels'], [data-menu-trigger='labels']", "note": "Open label picker" },
-    { "stepId": "s4", "action": "wait_for", "selector": ".js-issue-labels, [aria-label*='label filter']", "timeout": 5000 },
-    { "stepId": "s5", "action": "type", "selector": "input[aria-label*='Label name filter'], input[placeholder*='Filter labels']", "value": "{{label}}" },
-    { "stepId": "s6", "action": "click", "selector": "[data-name='{{label}}'], [aria-label*='{{label}}']", "note": "Click the label to apply it" },
-    { "stepId": "s7", "action": "click", "selector": "body", "note": "Close dropdown by clicking elsewhere" },
-    { "stepId": "s8", "action": "delay", "ms": 1000 }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}/issues/{{number}}"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "[aria-label='Labels'], [data-menu-trigger='labels']",
+      "timeout": 8000
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "selector": "[aria-label='Labels'], [data-menu-trigger='labels']",
+      "note": "Open label picker"
+    },
+    {
+      "stepId": "s4",
+      "action": "wait_for",
+      "selector": ".js-issue-labels, [aria-label*='label filter']",
+      "timeout": 5000
+    },
+    {
+      "stepId": "s5",
+      "action": "type",
+      "selector": "input[aria-label*='Label name filter'], input[placeholder*='Filter labels']",
+      "value": "{{label}}"
+    },
+    {
+      "stepId": "s6",
+      "action": "click",
+      "selector": "[data-name='{{label}}'], [aria-label*='{{label}}']",
+      "note": "Click the label to apply it"
+    },
+    {
+      "stepId": "s7",
+      "action": "click",
+      "selector": "body",
+      "note": "Close dropdown by clicking elsewhere"
+    },
+    {
+      "action": "wait_for",
+      "selector": "[role=\"alert\"], .flash, .js-flash-alert, [data-testid=\"toast\"]",
+      "timeout": 8000,
+      "stepId": "s8"
+    }
   ]
 }

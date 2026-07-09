@@ -1,14 +1,23 @@
 {
   "_meta": {
     "task": "gist-delete",
-    "description": "Delete a GitHub Gist. DESTRUCTIVE — permanently removes the gist. Requires gist ownership.",
+    "description": "Delete a GitHub Gist. DESTRUCTIVE \u2014 permanently removes the gist. Requires gist ownership.",
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "github_session", "note": "Must own the gist to delete it" },
+    "auth": {
+      "type": "github_session",
+      "note": "Must own the gist to delete it"
+    },
     "params": {
-      "username": { "required": true, "description": "GitHub username who owns the gist" },
-      "gist_id": { "required": true, "description": "Gist ID (hexadecimal hash)" }
+      "username": {
+        "required": true,
+        "description": "GitHub username who owns the gist"
+      },
+      "gist_id": {
+        "required": true,
+        "description": "Gist ID (hexadecimal hash)"
+      }
     },
     "risk": "confirm",
     "needs_live_verification": true
@@ -21,10 +30,34 @@
     "gist_id": "{{gist_id}}"
   },
   "chain": [
-    { "stepId": "guard", "action": "assert", "condition": "false", "message": "DESTRUCTIVE: Deleting a gist permanently removes it and all its files. NEVER execute in testing." },
-    { "stepId": "s1", "action": "navigate", "url": "https://gist.github.com/{{username}}/{{gist_id}}" },
-    { "stepId": "s2", "action": "wait_for", "selector": "button[data-confirm*='delete'], [aria-label*='Delete gist']", "timeout": 8000 },
-    { "stepId": "s3", "action": "click", "selector": "button[data-confirm*='delete gist'], [aria-label*='Delete gist']", "note": "Click delete and confirm via browser dialog" },
-    { "stepId": "s4", "action": "delay", "ms": 2000 }
+    {
+      "stepId": "guard",
+      "action": "assert",
+      "condition": "false",
+      "message": "DESTRUCTIVE: Deleting a gist permanently removes it and all its files. NEVER execute in testing."
+    },
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://gist.github.com/{{username}}/{{gist_id}}"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "button[data-confirm*='delete'], [aria-label*='Delete gist']",
+      "timeout": 8000
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "selector": "button[data-confirm*='delete gist'], [aria-label*='Delete gist']",
+      "note": "Click delete and confirm via browser dialog"
+    },
+    {
+      "action": "wait_for",
+      "selector": "[role=\"alert\"], .flash, .js-flash-alert, [data-testid=\"toast\"]",
+      "timeout": 8000,
+      "stepId": "s4"
+    }
   ]
 }
