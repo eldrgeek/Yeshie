@@ -114,7 +114,7 @@ Each step in the chain has an `action` field. Here's what each one does:
 | `select` | Select an option from a dropdown. |
 | `click_preset` | Click a chip or preset element in a picker. |
 | `probe_affordances` | Discover and return all interactive elements on the current page. |
-| `delay` | Wait a specified number of milliseconds. |
+| `delay` | Wait a specified number of milliseconds. **Discouraged** — prefer `wait_for`, which proceeds the instant the needed element appears (faster) and only times out on a genuinely stuck page (more robust). |
 
 ---
 

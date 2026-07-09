@@ -95,7 +95,7 @@ StepResult {
 | `select` | Select dropdown option |
 | `click_preset` | Click a preset/chip element |
 | `probe_affordances` | Discover interactive elements on page |
-| `delay` | Wait N milliseconds |
+| `delay` | Wait N milliseconds. **Discouraged in recipes** — fixed delays are fragile and slow; prefer `wait_for` (guard the next action on the element it needs; for whole-page reads, `wait_for` `.application-main`). Enforced by `tests/unit/no-fixed-delay.test.ts`. |
 | `key` | Send keyboard input — single key ("t", "/"), named key ("Enter", "Escape", "Tab", "ArrowDown"), modifier chord ("ctrl+a", "meta+a", "shift+tab"), or sequence ("g c" or keys:[]) |
 | `wait` | Duration wait (ms param) OR wait-for-selector (selector + optional timeout) |
 | `extract_text` | Read text from selector into buffer (selector + store_as) |
