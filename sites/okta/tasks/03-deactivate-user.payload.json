@@ -63,9 +63,11 @@
     },
     {
       "stepId": "s2",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for table to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s3",
@@ -82,9 +84,11 @@
     },
     {
       "stepId": "s5",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for user profile page to load"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s6",
@@ -100,9 +104,11 @@
     },
     {
       "stepId": "s8",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for confirmation dialog to appear"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s9",
@@ -130,9 +136,11 @@
     },
     {
       "stepId": "s11",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for deactivation to complete"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s12",

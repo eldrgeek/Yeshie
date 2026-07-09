@@ -41,8 +41,11 @@
     },
     {
       "stepId": "s3",
-      "action": "delay",
-      "ms": 1500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s4",
@@ -52,9 +55,13 @@
     },
     {
       "stepId": "s5",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for audit form to open"
+      "action": "wait_for",
+      "selector": "input",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for input before next step (was delay 1500ms)"
     },
     {
       "stepId": "s6",

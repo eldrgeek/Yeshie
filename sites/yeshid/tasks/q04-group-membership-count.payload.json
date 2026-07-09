@@ -6,7 +6,9 @@
     "selfImproving": false,
     "runCount": 0,
     "lastSuccess": null,
-    "requiredParams": ["group_name"],
+    "requiredParams": [
+      "group_name"
+    ],
     "optionalParams": [],
     "auth": {
       "type": "sso_automatable",
@@ -19,7 +21,7 @@
       }
     },
     "notes": [
-      "TIER WARNING: Groups feature requires a Business plan on this YeshID account. The current org is on a free/trial tier — the groups table shows 'No data available' and the 'New Group' button is disabled.",
+      "TIER WARNING: Groups feature requires a Business plan on this YeshID account. The current org is on a free/trial tier \u2014 the groups table shows 'No data available' and the 'New Group' button is disabled.",
       "This payload is forward-compatible: when groups are enabled, it will work without modification.",
       "Group detail URL pattern: /organization/groups/{id} (UUID-based, discovered via find_row navigation).",
       "Groups table columns observed: Group name, Type, Description, Owners, Actions."
@@ -34,24 +36,40 @@
   },
   "abstractTargets": {
     "search-input": {
-      "match": { "role": "textbox", "name_contains": ["search"] },
+      "match": {
+        "role": "textbox",
+        "name_contains": [
+          "search"
+        ]
+      },
       "cachedSelector": "input[placeholder='Search']",
       "cachedConfidence": 0.95,
       "resolveHint": "Search input on the groups list page."
     },
     "groups-table-body": {
-      "match": { "css": ".v-data-table tbody" },
+      "match": {
+        "css": ".v-data-table tbody"
+      },
       "cachedSelector": ".v-data-table tbody",
       "cachedConfidence": 0.95
     },
     "group-member-count": {
-      "match": { "role": "text", "name_contains": ["member", "people", "users"] },
+      "match": {
+        "role": "text",
+        "name_contains": [
+          "member",
+          "people",
+          "users"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0,
       "resolveHint": "On the group detail page, find the member count. May appear as a badge, header stat, or table footer. Look for text near a 'Members' section heading."
     },
     "group-members-table": {
-      "match": { "css": ".v-data-table tbody, [class*='member'] tbody" },
+      "match": {
+        "css": ".v-data-table tbody, [class*='member'] tbody"
+      },
       "cachedSelector": null,
       "cachedConfidence": 0,
       "resolveHint": "Table of group members on the group detail page. Columns likely: Name, Email, Status."
@@ -61,7 +79,9 @@
     {
       "stepId": "s1",
       "action": "assess_state",
-      "expect": { "state": "authenticated" },
+      "expect": {
+        "state": "authenticated"
+      },
       "onMismatch": "exit_with_error:not-authenticated"
     },
     {
@@ -104,9 +124,11 @@
     },
     {
       "stepId": "s4b",
-      "action": "delay",
-      "ms": 1000,
-      "note": "Wait for Vue search debounce to filter the table."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s5",
@@ -124,9 +146,11 @@
     },
     {
       "stepId": "s7",
-      "action": "delay",
-      "ms": 1000,
-      "note": "Wait for group detail page to fully render."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s8",
@@ -141,7 +165,11 @@
       "target": "group-members-table",
       "store_as": "members_list",
       "extract": "table_rows",
-      "columns": ["name", "email", "status"],
+      "columns": [
+        "name",
+        "email",
+        "status"
+      ],
       "note": "Read the full member list from the group detail page. Columns may vary."
     },
     {
@@ -149,8 +177,14 @@
       "action": "respond",
       "data": {
         "group_name": "{{group_name}}",
-        "member_count": { "source": "member_count_raw", "pattern": "(\\d+)", "capture": 1 },
-        "members": { "source": "members_list" }
+        "member_count": {
+          "source": "member_count_raw",
+          "pattern": "(\\d+)",
+          "capture": 1
+        },
+        "members": {
+          "source": "members_list"
+        }
       },
       "note": "Return group name, member count, and full member list."
     }
@@ -158,19 +192,40 @@
   "stateGraph": {
     "nodes": {
       "unauthenticated": {
-        "signals": [{ "type": "url_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }]
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
       },
       "authenticated": {
         "signals": [
-          { "type": "url_matches", "pattern": "app\\.yeshid\\.com" },
-          { "type": "url_not_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }
+          {
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
         ]
       },
       "groups-list": {
-        "signals": [{ "type": "url_matches", "pattern": "/organization/groups$" }]
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/groups$"
+          }
+        ]
       },
       "group-detail": {
-        "signals": [{ "type": "url_matches", "pattern": "/organization/groups/[a-z0-9-]+" }]
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/groups/[a-z0-9-]+"
+          }
+        ]
       }
     }
   }

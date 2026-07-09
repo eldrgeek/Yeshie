@@ -40,7 +40,7 @@
       "primaryVerification": "confirmation_message contains 'offboard' AND staged_offboard_workflow contains person_name"
     },
     "notes": [
-      "Person selector has no confirmed data-cy. cachedConfidence 0.6 — this target will likely need resolution on first run.",
+      "Person selector has no confirmed data-cy. cachedConfidence 0.6 \u2014 this target will likely need resolution on first run.",
       "Vuetify autocomplete: type person_name into .v-autocomplete input, then click matching .v-list-item in the dropdown.",
       "schedule-user-activator has only one instance on this form (unlike onboard which has two)."
     ],
@@ -69,7 +69,7 @@
       "cachedSelector": "[placeholder='Search by name or email...']",
       "cachedConfidence": 0.95,
       "resolvedOn": "2026-04-16",
-      "resolvedVia": "live-survey diag-09b — confirmed placeholder",
+      "resolvedVia": "live-survey diag-09b \u2014 confirmed placeholder",
       "fallbackSelectors": [
         "[placeholder='Search by name or email...']",
         ".v-autocomplete:first-of-type input",
@@ -136,7 +136,7 @@
       "action": "wait_for",
       "selector": "[data-cy=\"username\"]",
       "timeout": 5000,
-      "note": "Confirm authenticated — username widget must be visible."
+      "note": "Confirm authenticated \u2014 username widget must be visible."
     },
     {
       "stepId": "s1",
@@ -167,15 +167,17 @@
     },
     {
       "stepId": "s3b",
-      "action": "delay",
-      "ms": 500,
-      "note": "500ms for Vuetify autocomplete to populate dropdown items."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s4",
       "action": "js",
       "code": "Array.from(document.querySelectorAll('.v-list-item,[role=\"option\"]')).find(r => r.textContent.includes('{{person_name}}'))?.click()",
-      "note": "Click autocomplete dropdown item containing person_name. Uses find(r => includes()) — whitelisted js pattern. Handles items that show name + email in textContent."
+      "note": "Click autocomplete dropdown item containing person_name. Uses find(r => includes()) \u2014 whitelisted js pattern. Handles items that show name + email in textContent."
     },
     {
       "stepId": "s5",
@@ -195,7 +197,7 @@
     {
       "stepId": "s7",
       "action": "click_text",
-      "note": "Click 'Offboard person' button to submit. Using click_text — cachedSelector was :has-text() (invalid CSS). [was: click submit-button]",
+      "note": "Click 'Offboard person' button to submit. Using click_text \u2014 cachedSelector was :has-text() (invalid CSS). [was: click submit-button]",
       "responseSignature": [
         {
           "any_of": [

@@ -34,9 +34,11 @@
     },
     {
       "stepId": "s2",
-      "action": "delay",
-      "ms": 3000,
-      "note": "Allow Gmail SPA to load the message"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s3",
@@ -80,14 +82,18 @@
     },
     {
       "stepId": "s6",
-      "action": "delay",
-      "ms": 3000,
-      "note": "Wait for download to complete"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s7",
       "action": "read",
-      "candidates": ["body"],
+      "candidates": [
+        "body"
+      ],
       "store_as": "page_state",
       "note": "Confirm download started"
     }

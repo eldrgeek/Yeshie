@@ -7,16 +7,16 @@
     "verified": false,
     "verifiedDate": null,
     "anomalies": [
-      "GCP Console is an Angular SPA — each page navigation needs 3-5s delay to fully render",
+      "GCP Console is an Angular SPA \u2014 each page navigation needs 3-5s delay to fully render",
       "Project picker opens as an overlay modal; URL does not change when it opens",
-      "After selecting a project the URL gains ?project=PROJECT_ID — subsequent navigations use GCP's session state (cookie) so explicit project param is not required",
-      "OAuth consent screen URL: new path is /auth/consent, older path is /apis/credentials/consent — both redirect correctly",
-      "API ENABLE button text may be 'Enable' or 'ENABLE' depending on UI version — using click_text which is case-insensitive",
+      "After selecting a project the URL gains ?project=PROJECT_ID \u2014 subsequent navigations use GCP's session state (cookie) so explicit project param is not required",
+      "OAuth consent screen URL: new path is /auth/consent, older path is /apis/credentials/consent \u2014 both redirect correctly",
+      "API ENABLE button text may be 'Enable' or 'ENABLE' depending on UI version \u2014 using click_text which is case-insensitive",
       "If an API is already enabled the page shows a 'Manage' button instead; click_text 'Enable' will log a not-found error but the chain can continue",
-      "Scope picker: 'Add or Remove Scopes' opens a dialog with a 'Manually add scopes' textarea at the bottom — paste all URIs newline-separated then click 'Add to Table', then 'Update'",
-      "Credential download saves to ~/Downloads/ as client_secret_<CLIENTID>.apps.googleusercontent.com.json — must be mv'd to target path after skill runs",
-      "After clicking CREATE for the OAuth client ID, a dialog shows the client ID/secret and a DOWNLOAD JSON button — that dialog is step s94",
-      "GCP may show a 'Getting started' wizard on first project visit — click 'DISMISS' or navigate away"
+      "Scope picker: 'Add or Remove Scopes' opens a dialog with a 'Manually add scopes' textarea at the bottom \u2014 paste all URIs newline-separated then click 'Add to Table', then 'Update'",
+      "Credential download saves to ~/Downloads/ as client_secret_<CLIENTID>.apps.googleusercontent.com.json \u2014 must be mv'd to target path after skill runs",
+      "After clicking CREATE for the OAuth client ID, a dialog shows the client ID/secret and a DOWNLOAD JSON button \u2014 that dialog is step s94",
+      "GCP may show a 'Getting started' wizard on first project visit \u2014 click 'DISMISS' or navigate away"
     ],
     "prerequisite": "Chrome session logged in as mw@mike-wolf.com with access to a Google Workspace org (mike-wolf.com)"
   },
@@ -39,9 +39,11 @@
     },
     {
       "stepId": "s02",
-      "action": "delay",
-      "ms": 4000,
-      "note": "Wait for Angular SPA to bootstrap and load session state."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 4000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s03",
@@ -49,9 +51,9 @@
       "store_as": "landing_state",
       "note": "Detect current state: is a project selected? Which one? Look for project name in header."
     },
-
-    {"_": "PHASE 1 — Project Selection/Creation"},
-
+    {
+      "_": "PHASE 1 \u2014 Project Selection/Creation"
+    },
     {
       "stepId": "s10",
       "action": "click",
@@ -60,9 +62,11 @@
     },
     {
       "stepId": "s11",
-      "action": "delay",
-      "ms": 2500,
-      "note": "Wait for project picker modal to fully render."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s12",
@@ -79,9 +83,11 @@
     },
     {
       "stepId": "s14",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for search results to populate."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s15",
@@ -110,24 +116,29 @@
     },
     {
       "stepId": "s18",
-      "action": "delay",
-      "ms": 1000,
-      "note": "Pause before fallback search in case s17 was skipped."
+      "action": "wait_for",
+      "target": "project-picker-search",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for project-picker-search before next step (was delay 1000ms)"
     },
-
     {
       "stepId": "s20",
       "action": "type",
       "target": "project-picker-search",
       "value": "{{fallback_project_name}}",
       "condition": "{{_search_soma}}",
-      "note": "Search for 'soma' if Sidekick not found. Controlled by _search_soma param — set to 'true' if preferred_project_name search failed. In practice, if picker is still open (s17 was skipped), this re-searches."
+      "note": "Search for 'soma' if Sidekick not found. Controlled by _search_soma param \u2014 set to 'true' if preferred_project_name search failed. In practice, if picker is still open (s17 was skipped), this re-searches."
     },
     {
       "stepId": "s21",
-      "action": "delay",
-      "ms": 1500,
-      "condition": "{{_search_soma}}"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s22",
@@ -135,16 +146,15 @@
       "store_as": "soma_search_results",
       "note": "Check if any SOMA-named project appears in results."
     },
-
     {
       "stepId": "s25",
       "action": "perceive",
       "store_as": "post_project_state",
       "note": "Verify project was selected (picker closed, project name appears in header). If picker is still open, proceed to project creation steps."
     },
-
-    {"_": "PHASE 1B — New Project Creation (if no matching project found)"},
-
+    {
+      "_": "PHASE 1B \u2014 New Project Creation (if no matching project found)"
+    },
     {
       "stepId": "s30",
       "action": "navigate",
@@ -154,9 +164,11 @@
     },
     {
       "stepId": "s31",
-      "action": "delay",
-      "ms": 3000,
-      "condition": "{{_needs_new_project}}"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s32",
@@ -175,17 +187,18 @@
     },
     {
       "stepId": "s34",
-      "action": "delay",
-      "ms": 1000,
-      "condition": "{{_needs_new_project}}",
-      "note": "Wait for project ID to auto-populate from name."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s35",
       "action": "perceive",
       "store_as": "project_id_preview",
       "condition": "{{_needs_new_project}}",
-      "note": "Note the generated project ID (shown below the name field) — you may need it for debugging."
+      "note": "Note the generated project ID (shown below the name field) \u2014 you may need it for debugging."
     },
     {
       "stepId": "s36",
@@ -196,10 +209,11 @@
     },
     {
       "stepId": "s37",
-      "action": "delay",
-      "ms": 8000,
-      "condition": "{{_needs_new_project}}",
-      "note": "Project creation takes 5-10s. Wait for redirect back to console."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 8000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 8000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s38",
@@ -208,9 +222,9 @@
       "condition": "{{_needs_new_project}}",
       "note": "Confirm new project is now selected in header."
     },
-
-    {"_": "PHASE 2 — OAuth Consent Screen"},
-
+    {
+      "_": "PHASE 2 \u2014 OAuth Consent Screen"
+    },
     {
       "stepId": "s40",
       "action": "navigate",
@@ -219,9 +233,11 @@
     },
     {
       "stepId": "s41",
-      "action": "delay",
-      "ms": 4000,
-      "note": "Wait for consent screen page to render."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 4000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s42",
@@ -255,8 +271,11 @@
     },
     {
       "stepId": "s46",
-      "action": "delay",
-      "ms": 500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s47",
@@ -266,9 +285,11 @@
     },
     {
       "stepId": "s48",
-      "action": "delay",
-      "ms": 3000,
-      "note": "Wait for consent screen form to load."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s49",
@@ -276,7 +297,6 @@
       "store_as": "consent_form_state",
       "note": "Verify app info form is loaded. Look for 'App name' field, 'User support email' dropdown."
     },
-
     {
       "stepId": "s50",
       "action": "type",
@@ -286,8 +306,13 @@
     },
     {
       "stepId": "s51",
-      "action": "delay",
-      "ms": 500
+      "action": "wait_for",
+      "target": "consent-support-email",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for consent-support-email before next step (was delay 500ms)"
     },
     {
       "stepId": "s52",
@@ -297,8 +322,11 @@
     },
     {
       "stepId": "s53",
-      "action": "delay",
-      "ms": 1000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s54",
@@ -308,8 +336,13 @@
     },
     {
       "stepId": "s55",
-      "action": "delay",
-      "ms": 500
+      "action": "wait_for",
+      "target": "consent-developer-email",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for consent-developer-email before next step (was delay 500ms)"
     },
     {
       "stepId": "s56",
@@ -320,8 +353,11 @@
     },
     {
       "stepId": "s57",
-      "action": "delay",
-      "ms": 500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s58",
@@ -331,13 +367,15 @@
     },
     {
       "stepId": "s59",
-      "action": "delay",
-      "ms": 3000,
-      "note": "Wait for Scopes page to load."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
-
-    {"_": "PHASE 2B — Add OAuth Scopes"},
-
+    {
+      "_": "PHASE 2B \u2014 Add OAuth Scopes"
+    },
     {
       "stepId": "s60",
       "action": "perceive",
@@ -352,9 +390,11 @@
     },
     {
       "stepId": "s62",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for scope dialog to open."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s63",
@@ -377,8 +417,11 @@
     },
     {
       "stepId": "s66",
-      "action": "delay",
-      "ms": 500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s67",
@@ -388,8 +431,11 @@
     },
     {
       "stepId": "s68",
-      "action": "delay",
-      "ms": 1500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s69",
@@ -405,8 +451,11 @@
     },
     {
       "stepId": "s71",
-      "action": "delay",
-      "ms": 2000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s72",
@@ -416,8 +465,11 @@
     },
     {
       "stepId": "s73",
-      "action": "delay",
-      "ms": 2000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s74",
@@ -427,8 +479,11 @@
     },
     {
       "stepId": "s75",
-      "action": "delay",
-      "ms": 2000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s76",
@@ -436,9 +491,9 @@
       "store_as": "consent_summary_state",
       "note": "Verify consent screen is fully configured. Should show Summary page or redirect to consent screen overview."
     },
-
-    {"_": "PHASE 3 — Enable Required APIs"},
-
+    {
+      "_": "PHASE 3 \u2014 Enable Required APIs"
+    },
     {
       "stepId": "s80",
       "action": "navigate",
@@ -447,8 +502,11 @@
     },
     {
       "stepId": "s81",
-      "action": "delay",
-      "ms": 3500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s82",
@@ -460,15 +518,16 @@
       "stepId": "s83",
       "action": "click_text",
       "text": "Enable",
-      "note": "Enable Drive API. If already enabled (shows 'Manage'), this click will fail — that is safe, chain continues."
+      "note": "Enable Drive API. If already enabled (shows 'Manage'), this click will fail \u2014 that is safe, chain continues."
     },
     {
       "stepId": "s84",
-      "action": "delay",
-      "ms": 3000,
-      "note": "Wait for enablement to complete and redirect."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
-
     {
       "stepId": "s85",
       "action": "navigate",
@@ -477,8 +536,11 @@
     },
     {
       "stepId": "s86",
-      "action": "delay",
-      "ms": 3500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s87",
@@ -493,10 +555,12 @@
     },
     {
       "stepId": "s89",
-      "action": "delay",
-      "ms": 3000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
-
     {
       "stepId": "s90",
       "action": "navigate",
@@ -505,8 +569,11 @@
     },
     {
       "stepId": "s91",
-      "action": "delay",
-      "ms": 3500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s92",
@@ -521,10 +588,12 @@
     },
     {
       "stepId": "s94",
-      "action": "delay",
-      "ms": 3000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
-
     {
       "stepId": "s95",
       "action": "navigate",
@@ -533,8 +602,11 @@
     },
     {
       "stepId": "s96",
-      "action": "delay",
-      "ms": 3500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s97",
@@ -549,10 +621,12 @@
     },
     {
       "stepId": "s99",
-      "action": "delay",
-      "ms": 3000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
-
     {
       "stepId": "s100",
       "action": "navigate",
@@ -561,8 +635,11 @@
     },
     {
       "stepId": "s101",
-      "action": "delay",
-      "ms": 3500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s102",
@@ -577,10 +654,12 @@
     },
     {
       "stepId": "s104",
-      "action": "delay",
-      "ms": 3000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
-
     {
       "stepId": "s105",
       "action": "navigate",
@@ -589,8 +668,11 @@
     },
     {
       "stepId": "s106",
-      "action": "delay",
-      "ms": 3500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s107",
@@ -605,12 +687,15 @@
     },
     {
       "stepId": "s109",
-      "action": "delay",
-      "ms": 3000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
-
-    {"_": "PHASE 4 — Create OAuth 2.0 Client Credential"},
-
+    {
+      "_": "PHASE 4 \u2014 Create OAuth 2.0 Client Credential"
+    },
     {
       "stepId": "s110",
       "action": "navigate",
@@ -619,8 +704,11 @@
     },
     {
       "stepId": "s111",
-      "action": "delay",
-      "ms": 4000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 4000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s112",
@@ -640,7 +728,6 @@
       "store_as": "credentials_table_text",
       "note": "Read credentials table. If 'SOMA Desktop Client' appears in result, set credential_exists logic. In practice, perceive s112 is the reliable gate."
     },
-
     {
       "stepId": "s114",
       "action": "click_text",
@@ -649,9 +736,11 @@
     },
     {
       "stepId": "s115",
-      "action": "delay",
-      "ms": 1000,
-      "note": "Wait for dropdown menu."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s116",
@@ -661,9 +750,11 @@
     },
     {
       "stepId": "s117",
-      "action": "delay",
-      "ms": 3000,
-      "note": "Wait for OAuth client creation form."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s118",
@@ -679,8 +770,11 @@
     },
     {
       "stepId": "s120",
-      "action": "delay",
-      "ms": 1000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s121",
@@ -690,8 +784,13 @@
     },
     {
       "stepId": "s122",
-      "action": "delay",
-      "ms": 1000
+      "action": "wait_for",
+      "target": "oauth-client-name",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for oauth-client-name before next step (was delay 1000ms)"
     },
     {
       "stepId": "s123",
@@ -702,8 +801,11 @@
     },
     {
       "stepId": "s124",
-      "action": "delay",
-      "ms": 500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s125",
@@ -713,13 +815,15 @@
     },
     {
       "stepId": "s126",
-      "action": "delay",
-      "ms": 3000,
-      "note": "Wait for creation to complete and dialog to appear."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
-
-    {"_": "PHASE 5 — Download Credentials JSON"},
-
+    {
+      "_": "PHASE 5 \u2014 Download Credentials JSON"
+    },
     {
       "stepId": "s130",
       "action": "perceive",
@@ -734,9 +838,11 @@
     },
     {
       "stepId": "s132",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for download to start."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s133",
@@ -746,12 +852,15 @@
     },
     {
       "stepId": "s134",
-      "action": "delay",
-      "ms": 1500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
-
-    {"_": "PHASE 6 — Manifest"},
-
+    {
+      "_": "PHASE 6 \u2014 Manifest"
+    },
     {
       "stepId": "s140",
       "action": "perceive",
@@ -778,7 +887,7 @@
   ],
   "abstractTargets": {
     "project-picker-btn": {
-      "description": "Project picker button in GCP Console header — shows current project name or 'Select a project'",
+      "description": "Project picker button in GCP Console header \u2014 shows current project name or 'Select a project'",
       "cachedSelector": "button[aria-label*='Select'], .cfc-switch-button, [data-gauntlet='project-selector-link'], header button[class*='project']",
       "cachedConfidence": 0.6,
       "resolvedOn": null,

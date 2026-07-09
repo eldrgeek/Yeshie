@@ -40,9 +40,13 @@
   "chain": [
     {
       "stepId": "s1",
-      "action": "delay",
-      "ms": 800,
-      "note": "Let page settle"
+      "action": "wait_for",
+      "target": "prompt_input",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for prompt_input before next step (was delay 800ms)"
     },
     {
       "stepId": "s2",
@@ -54,9 +58,11 @@
     },
     {
       "stepId": "s3",
-      "action": "delay",
-      "ms": 30000,
-      "note": "Fixed 30s wait for generation. TODO: replace with wait_for once stop-button selector confirmed."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 30000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 30000ms); resolves on content root, proceeds on timeout \u2014 HAND-TUNE: LLM-generation, use a completion signal"
     },
     {
       "stepId": "s4",

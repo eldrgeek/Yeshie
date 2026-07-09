@@ -7,8 +7,8 @@
     "verified": true,
     "verifiedDate": "2026-04-13",
     "anomalies": [
-      "URL is /report/system_log_2 (not /admin/reports or /admin/security) — note the /report prefix, not /admin/report",
-      "Table header first column is empty string '' — likely a status/icon column",
+      "URL is /report/system_log_2 (not /admin/reports or /admin/security) \u2014 note the /report prefix, not /admin/report",
+      "Table header first column is empty string '' \u2014 likely a status/icon column",
       "Page appends date range, locale, viewport, and zoom params automatically on load",
       "CSV download available via direct href in mainActions: /sage/api/v1/logs/csv?since=...&until=...&q="
     ]
@@ -25,9 +25,11 @@
     },
     {
       "stepId": "s2",
-      "action": "delay",
-      "ms": 3500,
-      "note": "System log fetches from API — needs slightly longer wait than other pages."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s3",
@@ -39,7 +41,13 @@
   "abstractTargets": {
     "log-table": {
       "description": "System log event table",
-      "tableHeaders": ["", "Time", "Actor", "Event Info", "Targets"],
+      "tableHeaders": [
+        "",
+        "Time",
+        "Actor",
+        "Event Info",
+        "Targets"
+      ],
       "note": "rowCount is typically 40 (20 events + calendar = ~40 effective rows seen by perceive)"
     },
     "search-field": {

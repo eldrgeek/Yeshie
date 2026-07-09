@@ -2,7 +2,7 @@
   "_meta": {
     "task": "q02-pending-onboarding",
     "queryType": "read_only",
-    "description": "List users who are pending onboarding (status=STAGED). Returns each person's name, primary email, and start date if visible in the table. Returns an empty list if no staged users exist — this is expected on the current free-tier org.",
+    "description": "List users who are pending onboarding (status=STAGED). Returns each person's name, primary email, and start date if visible in the table. Returns an empty list if no staged users exist \u2014 this is expected on the current free-tier org.",
     "selfImproving": false,
     "runCount": 0,
     "lastSuccess": null,
@@ -13,10 +13,10 @@
       "googleAccountEmail": "mw@mike-wolf.com"
     },
     "notes": [
-      "URL filter ?filters=status=STAGED tested live — returns 0 results on current org.",
+      "URL filter ?filters=status=STAGED tested live \u2014 returns 0 results on current org.",
       "STAGED_OFFBOARDING is a separate status for users scheduled for removal.",
       "If the org has users onboarded with a future start date, they appear here.",
-      "Table columns observed: YeshID account owner, Primary email, Directory synced, YeshID status, # of applications. Start date is not a visible column — may appear in person detail."
+      "Table columns observed: YeshID account owner, Primary email, Directory synced, YeshID status, # of applications. Start date is not a visible column \u2014 may appear in person detail."
     ]
   },
   "runId": "yeshid-q02-pending-onboarding-{{timestamp}}",
@@ -27,13 +27,17 @@
   },
   "abstractTargets": {
     "pagination-footer": {
-      "match": { "css": ".v-data-table-footer" },
+      "match": {
+        "css": ".v-data-table-footer"
+      },
       "cachedSelector": ".v-data-table-footer",
       "cachedConfidence": 0.97,
       "resolveHint": "Footer below the data table. Shows '0-0 of 0' when no results."
     },
     "people-table-body": {
-      "match": { "css": ".v-data-table tbody" },
+      "match": {
+        "css": ".v-data-table tbody"
+      },
       "cachedSelector": ".v-data-table tbody",
       "cachedConfidence": 0.95,
       "resolveHint": "Table body containing person rows. Each row has: avatar initials, name, primary email, directory sync status, YeshID status chip, app count."
@@ -43,7 +47,9 @@
     {
       "stepId": "s1",
       "action": "assess_state",
-      "expect": { "state": "authenticated" },
+      "expect": {
+        "state": "authenticated"
+      },
       "onMismatch": "exit_with_error:not-authenticated"
     },
     {
@@ -61,9 +67,11 @@
     },
     {
       "stepId": "s4",
-      "action": "delay",
-      "ms": 1000,
-      "note": "Allow Vue reactivity to settle after navigation."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s5",
@@ -78,15 +86,26 @@
       "selector": ".v-data-table tbody",
       "store_as": "staged_rows",
       "extract": "table_rows",
-      "columns": ["name", "primary_email", "directory_synced", "status"],
-      "note": "Read all staged-user rows. Each row: name (col 1), primary email (col 2), directory sync (col 3), status chip (col 4). Start date not in table — would require navigating to each person's detail page."
+      "columns": [
+        "name",
+        "primary_email",
+        "directory_synced",
+        "status"
+      ],
+      "note": "Read all staged-user rows. Each row: name (col 1), primary email (col 2), directory sync (col 3), status chip (col 4). Start date not in table \u2014 would require navigating to each person's detail page."
     },
     {
       "stepId": "s7",
       "action": "respond",
       "data": {
-        "count": { "source": "staged_footer", "pattern": "of (\\d+)", "capture": 1 },
-        "users": { "source": "staged_rows" }
+        "count": {
+          "source": "staged_footer",
+          "pattern": "of (\\d+)",
+          "capture": 1
+        },
+        "users": {
+          "source": "staged_rows"
+        }
       },
       "empty_message": "No users are currently pending onboarding (status=STAGED). If you expected staged users, verify their onboarding was scheduled for a future start date.",
       "note": "Return count and list. If count is 0, return empty list with explanation."
@@ -95,16 +114,32 @@
   "stateGraph": {
     "nodes": {
       "unauthenticated": {
-        "signals": [{ "type": "url_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }]
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
       },
       "authenticated": {
         "signals": [
-          { "type": "url_matches", "pattern": "app\\.yeshid\\.com" },
-          { "type": "url_not_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }
+          {
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
         ]
       },
       "people-list": {
-        "signals": [{ "type": "url_matches", "pattern": "/organization/people" }]
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people"
+          }
+        ]
       }
     }
   }

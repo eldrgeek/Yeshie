@@ -16,7 +16,7 @@
       "TIER WARNING: Groups feature requires a Business plan. The current org has 0 groups. If groups are not enabled, ALL active users will appear as 'ungrouped' by definition.",
       "This payload first checks if any groups exist. If not, it short-circuits with a tier warning.",
       "If groups exist, it iterates active users and checks each person's detail page for group membership info.",
-      "Group membership on person detail: expected to appear on the Details tab or a dedicated Groups tab — not confirmed via live inspection (groups not available on current tier).",
+      "Group membership on person detail: expected to appear on the Details tab or a dedicated Groups tab \u2014 not confirmed via live inspection (groups not available on current tier).",
       "Alternative approach (if group detail is accessible): read all group member lists and diff against the full people list."
     ]
   },
@@ -28,18 +28,31 @@
   },
   "abstractTargets": {
     "search-input": {
-      "match": { "role": "textbox", "name_contains": ["search"] },
+      "match": {
+        "role": "textbox",
+        "name_contains": [
+          "search"
+        ]
+      },
       "cachedSelector": "input[placeholder='Search']",
       "cachedConfidence": 0.95
     },
     "items-per-page-select": {
-      "match": { "css": ".v-data-table-footer .v-select" },
+      "match": {
+        "css": ".v-data-table-footer .v-select"
+      },
       "cachedSelector": ".v-data-table-footer .v-select",
-      "cachedConfidence": 0.80,
+      "cachedConfidence": 0.8,
       "resolveHint": "Items-per-page dropdown in the table footer."
     },
     "person-groups-section": {
-      "match": { "role": "region", "name_contains": ["group", "groups"] },
+      "match": {
+        "role": "region",
+        "name_contains": [
+          "group",
+          "groups"
+        ]
+      },
       "cachedSelector": null,
       "cachedConfidence": 0,
       "resolveHint": "On the person detail page, find the section listing their group memberships. May be a tab labeled 'Groups', or a section within the Details tab. Look for elements with text 'Groups' or 'No groups'."
@@ -49,7 +62,9 @@
     {
       "stepId": "s1",
       "action": "assess_state",
-      "expect": { "state": "authenticated" },
+      "expect": {
+        "state": "authenticated"
+      },
       "onMismatch": "exit_with_error:not-authenticated"
     },
     {
@@ -79,7 +94,7 @@
       "on_empty": "respond_early",
       "respond_early_data": {
         "warning": "no_groups_exist",
-        "message": "No groups exist in this YeshID org. All active users are effectively ungrouped. Groups require a Business plan — upgrade at /manage/settings/billing.",
+        "message": "No groups exist in this YeshID org. All active users are effectively ungrouped. Groups require a Business plan \u2014 upgrade at /manage/settings/billing.",
         "ungrouped_users": "all_active_users",
         "action": "Run q01-count-by-status to get total active user count."
       },
@@ -112,8 +127,11 @@
     },
     {
       "stepId": "s6c",
-      "action": "delay",
-      "ms": 1000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s7",
@@ -121,7 +139,10 @@
       "selector": ".v-data-table tbody",
       "store_as": "all_active_people",
       "extract": "table_rows",
-      "columns": ["name", "primary_email"],
+      "columns": [
+        "name",
+        "primary_email"
+      ],
       "note": "Capture full active user list."
     },
     {
@@ -153,11 +174,18 @@
           "stepId": "iter_s4",
           "action": "if_empty",
           "check": "person_groups",
-          "empty_signals": ["No groups", "no group", "0 groups"],
+          "empty_signals": [
+            "No groups",
+            "no group",
+            "0 groups"
+          ],
           "then": {
             "action": "accumulate",
             "target": "ungrouped_users",
-            "value": { "name": "{{row.name}}", "email": "{{row.primary_email}}" }
+            "value": {
+              "name": "{{row.name}}",
+              "email": "{{row.primary_email}}"
+            }
           },
           "note": "If person has no groups (empty section or 'No groups' text), add to ungrouped list."
         },
@@ -180,9 +208,17 @@
       "stepId": "s9",
       "action": "respond",
       "data": {
-        "ungrouped_users": { "source": "ungrouped_users" },
-        "ungrouped_count": { "source": "ungrouped_users", "extract": "count" },
-        "total_active_checked": { "source": "all_active_people", "extract": "count" }
+        "ungrouped_users": {
+          "source": "ungrouped_users"
+        },
+        "ungrouped_count": {
+          "source": "ungrouped_users",
+          "extract": "count"
+        },
+        "total_active_checked": {
+          "source": "all_active_people",
+          "extract": "count"
+        }
       },
       "note": "Return list of active users not in any group. Each entry: { name, email }."
     }
@@ -190,25 +226,52 @@
   "stateGraph": {
     "nodes": {
       "unauthenticated": {
-        "signals": [{ "type": "url_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }]
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
+        ]
       },
       "authenticated": {
         "signals": [
-          { "type": "url_matches", "pattern": "app\\.yeshid\\.com" },
-          { "type": "url_not_matches", "pattern": "/login|/auth|/signin|accounts\\.google\\.com" }
+          {
+            "type": "url_matches",
+            "pattern": "app\\.yeshid\\.com"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login|/auth|/signin|accounts\\.google\\.com"
+          }
         ]
       },
       "people-list": {
-        "signals": [{ "type": "url_matches", "pattern": "/organization/people" }]
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people"
+          }
+        ]
       },
       "person-detail": {
         "signals": [
-          { "type": "url_matches", "pattern": "/organization/people/[a-z0-9-]+" },
-          { "type": "url_not_matches", "pattern": "/onboard|/offboard" }
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people/[a-z0-9-]+"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/onboard|/offboard"
+          }
         ]
       },
       "groups-list": {
-        "signals": [{ "type": "url_matches", "pattern": "/organization/groups$" }]
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/organization/groups$"
+          }
+        ]
       }
     }
   }

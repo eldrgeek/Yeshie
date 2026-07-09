@@ -91,13 +91,15 @@
       "stepId": "s1",
       "action": "navigate",
       "url": "https://claude.ai/projects",
-      "note": "Navigate directly to projects list — New project button is here, not on home"
+      "note": "Navigate directly to projects list \u2014 New project button is here, not on home"
     },
     {
       "stepId": "s2",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Let sidebar and session hydrate"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s3",
@@ -106,12 +108,15 @@
         "nodes": {
           "auth_required": {
             "signals": [
-              { "type": "url_matches", "pattern": "claude\\.ai/login" }
+              {
+                "type": "url_matches",
+                "pattern": "claude\\.ai/login"
+              }
             ]
           }
         }
       },
-      "onMatch": "exit_with_error:auth_required — user must be logged in",
+      "onMatch": "exit_with_error:auth_required \u2014 user must be logged in",
       "onMismatch": "continue",
       "note": "Fail fast if redirected to login"
     },
@@ -129,15 +134,21 @@
     },
     {
       "stepId": "s6",
-      "action": "delay",
-      "ms": 800,
-      "note": "Wait for dialog/sheet to render"
+      "action": "wait_for",
+      "selector": "[role='dialog'], [data-radix-dialog-content], [aria-modal='true']",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for [role='dialog'], [data-radix-dialog-content], [aria-modal='true'] before next step (was delay 800ms)"
     },
     {
       "stepId": "s7",
       "action": "wait_for",
       "selector": "[role='dialog'], [data-radix-dialog-content], [aria-modal='true']",
-      "state": { "visible": true },
+      "state": {
+        "visible": true
+      },
       "timeout": 8000,
       "note": "Confirm dialog is open before typing"
     },
@@ -158,9 +169,13 @@
     },
     {
       "stepId": "s10",
-      "action": "delay",
-      "ms": 300,
-      "note": "Brief pause before submit"
+      "action": "wait_for",
+      "target": "create_project_confirm",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for create_project_confirm before next step (was delay 300ms)"
     },
     {
       "stepId": "s11",
@@ -173,13 +188,15 @@
           "timeout": 10000
         }
       ],
-      "note": "Click Create project — expect redirect to /project/<uuid>"
+      "note": "Click Create project \u2014 expect redirect to /project/<uuid>"
     },
     {
       "stepId": "s12",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Let project page settle"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s13",
@@ -206,20 +223,32 @@
       "home": {
         "description": "claude.ai home page, logged in",
         "signals": [
-          { "type": "url_matches", "pattern": "claude\\.ai/$|claude\\.ai/new" },
-          { "type": "url_not_matches", "pattern": "/login" }
+          {
+            "type": "url_matches",
+            "pattern": "claude\\.ai/$|claude\\.ai/new"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "/login"
+          }
         ]
       },
       "auth_required": {
         "description": "User not logged in",
         "signals": [
-          { "type": "url_matches", "pattern": "claude\\.ai/login" }
+          {
+            "type": "url_matches",
+            "pattern": "claude\\.ai/login"
+          }
         ]
       },
       "project_page": {
         "description": "Inside a project after creation",
         "signals": [
-          { "type": "url_matches", "pattern": "claude\\.ai/project/" }
+          {
+            "type": "url_matches",
+            "pattern": "claude\\.ai/project/"
+          }
         ]
       }
     }

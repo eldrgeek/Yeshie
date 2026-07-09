@@ -8,15 +8,34 @@
     "verifiedDate": null,
     "author": "session-2026-04-14",
     "anomalies": [
-      "Google Admin SPA — perceive required",
+      "Google Admin SPA \u2014 perceive required",
       "Devices section may show sub-sections: Mobile & endpoints, Chrome devices, Chromebooks, Printers"
     ]
   },
-  "params": { "base_url": "https://admin.google.com" },
+  "params": {
+    "base_url": "https://admin.google.com"
+  },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://admin.google.com/ac/devices", "note": "Navigate to Devices section" },
-    { "stepId": "s2", "action": "delay", "ms": 3500 },
-    { "stepId": "s3", "action": "perceive", "store_as": "devices_snap", "note": "Perceive devices list. Expected: sub-tabs for Mobile & endpoints, Chrome. May show no devices on a new/trial org." }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://admin.google.com/ac/devices",
+      "note": "Navigate to Devices section"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3500ms); resolves on content root, proceeds on timeout"
+    },
+    {
+      "stepId": "s3",
+      "action": "perceive",
+      "store_as": "devices_snap",
+      "note": "Perceive devices list. Expected: sub-tabs for Mobile & endpoints, Chrome. May show no devices on a new/trial org."
+    }
   ],
   "stateGraph": {
     "initial": "devices-list",

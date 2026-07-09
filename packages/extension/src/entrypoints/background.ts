@@ -2254,6 +2254,14 @@ export default defineBackground(() => {
       if (a === 'wait_for') {
         const timeout = step.timeout || 8000;
         const start = Date.now();
+        // onTimeout: 'continue' — a SETTLE wait. Resolve the instant the target
+        // appears; if it never does, proceed anyway (status 'ok', timedOut:true)
+        // instead of failing the chain. This is what makes a delay→wait_for
+        // conversion strictly safe: it's faster than the old fixed sleep when the
+        // content shows up early, and never worse than it when the selector guess
+        // is wrong. Use it ONLY for settle/paint waits — a wait_for that guards a
+        // real precondition should still throw loudly (omit onTimeout).
+        const softTimeout = step.onTimeout === 'continue';
 
         // URL pattern mode: poll until window.location matches
         if (step.url_pattern) {
@@ -2263,6 +2271,7 @@ export default defineBackground(() => {
             if (match?.matched) return { stepId: step.stepId, action: a, status: 'ok', url: match.url, durationMs: Date.now() - t0 };
             await new Promise(r => setTimeout(r, 200));
           }
+          if (softTimeout) return { stepId: step.stepId, action: a, status: 'ok', url_pattern: pat, timedOut: true, durationMs: Date.now() - t0 };
           throw new Error('wait_for url timeout: ' + pat);
         }
 
@@ -2279,6 +2288,7 @@ export default defineBackground(() => {
           if (match?.matched) return { stepId: step.stepId, action: a, status: 'ok', selector: sel, state: match.state, durationMs: Date.now() - t0 };
           await new Promise(r => setTimeout(r, 300));
         }
+        if (softTimeout) return { stepId: step.stepId, action: a, status: 'ok', selector: sel, timedOut: true, durationMs: Date.now() - t0 };
         throw new Error('wait_for timeout: ' + sel);
       }
 

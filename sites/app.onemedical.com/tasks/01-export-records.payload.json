@@ -6,16 +6,19 @@
     "version": "1.0.0",
     "verified": false,
     "verifiedDate": null,
-    "platform": "One Medical (proprietary — Amazon-owned)",
+    "platform": "One Medical (proprietary \u2014 Amazon-owned)",
     "myChart": false,
     "provider": "Rachid Chakri, PA-C",
-    "authStrategy": "Google SSO (mw@mike-wolf.com) or email/password — interactive first run required",
-    "exportFormats": ["PDF per visit summary", "FHIR R4 via patient access API (21st Century Cures)"],
+    "authStrategy": "Google SSO (mw@mike-wolf.com) or email/password \u2014 interactive first run required",
+    "exportFormats": [
+      "PDF per visit summary",
+      "FHIR R4 via patient access API (21st Century Cures)"
+    ],
     "localCachePath": "~/Documents/MedicalRecords/one-medical/{YYYY-MM}/",
     "anomalies": [
-      "Amazon-owned SPA — heavy React; navigate alone may not populate records, use perceive or delay",
-      "Visit summaries are per-visit PDFs, not a bulk export — must iterate over visit list",
-      "FHIR API requires separate OAuth flow at fhir.onemedical.com — not automated here"
+      "Amazon-owned SPA \u2014 heavy React; navigate alone may not populate records, use perceive or delay",
+      "Visit summaries are per-visit PDFs, not a bulk export \u2014 must iterate over visit list",
+      "FHIR API requires separate OAuth flow at fhir.onemedical.com \u2014 not automated here"
     ]
   },
   "params": {
@@ -40,7 +43,7 @@
       "stepId": "s3",
       "action": "navigate",
       "url": "https://app.onemedical.com/health",
-      "note": "Health overview / records section. Exact path may vary — perceive to confirm navigation."
+      "note": "Health overview / records section. Exact path may vary \u2014 perceive to confirm navigation."
     },
     {
       "stepId": "s4",
@@ -57,12 +60,15 @@
         "text:Visit Summaries",
         "text:Past Visits"
       ],
-      "note": "Navigate to visit list. One Medical uses React router — links may be text-clickable."
+      "note": "Navigate to visit list. One Medical uses React router \u2014 links may be text-clickable."
     },
     {
       "stepId": "s6",
-      "action": "delay",
-      "ms": 2000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s7",
@@ -81,7 +87,7 @@
         "text:Download summary",
         "text:Download PDF"
       ],
-      "note": "Download visit summary PDF for most recent visit. Repeat loop over visit_list for full history — not automated in v1.",
+      "note": "Download visit summary PDF for most recent visit. Repeat loop over visit_list for full history \u2014 not automated in v1.",
       "optional": true
     },
     {
@@ -92,8 +98,11 @@
     },
     {
       "stepId": "s10",
-      "action": "delay",
-      "ms": 2000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s11",
@@ -131,13 +140,13 @@
       "description": "Element present only when authenticated",
       "cachedSelector": "nav[aria-label='Main navigation'], [data-testid='user-menu'], header .user-avatar",
       "cachedConfidence": 0.6,
-      "note": "One Medical SPA — selector unverified. Use URL pattern /health or /home as primary auth check."
+      "note": "One Medical SPA \u2014 selector unverified. Use URL pattern /health or /home as primary auth check."
     },
     "visit-list-item": {
       "description": "Individual visit row in visit history",
       "cachedSelector": "[data-testid='visit-card'], .visit-item, li[class*='visit']",
       "cachedConfidence": 0.4,
-      "note": "Unverified — perceive visit_list to discover actual selectors on first run."
+      "note": "Unverified \u2014 perceive visit_list to discover actual selectors on first run."
     },
     "download-pdf-button": {
       "description": "Download PDF button for visit summary",
@@ -149,12 +158,39 @@
   "stateGraph": {
     "initial": "portal-home",
     "states": {
-      "portal-home": { "url": "/health", "transitions": ["visit-list", "lab-results", "medications"] },
-      "visit-list": { "url": "/health/visits", "transitions": ["visit-detail"] },
-      "visit-detail": { "url": "/health/visits/*", "transitions": ["visit-list"] },
-      "lab-results": { "url": "/health/labs", "transitions": ["portal-home"] },
-      "medications": { "url": "/health/medications", "transitions": ["portal-home"] }
+      "portal-home": {
+        "url": "/health",
+        "transitions": [
+          "visit-list",
+          "lab-results",
+          "medications"
+        ]
+      },
+      "visit-list": {
+        "url": "/health/visits",
+        "transitions": [
+          "visit-detail"
+        ]
+      },
+      "visit-detail": {
+        "url": "/health/visits/*",
+        "transitions": [
+          "visit-list"
+        ]
+      },
+      "lab-results": {
+        "url": "/health/labs",
+        "transitions": [
+          "portal-home"
+        ]
+      },
+      "medications": {
+        "url": "/health/medications",
+        "transitions": [
+          "portal-home"
+        ]
+      }
     }
   },
-  "fhirExportNote": "One Medical exposes a FHIR R4 patient access endpoint. Authorization requires a separate OAuth 2.0 flow via developer.onemedical.com. Not automated in this payload — requires API key or patient-facing OAuth. For bulk export, consider the FHIR path over scraping."
+  "fhirExportNote": "One Medical exposes a FHIR R4 patient access endpoint. Authorization requires a separate OAuth 2.0 flow via developer.onemedical.com. Not automated in this payload \u2014 requires API key or patient-facing OAuth. For bulk export, consider the FHIR path over scraping."
 }

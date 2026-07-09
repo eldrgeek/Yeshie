@@ -6,11 +6,14 @@
     "version": "1.0.0",
     "verified": false,
     "verifiedDate": null,
-    "platform": "Amazon Pharmacy — NOT a medical portal; pharmacy only",
+    "platform": "Amazon Pharmacy \u2014 NOT a medical portal; pharmacy only",
     "myChart": false,
     "provider": "Amazon Pharmacy (prescriptions from Haitham Serhan, Yafa Health)",
-    "authStrategy": "Amazon account (mw@mike-wolf.com). Login is standard Amazon OAuth — interactive first run required.",
-    "exportFormats": ["Screen capture / perceive (no direct export)", "Manual: prescription history printable from browser"],
+    "authStrategy": "Amazon account (mw@mike-wolf.com). Login is standard Amazon OAuth \u2014 interactive first run required.",
+    "exportFormats": [
+      "Screen capture / perceive (no direct export)",
+      "Manual: prescription history printable from browser"
+    ],
     "localCachePath": "~/Documents/MedicalRecords/amazon-pharmacy/{YYYY-MM}/",
     "activeMedications": [
       "Atomoxetine 25mg, 30-day auto-refill",
@@ -18,9 +21,9 @@
       "Famotidine 40mg, 90-day auto-refill"
     ],
     "anomalies": [
-      "Amazon is a heavy SPA — navigate requires delay or perceive to confirm content loaded",
+      "Amazon is a heavy SPA \u2014 navigate requires delay or perceive to confirm content loaded",
       "Prescription list page may require scrolling for full history",
-      "No FHIR or CCDA export — data capture via perceive only",
+      "No FHIR or CCDA export \u2014 data capture via perceive only",
       "Auto-refill orders send email to mw@mike-wolf.com ~monthly; emails are the primary notification path"
     ]
   },
@@ -46,13 +49,15 @@
       "stepId": "s3",
       "action": "navigate",
       "url": "https://pharmacy.amazon.com/prescriptions",
-      "note": "Prescriptions list — primary data target."
+      "note": "Prescriptions list \u2014 primary data target."
     },
     {
       "stepId": "s4",
-      "action": "delay",
-      "ms": 3000,
-      "note": "Amazon SPA — wait for React hydration."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s5",
@@ -64,12 +69,15 @@
       "stepId": "s6",
       "action": "navigate",
       "url": "https://pharmacy.amazon.com/orders",
-      "note": "Order history — shows past fills with dates and delivery confirmations."
+      "note": "Order history \u2014 shows past fills with dates and delivery confirmations."
     },
     {
       "stepId": "s7",
-      "action": "delay",
-      "ms": 2000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s8",
@@ -81,7 +89,7 @@
       "stepId": "s9",
       "action": "navigate",
       "url": "https://pharmacy.amazon.com/insurance",
-      "note": "Insurance on file — captures which insurance is covering these prescriptions.",
+      "note": "Insurance on file \u2014 captures which insurance is covering these prescriptions.",
       "optional": true
     },
     {

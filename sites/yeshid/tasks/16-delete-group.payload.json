@@ -12,18 +12,20 @@
     "runCount": 0,
     "lastSuccess": null,
     "prerequisite": "00-login.payload.json",
-    "warning": "Destructive action — permanently deletes the group. Members are NOT deleted, only the group record.",
+    "warning": "Destructive action \u2014 permanently deletes the group. Members are NOT deleted, only the group record.",
     "auth": {
       "type": "sso_automatable",
       "googleAccountEmail": "mw@mike-wolf.com"
     },
-    "requiredParams": ["group_name"],
+    "requiredParams": [
+      "group_name"
+    ],
     "optionalParams": [],
     "author": "session-2026-04-14",
     "verified": false,
     "anomalies": [
-      "Delete action is likely in a group-detail page action menu (Manage, kebab ⋮, or Settings)",
-      "YeshID may use 'Archive' instead of 'Delete' — check perceive output for actual button text",
+      "Delete action is likely in a group-detail page action menu (Manage, kebab \u22ee, or Settings)",
+      "YeshID may use 'Archive' instead of 'Delete' \u2014 check perceive output for actual button text",
       "Confirmation dialog likely uses group name as a type-to-confirm field"
     ]
   },
@@ -35,7 +37,9 @@
     {
       "stepId": "s1",
       "action": "assess_state",
-      "expect": { "state": "authenticated" },
+      "expect": {
+        "state": "authenticated"
+      },
       "onMismatch": "exit_with_error:not-authenticated"
     },
     {
@@ -46,8 +50,11 @@
     },
     {
       "stepId": "s3",
-      "action": "delay",
-      "ms": 2000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s4",
@@ -57,26 +64,31 @@
     },
     {
       "stepId": "s5",
-      "action": "delay",
-      "ms": 2000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s6",
       "action": "perceive",
       "store_as": "group_detail",
-      "note": "Perceive group detail. Look for: 'Delete', 'Archive', 'Manage' dropdown, kebab menu (⋮), or settings icon."
+      "note": "Perceive group detail. Look for: 'Delete', 'Archive', 'Manage' dropdown, kebab menu (\u22ee), or settings icon."
     },
     {
       "stepId": "s7",
       "action": "click_text",
       "text": "Manage",
-      "note": "Open Manage/actions dropdown. Fallbacks: '⋮', 'Settings', 'Options', 'Actions'."
+      "note": "Open Manage/actions dropdown. Fallbacks: '\u22ee', 'Settings', 'Options', 'Actions'."
     },
     {
       "stepId": "s8",
-      "action": "delay",
-      "ms": 800,
-      "note": "Wait for dropdown to open"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 800ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s9",
@@ -86,9 +98,11 @@
     },
     {
       "stepId": "s10",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for confirmation dialog"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s11",
@@ -104,8 +118,11 @@
     },
     {
       "stepId": "s13",
-      "action": "delay",
-      "ms": 2000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s14",

@@ -2,11 +2,14 @@
   "_meta": {
     "task": "submit-prompt",
     "description": "Submit a prompt to DeepSeek and capture the response.",
-    "params": ["prompt", "base_url"],
+    "params": [
+      "prompt",
+      "base_url"
+    ],
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "notes": "DeepSeek uses div[role=button] not <button>. Send button class: ds-icon-button--sizing-container. Cloudflare Turnstile present — CDP isTrusted events may bypass it; manual click confirmed to work. wait_for uses fixed delay instead of stop-button polling (stop button selector unconfirmed)."
+    "notes": "DeepSeek uses div[role=button] not <button>. Send button class: ds-icon-button--sizing-container. Cloudflare Turnstile present \u2014 CDP isTrusted events may bypass it; manual click confirmed to work. wait_for uses fixed delay instead of stop-button polling (stop button selector unconfirmed)."
   },
   "params": {
     "base_url": "https://chat.deepseek.com/",
@@ -14,7 +17,7 @@
   },
   "abstractTargets": {
     "prompt_input": {
-      "description": "Native textarea — placeholder='Message DeepSeek' confirmed by DOM probe",
+      "description": "Native textarea \u2014 placeholder='Message DeepSeek' confirmed by DOM probe",
       "anchors": {
         "placeholder": "Message DeepSeek"
       },
@@ -24,7 +27,7 @@
       ]
     },
     "send_button": {
-      "description": "Send button — div[role=button] with stable class ds-icon-button--sizing-container",
+      "description": "Send button \u2014 div[role=button] with stable class ds-icon-button--sizing-container",
       "fallbackSelectors": [
         "div[role='button'][class*='ds-icon-button--sizing-container']",
         "div[role='button'][class*='ds-icon-button--l']"
@@ -40,34 +43,44 @@
     },
     {
       "stepId": "s2",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for React to mount"
+      "action": "wait_for",
+      "target": "prompt_input",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for prompt_input before next step (was delay 1500ms)"
     },
     {
       "stepId": "s3",
       "action": "type",
       "target": "prompt_input",
       "value": "{{prompt}}",
-      "note": "Type prompt — nativeInputValueSetter sets React state. No submit:true; explicit click follows."
+      "note": "Type prompt \u2014 nativeInputValueSetter sets React state. No submit:true; explicit click follows."
     },
     {
       "stepId": "s4",
-      "action": "delay",
-      "ms": 200,
-      "note": "Brief pause for React onChange to propagate"
+      "action": "wait_for",
+      "target": "send_button",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for send_button before next step (was delay 200ms)"
     },
     {
       "stepId": "s5",
       "action": "click",
       "target": "send_button",
-      "note": "Click send button explicitly — more reliable than Enter for React+Cloudflare"
+      "note": "Click send button explicitly \u2014 more reliable than Enter for React+Cloudflare"
     },
     {
       "stepId": "s6",
-      "action": "delay",
-      "ms": 45000,
-      "note": "Fixed wait for generation — DeepThink can take 30-60s. TODO: replace with wait_for once stop-button selector confirmed."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 45000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 45000ms); resolves on content root, proceeds on timeout \u2014 HAND-TUNE: LLM-generation, use a completion signal"
     },
     {
       "stepId": "s7",

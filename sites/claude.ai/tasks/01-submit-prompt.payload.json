@@ -58,9 +58,13 @@
     },
     {
       "stepId": "s2",
-      "action": "delay",
-      "ms": 800,
-      "note": "Let page settle"
+      "action": "wait_for",
+      "target": "prompt_input",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for prompt_input before next step (was delay 800ms)"
     },
     {
       "stepId": "s3",
@@ -72,9 +76,13 @@
     },
     {
       "stepId": "s4",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Allow generation to start before polling for completion"
+      "action": "wait_for",
+      "selector": "[aria-label='Stop streaming']",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for [aria-label='Stop streaming'] before next step (was delay 2000ms)"
     },
     {
       "stepId": "s5",
@@ -88,9 +96,11 @@
     },
     {
       "stepId": "s6",
-      "action": "delay",
-      "ms": 500,
-      "note": "Brief settle after generation"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s7",

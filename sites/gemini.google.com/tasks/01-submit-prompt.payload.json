@@ -59,8 +59,13 @@
     },
     {
       "stepId": "s2",
-      "action": "delay",
-      "ms": 800
+      "action": "wait_for",
+      "target": "prompt_input",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for prompt_input before next step (was delay 800ms)"
     },
     {
       "stepId": "s3",
@@ -72,9 +77,13 @@
     },
     {
       "stepId": "s4",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Allow generation to start"
+      "action": "wait_for",
+      "selector": "button[aria-label='Stop response']",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for button[aria-label='Stop response'] before next step (was delay 2000ms)"
     },
     {
       "stepId": "s5",
@@ -88,8 +97,11 @@
     },
     {
       "stepId": "s6",
-      "action": "delay",
-      "ms": 500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s7",

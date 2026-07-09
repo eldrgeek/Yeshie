@@ -33,9 +33,11 @@
     },
     {
       "stepId": "s3",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for directory page to load"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s4",
@@ -58,9 +60,11 @@
     },
     {
       "stepId": "s6",
-      "action": "delay",
-      "ms": 3000,
-      "note": "Wait for sync to initiate"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s7",

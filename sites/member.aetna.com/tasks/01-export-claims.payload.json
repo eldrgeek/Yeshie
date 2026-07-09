@@ -6,15 +6,19 @@
     "version": "1.0.0",
     "verified": false,
     "verifiedDate": null,
-    "platform": "Aetna member portal — insurance, NOT a clinical records portal",
+    "platform": "Aetna member portal \u2014 insurance, NOT a clinical records portal",
     "myChart": false,
     "provider": "Aetna Medicare (plan type: likely Medicare Advantage based on 'at-home health check' benefit)",
-    "authStrategy": "Aetna account (MW@mike-wolf.com). Login at member.aetna.com — interactive first run required.",
-    "exportFormats": ["EOB PDFs (per claim)", "Claims history CSV (if available)", "Benefits summary PDF"],
+    "authStrategy": "Aetna account (MW@mike-wolf.com). Login at member.aetna.com \u2014 interactive first run required.",
+    "exportFormats": [
+      "EOB PDFs (per claim)",
+      "Claims history CSV (if available)",
+      "Benefits summary PDF"
+    ],
     "localCachePath": "~/Documents/MedicalRecords/aetna-medicare/{YYYY-MM}/",
     "anomalies": [
-      "Insurance portal — data is administrative (claims, costs, coverage), not clinical records",
-      "EOBs are separate from clinical data — useful for spend tracking and coverage verification",
+      "Insurance portal \u2014 data is administrative (claims, costs, coverage), not clinical records",
+      "EOBs are separate from clinical data \u2014 useful for spend tracking and coverage verification",
       "At-home health check communications suggest Medicare Advantage plan with HRA (Health Risk Assessment)",
       "Portal URL may be myactivehealth.com or CVSHealth portal depending on plan configuration"
     ]
@@ -55,8 +59,11 @@
     },
     {
       "stepId": "s5",
-      "action": "delay",
-      "ms": 2000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s6",

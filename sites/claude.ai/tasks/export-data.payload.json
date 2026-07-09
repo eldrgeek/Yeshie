@@ -30,9 +30,11 @@
     },
     {
       "stepId": "s3",
-      "action": "delay",
-      "ms": 1000,
-      "note": "Let the Privacy pane content settle inside the dialog"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s4",
@@ -42,8 +44,11 @@
     },
     {
       "stepId": "s5",
-      "action": "delay",
-      "ms": 1500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s6",
@@ -53,8 +58,11 @@
     },
     {
       "stepId": "s7",
-      "action": "delay",
-      "ms": 2500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s8",
