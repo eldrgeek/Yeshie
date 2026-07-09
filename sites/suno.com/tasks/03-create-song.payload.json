@@ -1,0 +1,34 @@
+{
+  "_meta": {
+    "task": "create-song",
+    "description": "Create a song in Suno (Advanced/Custom mode) from a title, style, and lyrics, then submit generation.",
+    "auth": { "type": "suno_session", "note": "Requires being logged into suno.com" },
+    "params": {
+      "title": { "required": true, "description": "Song title" },
+      "style": { "required": true, "description": "Style/genre prompt, e.g. 'dark synthwave, female vocals'" },
+      "lyrics": { "required": true, "description": "Full lyrics (use [Verse]/[Chorus] section tags)" }
+    },
+    "risk": "CONSUMES CREDITS — the final 'Create song' click generates audio in the active workspace. Omit step s8 (or set it aside) to fill the form without generating.",
+    "selectorNotes": {
+      "lyrics": "div[aria-label='Lyrics editor'] — contenteditable editor. Suno replaced the old <textarea data-testid='lyrics-textarea'> with a rich contenteditable div in the 2026-07 redesign. The relay's trustedType() detects contenteditable and uses CDP Input.insertText, so the 'type' action fills it correctly.",
+      "style": "[data-testid='create-form-styles-wrapper'] textarea — the style field is a <textarea> with a rotating genre placeholder and NO stable attribute of its own, but its section wrapper carries a stable data-testid. There are now 4 textareas in the form DOM (cowriter/style/simple-prompt/sounds), so the old positional 'first non-lyrics textarea' selector is ambiguous — scope by the styles wrapper.",
+      "title": "input[placeholder='Song Title (Optional)'] — stable placeholder. Two mirrored inputs exist (responsive layouts); both bind the same state, first-match is correct.",
+      "create": "button[aria-label='Create song'] — disabled until fields have content"
+    },
+    "verified": "2026-07-08 — re-verified live against Suno's redesigned /create form (account: wolfreporter Pro). Lyrics field migrated textarea -> contenteditable div; style selector re-anchored to create-form-styles-wrapper. Fill path confirmed live; s8 generation confirmed live (rendered 'Everysing Vill Be Fine')."
+  },
+  "runId": "suno-create-song-{{timestamp}}",
+  "mode": "verification",
+  "site": "suno.com",
+  "params": { "title": "{{title}}", "style": "{{style}}", "lyrics": "{{lyrics}}" },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://suno.com/create" },
+    { "stepId": "s2", "action": "click_text", "text": "Advanced", "note": "ensure Advanced/Custom mode" },
+    { "stepId": "s3", "action": "wait_for", "selector": "div[aria-label=\"Lyrics editor\"]", "timeout": 10000 },
+    { "stepId": "s4", "action": "type", "selector": "div[aria-label=\"Lyrics editor\"]", "value": "{{lyrics}}", "note": "contenteditable — trustedType uses Input.insertText" },
+    { "stepId": "s5", "action": "type", "selector": "[data-testid=\"create-form-styles-wrapper\"] textarea", "value": "{{style}}", "note": "Styles field, scoped by stable wrapper testid" },
+    { "stepId": "s6", "action": "type", "selector": "input[placeholder=\"Song Title (Optional)\"]", "value": "{{title}}" },
+    { "stepId": "s7", "action": "wait_for", "selector": "button[aria-label=\"Create song\"]", "timeout": 6000, "note": "enabled once fields have content" },
+    { "stepId": "s8", "action": "click", "selector": "button[aria-label=\"Create song\"]", "note": "GENERATES — consumes credits. Remove this step to fill-only." }
+  ]
+}

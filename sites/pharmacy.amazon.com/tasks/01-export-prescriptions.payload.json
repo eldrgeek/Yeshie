@@ -1,0 +1,108 @@
+{
+  "_meta": {
+    "name": "amazon-pharmacy-export-prescriptions",
+    "site": "pharmacy.amazon.com",
+    "description": "Navigate Amazon Pharmacy, capture active prescriptions list, prescription history, and export medication data.",
+    "version": "1.0.0",
+    "verified": false,
+    "verifiedDate": null,
+    "platform": "Amazon Pharmacy — NOT a medical portal; pharmacy only",
+    "myChart": false,
+    "provider": "Amazon Pharmacy (prescriptions from Haitham Serhan, Yafa Health)",
+    "authStrategy": "Amazon account (mw@mike-wolf.com). Login is standard Amazon OAuth — interactive first run required.",
+    "exportFormats": ["Screen capture / perceive (no direct export)", "Manual: prescription history printable from browser"],
+    "localCachePath": "~/Documents/MedicalRecords/amazon-pharmacy/{YYYY-MM}/",
+    "activeMedications": [
+      "Atomoxetine 25mg, 30-day auto-refill",
+      "Sertraline 100mg, 30-day auto-refill",
+      "Famotidine 40mg, 90-day auto-refill"
+    ],
+    "anomalies": [
+      "Amazon is a heavy SPA — navigate requires delay or perceive to confirm content loaded",
+      "Prescription list page may require scrolling for full history",
+      "No FHIR or CCDA export — data capture via perceive only",
+      "Auto-refill orders send email to mw@mike-wolf.com ~monthly; emails are the primary notification path"
+    ]
+  },
+  "params": {
+    "base_url": "https://pharmacy.amazon.com",
+    "save_path": "~/Documents/MedicalRecords/amazon-pharmacy"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://pharmacy.amazon.com",
+      "note": "Amazon Pharmacy landing. Will redirect to amazon.com/ap/signin if not authenticated."
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for_auth",
+      "authSentinelPattern": "pharmacy.amazon.com/dp|/prescriptions|/home",
+      "loginUrl": "https://pharmacy.amazon.com",
+      "note": "Halt if redirected to amazon sign-in. Mike must authenticate manually. Amazon MFA may be required."
+    },
+    {
+      "stepId": "s3",
+      "action": "navigate",
+      "url": "https://pharmacy.amazon.com/prescriptions",
+      "note": "Prescriptions list — primary data target."
+    },
+    {
+      "stepId": "s4",
+      "action": "delay",
+      "ms": 3000,
+      "note": "Amazon SPA — wait for React hydration."
+    },
+    {
+      "stepId": "s5",
+      "action": "perceive",
+      "store_as": "prescriptions_list",
+      "note": "Capture all prescriptions: name, dosage, supply, refill status, prescriber. Expected: Atomoxetine 25mg, Sertraline 100mg, Famotidine 40mg (all auto-refill)."
+    },
+    {
+      "stepId": "s6",
+      "action": "navigate",
+      "url": "https://pharmacy.amazon.com/orders",
+      "note": "Order history — shows past fills with dates and delivery confirmations."
+    },
+    {
+      "stepId": "s7",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s8",
+      "action": "perceive",
+      "store_as": "order_history",
+      "note": "Capture order history: medication, order date, delivery date, quantity. Useful for fill frequency tracking."
+    },
+    {
+      "stepId": "s9",
+      "action": "navigate",
+      "url": "https://pharmacy.amazon.com/insurance",
+      "note": "Insurance on file — captures which insurance is covering these prescriptions.",
+      "optional": true
+    },
+    {
+      "stepId": "s10",
+      "action": "perceive",
+      "store_as": "insurance_info",
+      "note": "Capture insurance details.",
+      "optional": true
+    }
+  ],
+  "abstractTargets": {
+    "prescription-card": {
+      "description": "Individual prescription item card",
+      "cachedSelector": "[data-testid='prescription-card'], [class*='prescription-item'], .rx-card",
+      "cachedConfidence": 0.5,
+      "note": "Amazon uses data-testid attributes in some components. Use perceive to discover actual selectors."
+    },
+    "refill-status": {
+      "description": "Refill status badge (auto-refill, processing, shipped)",
+      "cachedSelector": "[data-testid='refill-status'], [class*='refill-badge'], [class*='status-badge']",
+      "cachedConfidence": 0.4
+    }
+  }
+}

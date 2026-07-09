@@ -1,0 +1,111 @@
+{
+  "_meta": {
+    "task": "download-attachment",
+    "site": "mail.google.com",
+    "description": "Navigate to a Gmail message and download a specific attachment by filename. The downloaded file lands in ~/Downloads/. Requires Mike to be logged into Gmail in Chrome.",
+    "params": {
+      "message_id": {
+        "required": true,
+        "description": "Gmail message ID (from get_thread result)",
+        "hint": "e.g. '19d13b8702593fac'"
+      },
+      "attachment_filename": {
+        "required": true,
+        "description": "Name of the attachment file to download",
+        "hint": "e.g. 'Cattle_Baron_Final.docx'"
+      }
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null
+  },
+  "site": "mail.google.com",
+  "mode": "exploratory",
+  "params": {
+    "message_id": "",
+    "attachment_filename": ""
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://mail.google.com/mail/u/0/#all/{{message_id}}",
+      "note": "Navigate directly to the Gmail message by ID"
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 3000,
+      "note": "Allow Gmail SPA to load the message"
+    },
+    {
+      "stepId": "s3",
+      "action": "assess_state",
+      "stateGraph": {
+        "nodes": {
+          "auth_required": {
+            "signals": [
+              {
+                "type": "url_matches",
+                "pattern": "accounts\\.google\\.com"
+              }
+            ]
+          },
+          "message_open": {
+            "signals": [
+              {
+                "type": "url_matches",
+                "pattern": "mail\\.google\\.com"
+              }
+            ]
+          }
+        }
+      },
+      "onMatch": {
+        "auth_required": "exit_fail"
+      },
+      "onMismatch": "continue",
+      "note": "Fail if redirected to Google auth"
+    },
+    {
+      "stepId": "s4",
+      "action": "perceive",
+      "note": "Take screenshot to verify message content and locate attachment"
+    },
+    {
+      "stepId": "s5",
+      "action": "click",
+      "target": "attachment_download_button",
+      "note": "Click the download arrow on the attachment"
+    },
+    {
+      "stepId": "s6",
+      "action": "delay",
+      "ms": 3000,
+      "note": "Wait for download to complete"
+    },
+    {
+      "stepId": "s7",
+      "action": "read",
+      "candidates": ["body"],
+      "store_as": "page_state",
+      "note": "Confirm download started"
+    }
+  ],
+  "abstractTargets": {
+    "attachment_download_button": {
+      "description": "Download arrow button on a Gmail attachment chip",
+      "anchors": {
+        "ariaLabel": "Download"
+      },
+      "fallbackSelectors": [
+        "[aria-label='Download']",
+        "[data-tooltip='Download']",
+        "[title='Download']",
+        ".aZo[download]",
+        "a[href*='attid'][download]",
+        "span[download-url*='{{attachment_filename}}']"
+      ]
+    }
+  }
+}

@@ -1,0 +1,488 @@
+{
+  "_meta": {
+    "name": "gas-deploy-review-queue",
+    "site": "script.google.com",
+    "description": "Create Google Apps Script project, inject source via Monaco/CodeMirror API, deploy as Web App, capture exec URL for Mike Review Queue append endpoint.",
+    "version": "1.0.0",
+    "verified": false,
+    "verifiedDate": null,
+    "mode": "exploratory",
+    "anomalies": [
+      "GAS editor uses Monaco (not CodeMirror) \u2014 js /*cdp*/ action with atob(b64_code) + monaco.editor.getModels()[0].setValue(code) works reliably",
+      "New Deployment dialog shows 'Loading deployment...' for 3-5s before settling to type selector (wait at least 4s after clicking 'New deployment')",
+      "Account confirmation ('You're currently signed in as mw@mike-wolf.com') appears intermittently \u2014 use mouse_click on [role='dialog'] button:last-of-type to dismiss; waits for New Deployment dialog",
+      "Type selector gear button: aria-label='Enable deployment types', gear click OPENS the type list (checkboxes appear). Do NOT click gear again \u2014 clicking twice CLOSES the list.",
+      "Web app checkbox: [role='menuitemcheckbox'][aria-label='Web app'] at approx (737, 315) \u2014 uses jsshadow/jsaction (jsaction='click:o6ZaF(preventDefault=true)'). CONFIRMED BLOCKER: mouse_click, element.click(), key Space, ax_action all fail to toggle aria-checked. jsaction_trigger action needed (see site-context.md).",
+      "Deploy button in dialog: [role='dialog'] button with text 'Deploy' \u2014 responds to element.click() but only proceeds if a type is selected. If 'Please select a deployment type' is shown, Deploy click is a no-op.",
+      "Project URL is deterministic: https://script.google.com/home/projects/1QOSgTv0gn8xiEnhEtwauAXFy4_mfe65r6_D3vlHIKMwkI54ndHSjy8TZ/edit \u2014 re-running payload opens same project"
+    ],
+    "prerequisite": "Chrome session logged in as mw@mike-wolf.com with Google Workspace access",
+    "blockers": [
+      "Web app checkbox type selection blocked by jsshadow/jsaction \u2014 needs jsaction_trigger action type in Yeshie"
+    ]
+  },
+  "chain": [
+    {
+      "_": "PHASE 1 \u2014 Navigate to Apps Script Home"
+    },
+    {
+      "stepId": "s01",
+      "action": "navigate",
+      "url": "https://script.google.com/home",
+      "note": "Apps Script dashboard. Should show 'My Projects' list."
+    },
+    {
+      "stepId": "s02",
+      "action": "delay",
+      "ms": 3000
+    },
+    {
+      "stepId": "s03",
+      "action": "perceive",
+      "store_as": "gas_home",
+      "note": "Confirm logged in. Look for 'My Projects' heading and '+ New project' or 'New project' button."
+    },
+    {
+      "_": "PHASE 2 \u2014 Create New Project"
+    },
+    {
+      "stepId": "s10",
+      "action": "click_text",
+      "text": "New project",
+      "note": "Click '+ New project' button. Creates blank project, redirects to editor with 'Untitled project'."
+    },
+    {
+      "stepId": "s11",
+      "action": "delay",
+      "ms": 5000,
+      "note": "Wait for editor to fully bootstrap Monaco and load the default Code.gs file."
+    },
+    {
+      "stepId": "s12",
+      "action": "perceive",
+      "store_as": "editor_loaded",
+      "note": "Confirm editor loaded. Look for: Monaco editor area, Code.gs tab, starter function myFunction(){}."
+    },
+    {
+      "stepId": "s13",
+      "action": "js",
+      "code": "return {url: window.location.href, hasMonaco: typeof monaco !== 'undefined', hasCM: !!document.querySelector('.CodeMirror'), title: document.title};",
+      "note": "Verify editor environment. We need hasMonaco=true or hasCM=true to proceed with content injection."
+    },
+    {
+      "_": "PHASE 3 \u2014 Inject Source Code"
+    },
+    {
+      "stepId": "s20",
+      "action": "js",
+      "code": "const b64 = 'Y29uc3QgRE9DX0lEID0gJzF3ZWdacmZlMmtZTElndjlrT0VWcHNvYUR0bUdKenpnVEY3ZDV5azA4TFNBJzsKY29uc3QgU0VDUkVUID0gJ2NjZWNjNWY1ZTNhNjc2ZWM3NmNmYzNmMmI0NTU5MzU4OGE1YjI2OWZlOWI1YmM3OSc7CgpmdW5jdGlvbiBkb1Bvc3QoZSkgewogIGxldCBwYXJhbXM7CiAgdHJ5IHsgcGFyYW1zID0gSlNPTi5wYXJzZShlLnBvc3REYXRhLmNvbnRlbnRzKTsgfQogIGNhdGNoIChlcnIpIHsgcmV0dXJuIF9qc29uKHsgZXJyb3I6ICdiYWQganNvbicgfSk7IH0KCiAgaWYgKHBhcmFtcy5zZWNyZXQgIT09IFNFQ1JFVCkgcmV0dXJuIF9qc29uKHsgZXJyb3I6ICdhdXRoJyB9KTsKCiAgY29uc3QgZG9jID0gRG9jdW1lbnRBcHAub3BlbkJ5SWQoRE9DX0lEKTsKICBjb25zdCBib2R5ID0gZG9jLmdldEJvZHkoKTsKCiAgaWYgKHBhcmFtcy5hY3Rpb24gPT09ICdhcHBlbmQnKSB7CiAgICBjb25zdCB0cyA9IG5ldyBEYXRlKCkudG9JU09TdHJpbmcoKTsKICAgIGNvbnN0IHNpZCA9IHBhcmFtcy5zZWdtZW50X2lkIHx8ICdzJyArIFN0cmluZyhNYXRoLmZsb29yKE1hdGgucmFuZG9tKCkgKiAxZTYpKS5wYWRTdGFydCg2LCAnMCcpOwogICAgYm9keS5hcHBlbmRQYXJhZ3JhcGgoJ+KAlCcpOwogICAgYm9keS5hcHBlbmRQYXJhZ3JhcGgoJz09PSBTRUdNRU5UICcgKyB0cyArICcgfCAnICsgKHBhcmFtcy5raW5kIHx8ICdkcmFmdCcpICsgJyB8ICcgKyBzaWQgKyAnID09PScpOwogICAgYm9keS5hcHBlbmRQYXJhZ3JhcGgoJ0lOU1RSVUNUSU9OUzogJyArIChwYXJhbXMuaW5zdHJ1Y3Rpb25zIHx8ICdSZXZpZXcgYW5kIHJlc3BvbmQgd2hlbiByZWFkeS4nKSk7CiAgICBib2R5LmFwcGVuZFBhcmFncmFwaCgnJyk7CiAgICBib2R5LmFwcGVuZFBhcmFncmFwaChwYXJhbXMuYm9keSB8fCAnJyk7CiAgICBib2R5LmFwcGVuZFBhcmFncmFwaCgnJyk7CiAgICBib2R5LmFwcGVuZFBhcmFncmFwaCgnPT09IEVORCBTRUdNRU5UICcgKyBzaWQgKyAnID09PScpOwogICAgcmV0dXJuIF9qc29uKHsgb2s6IHRydWUsIHNlZ21lbnRfaWQ6IHNpZCwgdHM6IHRzIH0pOwogIH0KCiAgcmV0dXJuIF9qc29uKHsgZXJyb3I6ICd1bmtub3duIGFjdGlvbicgfSk7Cn0KCmZ1bmN0aW9uIGRvR2V0KCkgewogIHJldHVybiBDb250ZW50U2VydmljZS5jcmVhdGVUZXh0T3V0cHV0KCdNaWtlIFJldmlldyBRdWV1ZSBlbmRwb2ludC4gUE9TVCBvbmx5LicpOwp9CgpmdW5jdGlvbiBfanNvbihvYmopIHsKICByZXR1cm4gQ29udGVudFNlcnZpY2UKICAgIC5jcmVhdGVUZXh0T3V0cHV0KEpTT04uc3RyaW5naWZ5KG9iaikpCiAgICAuc2V0TWltZVR5cGUoQ29udGVudFNlcnZpY2UuTWltZVR5cGUuSlNPTik7Cn0='; const code = atob(b64); let r = {error: 'no editor found'}; try { if (typeof monaco !== 'undefined') { const models = monaco.editor.getModels(); if (models && models.length > 0) { models[0].setValue(code); r = {method: 'monaco', ok: true, models: models.length, codeLen: code.length}; } } } catch(e) { r.monacoErr = e.message; } if (!r.ok) { try { const cmEl = document.querySelector('.CodeMirror'); if (cmEl && cmEl.CodeMirror) { cmEl.CodeMirror.setValue(code); r = {method: 'codemirror', ok: true, codeLen: code.length}; } } catch(e2) { r.cmErr = e2.message; } } return r;",
+      "note": "Inject Apps Script source via Monaco API (base64 decode \u2192 setValue). Falls back to CodeMirror. Returns {method, ok, codeLen} on success."
+    },
+    {
+      "stepId": "s21",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Allow Monaco to render the new content."
+    },
+    {
+      "stepId": "s22",
+      "action": "perceive",
+      "store_as": "after_inject",
+      "note": "Verify code is visible in editor. Should see 'const DOC_ID' line near top."
+    },
+    {
+      "_": "PHASE 4 \u2014 Rename Project and Save"
+    },
+    {
+      "stepId": "s30",
+      "action": "click_text",
+      "text": "Untitled project",
+      "note": "Click project title at top of editor to enter inline rename mode. The title text input should become active."
+    },
+    {
+      "stepId": "s31",
+      "action": "delay",
+      "ms": 700
+    },
+    {
+      "stepId": "s32",
+      "action": "js",
+      "code": "const inp = document.querySelector('input[aria-label*=\"project\"], input[placeholder*=\"project\"], input[value=\"Untitled project\"], .script-title-name input, [class*=\"title\"] input'); if (inp) { inp.select(); } return {found: !!inp, tag: inp ? inp.tagName : null};",
+      "note": "Select-all in the rename input so our type action replaces the text cleanly."
+    },
+    {
+      "stepId": "s33",
+      "action": "type",
+      "target": "gas-project-title",
+      "value": "Mike Review Queue",
+      "note": "Type new project name. abstractTarget 'gas-project-title' resolves to the active title input."
+    },
+    {
+      "stepId": "s34",
+      "action": "delay",
+      "ms": 300
+    },
+    {
+      "stepId": "s35",
+      "action": "js",
+      "code": "const inp = document.querySelector('input[aria-label*=\"project\"], input[placeholder*=\"project\"], .script-title-name input, [class*=\"title\"] input'); if (inp) { inp.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', code: 'Enter', bubbles: true})); inp.dispatchEvent(new KeyboardEvent('keyup', {key: 'Enter', code: 'Enter', bubbles: true})); } return {pressedEnter: !!inp};",
+      "note": "Press Enter to confirm rename."
+    },
+    {
+      "stepId": "s36",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for rename to commit and project to auto-save."
+    },
+    {
+      "stepId": "s37",
+      "action": "js",
+      "code": "document.dispatchEvent(new KeyboardEvent('keydown', {key: 's', code: 'KeyS', metaKey: true, bubbles: true, cancelable: true})); return {triggered: true};",
+      "note": "Trigger Cmd+S to force save. GAS editor listens for this on the document. Auto-save may have already fired."
+    },
+    {
+      "stepId": "s38",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s39",
+      "action": "perceive",
+      "store_as": "after_rename_save",
+      "note": "Verify project is now titled 'Mike Review Queue' and shows as saved (no unsaved indicator)."
+    },
+    {
+      "_": "PHASE 5 \u2014 Open Deploy Dialog"
+    },
+    {
+      "stepId": "s50",
+      "action": "click_text",
+      "text": "Deploy",
+      "note": "Click the 'Deploy' button in the top-right toolbar. Should open a dropdown menu."
+    },
+    {
+      "stepId": "s51",
+      "action": "delay",
+      "ms": 1000
+    },
+    {
+      "stepId": "s52",
+      "action": "perceive",
+      "store_as": "deploy_dropdown",
+      "note": "Dropdown should show: 'New deployment', 'Manage deployments'. Note exact text for click_text."
+    },
+    {
+      "stepId": "s53",
+      "action": "click_text",
+      "text": "New deployment",
+      "note": "Open the new deployment configuration dialog."
+    },
+    {
+      "stepId": "s54",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for deployment dialog to render fully."
+    },
+    {
+      "stepId": "s55",
+      "action": "perceive",
+      "store_as": "deploy_dialog",
+      "note": "Deployment dialog should show: gear icon + 'Select type', description field, Execute as dropdown, Who has access dropdown."
+    },
+    {
+      "_": "PHASE 6 \u2014 Configure Web App Type"
+    },
+    {
+      "stepId": "s60",
+      "action": "click",
+      "target": "gas-deploy-type-gear",
+      "note": "Click the gear/settings icon next to 'Select type' to open deployment type selector."
+    },
+    {
+      "stepId": "s61",
+      "action": "delay",
+      "ms": 700
+    },
+    {
+      "stepId": "s62",
+      "action": "perceive",
+      "store_as": "deploy_type_menu",
+      "note": "Type selection menu. Should show options: 'Web app', 'API executable', 'Add-on', 'Library'."
+    },
+    {
+      "stepId": "s63",
+      "action": "click_text",
+      "text": "Web app",
+      "note": "Select 'Web app' as deployment type."
+    },
+    {
+      "stepId": "s64",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Dialog reconfigures to show Web app specific fields."
+    },
+    {
+      "stepId": "s65",
+      "action": "perceive",
+      "store_as": "web_app_form",
+      "note": "Verify Web app form loaded. Should show: Description field, Execute as (dropdown), Who has access (dropdown)."
+    },
+    {
+      "_": "PHASE 7 \u2014 Fill Deployment Config"
+    },
+    {
+      "stepId": "s70",
+      "action": "type",
+      "target": "gas-deploy-description",
+      "value": "Mike Review Queue v1",
+      "note": "Fill the deployment description field."
+    },
+    {
+      "stepId": "s71",
+      "action": "delay",
+      "ms": 300
+    },
+    {
+      "stepId": "s72",
+      "action": "click",
+      "target": "gas-execute-as-dropdown",
+      "note": "Open 'Execute as' dropdown. Need to select 'Me (mw@mike-wolf.com)'."
+    },
+    {
+      "stepId": "s73",
+      "action": "delay",
+      "ms": 700
+    },
+    {
+      "stepId": "s74",
+      "action": "click_text",
+      "text": "Me",
+      "note": "Select 'Me (mw@mike-wolf.com)' from Execute as dropdown. Text may be just 'Me' or include email."
+    },
+    {
+      "stepId": "s75",
+      "action": "delay",
+      "ms": 500
+    },
+    {
+      "stepId": "s76",
+      "action": "click",
+      "target": "gas-access-dropdown",
+      "note": "Open 'Who has access' dropdown."
+    },
+    {
+      "stepId": "s77",
+      "action": "delay",
+      "ms": 700
+    },
+    {
+      "stepId": "s78",
+      "action": "perceive",
+      "store_as": "access_dropdown_open",
+      "note": "Check available access options. Should include 'Anyone', 'Only myself', 'Anyone with Google account'."
+    },
+    {
+      "stepId": "s79",
+      "action": "click_text",
+      "text": "Anyone",
+      "note": "Select 'Anyone' (no Google account required). This is what allows unauthenticated POST requests protected by our secret."
+    },
+    {
+      "stepId": "s80",
+      "action": "delay",
+      "ms": 500
+    },
+    {
+      "stepId": "s81",
+      "action": "perceive",
+      "store_as": "before_deploy_click",
+      "note": "Confirm form state before clicking Deploy: type=Web app, description set, Execute as=Me, Access=Anyone."
+    },
+    {
+      "_": "PHASE 8 \u2014 Deploy and Handle Authorization"
+    },
+    {
+      "stepId": "s90",
+      "action": "click_text",
+      "text": "Deploy",
+      "note": "Click the final 'Deploy' button to submit the deployment. May trigger OAuth authorization flow."
+    },
+    {
+      "stepId": "s91",
+      "action": "delay",
+      "ms": 4000,
+      "note": "Wait for either: deployment success dialog, or authorization required screen."
+    },
+    {
+      "stepId": "s92",
+      "action": "perceive",
+      "store_as": "post_deploy_state",
+      "note": "Critical: determine state. (A) 'Deployment complete' / URL shown \u2192 success. (B) 'Authorization required' / 'Review permissions' button \u2192 need auth flow. (C) Error message \u2192 log and fail."
+    },
+    {
+      "stepId": "s93",
+      "action": "js",
+      "code": "const url_match = document.body.innerText.match(/https:\\/\\/script\\.google\\.com\\/macros\\/s\\/[^\\s\"'<>]+\\/exec/); const has_auth_req = document.body.innerText.includes('Authorization required') || document.body.innerText.includes('Review permissions') || document.body.innerText.includes('Authorize access'); const has_url = !!url_match; return {has_url, has_auth_req, url: has_url ? url_match[0] : null, page_text_snippet: document.body.innerText.slice(0, 500)};",
+      "note": "Quick scan: do we have the deployment URL already, or do we need to authorize?"
+    },
+    {
+      "stepId": "s94",
+      "action": "click_text",
+      "text": "Authorize access",
+      "note": "If authorization required: click 'Authorize access' or 'Review permissions' button. Opens OAuth consent popup. Step will silently fail if not needed (deployment already succeeded)."
+    },
+    {
+      "stepId": "s95",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for OAuth popup to open. Chrome may focus the popup as a new tab."
+    },
+    {
+      "stepId": "s96",
+      "action": "perceive",
+      "store_as": "after_auth_click",
+      "note": "Check current state. If popup opened and Chrome focused it, we may now be on accounts.google.com consent page."
+    },
+    {
+      "stepId": "s97",
+      "action": "js",
+      "code": "return {url: window.location.href, isAccounts: window.location.host.includes('accounts.google.com'), hasAllowBtn: !!document.querySelector('#submit_approve_access, [data-value=\"Allow\"], button[jsname*=\"allow\"]'), bodySnippet: document.body.innerText.slice(0, 300)};",
+      "note": "Detect if we're in the OAuth consent popup (accounts.google.com). If so, look for Allow button."
+    },
+    {
+      "stepId": "s98",
+      "action": "click_text",
+      "text": "Allow",
+      "note": "Click 'Allow' on the Google OAuth consent page (if we're there). Grants DocumentApp scope to the script."
+    },
+    {
+      "stepId": "s99",
+      "action": "delay",
+      "ms": 4000,
+      "note": "Wait for OAuth to complete and popup to close / redirect back to script.google.com deployment dialog."
+    },
+    {
+      "stepId": "s100",
+      "action": "perceive",
+      "store_as": "post_auth_state",
+      "note": "Check state post-authorization. Should now show deployment success dialog with Web app URL."
+    },
+    {
+      "_": "PHASE 9 \u2014 Capture Deployment URL"
+    },
+    {
+      "stepId": "s110",
+      "action": "js",
+      "code": "const url_match = document.body.innerText.match(/https:\\/\\/script\\.google\\.com\\/macros\\/s\\/[^\\s\"'<>]+\\/exec/); const inp = document.querySelector('input[value*=\"macros/s\"]'); const link = document.querySelector('a[href*=\"macros/s\"]'); return {url_from_text: url_match ? url_match[0] : null, url_from_input: inp ? inp.value : null, url_from_link: link ? link.href : null, full_body: document.body.innerText.slice(0, 1000)};",
+      "note": "Capture the Web app URL via multiple methods. At least one should return the exec URL."
+    },
+    {
+      "stepId": "s111",
+      "action": "read",
+      "candidates": [
+        "input[readonly][value*='macros']",
+        "input[value*='exec']",
+        "a[href*='macros/s']",
+        "[aria-label*='URL'] input",
+        ".deploy-url"
+      ],
+      "store_as": "deploy_url_text",
+      "note": "Read URL from dialog UI elements. Backup for js step s110."
+    },
+    {
+      "stepId": "s112",
+      "action": "perceive",
+      "store_as": "final_state",
+      "note": "Final snapshot of deployment success dialog. Should clearly show the Web app URL. Note exact URL for storage in secrets.yaml."
+    }
+  ],
+  "abstractTargets": {
+    "gas-project-title": {
+      "description": "Inline editable project title input at the top of the Apps Script editor",
+      "cachedSelector": "input[aria-label*='project name'], input[placeholder*='project'], .script-title-name input, [data-title] input",
+      "cachedConfidence": 0.5,
+      "resolvedOn": null,
+      "resolveHint": "After clicking the 'Untitled project' title text, it becomes an editable input. Look for input elements near the top navigation bar area containing the current project name."
+    },
+    "gas-deploy-type-gear": {
+      "description": "Gear/settings icon in the New Deployment dialog to select deployment type",
+      "cachedSelector": "button[aria-label*='type'], button[aria-label*='gear'], button[aria-label*='settings'], .deploy-type-select button, [class*='configure'] button",
+      "cachedConfidence": 0.4,
+      "resolvedOn": null,
+      "resolveHint": "In the New Deployment dialog, there is a gear/settings icon before or after 'Select type' text. Clicking it opens a dropdown with deployment type options (Web app, API executable, etc.)."
+    },
+    "gas-deploy-description": {
+      "description": "Description text field in the New Deployment dialog",
+      "cachedSelector": "input[aria-label*='Description'], input[placeholder*='description'], textarea[aria-label*='Description'], [data-field='description'] input",
+      "cachedConfidence": 0.6,
+      "resolvedOn": null,
+      "resolveHint": "First text input in the deployment configuration form. Label says 'Description'."
+    },
+    "gas-execute-as-dropdown": {
+      "description": "Execute as dropdown in the New Deployment dialog",
+      "cachedSelector": "select[aria-label*='Execute'], [aria-label*='Execute as'], [data-field='executeAs'] select, mat-select[aria-label*='execute']",
+      "cachedConfidence": 0.55,
+      "resolvedOn": null,
+      "resolveHint": "Dropdown labeled 'Execute as' with options: 'Me (email@domain.com)' and 'User accessing the web app'."
+    },
+    "gas-access-dropdown": {
+      "description": "Who has access dropdown in the New Deployment dialog",
+      "cachedSelector": "select[aria-label*='access'], [aria-label*='Who has access'], [data-field='access'] select, mat-select[aria-label*='access']",
+      "cachedConfidence": 0.55,
+      "resolvedOn": null,
+      "resolveHint": "Dropdown labeled 'Who has access' with options: 'Only myself', 'Anyone with Google account', 'Anyone'."
+    }
+  },
+  "stateGraph": {
+    "initial": "gas-home",
+    "states": {
+      "gas-home": {
+        "description": "Apps Script home page, showing project list",
+        "transitions": {
+          "click New project": "editor-loading"
+        }
+      },
+      "editor-loading": {
+        "description": "New project created, editor loading Monaco",
+        "transitions": {
+          "Monaco loaded": "editor-ready"
+        }
+      },
+      "editor-ready": {
+        "description": "Editor ready with Code.gs tab and starter code. Monaco available.",
+        "transitions": {
+          "inject code + rename + save": "project-saved"
+        }
+      },
+      "project-saved": {
+        "description": "Project named 'Mike Review Queue', source code injected and saved",
+        "transitions": {
+          "click Deploy > New deployment": "deploy-dialog"
+        }
+      },
+      "deploy-dialog": {
+        "description": "New Deployment dialog open. Type=Web app, Description, Execute as, Who has access fields visible.",
+        "transitions": {
+          "click Deploy": "auth-required-or-success"
+        }
+      },
+      "auth-required": {
+        "description": "Authorization Required screen shown. Script needs DocumentApp scope.",
+        "transitions": {
+          "click Authorize access": "oauth-popup",
+          "auto-proceed": "deploy-success"
+        }
+      },
+      "oauth-popup": {
+        "description": "accounts.google.com consent page for DocumentApp scope",
+        "transitions": {
+          "click Allow": "deploy-success"
+        }
+      },
+      "deploy-success": {
+        "description": "Deployment complete. Web app URL displayed in dialog.",
+        "transitions": {}
+      }
+    }
+  }
+}

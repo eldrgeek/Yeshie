@@ -1,0 +1,23 @@
+{
+  "_meta": {
+    "task": "extract-song",
+    "description": "Extract the song spec (TITLE / STYLE / LYRICS) from the current chat AFTER ensuring the turn has completed. Reads the assistant's formatted reply; the calling workflow parses the three fields.",
+    "auth": { "type": "claude_session" },
+    "params": {},
+    "notes": {
+      "completion-guard": "s1 waits for data-is-streaming='false' so we never read a half-streamed reply.",
+      "parsing": "song_spec is the raw reply text. Parse with: TITLE -> /TITLE:\\s*(.+)/i, STYLE -> /STYLE:\\s*(.+)/i, LYRICS -> everything after the first 'LYRICS:'. Verified to parse cleanly from the structured reply.",
+      "scope": "Reads the FIRST .standard-markdown (correct for a one-shot song conversation). For multi-turn chats, target the last assistant message instead."
+    },
+    "risk": "safe (read-only)",
+    "verified": "2026-06-18"
+  },
+  "runId": "claude-extract-song-{{timestamp}}",
+  "mode": "verification",
+  "site": "claude.ai",
+  "params": {},
+  "chain": [
+    { "stepId": "s1", "action": "wait_for", "selector": "[data-is-streaming=\"false\"]", "timeout": 90000, "note": "ensure the turn has completed" },
+    { "stepId": "s2", "action": "read", "candidates": [".standard-markdown"], "store_as": "song_spec" }
+  ]
+}

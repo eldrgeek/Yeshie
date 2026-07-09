@@ -1,0 +1,25 @@
+{
+  "_meta": {
+    "task": "create-workspace",
+    "description": "Create a new Suno workspace with the given name. Suno creates an 'Untitled' workspace immediately and drops it into an inline rename field; this recipe types the name there and confirms.",
+    "auth": { "type": "suno_session", "note": "Requires being logged into suno.com" },
+    "params": {
+      "workspace_name": { "required": true, "description": "Name for the new workspace" }
+    },
+    "risk": "creates a workspace (reversible — can be archived/renamed)",
+    "verified": "2026-06-18 — flow confirmed live (created 'Yeshie Sandbox')"
+  },
+  "runId": "suno-create-workspace-{{timestamp}}",
+  "mode": "verification",
+  "site": "suno.com",
+  "params": { "workspace_name": "{{workspace_name}}" },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://suno.com/create" },
+    { "stepId": "s2", "action": "wait_for", "selector": "textarea[data-testid=\"lyrics-textarea\"]", "timeout": 10000, "note": "create page ready" },
+    { "stepId": "s3", "action": "click_text", "text": "Create New Workspace", "note": "creates an Untitled workspace + opens inline rename" },
+    { "stepId": "s4", "action": "wait_for", "selector": "input[placeholder=\"Untitled\"]", "timeout": 6000, "note": "inline rename field" },
+    { "stepId": "s5", "action": "type", "selector": "input[placeholder=\"Untitled\"]", "value": "{{workspace_name}}" },
+    { "stepId": "s6", "action": "key", "key": "Enter", "note": "confirm the name" },
+    { "stepId": "s7", "action": "read", "store_as": "workspaces", "note": "snapshot — new workspace should appear in the list" }
+  ]
+}

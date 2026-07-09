@@ -1,0 +1,895 @@
+{
+  "_meta": {
+    "name": "gcp-oauth-setup",
+    "site": "console.cloud.google.com",
+    "description": "Set up Google OAuth 2.0 Desktop Client ID for the SOMA stack. Phases: (1) select/create soma-stack project, (2) configure OAuth consent screen (Internal, SOMA Stack app), (3) enable six required APIs, (4) create Desktop app OAuth client named SOMA Desktop Client, (5) trigger JSON download. Idempotent: detects existing consent screen and credential before creating.",
+    "version": "1.0.0",
+    "verified": false,
+    "verifiedDate": null,
+    "anomalies": [
+      "GCP Console is an Angular SPA — each page navigation needs 3-5s delay to fully render",
+      "Project picker opens as an overlay modal; URL does not change when it opens",
+      "After selecting a project the URL gains ?project=PROJECT_ID — subsequent navigations use GCP's session state (cookie) so explicit project param is not required",
+      "OAuth consent screen URL: new path is /auth/consent, older path is /apis/credentials/consent — both redirect correctly",
+      "API ENABLE button text may be 'Enable' or 'ENABLE' depending on UI version — using click_text which is case-insensitive",
+      "If an API is already enabled the page shows a 'Manage' button instead; click_text 'Enable' will log a not-found error but the chain can continue",
+      "Scope picker: 'Add or Remove Scopes' opens a dialog with a 'Manually add scopes' textarea at the bottom — paste all URIs newline-separated then click 'Add to Table', then 'Update'",
+      "Credential download saves to ~/Downloads/ as client_secret_<CLIENTID>.apps.googleusercontent.com.json — must be mv'd to target path after skill runs",
+      "After clicking CREATE for the OAuth client ID, a dialog shows the client ID/secret and a DOWNLOAD JSON button — that dialog is step s94",
+      "GCP may show a 'Getting started' wizard on first project visit — click 'DISMISS' or navigate away"
+    ],
+    "prerequisite": "Chrome session logged in as mw@mike-wolf.com with access to a Google Workspace org (mike-wolf.com)"
+  },
+  "params": {
+    "credentials_path": "~/Projects/Sidekick/state/google-credentials.json",
+    "app_name": "SOMA Stack",
+    "support_email": "mw@mike-wolf.com",
+    "developer_email": "mw@mike-wolf.com",
+    "client_name": "SOMA Desktop Client",
+    "preferred_project_name": "Sidekick",
+    "fallback_project_name": "soma",
+    "new_project_name": "soma-stack"
+  },
+  "chain": [
+    {
+      "stepId": "s01",
+      "action": "navigate",
+      "url": "https://console.cloud.google.com",
+      "note": "Landing page. GCP will redirect to last known project or show project selector."
+    },
+    {
+      "stepId": "s02",
+      "action": "delay",
+      "ms": 4000,
+      "note": "Wait for Angular SPA to bootstrap and load session state."
+    },
+    {
+      "stepId": "s03",
+      "action": "perceive",
+      "store_as": "landing_state",
+      "note": "Detect current state: is a project selected? Which one? Look for project name in header."
+    },
+
+    {"_": "PHASE 1 — Project Selection/Creation"},
+
+    {
+      "stepId": "s10",
+      "action": "click",
+      "target": "project-picker-btn",
+      "note": "Open the project picker overlay. The button text is the current project name or 'Select a project'."
+    },
+    {
+      "stepId": "s11",
+      "action": "delay",
+      "ms": 2500,
+      "note": "Wait for project picker modal to fully render."
+    },
+    {
+      "stepId": "s12",
+      "action": "perceive",
+      "store_as": "project_picker_state",
+      "note": "Verify picker is open. Look for search box and project list."
+    },
+    {
+      "stepId": "s13",
+      "action": "type",
+      "target": "project-picker-search",
+      "value": "{{preferred_project_name}}",
+      "note": "Search for 'Sidekick' project."
+    },
+    {
+      "stepId": "s14",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Wait for search results to populate."
+    },
+    {
+      "stepId": "s15",
+      "action": "perceive",
+      "store_as": "search_results_state",
+      "note": "Inspect results. Look for a row with 'Sidekick' project name."
+    },
+    {
+      "stepId": "s16",
+      "action": "read",
+      "candidates": [
+        "[data-project-id]",
+        "li[role='option'] span",
+        ".p6n-resource-chooser-panel-row-name",
+        "td.cfc-breadcrumb-resource-name"
+      ],
+      "store_as": "sidekick_project_row",
+      "note": "Read project name from search results. Empty if no match."
+    },
+    {
+      "stepId": "s17",
+      "action": "click_text",
+      "text": "{{preferred_project_name}}",
+      "condition": "{{sidekick_project_row}}",
+      "note": "Click 'Sidekick' row if found. Skipped if search returned no results."
+    },
+    {
+      "stepId": "s18",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Pause before fallback search in case s17 was skipped."
+    },
+
+    {
+      "stepId": "s20",
+      "action": "type",
+      "target": "project-picker-search",
+      "value": "{{fallback_project_name}}",
+      "condition": "{{_search_soma}}",
+      "note": "Search for 'soma' if Sidekick not found. Controlled by _search_soma param — set to 'true' if preferred_project_name search failed. In practice, if picker is still open (s17 was skipped), this re-searches."
+    },
+    {
+      "stepId": "s21",
+      "action": "delay",
+      "ms": 1500,
+      "condition": "{{_search_soma}}"
+    },
+    {
+      "stepId": "s22",
+      "action": "perceive",
+      "store_as": "soma_search_results",
+      "note": "Check if any SOMA-named project appears in results."
+    },
+
+    {
+      "stepId": "s25",
+      "action": "perceive",
+      "store_as": "post_project_state",
+      "note": "Verify project was selected (picker closed, project name appears in header). If picker is still open, proceed to project creation steps."
+    },
+
+    {"_": "PHASE 1B — New Project Creation (if no matching project found)"},
+
+    {
+      "stepId": "s30",
+      "action": "navigate",
+      "url": "https://console.cloud.google.com/projectcreate",
+      "condition": "{{_needs_new_project}}",
+      "note": "Navigate to project creation page. Set _needs_new_project='true' as param if Sidekick and soma search both failed."
+    },
+    {
+      "stepId": "s31",
+      "action": "delay",
+      "ms": 3000,
+      "condition": "{{_needs_new_project}}"
+    },
+    {
+      "stepId": "s32",
+      "action": "perceive",
+      "store_as": "create_project_state",
+      "condition": "{{_needs_new_project}}",
+      "note": "Verify project creation form loaded."
+    },
+    {
+      "stepId": "s33",
+      "action": "type",
+      "target": "new-project-name",
+      "value": "{{new_project_name}}",
+      "condition": "{{_needs_new_project}}",
+      "note": "Type 'soma-stack' into the Project name field."
+    },
+    {
+      "stepId": "s34",
+      "action": "delay",
+      "ms": 1000,
+      "condition": "{{_needs_new_project}}",
+      "note": "Wait for project ID to auto-populate from name."
+    },
+    {
+      "stepId": "s35",
+      "action": "perceive",
+      "store_as": "project_id_preview",
+      "condition": "{{_needs_new_project}}",
+      "note": "Note the generated project ID (shown below the name field) — you may need it for debugging."
+    },
+    {
+      "stepId": "s36",
+      "action": "click_text",
+      "text": "CREATE",
+      "condition": "{{_needs_new_project}}",
+      "note": "Submit project creation."
+    },
+    {
+      "stepId": "s37",
+      "action": "delay",
+      "ms": 8000,
+      "condition": "{{_needs_new_project}}",
+      "note": "Project creation takes 5-10s. Wait for redirect back to console."
+    },
+    {
+      "stepId": "s38",
+      "action": "perceive",
+      "store_as": "after_project_create",
+      "condition": "{{_needs_new_project}}",
+      "note": "Confirm new project is now selected in header."
+    },
+
+    {"_": "PHASE 2 — OAuth Consent Screen"},
+
+    {
+      "stepId": "s40",
+      "action": "navigate",
+      "url": "https://console.cloud.google.com/auth/consent",
+      "note": "Navigate to OAuth consent screen. GCP will append current project automatically."
+    },
+    {
+      "stepId": "s41",
+      "action": "delay",
+      "ms": 4000,
+      "note": "Wait for consent screen page to render."
+    },
+    {
+      "stepId": "s42",
+      "action": "perceive",
+      "store_as": "consent_screen_state",
+      "note": "Detect state: (A) 'Get started' with user type choices = fresh setup needed. (B) 'SOMA Stack' app name visible = already configured, skip to s60."
+    },
+    {
+      "stepId": "s43",
+      "action": "read",
+      "candidates": [
+        "[aria-label*='App name']",
+        "input[id*='app-name']",
+        ".cfc-consent-screen-app-name",
+        "h1"
+      ],
+      "store_as": "existing_app_name",
+      "note": "Read existing app name if consent screen already configured. If 'SOMA Stack' found, skip creation steps."
+    },
+    {
+      "stepId": "s44",
+      "action": "perceive",
+      "store_as": "consent_user_type_state",
+      "note": "Check if user type selection screen is shown (Internal/External radio buttons)."
+    },
+    {
+      "stepId": "s45",
+      "action": "click",
+      "target": "consent-internal-radio",
+      "note": "Select 'Internal' user type (mike-wolf.com is a Workspace org). If already past this screen, this step will fail and chain continues."
+    },
+    {
+      "stepId": "s46",
+      "action": "delay",
+      "ms": 500
+    },
+    {
+      "stepId": "s47",
+      "action": "click_text",
+      "text": "GET STARTED",
+      "note": "Proceed to consent screen form. May also appear as 'Create' or 'Next'."
+    },
+    {
+      "stepId": "s48",
+      "action": "delay",
+      "ms": 3000,
+      "note": "Wait for consent screen form to load."
+    },
+    {
+      "stepId": "s49",
+      "action": "perceive",
+      "store_as": "consent_form_state",
+      "note": "Verify app info form is loaded. Look for 'App name' field, 'User support email' dropdown."
+    },
+
+    {
+      "stepId": "s50",
+      "action": "type",
+      "target": "consent-app-name",
+      "value": "{{app_name}}",
+      "note": "Type 'SOMA Stack' into App name field."
+    },
+    {
+      "stepId": "s51",
+      "action": "delay",
+      "ms": 500
+    },
+    {
+      "stepId": "s52",
+      "action": "click",
+      "target": "consent-support-email",
+      "note": "Open the user support email dropdown. GCP auto-populates with org emails."
+    },
+    {
+      "stepId": "s53",
+      "action": "delay",
+      "ms": 1000
+    },
+    {
+      "stepId": "s54",
+      "action": "click_text",
+      "text": "{{support_email}}",
+      "note": "Select mw@mike-wolf.com from support email dropdown. If not in list, close dropdown and use type action instead."
+    },
+    {
+      "stepId": "s55",
+      "action": "delay",
+      "ms": 500
+    },
+    {
+      "stepId": "s56",
+      "action": "type",
+      "target": "consent-developer-email",
+      "value": "{{developer_email}}",
+      "note": "Type developer contact email. This is the bottom-most required field."
+    },
+    {
+      "stepId": "s57",
+      "action": "delay",
+      "ms": 500
+    },
+    {
+      "stepId": "s58",
+      "action": "click_text",
+      "text": "SAVE AND CONTINUE",
+      "note": "Proceed to Scopes page (step 2 of consent screen wizard)."
+    },
+    {
+      "stepId": "s59",
+      "action": "delay",
+      "ms": 3000,
+      "note": "Wait for Scopes page to load."
+    },
+
+    {"_": "PHASE 2B — Add OAuth Scopes"},
+
+    {
+      "stepId": "s60",
+      "action": "perceive",
+      "store_as": "scopes_page_state",
+      "note": "Verify Scopes page loaded. Look for 'Add or Remove Scopes' button and scope table."
+    },
+    {
+      "stepId": "s61",
+      "action": "click_text",
+      "text": "ADD OR REMOVE SCOPES",
+      "note": "Open the scope selection dialog. May also appear as 'Add or Remove Scopes' (mixed case)."
+    },
+    {
+      "stepId": "s62",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for scope dialog to open."
+    },
+    {
+      "stepId": "s63",
+      "action": "perceive",
+      "store_as": "scope_dialog_state",
+      "note": "Scope dialog open. Look for 'Manually add scopes' textarea at the bottom of the dialog."
+    },
+    {
+      "stepId": "s64",
+      "action": "scroll",
+      "target": "scope-manual-textarea",
+      "note": "Scroll to the 'Manually add scopes' section at the bottom of the scope dialog."
+    },
+    {
+      "stepId": "s65",
+      "action": "type",
+      "target": "scope-manual-textarea",
+      "value": "https://www.googleapis.com/auth/drive\nhttps://www.googleapis.com/auth/documents\nhttps://www.googleapis.com/auth/calendar.readonly\nhttps://www.googleapis.com/auth/contacts.readonly\nhttps://www.googleapis.com/auth/gmail.modify\nhttps://www.googleapis.com/auth/spreadsheets",
+      "note": "Paste all six scope URIs newline-separated into the manual scopes textarea."
+    },
+    {
+      "stepId": "s66",
+      "action": "delay",
+      "ms": 500
+    },
+    {
+      "stepId": "s67",
+      "action": "click_text",
+      "text": "ADD TO TABLE",
+      "note": "Add the manually entered scopes to the selection table."
+    },
+    {
+      "stepId": "s68",
+      "action": "delay",
+      "ms": 1500
+    },
+    {
+      "stepId": "s69",
+      "action": "perceive",
+      "store_as": "scopes_added_state",
+      "note": "Verify all 6 scopes appear in the table with checkboxes checked."
+    },
+    {
+      "stepId": "s70",
+      "action": "click_text",
+      "text": "UPDATE",
+      "note": "Confirm scope selection and close the dialog."
+    },
+    {
+      "stepId": "s71",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s72",
+      "action": "click_text",
+      "text": "SAVE AND CONTINUE",
+      "note": "Proceed to Test Users page (step 3). For Internal apps, test users are not required."
+    },
+    {
+      "stepId": "s73",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s74",
+      "action": "click_text",
+      "text": "SAVE AND CONTINUE",
+      "note": "Proceed through Test Users page (no test users needed for Internal app). May land on Summary page."
+    },
+    {
+      "stepId": "s75",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s76",
+      "action": "perceive",
+      "store_as": "consent_summary_state",
+      "note": "Verify consent screen is fully configured. Should show Summary page or redirect to consent screen overview."
+    },
+
+    {"_": "PHASE 3 — Enable Required APIs"},
+
+    {
+      "stepId": "s80",
+      "action": "navigate",
+      "url": "https://console.cloud.google.com/apis/library/drive.googleapis.com",
+      "note": "Google Drive API detail page."
+    },
+    {
+      "stepId": "s81",
+      "action": "delay",
+      "ms": 3500
+    },
+    {
+      "stepId": "s82",
+      "action": "perceive",
+      "store_as": "drive_api_state",
+      "note": "Check for 'Enable' button (not yet enabled) vs 'Manage' (already enabled)."
+    },
+    {
+      "stepId": "s83",
+      "action": "click_text",
+      "text": "Enable",
+      "note": "Enable Drive API. If already enabled (shows 'Manage'), this click will fail — that is safe, chain continues."
+    },
+    {
+      "stepId": "s84",
+      "action": "delay",
+      "ms": 3000,
+      "note": "Wait for enablement to complete and redirect."
+    },
+
+    {
+      "stepId": "s85",
+      "action": "navigate",
+      "url": "https://console.cloud.google.com/apis/library/docs.googleapis.com",
+      "note": "Google Docs API."
+    },
+    {
+      "stepId": "s86",
+      "action": "delay",
+      "ms": 3500
+    },
+    {
+      "stepId": "s87",
+      "action": "perceive",
+      "store_as": "docs_api_state"
+    },
+    {
+      "stepId": "s88",
+      "action": "click_text",
+      "text": "Enable",
+      "note": "Enable Docs API."
+    },
+    {
+      "stepId": "s89",
+      "action": "delay",
+      "ms": 3000
+    },
+
+    {
+      "stepId": "s90",
+      "action": "navigate",
+      "url": "https://console.cloud.google.com/apis/library/calendar-json.googleapis.com",
+      "note": "Google Calendar API."
+    },
+    {
+      "stepId": "s91",
+      "action": "delay",
+      "ms": 3500
+    },
+    {
+      "stepId": "s92",
+      "action": "perceive",
+      "store_as": "calendar_api_state"
+    },
+    {
+      "stepId": "s93",
+      "action": "click_text",
+      "text": "Enable",
+      "note": "Enable Calendar API."
+    },
+    {
+      "stepId": "s94",
+      "action": "delay",
+      "ms": 3000
+    },
+
+    {
+      "stepId": "s95",
+      "action": "navigate",
+      "url": "https://console.cloud.google.com/apis/library/people.googleapis.com",
+      "note": "Google People API."
+    },
+    {
+      "stepId": "s96",
+      "action": "delay",
+      "ms": 3500
+    },
+    {
+      "stepId": "s97",
+      "action": "perceive",
+      "store_as": "people_api_state"
+    },
+    {
+      "stepId": "s98",
+      "action": "click_text",
+      "text": "Enable",
+      "note": "Enable People API."
+    },
+    {
+      "stepId": "s99",
+      "action": "delay",
+      "ms": 3000
+    },
+
+    {
+      "stepId": "s100",
+      "action": "navigate",
+      "url": "https://console.cloud.google.com/apis/library/gmail.googleapis.com",
+      "note": "Gmail API."
+    },
+    {
+      "stepId": "s101",
+      "action": "delay",
+      "ms": 3500
+    },
+    {
+      "stepId": "s102",
+      "action": "perceive",
+      "store_as": "gmail_api_state"
+    },
+    {
+      "stepId": "s103",
+      "action": "click_text",
+      "text": "Enable",
+      "note": "Enable Gmail API."
+    },
+    {
+      "stepId": "s104",
+      "action": "delay",
+      "ms": 3000
+    },
+
+    {
+      "stepId": "s105",
+      "action": "navigate",
+      "url": "https://console.cloud.google.com/apis/library/sheets.googleapis.com",
+      "note": "Google Sheets API."
+    },
+    {
+      "stepId": "s106",
+      "action": "delay",
+      "ms": 3500
+    },
+    {
+      "stepId": "s107",
+      "action": "perceive",
+      "store_as": "sheets_api_state"
+    },
+    {
+      "stepId": "s108",
+      "action": "click_text",
+      "text": "Enable",
+      "note": "Enable Sheets API."
+    },
+    {
+      "stepId": "s109",
+      "action": "delay",
+      "ms": 3000
+    },
+
+    {"_": "PHASE 4 — Create OAuth 2.0 Client Credential"},
+
+    {
+      "stepId": "s110",
+      "action": "navigate",
+      "url": "https://console.cloud.google.com/apis/credentials",
+      "note": "Credentials dashboard."
+    },
+    {
+      "stepId": "s111",
+      "action": "delay",
+      "ms": 4000
+    },
+    {
+      "stepId": "s112",
+      "action": "perceive",
+      "store_as": "credentials_list_state",
+      "note": "Look for existing 'SOMA Desktop Client' in the OAuth 2.0 Client IDs table. If found, note it and skip creation."
+    },
+    {
+      "stepId": "s113",
+      "action": "read",
+      "candidates": [
+        "td",
+        ".cfc-resource-id-cell",
+        "[data-resource-name]",
+        "table td:nth-child(2)"
+      ],
+      "store_as": "credentials_table_text",
+      "note": "Read credentials table. If 'SOMA Desktop Client' appears in result, set credential_exists logic. In practice, perceive s112 is the reliable gate."
+    },
+
+    {
+      "stepId": "s114",
+      "action": "click_text",
+      "text": "CREATE CREDENTIALS",
+      "note": "Click '+ CREATE CREDENTIALS' dropdown button. If SOMA Desktop Client already exists (detected via perceive s112), this step should be skipped manually or the chain stopped before here."
+    },
+    {
+      "stepId": "s115",
+      "action": "delay",
+      "ms": 1000,
+      "note": "Wait for dropdown menu."
+    },
+    {
+      "stepId": "s116",
+      "action": "click_text",
+      "text": "OAuth client ID",
+      "note": "Select 'OAuth client ID' from the dropdown menu."
+    },
+    {
+      "stepId": "s117",
+      "action": "delay",
+      "ms": 3000,
+      "note": "Wait for OAuth client creation form."
+    },
+    {
+      "stepId": "s118",
+      "action": "perceive",
+      "store_as": "oauth_client_form_state",
+      "note": "Verify form loaded. Look for 'Application type' dropdown and 'Name' field."
+    },
+    {
+      "stepId": "s119",
+      "action": "click",
+      "target": "oauth-app-type-select",
+      "note": "Open Application type dropdown."
+    },
+    {
+      "stepId": "s120",
+      "action": "delay",
+      "ms": 1000
+    },
+    {
+      "stepId": "s121",
+      "action": "click_text",
+      "text": "Desktop app",
+      "note": "Select 'Desktop app' as the application type."
+    },
+    {
+      "stepId": "s122",
+      "action": "delay",
+      "ms": 1000
+    },
+    {
+      "stepId": "s123",
+      "action": "type",
+      "target": "oauth-client-name",
+      "value": "{{client_name}}",
+      "note": "Clear the default name and type 'SOMA Desktop Client'."
+    },
+    {
+      "stepId": "s124",
+      "action": "delay",
+      "ms": 500
+    },
+    {
+      "stepId": "s125",
+      "action": "click_text",
+      "text": "CREATE",
+      "note": "Submit the OAuth client creation form."
+    },
+    {
+      "stepId": "s126",
+      "action": "delay",
+      "ms": 3000,
+      "note": "Wait for creation to complete and dialog to appear."
+    },
+
+    {"_": "PHASE 5 — Download Credentials JSON"},
+
+    {
+      "stepId": "s130",
+      "action": "perceive",
+      "store_as": "credential_created_state",
+      "note": "A dialog should appear showing 'Your client ID', 'Your client secret', and a DOWNLOAD JSON button."
+    },
+    {
+      "stepId": "s131",
+      "action": "click_text",
+      "text": "DOWNLOAD JSON",
+      "note": "Trigger JSON download. File saves to ~/Downloads/ as client_secret_CLIENTID.apps.googleusercontent.com.json."
+    },
+    {
+      "stepId": "s132",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Wait for download to start."
+    },
+    {
+      "stepId": "s133",
+      "action": "click_text",
+      "text": "OK",
+      "note": "Close the credential creation dialog."
+    },
+    {
+      "stepId": "s134",
+      "action": "delay",
+      "ms": 1500
+    },
+
+    {"_": "PHASE 6 — Manifest"},
+
+    {
+      "stepId": "s140",
+      "action": "perceive",
+      "store_as": "final_credentials_page",
+      "note": "Final state: credentials page should show 'SOMA Desktop Client' in the OAuth 2.0 Client IDs table."
+    },
+    {
+      "stepId": "s141",
+      "action": "read",
+      "candidates": [
+        "h1",
+        "[aria-label='Credentials']",
+        ".cfc-breadcrumb-last"
+      ],
+      "store_as": "page_title",
+      "note": "Confirm we are on the Credentials page."
+    },
+    {
+      "stepId": "s142",
+      "action": "perceive",
+      "store_as": "manifest",
+      "note": "MANIFEST: Final snapshot. The credentials JSON was downloaded to ~/Downloads/client_secret_*.json. Move it with: mv ~/Downloads/client_secret_*.json {{credentials_path}}. Then run: md-to-gdoc auth && sidekick auth"
+    }
+  ],
+  "abstractTargets": {
+    "project-picker-btn": {
+      "description": "Project picker button in GCP Console header — shows current project name or 'Select a project'",
+      "cachedSelector": "button[aria-label*='Select'], .cfc-switch-button, [data-gauntlet='project-selector-link'], header button[class*='project']",
+      "cachedConfidence": 0.6,
+      "resolvedOn": null,
+      "resolveHint": "Look for a button in the top navigation bar containing a project name or dropdown caret. In recent GCP UI, class includes 'cfc-switch-button' or the aria-label contains 'Select a project'. Text content is the current project name.",
+      "fallbackSelectors": [
+        "[aria-label='Select a project']",
+        "button[data-project-display-name]",
+        ".docs-homescreen-gb-project-selector"
+      ]
+    },
+    "project-picker-search": {
+      "description": "Search input in the project picker modal dialog",
+      "cachedSelector": "input[aria-label='Search projects and folders'], input[placeholder*='Search'], .p6n-autofocus-tb",
+      "cachedConfidence": 0.7,
+      "resolvedOn": null,
+      "resolveHint": "After the project picker overlay opens, a search box appears near the top of the dialog. aria-label is typically 'Search projects and folders'."
+    },
+    "new-project-name": {
+      "description": "Project name input on the Create Project page",
+      "cachedSelector": "input[id='p6ntest-name'], input[aria-label='Project name'], input[name='projectName']",
+      "cachedConfidence": 0.7,
+      "resolvedOn": null,
+      "resolveHint": "Form at console.cloud.google.com/projectcreate. The first text input is the project name."
+    },
+    "consent-internal-radio": {
+      "description": "Internal radio button on OAuth consent screen user type selection",
+      "cachedSelector": "input[value='INTERNAL'], mat-radio-button[value='INTERNAL'] input, [aria-label='Internal'] input",
+      "cachedConfidence": 0.65,
+      "resolvedOn": null,
+      "resolveHint": "The consent screen user type page has two radio buttons: Internal and External. 'Internal' limits access to the Workspace org."
+    },
+    "consent-app-name": {
+      "description": "App name text input in OAuth consent screen form",
+      "cachedSelector": "input[aria-label='App name *'], input[id*='app-name'], mat-form-field:first-child input",
+      "cachedConfidence": 0.65,
+      "resolvedOn": null,
+      "resolveHint": "First required field in the OAuth consent screen app information form."
+    },
+    "consent-support-email": {
+      "description": "User support email dropdown in consent screen form",
+      "cachedSelector": "mat-select[aria-label*='support email'], [formcontrolname='supportEmail'] mat-select",
+      "cachedConfidence": 0.6,
+      "resolvedOn": null,
+      "resolveHint": "A dropdown (not text input) populated with emails from the Workspace org."
+    },
+    "consent-developer-email": {
+      "description": "Developer contact email input in consent screen form",
+      "cachedSelector": "input[aria-label*='developer'], input[aria-label*='contact'], [formcontrolname*='email']:last-of-type input",
+      "cachedConfidence": 0.6,
+      "resolvedOn": null,
+      "resolveHint": "Last email field in the consent form. May be a chip-input where you type an email and press Enter."
+    },
+    "scope-manual-textarea": {
+      "description": "Manually add scopes textarea in the scope picker dialog",
+      "cachedSelector": "textarea[aria-label*='scope'], textarea[placeholder*='scope'], .cfc-scope-manual-input textarea",
+      "cachedConfidence": 0.55,
+      "resolvedOn": null,
+      "resolveHint": "Bottom section of the scope picker dialog labeled 'Manually add scopes'. A multiline textarea that accepts scope URIs one per line."
+    },
+    "oauth-app-type-select": {
+      "description": "Application type dropdown on OAuth client ID creation form",
+      "cachedSelector": "mat-select[aria-label*='Application type'], [formcontrolname='applicationType'] mat-select",
+      "cachedConfidence": 0.65,
+      "resolvedOn": null,
+      "resolveHint": "First field on the OAuth client ID creation form. Dropdown with options including 'Web application', 'Desktop app', 'Android', etc."
+    },
+    "oauth-client-name": {
+      "description": "Name input field on OAuth client ID creation form",
+      "cachedSelector": "input[aria-label='Name'], input[formcontrolname='name'], mat-form-field:nth-child(2) input",
+      "cachedConfidence": 0.65,
+      "resolvedOn": null,
+      "resolveHint": "Second field on the OAuth client creation form. Pre-populated with 'Desktop client N'. Clear and type 'SOMA Desktop Client'."
+    }
+  },
+  "stateGraph": {
+    "initial": "landing",
+    "states": {
+      "landing": {
+        "description": "GCP Console landing page, project may or may not be selected",
+        "transitions": {
+          "click project picker": "project-picker-open"
+        }
+      },
+      "project-picker-open": {
+        "description": "Project picker overlay is open with search box",
+        "transitions": {
+          "select project": "project-selected",
+          "click New Project": "project-create-form"
+        }
+      },
+      "project-selected": {
+        "description": "A project is active, header shows project name, URL has ?project= param",
+        "transitions": {
+          "navigate to consent": "consent-screen"
+        }
+      },
+      "consent-screen": {
+        "description": "OAuth consent screen page for current project",
+        "transitions": {
+          "configure and save": "apis-page"
+        }
+      },
+      "credentials-page": {
+        "description": "Credentials dashboard showing OAuth client IDs",
+        "transitions": {
+          "create credential": "credential-dialog"
+        }
+      },
+      "credential-dialog": {
+        "description": "Post-creation dialog showing client ID/secret with DOWNLOAD JSON button"
+      }
+    }
+  }
+}

@@ -1,0 +1,229 @@
+{
+  "_meta": {
+    "task": "create-claude-project",
+    "description": "Create a new Claude Project on claude.ai with a given name. Assumes user is already logged in. Returns the new project URL.",
+    "site": "claude.ai",
+    "version": "1.0.0",
+    "verified": true,
+    "verifiedDate": "2026-05-21",
+    "verificationNotes": "Verified 2026-05-21. Navigate URL changed to /projects (New project button only on /projects page, not home). Added button:has-text selector. All 14 steps executed successfully.",
+    "params": {
+      "project_name": {
+        "required": true,
+        "description": "Display name for the new Claude Project",
+        "hint": "Any string, keep under 100 chars"
+      },
+      "project_description": {
+        "required": false,
+        "default": "",
+        "description": "Optional description / instructions shown to Claude in this project"
+      }
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "prerequisite": "user-logged-in-to-claude-ai"
+  },
+  "params": {
+    "project_name": "",
+    "project_description": ""
+  },
+  "abstractTargets": {
+    "new_project_button": {
+      "description": "Button or link in the sidebar to create a new project",
+      "anchors": {
+        "ariaLabel": "New project",
+        "text": "New project"
+      },
+      "fallbackSelectors": [
+        "button:has-text('New project')",
+        "button[aria-label='New project']",
+        "a[aria-label='New project']",
+        "[data-testid='new-project-button']",
+        "button[aria-label*='project']",
+        "nav button[aria-label*='New']"
+      ]
+    },
+    "project_name_input": {
+      "description": "Text input for the project name inside the create-project dialog/sheet",
+      "anchors": {
+        "placeholder": "Project name",
+        "ariaLabel": "Project name"
+      },
+      "fallbackSelectors": [
+        "input[placeholder='Project name']",
+        "input[placeholder*='name']",
+        "input[aria-label='Project name']",
+        "[role='dialog'] input[type='text']",
+        "[role='dialog'] input"
+      ]
+    },
+    "project_instructions_input": {
+      "description": "Textarea for project instructions/description (optional field in create dialog)",
+      "anchors": {
+        "placeholder": "How should Claude approach tasks in this project?",
+        "ariaLabel": "Project instructions"
+      },
+      "fallbackSelectors": [
+        "textarea[placeholder*='approach']",
+        "textarea[placeholder*='instructions']",
+        "textarea[placeholder*='description']",
+        "[role='dialog'] textarea",
+        "[contenteditable='true'][role='textbox']"
+      ]
+    },
+    "create_project_confirm": {
+      "description": "Submit button to confirm project creation",
+      "anchors": {
+        "text": "Create project",
+        "ariaLabel": "Create project"
+      },
+      "fallbackSelectors": [
+        "button[aria-label='Create project']",
+        "button[type='submit']",
+        "[role='dialog'] button:last-of-type",
+        "[role='dialog'] button[aria-label*='Create']"
+      ]
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://claude.ai/projects",
+      "note": "Navigate directly to projects list — New project button is here, not on home"
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Let sidebar and session hydrate"
+    },
+    {
+      "stepId": "s3",
+      "action": "assess_state",
+      "stateGraph": {
+        "nodes": {
+          "auth_required": {
+            "signals": [
+              { "type": "url_matches", "pattern": "claude\\.ai/login" }
+            ]
+          }
+        }
+      },
+      "onMatch": "exit_with_error:auth_required — user must be logged in",
+      "onMismatch": "continue",
+      "note": "Fail fast if redirected to login"
+    },
+    {
+      "stepId": "s4",
+      "action": "perceive",
+      "store_as": "sidebar_state",
+      "note": "Capture page structure so executor can adapt if button label differs"
+    },
+    {
+      "stepId": "s5",
+      "action": "click",
+      "target": "new_project_button",
+      "note": "Click New project in sidebar"
+    },
+    {
+      "stepId": "s6",
+      "action": "delay",
+      "ms": 800,
+      "note": "Wait for dialog/sheet to render"
+    },
+    {
+      "stepId": "s7",
+      "action": "wait_for",
+      "selector": "[role='dialog'], [data-radix-dialog-content], [aria-modal='true']",
+      "state": { "visible": true },
+      "timeout": 8000,
+      "note": "Confirm dialog is open before typing"
+    },
+    {
+      "stepId": "s8",
+      "action": "type",
+      "target": "project_name_input",
+      "value": "{{project_name}}",
+      "note": "Type the project name"
+    },
+    {
+      "stepId": "s9",
+      "action": "type",
+      "target": "project_instructions_input",
+      "value": "{{project_description}}",
+      "condition": "{{project_description}}",
+      "note": "Type description/instructions only if provided"
+    },
+    {
+      "stepId": "s10",
+      "action": "delay",
+      "ms": 300,
+      "note": "Brief pause before submit"
+    },
+    {
+      "stepId": "s11",
+      "action": "click",
+      "target": "create_project_confirm",
+      "responseSignature": [
+        {
+          "type": "url_change",
+          "pattern": "claude\\.ai/project/",
+          "timeout": 10000
+        }
+      ],
+      "note": "Click Create project — expect redirect to /project/<uuid>"
+    },
+    {
+      "stepId": "s12",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Let project page settle"
+    },
+    {
+      "stepId": "s13",
+      "action": "read",
+      "candidates": [
+        "h1",
+        "[aria-label='Project name']",
+        "header h1",
+        "[data-testid='project-title']"
+      ],
+      "store_as": "confirmed_project_name",
+      "note": "Confirm the project name is rendered on the page"
+    },
+    {
+      "stepId": "s14",
+      "action": "perceive",
+      "store_as": "project_page_state",
+      "note": "Capture final project page for URL extraction and downstream tasks"
+    }
+  ],
+  "stateGraph": {
+    "initial": "home",
+    "nodes": {
+      "home": {
+        "description": "claude.ai home page, logged in",
+        "signals": [
+          { "type": "url_matches", "pattern": "claude\\.ai/$|claude\\.ai/new" },
+          { "type": "url_not_matches", "pattern": "/login" }
+        ]
+      },
+      "auth_required": {
+        "description": "User not logged in",
+        "signals": [
+          { "type": "url_matches", "pattern": "claude\\.ai/login" }
+        ]
+      },
+      "project_page": {
+        "description": "Inside a project after creation",
+        "signals": [
+          { "type": "url_matches", "pattern": "claude\\.ai/project/" }
+        ]
+      }
+    }
+  },
+  "site": "claude.ai",
+  "mode": "exploratory"
+}

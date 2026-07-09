@@ -1,0 +1,231 @@
+{
+  "_meta": {
+    "task": "create-draft",
+    "site": "substack.com",
+    "description": "Create a new draft post on a Substack publication. Navigates to the editor, enters title and body, saves as draft. Does NOT publish. Requires an active Substack writer session (run 01-login first if needed).",
+    "params": {
+      "publication_subdomain": {
+        "required": true,
+        "description": "Substack publication subdomain, e.g. 'markinpc' for markinpc.substack.com",
+        "hint": "Just the subdomain, not the full URL"
+      },
+      "title": {
+        "required": true,
+        "description": "Post title"
+      },
+      "body": {
+        "required": true,
+        "description": "Post body content (plain text; will be typed into the editor)"
+      },
+      "subtitle": {
+        "required": false,
+        "default": "",
+        "description": "Optional subtitle / preview text"
+      }
+    },
+    "prereqs": ["01-login.payload.json"],
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null
+  },
+  "site": "substack.com",
+  "mode": "exploratory",
+  "params": {
+    "publication_subdomain": "markinpc",
+    "title": "Test Draft",
+    "body": "This is a test draft body.",
+    "subtitle": ""
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://substack.com/publish/post/new",
+      "note": "Navigate to new post editor"
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 3000,
+      "note": "Allow editor to fully load (React SPA)"
+    },
+    {
+      "stepId": "s3",
+      "action": "assess_state",
+      "stateGraph": {
+        "nodes": {
+          "auth_required": {
+            "signals": [
+              {
+                "type": "url_matches",
+                "pattern": "sign-in|login|/account"
+              }
+            ]
+          },
+          "editor_ready": {
+            "signals": [
+              {
+                "type": "url_matches",
+                "pattern": "substack\\.com/publish/post"
+              }
+            ]
+          }
+        }
+      },
+      "onMatch": {
+        "auth_required": "exit_fail",
+        "editor_ready": "continue"
+      },
+      "note": "If redirected to login, fail — run 01-login.payload.json first"
+    },
+    {
+      "stepId": "s4",
+      "action": "click",
+      "target": "title_input",
+      "note": "Click into title field"
+    },
+    {
+      "stepId": "s5",
+      "action": "delay",
+      "ms": 500
+    },
+    {
+      "stepId": "s6",
+      "action": "type",
+      "target": "title_input",
+      "value": "{{title}}",
+      "note": "Type post title"
+    },
+    {
+      "stepId": "s7",
+      "action": "delay",
+      "ms": 500
+    },
+    {
+      "stepId": "s8",
+      "action": "click",
+      "target": "subtitle_input",
+      "skipIfParamEmpty": "subtitle",
+      "note": "Click subtitle field if subtitle provided"
+    },
+    {
+      "stepId": "s9",
+      "action": "type",
+      "target": "subtitle_input",
+      "value": "{{subtitle}}",
+      "skipIfParamEmpty": "subtitle",
+      "note": "Type subtitle"
+    },
+    {
+      "stepId": "s10",
+      "action": "click",
+      "target": "body_editor",
+      "note": "Click into the main body editor"
+    },
+    {
+      "stepId": "s11",
+      "action": "delay",
+      "ms": 500
+    },
+    {
+      "stepId": "s12",
+      "action": "type",
+      "target": "body_editor",
+      "value": "{{body}}",
+      "note": "Type post body"
+    },
+    {
+      "stepId": "s13",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Allow autosave to trigger"
+    },
+    {
+      "stepId": "s14",
+      "action": "read",
+      "candidates": [
+        "[data-testid='post-status']",
+        ".draft-indicator",
+        "[class*='save']",
+        "[class*='draft']",
+        "header"
+      ],
+      "store_as": "save_status",
+      "note": "Capture save/draft status indicator"
+    },
+    {
+      "stepId": "s15",
+      "action": "read",
+      "candidates": [
+        "window.location.href"
+      ],
+      "store_as": "draft_url",
+      "note": "Capture the URL of the draft post"
+    }
+  ],
+  "abstractTargets": {
+    "title_input": {
+      "description": "Post title input field in Substack editor",
+      "anchors": {
+        "placeholder": "Title",
+        "ariaLabel": "title"
+      },
+      "fallbackSelectors": [
+        "[data-placeholder='Title']",
+        "[aria-label*='title' i]",
+        "h1[contenteditable='true']",
+        "div[data-block-id='title']",
+        "input[placeholder*='Title']",
+        ".titled-editor h1",
+        "[class*='title'] [contenteditable]"
+      ]
+    },
+    "subtitle_input": {
+      "description": "Post subtitle / preview text field in Substack editor",
+      "anchors": {
+        "placeholder": "Subtitle"
+      },
+      "fallbackSelectors": [
+        "[data-placeholder='Subtitle']",
+        "[aria-label*='subtitle' i]",
+        "h3[contenteditable='true']",
+        "input[placeholder*='subtitle' i]",
+        "[class*='subtitle'] [contenteditable]"
+      ]
+    },
+    "body_editor": {
+      "description": "Main post body contenteditable editor area",
+      "anchors": {
+        "placeholder": "Write your post"
+      },
+      "fallbackSelectors": [
+        "[data-placeholder*='Write']",
+        "div.ProseMirror[contenteditable='true']",
+        "div[contenteditable='true'][class*='editor']",
+        "div[contenteditable='true'][class*='body']",
+        ".post-editor [contenteditable='true']:not(h1):not(h3)",
+        "div[contenteditable='true']"
+      ]
+    }
+  },
+  "stateGraph": {
+    "nodes": {
+      "editor_ready": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "substack\\.com/publish/post"
+          }
+        ]
+      },
+      "auth_required": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "sign-in|login"
+          }
+        ]
+      }
+    }
+  }
+}

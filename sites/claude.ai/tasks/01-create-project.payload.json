@@ -1,0 +1,23 @@
+{
+  "_meta": {
+    "task": "create-project",
+    "description": "Create a new Claude project with the given name (opens the New project dialog, names it, submits).",
+    "auth": { "type": "claude_session", "note": "Requires being logged into claude.ai" },
+    "params": { "project_name": { "required": true, "description": "Name for the new project" } },
+    "risk": "creates a project (reversible)",
+    "verified": "2026-06-18 — created 'Yeshie Songs' live"
+  },
+  "runId": "claude-create-project-{{timestamp}}",
+  "mode": "verification",
+  "site": "claude.ai",
+  "params": { "project_name": "{{project_name}}" },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://claude.ai/projects" },
+    { "stepId": "s2", "action": "wait_for", "selector": "input[placeholder=\"Search projects...\"]", "timeout": 10000 },
+    { "stepId": "s3", "action": "click_text", "text": "New project" },
+    { "stepId": "s4", "action": "wait_for", "selector": "input[placeholder=\"Name your project\"]", "timeout": 6000 },
+    { "stepId": "s5", "action": "type", "selector": "input[placeholder=\"Name your project\"]", "value": "{{project_name}}" },
+    { "stepId": "s6", "action": "click_text", "text": "Create project" },
+    { "stepId": "s7", "action": "wait_for", "selector": "[aria-label=\"Write your prompt to Claude\"]", "timeout": 10000, "note": "landed on the new project page" }
+  ]
+}

@@ -1,0 +1,172 @@
+{
+  "_meta": {
+    "task": "login",
+    "site": "substack.com",
+    "description": "Ensure the user is authenticated on Substack as a writer. If already logged in (dashboard visible), exits immediately. Substack uses magic-link email auth by default; if a session cookie already exists in Chrome this exits immediately. If auth is required, triggers the magic-link flow and pauses — Mike must click the link in his email.",
+    "params": {
+      "email": {
+        "required": false,
+        "default": "mw@mike-wolf.com",
+        "description": "Email address associated with the Substack writer account"
+      },
+      "publication_url": {
+        "required": false,
+        "default": "https://substack.com/publish/home",
+        "description": "Substack writer dashboard URL"
+      }
+    },
+    "auth": {
+      "type": "magic_link_email",
+      "note": "Substack auth is magic-link only. If Chrome already has a valid session cookie, this exits immediately. Otherwise Mike must click the link that arrives at mw@mike-wolf.com."
+    },
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null
+  },
+  "site": "substack.com",
+  "mode": "verification",
+  "params": {
+    "email": "mw@mike-wolf.com",
+    "publication_url": "https://substack.com/publish/home"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "{{publication_url}}",
+      "note": "Navigate to writer dashboard. If session cookie exists, lands here authenticated."
+    },
+    {
+      "stepId": "s2",
+      "action": "delay",
+      "ms": 2000,
+      "note": "Allow SPA redirect to settle"
+    },
+    {
+      "stepId": "s3",
+      "action": "assess_state",
+      "stateGraph": {
+        "nodes": {
+          "authenticated": {
+            "signals": [
+              {
+                "type": "url_matches",
+                "pattern": "substack\\.com/publish"
+              }
+            ]
+          },
+          "unauthenticated": {
+            "signals": [
+              {
+                "type": "url_matches",
+                "pattern": "substack\\.com/sign-in|substack\\.com/account/login"
+              }
+            ]
+          }
+        }
+      },
+      "onMatch": "exit_success",
+      "onMismatch": "continue",
+      "note": "Already logged in? Exit success. Otherwise continue to trigger magic link."
+    },
+    {
+      "stepId": "s4",
+      "action": "navigate",
+      "url": "https://substack.com/sign-in",
+      "note": "Navigate to sign-in page"
+    },
+    {
+      "stepId": "s5",
+      "action": "delay",
+      "ms": 1500
+    },
+    {
+      "stepId": "s6",
+      "action": "type",
+      "target": "email_input",
+      "value": "{{email}}",
+      "note": "Enter email address"
+    },
+    {
+      "stepId": "s7",
+      "action": "click",
+      "target": "submit_button",
+      "note": "Submit email to trigger magic link"
+    },
+    {
+      "stepId": "s8",
+      "action": "delay",
+      "ms": 2000
+    },
+    {
+      "stepId": "s9",
+      "action": "read",
+      "candidates": [
+        "body",
+        "main",
+        "[class*='container']"
+      ],
+      "store_as": "page_content",
+      "note": "Capture page state — should confirm magic link was sent"
+    }
+  ],
+  "abstractTargets": {
+    "email_input": {
+      "description": "Email address input field on Substack sign-in page",
+      "anchors": {
+        "type": "email",
+        "placeholder": "Enter your email"
+      },
+      "fallbackSelectors": [
+        "input[type='email']",
+        "input[name='email']",
+        "input[placeholder*='email' i]",
+        "input[placeholder*='Email' i]"
+      ]
+    },
+    "submit_button": {
+      "description": "Continue / Sign in button on Substack sign-in page",
+      "anchors": {
+        "type": "submit"
+      },
+      "fallbackSelectors": [
+        "button[type='submit']",
+        "button:contains('Continue')",
+        "button:contains('Sign in')",
+        "button:contains('Send')"
+      ]
+    }
+  },
+  "stateGraph": {
+    "nodes": {
+      "authenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "substack\\.com/publish"
+          }
+        ]
+      },
+      "magic_link_sent": {
+        "signals": [
+          {
+            "type": "text_contains",
+            "text": "Check your email"
+          },
+          {
+            "type": "text_contains",
+            "text": "We sent"
+          }
+        ]
+      },
+      "unauthenticated": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "substack\\.com/sign-in|substack\\.com/account/login"
+          }
+        ]
+      }
+    }
+  }
+}
