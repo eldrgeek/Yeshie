@@ -20,6 +20,14 @@ from Foundation import NSMakeRect, NSURL, NSURLRequest, NSTimer, NSRunLoop
 
 AFK_THRESHOLD_S = 600  # 10 minutes of user idle → auto-surface HUD
 
+# Auto-hide tuning (Mike's rule):
+#   ATK (at-keyboard / present) and not focused on the HUD  -> hide after N seconds.
+#   AFK (truly away)                                         -> stay up so he sees it on return.
+# "Present" = recent HID input (typing/scrolling/mouse) OR an active Zoom meeting
+# OR live mic/call activity (best-effort via ScreenPipe).
+ATK_IDLE_S        = float(__import__('os').environ.get('HUD_ATK_IDLE_S', '45'))
+AUTOHIDE_AFTER_S  = float(__import__('os').environ.get('HUD_AUTOHIDE_AFTER_S', '10'))
+
 
 def _get_idle_seconds():
     try:
@@ -34,6 +42,46 @@ def _get_idle_seconds():
     except Exception:
         pass
     return 0
+
+
+def _zoom_in_meeting():
+    """True while a Zoom meeting is live (CptHost is Zoom's in-meeting helper)."""
+    try:
+        return subprocess.run(['pgrep', '-x', 'CptHost'],
+                              capture_output=True, timeout=2).returncode == 0
+    except Exception:
+        return False
+
+
+_media_cache = {'t': 0.0, 'val': False}
+def _media_active():
+    """Best-effort 'in a call / video' signal via ScreenPipe mic speech ratio.
+    Cached 5s. Fails open to False so HID + Zoom govern when ScreenPipe is down."""
+    import time as _t, urllib.request
+    now = _t.time()
+    if now - _media_cache['t'] < 5:
+        return _media_cache['val']
+    val = False
+    try:
+        r = urllib.request.urlopen('http://localhost:3030/health', timeout=1)
+        d = json.loads(r.read())
+        ap = d.get('audio_pipeline') or {}
+        val = float(ap.get('avg_speech_ratio') or 0) > 0.35
+    except Exception:
+        val = False
+    _media_cache['t'] = now; _media_cache['val'] = val
+    return val
+
+
+def _is_present():
+    """ATK if the user is engaged: recent input, a Zoom meeting, or live call audio."""
+    if _get_idle_seconds() < ATK_IDLE_S:
+        return True
+    if _zoom_in_meeting():
+        return True
+    if _media_active():
+        return True
+    return False
 
 # WebKit isn't a top-level pyobjc package — load via bundle
 _wk = {}
@@ -77,6 +125,7 @@ POS_FILE  = "/tmp/yeshie-hud-pos.json"
 
 panel   = None   # global NSPanel reference
 webview = None   # global WKWebView reference
+editor_windows = []  # retain spawned editor windows so they aren't GC'd
 
 # Queue for dispatching work to the main thread from the HTTP server thread
 _main_queue = queue.Queue()
@@ -99,6 +148,32 @@ def _show_panel():
     panel.orderFrontRegardless()
     print(f"[hud] _show_panel: orderFrontRegardless called, visible={panel.isVisible()}", flush=True)
 
+def _open_editor(report_path):
+    """Open the SOMA editor for a file in its own HUD-owned native window."""
+    import urllib.parse as _up
+    url = 'http://localhost:3333/edit?path=' + _up.quote(report_path, safe='')
+    base = report_path.split('/')[-1] or 'untitled'
+    win = AppKit.NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
+        NSMakeRect(140, 140, 900, 640),
+        AppKit.NSWindowStyleMaskTitled |
+        AppKit.NSWindowStyleMaskClosable |
+        AppKit.NSWindowStyleMaskResizable |
+        AppKit.NSWindowStyleMaskMiniaturizable,
+        AppKit.NSBackingStoreBuffered, False)
+    win.setTitle_('SOMA Editor \u2014 ' + base)
+    win.setReleasedWhenClosed_(False)
+    cfg = WKWebViewConfiguration.alloc().init()
+    wv = ClickableWebView.alloc().initWithFrame_configuration_(win.contentView().bounds(), cfg)
+    wv.setAutoresizingMask_(AppKit.NSViewWidthSizable | AppKit.NSViewHeightSizable)
+    win.contentView().addSubview_(wv)
+    wv.loadRequest_(NSURLRequest.requestWithURL_(NSURL.URLWithString_(url)))
+    win.center()
+    win.makeKeyAndOrderFront_(None)
+    AppKit.NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+    editor_windows.append(win)
+    print('[hud] opened editor window: ' + base, flush=True)
+
+
 class CtrlHandler(BaseHTTPRequestHandler):
     def _handle(self, path):
         if path == '/show':
@@ -113,6 +188,21 @@ class CtrlHandler(BaseHTTPRequestHandler):
             _main_queue.put(_reload)
 
     def do_POST(self):
+        if self.path.split('?')[0] == '/open-editor':
+            length = int(self.headers.get('Content-Length') or 0)
+            raw = self.rfile.read(length) if length else b''
+            rp = ''
+            try:
+                rp = (json.loads(raw.decode('utf-8') or '{}') or {}).get('path', '')
+            except Exception:
+                rp = ''
+            if not rp:
+                from urllib.parse import urlparse, parse_qs
+                rp = (parse_qs(urlparse(self.path).query).get('path') or [''])[0]
+            if rp:
+                _main_queue.put(lambda pth=rp: _open_editor(pth))
+            self.send_response(200); self.end_headers(); self.wfile.write(b'ok')
+            return
         if self.path == '/eval':
             length = int(self.headers.get('Content-Length') or 0)
             raw = self.rfile.read(length) if length else b''
@@ -216,19 +306,22 @@ def run_ctrl_server():
 class AppDelegate(AppKit.NSObject):
     def applicationDidFinishLaunching_(self, note):
         global panel, webview
+        self._atk_since = None  # when the user became present while the HUD was up
 
-        # Load saved position
-        pos_x, pos_y = 40, 40
+        # Load saved position + size. Size persists so the compact footprint Mike
+        # picks (or the compact default) sticks across restarts.
+        pos_x, pos_y, win_w, win_h = 40, 40, 320, 210
         try:
             with open(POS_FILE) as f:
                 d = json.load(f)
                 pos_x, pos_y = d.get('x', 40), d.get('y', 40)
+                win_w, win_h = d.get('w', 320), d.get('h', 210)
         except Exception:
             pass
 
         # Create NSPanel
         panel = AppKit.NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
-            NSMakeRect(pos_x, pos_y, 420, 320),
+            NSMakeRect(pos_x, pos_y, win_w, win_h),
             AppKit.NSWindowStyleMaskTitled |
             AppKit.NSWindowStyleMaskClosable |
             AppKit.NSWindowStyleMaskResizable |
@@ -273,6 +366,14 @@ class AppDelegate(AppKit.NSObject):
             None, True
         )
 
+        # Auto-hide timer (every 2s): collapse the HUD when Mike is at the keyboard
+        # and ignoring it; leave it up when he's away so he sees it on return.
+        NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+            2.0, self,
+            objc.selector(None, selector=b'autoHideCheck:', isClassMethod=False),
+            None, True
+        )
+
         # Startup auto-show: surface the panel ~2s after launch so it's actually visible
         NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
             2.0, self,
@@ -308,6 +409,35 @@ class AppDelegate(AppKit.NSObject):
                 print(f"[hud] AFK auto-show: idle={idle:.0f}s > {AFK_THRESHOLD_S}s, {len(data.get("jobs",[]))} jobs", flush=True)
                 _show_panel()
 
+    def _cursor_over_panel(self):
+        try:
+            loc = AppKit.NSEvent.mouseLocation()  # screen coords (bottom-left origin)
+            f = panel.frame()
+            return (f.origin.x <= loc.x <= f.origin.x + f.size.width and
+                    f.origin.y <= loc.y <= f.origin.y + f.size.height)
+        except Exception:
+            return False
+
+    def autoHideCheck_(self, timer):
+        import time as _t
+        if not panel or not panel.isVisible():
+            self._atk_since = None
+            return
+        # If the cursor is over the HUD, Mike is attending to it — leave it.
+        if self._cursor_over_panel():
+            self._atk_since = None
+            return
+        if _is_present():
+            if self._atk_since is None:
+                self._atk_since = _t.time()
+            elif _t.time() - self._atk_since >= AUTOHIDE_AFTER_S:
+                panel.orderOut_(None)
+                self._atk_since = None
+                print("[hud] auto-hid: ATK and unfocused past AUTOHIDE_AFTER_S", flush=True)
+        else:
+            # AFK → keep it visible and reset the countdown so it lingers for his return.
+            self._atk_since = None
+
     def startupShow_(self, timer):
         print("[hud] startup auto-show", flush=True)
         _show_panel()
@@ -328,14 +458,20 @@ class AppDelegate(AppKit.NSObject):
         if panel:
             panel.makeKeyAndOrderFront_(None)
 
-    def windowDidMove_(self, note):
-        win = note.object()
-        frame = win.frame()
+    def _save_frame(self, win):
+        fr = win.frame()
         try:
             with open(POS_FILE, 'w') as f:
-                json.dump({'x': frame.origin.x, 'y': frame.origin.y}, f)
+                json.dump({'x': fr.origin.x, 'y': fr.origin.y,
+                           'w': fr.size.width, 'h': fr.size.height}, f)
         except Exception:
             pass
+
+    def windowDidMove_(self, note):
+        self._save_frame(note.object())
+
+    def windowDidResize_(self, note):
+        self._save_frame(note.object())
 
     def windowShouldClose_(self, win):
         # Hide instead of close so process stays alive for reopen
