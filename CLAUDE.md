@@ -38,6 +38,27 @@ early guess that got carried forward without re-measuring when the corpus grew. 
 recipes were lost — only a handful of superseded `sites/okta/tasks/*` files were
 deleted/renamed as that set matured; corpus size only ever grew.
 
+## Runtime policy — Yeshie-first (Mike, 2026-07-08)
+
+Browser automation runs on **Yeshie recipes via the relay**, not Claude-in-Chrome
+(CIC/computer-use). CIC burns inference budget; the Yeshie relay does not. Standing
+order for any browser task:
+
+1. **Look for a Yeshie recipe first** (`sites/<domain>/tasks/*.payload.json`). If one
+   exists, run it via `yeshie_run`.
+2. **If the recipe is stale** (a step times out on a `wait_for`, selector drift): fix
+   the recipe — inspect the live DOM for the new stable hook (prefer `data-testid`,
+   then `aria-label`, then a scoped wrapper), update the payload, re-verify through the
+   relay. Don't abandon the recipe and finish the flow by hand in CIC.
+3. **If no recipe is defined:** either have Yeshie build it, or use CIC only to *figure
+   out* the flow/selectors — then **capture that as a new recipe** so the next run is
+   relay-native. CIC is discovery scaffolding, not the runtime.
+
+Case study: `sites/suno.com/tasks/03-create-song.payload.json` — Suno's 2026-07
+redesign swapped the lyrics `<textarea>` for a contenteditable `<div>` and reshuffled
+the form; the recipe was healed and re-verified live (all 7 fill steps `ok`) rather
+than completed in CIC.
+
 ## Key Patterns
 
 | Pattern | Rule |
