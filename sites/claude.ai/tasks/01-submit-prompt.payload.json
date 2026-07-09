@@ -82,7 +82,8 @@
         "visible": true
       },
       "timeout": 8000,
-      "note": "wait for [aria-label='Stop streaming'] before next step (was delay 2000ms)"
+      "note": "wait for [aria-label='Stop streaming'] before next step (was delay 2000ms) [softened: redundant transient wait]",
+      "onTimeout": "continue"
     },
     {
       "stepId": "s5",
