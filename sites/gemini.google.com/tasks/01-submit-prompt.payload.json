@@ -27,11 +27,12 @@
     "prompt_input": {
       "description": "Gemini rich-textarea contenteditable input",
       "anchors": {
-        "ariaLabel": "Enter a prompt here",
-        "placeholder": "Enter a prompt here"
+        "ariaLabel": "Enter a prompt for Gemini",
+        "placeholder": "Ask Gemini"
       },
       "fallbackSelectors": [
-        "[aria-label='Enter a prompt here']",
+        ".ql-editor[contenteditable='true']",
+        "[aria-label='Enter a prompt for Gemini']",
         "rich-textarea div[contenteditable='true']",
         "div[contenteditable='true'][role='textbox']",
         "div[contenteditable='true']"
@@ -58,6 +59,20 @@
       "note": "Check for Google auth redirect"
     },
     {
+      "stepId": "s1a",
+      "action": "navigate",
+      "url": "{{base_url}}",
+      "note": "Navigate the (authenticated) tab to base_url. Added 2026-07-09 WQ-164 — recipe had no navigate step so it ran against the wrong active tab. Default base_url=gemini.google.com/app is a fresh single-turn chat, keeping the s7 read reliable."
+    },
+    {
+      "stepId": "s1b",
+      "action": "wait_for",
+      "selector": "main, [role='main'], #app, #root",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle after navigate"
+    },
+    {
       "stepId": "s2",
       "action": "wait_for",
       "target": "prompt_input",
@@ -72,29 +87,45 @@
       "action": "type",
       "target": "prompt_input",
       "value": "{{prompt}}",
-      "submit": true,
-      "note": "Type prompt and press Enter"
+      "submit": false,
+      "note": "Type prompt only. Gemini does NOT submit on Enter (verified 2026-07-09 WQ-164) — needs the Send button click (s3c)."
+    },
+    {
+      "stepId": "s3b",
+      "action": "wait_for",
+      "selector": "button[aria-label='Send message']",
+      "state": {
+        "visible": true
+      },
+      "timeout": 6000,
+      "note": "Send button enables once the prompt has text"
+    },
+    {
+      "stepId": "s3c",
+      "action": "click",
+      "selector": "button[aria-label='Send message']",
+      "note": "Submit the prompt (WQ-164: replaces Enter-submit, which gemini ignores)"
     },
     {
       "stepId": "s4",
       "action": "wait_for",
-      "selector": "button[aria-label='Stop response']",
+      "selector": "model-response",
       "state": {
         "visible": true
       },
-      "timeout": 8000,
-      "note": "wait for button[aria-label='Stop response'] before next step (was delay 2000ms) [softened: redundant transient wait]",
-      "onTimeout": "continue"
+      "timeout": 15000,
+      "onTimeout": "continue",
+      "note": "wait for the response element to appear (streaming started). Healed 2026-07-09 WQ-164: [aria-label='Stop response'] not reliably observable."
     },
     {
       "stepId": "s5",
       "action": "wait_for",
-      "selector": "button[aria-label='Stop response']",
+      "selector": "button[aria-label='Good response']",
       "state": {
-        "visible": false
+        "visible": true
       },
       "timeout": 120000,
-      "note": "Wait until Stop Response button disappears"
+      "note": "Wait until the response toolbar (Good/Bad/Copy) appears — generation complete. Healed 2026-07-09 WQ-164 (replaces unverified [aria-label='Stop response']). base_url=/app is single-turn so the toolbar means THIS response is done."
     },
     {
       "stepId": "s6",
@@ -108,12 +139,12 @@
       "stepId": "s7",
       "action": "read",
       "candidates": [
-        "model-response:last-of-type",
-        ".response-container:last-child",
-        "message-content:last-of-type"
+        ".model-response-text",
+        ".markdown",
+        "message-content"
       ],
       "store_as": "response",
-      "note": "Capture last model response"
+      "note": "Capture the model response. Healed 2026-07-09 WQ-164: .model-response-text is the clean body (verified live); .markdown / message-content fallbacks."
     }
   ],
   "site": "gemini.google.com",
