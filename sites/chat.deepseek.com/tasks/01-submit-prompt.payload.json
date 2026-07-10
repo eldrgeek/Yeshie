@@ -9,7 +9,7 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "notes": "DeepSeek uses div[role=button] not <button>. Send button class: ds-icon-button--sizing-container. Cloudflare Turnstile present \u2014 CDP isTrusted events may bypass it; manual click confirmed to work. wait_for uses fixed delay instead of stop-button polling (stop button selector unconfirmed)."
+    "notes": "DeepSeek uses div[role=button] not <button>; DOM fully obfuscated (no aria-label/data-testid). Send button = .ds-button--primary.ds-button--filled (updated 2026-07-10 WQ-164; old ds-icon-button--sizing-container stale). Completion signal (2026-07-10 WQ-164, corrected via mutation diagnostic): while generating, the composer's primary button shows a .ds-loading spinner; the button also carries .ds-button--disabled BOTH during streaming AND when idle, so disabled-state does NOT mark completion \u2014 the spinner appearing (s5a) then vanishing (s5b) does. Read the ANSWER via .ds-assistant-message-main-content (NOT .ds-markdown \u2014 with DeepThink ON that first-matches the chain-of-thought inside .ds-think-content). CAVEAT: DeepThink reasoning can run 30-60s, so a full run routinely exceeds the ~60s MCP synchronous cap even though the chain itself is correct \u2014 verify via a fire-and-forget/async runner or disable DeepThink; the spinner-gone completion signal correctly waits through reasoning. Cloudflare Turnstile present \u2014 CDP isTrusted click confirmed to work."
   },
   "params": {
     "base_url": "https://chat.deepseek.com/",
@@ -27,10 +27,10 @@
       ]
     },
     "send_button": {
-      "description": "Send button \u2014 div[role=button] with stable class ds-icon-button--sizing-container",
+      "description": "Send button \u2014 div[role=button].ds-button--primary.ds-button--filled (class updated 2026-07-10 WQ-164; old ds-icon-button--sizing-container is stale). :not(.ds-button--disabled) = enabled/has-text.",
       "fallbackSelectors": [
-        "div[role='button'][class*='ds-icon-button--sizing-container']",
-        "div[role='button'][class*='ds-icon-button--l']"
+        "div[role='button'].ds-button--primary.ds-button--filled:not(.ds-button--disabled)",
+        "div[role='button'][class*='ds-button--primary'][class*='ds-button--filled']"
       ]
     }
   },
@@ -75,22 +75,43 @@
       "note": "Click send button explicitly \u2014 more reliable than Enter for React+Cloudflare"
     },
     {
+      "stepId": "s5a",
+      "action": "wait_for",
+      "selector": "div[role='button'].ds-button--primary .ds-loading",
+      "state": {
+        "visible": true
+      },
+      "timeout": 15000,
+      "onTimeout": "continue",
+      "note": "Streaming STARTED: the composer's primary button shows a .ds-loading spinner while DeepSeek generates (verified via mutation diagnostic 2026-07-10 WQ-164). onTimeout:continue covers a near-instant answer whose spinner we miss."
+    },
+    {
+      "stepId": "s5b",
+      "action": "wait_for",
+      "selector": "div[role='button'].ds-button--primary .ds-loading",
+      "state": {
+        "visible": false
+      },
+      "timeout": 90000,
+      "note": "Streaming DONE: the .ds-loading spinner disappears when generation completes. This is the real completion signal \u2014 NOTE (2026-07-10 WQ-164): the button carries .ds-button--disabled BOTH while streaming and when idle, so disabled-state is NOT a completion signal; the spinner appearing then vanishing is. Replaces the old 45s fixed delay."
+    },
+    {
       "stepId": "s6",
       "action": "wait_for",
-      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
-      "timeout": 45000,
+      "selector": ".ds-assistant-message-main-content",
+      "timeout": 8000,
       "onTimeout": "continue",
-      "note": "settle (was delay 45000ms); resolves on content root, proceeds on timeout \u2014 HAND-TUNE: LLM-generation, use a completion signal"
+      "note": "Settle on the rendered ANSWER container. Fix 2026-07-10 WQ-164: old 'main,#app,#root' settle resolved instantly (read fired before DOM commit → null)."
     },
     {
       "stepId": "s7",
       "action": "read",
       "candidates": [
-        "[class*='ds-markdown']:last-of-type",
-        "[class*='ds-markdown']"
+        ".ds-assistant-message-main-content",
+        ".ds-markdown.ds-assistant-message-main-content"
       ],
       "store_as": "response",
-      "note": "Confirmed working selector from manual run"
+      "note": "Read the ANSWER, not the reasoning. Fix 2026-07-10 WQ-164: DeepThink is ON for this account, so the response has a chain-of-thought .ds-markdown inside .ds-think-content (first match) AND the answer in .ds-assistant-message-main-content. The old '[class*=ds-markdown]:last-of-type' was doubly wrong — :last-of-type matches last-of-TAG (not last matching el, so it resolved to null) and the plain fallback grabbed the reasoning. .ds-assistant-message-main-content uniquely selects the answer."
     }
   ],
   "site": "chat.deepseek.com",
