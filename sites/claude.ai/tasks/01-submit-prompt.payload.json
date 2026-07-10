@@ -57,6 +57,20 @@
       "note": "Check for auth wall \u2014 if on login page, fail fast"
     },
     {
+      "stepId": "s1a",
+      "action": "navigate",
+      "url": "{{base_url}}",
+      "note": "Navigate the (caller-provided, already-authenticated) tab to base_url. Added 2026-07-09 WQ-164 (recipe previously ran against whatever tab was active \u2014 timing out s2). Default base_url=claude.ai/new gives a fresh SINGLE-TURN conversation, which keeps the s7 read reliable (only one assistant message). NOTE: navigate an existing authenticated tab, NOT a cold-opened one \u2014 mirrors the chatgpt.com recipe (a cold tab intermittently redirects to /login)."
+    },
+    {
+      "stepId": "s1b",
+      "action": "wait_for",
+      "selector": "main, [role='main'], #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle after navigate; resolves on content root, proceeds on timeout"
+    },
+    {
       "stepId": "s2",
       "action": "wait_for",
       "target": "prompt_input",
@@ -77,23 +91,23 @@
     {
       "stepId": "s4",
       "action": "wait_for",
-      "selector": "[aria-label='Stop streaming']",
+      "selector": "div[data-is-streaming='true']",
       "state": {
         "visible": true
       },
       "timeout": 8000,
-      "note": "wait for [aria-label='Stop streaming'] before next step (was delay 2000ms) [softened: redundant transient wait]",
+      "note": "wait for streaming to START (assistant message div carries data-is-streaming='true'). Healed 2026-07-09 WQ-164: [aria-label='Stop streaming'] is dead on claude.ai. onTimeout:continue covers near-instant responses that flip to done before we observe 'true'.",
       "onTimeout": "continue"
     },
     {
       "stepId": "s5",
       "action": "wait_for",
-      "selector": "[aria-label='Stop streaming']",
+      "selector": "div[data-is-streaming='false']",
       "state": {
-        "visible": false
+        "visible": true
       },
       "timeout": 120000,
-      "note": "Wait until Stop Streaming button disappears \u2014 generation complete"
+      "note": "Wait until the assistant message flips to data-is-streaming='false' \u2014 generation complete. Healed 2026-07-09 WQ-164 (replaces dead [aria-label='Stop streaming']). On claude.ai/new there is no prior message, so this resolves only when THIS turn finishes."
     },
     {
       "stepId": "s6",
@@ -107,11 +121,11 @@
       "stepId": "s7",
       "action": "read",
       "candidates": [
-        "[data-message-author-role='assistant']:last-of-type",
-        "[data-is-streaming='false']:last-of-type"
+        ".font-claude-response",
+        "div[data-is-streaming='false']"
       ],
       "store_as": "response",
-      "note": "Capture the last assistant message text"
+      "note": "Capture the assistant message text. Healed 2026-07-09 WQ-164: [data-message-author-role] is ChatGPT's attribute, absent on claude.ai. .font-claude-response is the clean response body (no 'Claude responded:' prefix); data-is-streaming='false' div is the fallback wrapper."
     }
   ],
   "site": "claude.ai",
