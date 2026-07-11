@@ -1572,6 +1572,34 @@ export default defineBackground(() => {
         return { found: false, label: labelText, reason: 'no numeric neighbor found' };
       }
 
+      // Pagination total: paginationTotal() reads a Vuetify data-table footer like
+      // "1-10 of 37" and returns the trailing total. More reliable than counting
+      // rendered <tr> rows when the table paginates (rendered row count caps at
+      // the page size and stops moving once the list is bigger than one page —
+      // confirmed live 2026-07-10 on /organization/people, which showed 10
+      // rendered rows both before and after a successful add once the org
+      // passed 10 people; the footer read correctly as "1-10 of 37" -> 37).
+      if (code.includes('paginationTotal')) {
+        const footer = document.querySelector('.v-data-table-footer__info, .v-data-table-footer, [class*="footer"]');
+        const text = footer?.textContent?.trim() || '';
+        const m = text.match(/of\s+(\d+)/i);
+        if (!m) return { found: false, text, reason: 'no "of N" pattern found in footer text' };
+        return { found: true, text, numericValue: parseInt(m[1], 10) };
+      }
+
+      // Table row count: tableRowCount('table') or tableRowCount() defaults to first <table>.
+      // Used for bookend verification counts (e.g. people-list row count before/after a mutation)
+      // that don't have a labeled stat on the page — anchors on the actual data table, not a
+      // decorative dashboard number.
+      if (code.includes('tableRowCount')) {
+        const selMatch = code.match(/tableRowCount\(\s*['"]?(.*?)['"]?\s*\)/);
+        const sel = selMatch?.[1] || 'table';
+        const table = document.querySelector(sel || 'table');
+        if (!table) return { __error: `tableRowCount: no element matched selector "${sel}"` };
+        const rows = table.querySelectorAll('tbody tr');
+        return { found: true, selector: sel, rowCount: rows.length, numericValue: rows.length };
+      }
+
       // Page survey scan: pageScan() — returns everything needed to survey a page
       // One call per page: data-cy targets, buttons, labels+inputs, nav links, page type hint.
       // Used by the site-survey skill so it only needs the Yeshie relay, not a separate browser tool.
@@ -2941,6 +2969,13 @@ export default defineBackground(() => {
           run.resolvedTargets.push({ abstractName: step.target, selector: res.selector, confidence: res.confidence || 0, resolvedVia: res.resolvedVia, resolvedAt: new Date().toISOString() });
         }
 
+        if (step.action === 'assess_state' && res.matched && step.onMatch === 'exit_success') {
+          run.status = 'complete';
+          run.result = buildChainResult(run, t0, true);
+          await chrome.storage.session.set({ [runId]: run.result });
+          return;
+        }
+
         if (step.action === 'assess_state' && !res.matched && step.onMismatch) {
           const branchName = step.onMismatch.replace('branch:', '');
           const branchSteps = payload.branches?.[branchName]?.steps || payload.branches?.[branchName] || [];
@@ -2957,10 +2992,19 @@ export default defineBackground(() => {
         }
 
         if (res.status === 'error') {
-          run.status = 'failed';
-          run.result = buildChainResult(run, t0, false, res.error);
-          await chrome.storage.session.set({ [runId]: run.result });
-          return;
+          if (step.optional) {
+            // Optional step: log the failure into the result but don't halt the
+            // chain. Previously `optional: true` was declared on several payload
+            // steps (e.g. yeshid 01-user-add s7b/s8c) but never actually honored
+            // here — any error on those steps still hard-failed the whole run.
+            res.status = 'skipped_error';
+            res.optionalFailure = true;
+          } else {
+            run.status = 'failed';
+            run.result = buildChainResult(run, t0, false, res.error);
+            await chrome.storage.session.set({ [runId]: run.result });
+            return;
+          }
         }
       }
 

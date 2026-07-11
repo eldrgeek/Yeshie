@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "task": "create-api-key",
+    "description": "Open the Claude Console 'Create Key' dialog under Settings > API Keys, fill a name (and workspace if prompted), and STOP before the final create submit. A human clicks the final button and captures the new secret (shown once). Design-only recipe — NOT yet run against a live authenticated session.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "anthropic_console_session",
+      "note": "Requires an active console.anthropic.com login session in the connected Chrome. CONFIRMED 2026-07-09: the yeshie-connected ChromeMain profile was NOT logged into console.anthropic.com — a read-only discovery probe (open_tab -> /settings/keys) redirected to /login. Per Mike's 2026-07-09 course correction, this recipe must NOT be run to force an interactive login; it is a precondition, not a step this recipe performs. If the session isn't authenticated when this runs, STOP and report rather than prompting Mike through auth."
+    },
+    "params": {
+      "key_name": { "required": true, "description": "Display name for the new API key", "example": "soma-zoom-presence (rotated 2026-07)" }
+    },
+    "risk": "safe up to the stop point — the omitted final step mints a live, billable key with the account's default scope",
+    "needs_live_verification": true,
+    "selectorNotes": "ENTIRELY UNVERIFIED against the live console — the one live probe this pass hit the logged-out /login page (buttons: 'Continue with Google', 'Continue with email', 'Continue with SSO'; email input aria-label 'Email'), so no keys-page DOM was ever observed. The chain below is a best-effort design based on known Anthropic Console UX conventions (a 'Create Key' button on /settings/keys, a dialog with a name field and possibly a workspace picker, secret shown once on success) — every selector must be re-anchored against the live DOM on first authenticated run, with a human watching, before this is trusted for unattended use.",
+    "flowChangeLog": [
+      "2026-07-09: confirmed via WebSearch that Anthropic has NO public API for creating/rotating console API keys — this is a console-only (dashboard) action. See ~/Projects/key-rotation/providers/ANTHROPIC.md."
+    ]
+  },
+  "runId": "anthropic-console-create-api-key-{{timestamp}}",
+  "mode": "action",
+  "site": "console.anthropic.com",
+  "params": { "key_name": "{{key_name}}" },
+  "chain": [
+    { "stepId": "s1", "action": "open_tab", "url": "https://console.anthropic.com/settings/keys", "note": "New tab, never the active tab. If this lands on /login instead of the keys table, STOP HERE — do not attempt to authenticate. Report back that a pre-authenticated session is required." },
+    { "stepId": "s2", "action": "wait_for", "selector": "table, [role='table'], main", "timeout": 15000, "onTimeout": "continue" },
+    { "stepId": "s3", "action": "assert", "note": "UNVERIFIED gate — should confirm pageUrl does NOT contain '/login' before proceeding. If it does, treat as a hard stop (see auth.note)." },
+    { "stepId": "s4", "action": "click_text", "text": "Create Key", "note": "GUESSED button label — Anthropic Console conventionally labels this 'Create Key'; confirm exact casing/wording live." },
+    { "stepId": "s5", "action": "wait_for", "selector": "[role='dialog']", "timeout": 8000, "note": "GUESSED dialog selector." },
+    { "stepId": "s6", "action": "type", "selector": "[role='dialog'] input[type='text'], [role='dialog'] input:not([type='password'])", "value": "{{key_name}}", "note": "GUESSED name-field selector — Anthropic Console may also require picking a Workspace before the name field appears; not modeled here." },
+    { "stepId": "s7", "action": "read", "store_as": "dialog_state", "note": "STOP HERE. Human reviews the filled dialog and clicks the actual create/confirm button (label unconfirmed). The new secret is shown exactly once on success — capture it via the human's own copy action, never via an automated read after creation." }
+  ]
+}

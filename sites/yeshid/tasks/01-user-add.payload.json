@@ -10,8 +10,8 @@
     ],
     "optionalParams": [],
     "selfImproving": true,
-    "runCount": 5,
-    "lastSuccess": "2026-04-14T00:00:00Z",
+    "runCount": 6,
+    "lastSuccess": "2026-07-11T03:29:16.716Z",
     "prerequisite": "00-login.payload.json",
     "auth": {
       "type": "sso_automatable",
@@ -28,17 +28,17 @@
       },
       "company_email": {
         "required": false,
-        "description": "Company email \u2014 auto-derived from first and last name",
+        "description": "Company email — auto-derived from first and last name",
         "derived": true,
-        "derivationTemplate": "{first_name_lower}.{last_name_lower}@embeddedsystemsresearch.org",
+        "derivationTemplate": "{first_name_lower}.{last_name_lower}@mike-wolf.com",
         "confirmDerived": true,
-        "pattern": "^[a-z]+\\.[a-z]+@embeddedsystemsresearch\\.org$",
-        "hint": "Auto-derived as firstname.lastname@embeddedsystemsresearch.org \u2014 confirm or correct before running"
+        "pattern": "^[a-z]+\\.[a-z]+@mike-wolf\\.com$",
+        "hint": "Auto-derived as firstname.lastname@mike-wolf.com (tenant domain confirmed live 2026-07-10 — was stale as embeddedsystemsresearch.org) — confirm or correct before running"
       },
       "backup_email": {
         "required": true,
         "description": "Personal/recovery email (e.g. Gmail)",
-        "hint": "Ask if not provided \u2014 this is required by YeshID"
+        "hint": "Ask if not provided — this is required by YeshID"
       },
       "start_date_preset": {
         "required": true,
@@ -49,23 +49,22 @@
           "Monday morning",
           "Pick date & time"
         ],
-        "hint": "Always ask \u2014 never default silently to Immediately"
+        "hint": "Always ask — never default silently to Immediately"
       }
     },
     "homeBookend": true,
     "verificationStrategy": {
-      "pre": "h0c stores initial_active_people",
-      "post": "hZc stores final_active_people",
-      "assertion": "final_active_people.numericValue == initial_active_people.numericValue + 1",
-      "note": "NEEDS UPDATE: 'Active people in YeshID' label does not exist on current overview page. Use 'Total Applications' for statByLabel smoke test. True people count verification requires /organization/people or /organization/directories page.",
-      "mechanism": "statByLabel \u2014 prev-sibling and ancestor-depth walk. 'Total Applications' confirmed working (returns 4). 'Initial directory' label found but numeric neighbor not reachable within 3 ancestor levels.",
-      "workingLabel": "Total Applications",
-      "workingLabelValue": 4,
-      "primaryVerification": "confirmation_message == 'Onboarding workflow created' AND workflow_confirmation contains 'Workflow Run'"
-    }
+      "pre": "h0c counts people-table rows on /organization/people",
+      "post": "hZc counts people-table rows on /organization/people",
+      "assertion": "final_active_people == initial_active_people + 1",
+      "note": "FIXED 2026-07-10: 'Active people in YeshID' label never existed on the overview page. Bookends now navigate to /organization/people and count <table> tbody rows directly (people list table, confirmed present via live perceive survey, 10 rows at time of fix) instead of using statByLabel on an unrelated overview stat.",
+      "mechanism": "js paginationTotal() pattern (background.ts PRE_RUN_DOMQUERY) reading the Vuetify data-table footer '1-N of TOTAL' on /organization/people. Superseded an earlier tableRowCount(<tr> count) attempt in this same pass, which breaks once the org has more people than one page.",
+      "primaryVerification": "confirmation_message contains 'success'/'created'/'added'/'onboard' OR redirect to /workflows/ OR /organization/people, AND final_active_people == initial_active_people + 1"
+    },
+    "lastDurationMs": 3964
   },
   "runId": "yeshid-user-add-{{timestamp}}",
-  "mode": "verification",
+  "mode": "production",
   "site": "app.yeshid.com",
   "params": {
     "first_name": "{{first_name}}",
@@ -84,10 +83,11 @@
         ]
       },
       "cachedSelector": "[data-cy=\"first-name-input\"] input",
-      "cachedConfidence": 1.0,
+      "cachedConfidence": 0.85,
       "resolveHint": "data-cy wrapper confirmed stable. Inner input via [data-cy=\"first-name-input\"] input.",
-      "resolvedOn": "2026-04-15T00:00:00Z",
-      "resolvedVia": "data-cy"
+      "resolvedOn": "2026-07-11T03:28:51.319Z",
+      "resolvedVia": "vuetify_label_match",
+      "resolutionMethod": "vuetify_label_match"
     },
     "last-name-input": {
       "match": {
@@ -97,10 +97,11 @@
         ]
       },
       "cachedSelector": "[data-cy=\"last-name-input\"] input",
-      "cachedConfidence": 1.0,
+      "cachedConfidence": 0.85,
       "resolveHint": "data-cy wrapper. data-cy=\"last-name-input\" confirmed present on the last name div.",
-      "resolvedOn": "2026-04-15T00:00:00Z",
-      "resolvedVia": "data-cy"
+      "resolvedOn": "2026-07-11T03:28:51.441Z",
+      "resolvedVia": "vuetify_label_match",
+      "resolutionMethod": "vuetify_label_match"
     },
     "company-email-input": {
       "match": {
@@ -110,10 +111,11 @@
         ]
       },
       "cachedSelector": "[data-cy=\"company-email-input\"] input",
-      "cachedConfidence": 1.0,
+      "cachedConfidence": 0.85,
       "resolveHint": "data-cy wrapper. [data-cy=\"company-email-input\"] input confirmed.",
-      "resolvedOn": "2026-04-15T00:00:00Z",
-      "resolvedVia": "data-cy"
+      "resolvedOn": "2026-07-11T03:28:51.550Z",
+      "resolvedVia": "vuetify_label_match",
+      "resolutionMethod": "vuetify_label_match"
     },
     "personal-email-input": {
       "match": {
@@ -124,15 +126,17 @@
         ]
       },
       "cachedSelector": "[data-cy=\"recovery-email-input\"] input",
-      "cachedConfidence": 1.0,
+      "cachedConfidence": 0.85,
       "resolveHint": "YeshID uses data-cy=\"recovery-email-input\" (not personal). Inner input via [data-cy=\"recovery-email-input\"] input.",
-      "resolvedOn": "2026-04-15T00:00:00Z",
-      "resolvedVia": "data-cy"
+      "resolvedOn": "2026-07-11T03:28:51.658Z",
+      "resolvedVia": "vuetify_label_match",
+      "resolutionMethod": "vuetify_label_match"
     },
     "create-onboard-button": {
       "match": {
         "role": "button",
         "name_contains": [
+          "create person",
           "create and onboard",
           "onboard person"
         ]
@@ -144,7 +148,8 @@
         "button:last-of-type"
       ],
       "resolvedOn": "2026-03-31T00:11:57.745179+00:00",
-      "resolvedVia": "aria"
+      "resolvedVia": "aria",
+      "resolveHint": "Live-verified 2026-07-10: visible button text is exactly 'Create person'. Previous name_contains list didn't include it."
     },
     "start-date-picker": {
       "match": {
@@ -155,7 +160,7 @@
         ]
       },
       "cachedSelector": "[data-cy=\"schedule-user-activator\"]",
-      "cachedConfidence": 1.0,
+      "cachedConfidence": 1,
       "resolveHint": "data-cy=\"schedule-user-activator\" is the start date button directly. Click opens preset picker.",
       "pickerOptions": [
         "Immediately",
@@ -184,22 +189,22 @@
     {
       "stepId": "h0",
       "action": "navigate",
-      "url": "https://app.yeshid.com/overview",
-      "note": "HOME START: Navigate to overview dashboard before performing action."
+      "url": "https://app.yeshid.com/organization/people",
+      "note": "HOME START: Navigate to people list (not overview — overview has no people-count stat) before performing action."
     },
     {
       "stepId": "h0b",
       "action": "wait_for",
       "selector": "[data-cy=\"username\"]",
       "timeout": 5000,
-      "note": "Wait for page to render \u2014 username data-cy is present on every authenticated page."
+      "note": "Wait for page to render — username data-cy is present on every authenticated page."
     },
     {
       "stepId": "h0c",
       "action": "js",
-      "code": "statByLabel('Total Applications')",
+      "code": "paginationTotal()",
       "store_as": "initial_active_people",
-      "note": "BOOKEND PLACEHOLDER: 'Active people in YeshID' not on overview. Using Total Applications (does not change on user-add). Real verification is snackbar + /workflows/ redirect."
+      "note": "Read total people count from the Vuetify data-table footer ('1-10 of N') on /organization/people. Row-count-of-rendered-<tr> was tried first and found unreliable once the org has >10 people (page-size cap) — fixed 2026-07-10."
     },
     {
       "stepId": "s1",
@@ -212,7 +217,20 @@
     {
       "stepId": "s2",
       "action": "navigate",
-      "url": "{{base_url}}/organization/people/onboard",
+      "url": "{{base_url}}/organization/people",
+      "note": "FIXED 2026-07-10: was navigating straight to /organization/people/onboard, which no longer renders the form live (confirmed via perceive survey — that URL redirects to the dashboard shell). Current flow is People list -> click 'Create person'."
+    },
+    {
+      "stepId": "s2a",
+      "action": "wait_for",
+      "selector": "[data-cy=\"username\"]",
+      "timeout": 6000,
+      "note": "Wait for authenticated page chrome before clicking Create person."
+    },
+    {
+      "stepId": "s2b0",
+      "action": "click_text",
+      "text": "Create person",
       "guard": {
         "target": "first-name-input",
         "state": {
@@ -222,7 +240,8 @@
       },
       "expect": {
         "state": "onboard-form"
-      }
+      },
+      "note": "Opens the create-person panel at /organization/people/create (in-app route, live-verified 2026-07-10)."
     },
     {
       "stepId": "s2b",
@@ -230,7 +249,8 @@
       "target": "start-date-picker",
       "preset": "{{start_date_preset}}",
       "defaultPreset": "Immediately",
-      "note": "Required field. Click the start date button then select a preset. Defaults to Immediately."
+      "note": "FIXED 2026-07-10: live-verified the 'Select start date' button now opens a plain native date-picker calendar, not a text-preset menu (no 'Immediately'/'Monday morning'/'Pick date & time' options exist anymore — those were April 2026 UI). Both Start date and End date fields are labeled (Optional); leaving them blank onboards the person immediately, which covers the common 'Immediately' case. Marked optional so a failed preset-click (e.g. for 'Immediately', where there's nothing to click) doesn't hard-fail the run. TODO: 'Monday morning' / 'Pick date & date' presets need real calendar-widget automation — not implemented; recipe will currently just skip and onboard immediately regardless of the requested preset for those two options. Flagged, not solved, in this pass.",
+      "optional": true
     },
     {
       "stepId": "s3",
@@ -332,7 +352,7 @@
               "type": "element_visible",
               "selector": ".v-input--error",
               "timeout": 3000,
-              "note": "Inline field validation error \u2014 one or more fields failed"
+              "note": "Inline field validation error — one or more fields failed"
             },
             {
               "type": "element_text",
@@ -365,7 +385,7 @@
           "onboard-workflow"
         ]
       },
-      "note": "Verify redirect \u2014 success lands on /workflows/UUID (workflow kicked off) or /organization/people",
+      "note": "Verify redirect — success lands on /workflows/UUID (workflow kicked off) or /organization/people",
       "onMismatch": "report_failure"
     },
     {
@@ -396,27 +416,27 @@
     {
       "stepId": "hZ",
       "action": "navigate",
-      "url": "https://app.yeshid.com/overview",
-      "note": "HOME END: Return to overview dashboard after action completes."
+      "url": "https://app.yeshid.com/organization/people",
+      "note": "HOME END: Return to people list (not overview) after action completes, to re-count rows."
     },
     {
       "stepId": "hZb",
       "action": "wait_for",
       "selector": "[data-cy=\"username\"]",
       "timeout": 5000,
-      "note": "Wait for page to render \u2014 username data-cy is present on every authenticated page."
+      "note": "Wait for page to render — username data-cy is present on every authenticated page."
     },
     {
       "stepId": "hZc",
       "action": "js",
-      "code": "statByLabel('Total Applications')",
+      "code": "paginationTotal()",
       "store_as": "final_active_people",
-      "note": "BOOKEND PLACEHOLDER: Same as h0c. For true user-count bookend, navigate to /organization/directories and parse 'Identities (N)' button text."
+      "note": "Same as h0c, read after the onboard action. Should be initial_active_people.numericValue + 1 on success."
     }
   ],
   "branches": {
     "not-authenticated": {
-      "description": "Not logged in \u2014 run login flow first.",
+      "description": "Not logged in — run login flow first.",
       "steps": [
         {
           "stepId": "b1",
@@ -461,9 +481,10 @@
         "signals": [
           {
             "type": "url_matches",
-            "pattern": "/organization/people/onboard"
+            "pattern": "/organization/people/create"
           }
-        ]
+        ],
+        "note": "FIXED 2026-07-10: route changed from /organization/people/onboard to /organization/people/create (in-app panel opened via 'Create person' button, not a directly-navigable deep link)."
       },
       "person-detail": {
         "signals": [
