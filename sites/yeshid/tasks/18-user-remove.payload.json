@@ -1,21 +1,23 @@
 {
   "_meta": {
     "task": "user-remove",
-    "description": "Hard-remove a person from YeshID's tracking system via the People list row action ('Remove person'). Distinct from 02-user-delete (which runs the Offboarding *workflow* — soft-deactivates a person, sets YeshID status to 'Deactivated', but leaves the row in the People list). 'Remove person' actually deletes the row and drops the total people count by 1. Live-verified 2026-07-11 removing 7 e2e test records in one session (bookend count 44 -> 37, exactly -7).",
+    "description": "Hard-remove a person from YeshID's tracking system via the People list row action ('Remove person'). Distinct from 02-user-delete (which runs the Offboarding *workflow* \u2014 soft-deactivates a person, sets YeshID status to 'Deactivated', but leaves the row in the People list). 'Remove person' actually deletes the row and drops the total people count by 1. Live-verified 2026-07-11 removing 7 e2e test records in one session (bookend count 44 -> 37, exactly -7).",
     "params": {
       "user_email": {
         "required": true,
-        "description": "Primary email of the person to remove. Used to uniquely match the row — do NOT match by name alone, several test records share a display name (e.g. two 'Test User' rows with different emails) with only the email column disambiguating them.",
+        "description": "Primary email of the person to remove. Used to uniquely match the row \u2014 do NOT match by name alone, several test records share a display name (e.g. two 'Test User' rows with different emails) with only the email column disambiguating them.",
         "hint": "Must be the exact primary email shown in the People table's 'Primary email' column."
       }
     },
-    "requiredParams": ["user_email"],
+    "requiredParams": [
+      "user_email"
+    ],
     "optionalParams": [],
     "selfImproving": true,
-    "runCount": 7,
+    "runCount": 8,
     "lastSuccess": "2026-07-11T00:00:00Z",
     "prerequisite": "00-login.payload.json",
-    "warning": "DESTRUCTIVE and NOT reversible via YeshID UI (per the confirm-dialog copy: 'Removing a person will take them out of YeshID's tracking system... the person's identity or account will still exist outside of YeshID.' — it deletes YeshID's tracking record, not the underlying Google/directory identity). Verify user_email carefully before running; do not run against a live/production person by guessing an email pattern.",
+    "warning": "DESTRUCTIVE and NOT reversible via YeshID UI (per the confirm-dialog copy: 'Removing a person will take them out of YeshID's tracking system... the person's identity or account will still exist outside of YeshID.' \u2014 it deletes YeshID's tracking record, not the underlying Google/directory identity). Verify user_email carefully before running; do not run against a live/production person by guessing an email pattern.",
     "auth": {
       "type": "sso_automatable",
       "googleAccountEmail": "mw@mike-wolf.com"
@@ -25,7 +27,7 @@
       "post": "hZc counts people-table rows on /organization/people via paginationTotal()",
       "assertion": "final_active_people == initial_active_people - 1",
       "primaryVerification": "success snackbar text matches '<Name> has been removed' AND the row for user_email no longer appears in the table AND final count == initial count - 1",
-      "note": "The row-action kebab menu (rightmost column, unlabeled '...' button per row) exposes THREE options: 'View person', 'Run workflow', 'Remove person' (red), 'Deactivate person' (orange). 'Remove person' is the hard-delete this recipe drives. Confirm dialog title reads 'Remove <Full Name>' — use it as a final identity check before clicking the red 'Remove' confirm button, since the kebab menu itself carries no name/email context once open."
+      "note": "The row-action kebab menu (rightmost column, unlabeled '...' button per row) exposes THREE options: 'View person', 'Run workflow', 'Remove person' (red), 'Deactivate person' (orange). 'Remove person' is the hard-delete this recipe drives. Confirm dialog title reads 'Remove <Full Name>' \u2014 use it as a final identity check before clicking the red 'Remove' confirm button, since the kebab menu itself carries no name/email context once open."
     }
   },
   "runId": "yeshid-user-remove-{{timestamp}}",
@@ -38,8 +40,14 @@
   "abstractTargets": {
     "search-input": {
       "match": {
-        "vuetify_label": ["search", "filter", "name"],
-        "name_contains": ["search"]
+        "vuetify_label": [
+          "search",
+          "filter",
+          "name"
+        ],
+        "name_contains": [
+          "search"
+        ]
       },
       "cachedSelector": ".search-input",
       "cachedConfidence": 0.95,
@@ -48,35 +56,41 @@
       "description": "Search input on people list page"
     },
     "row-kebab-button": {
-      "match": {
-        "role": "button",
-        "name_contains": ["actions", "more", "..."]
-      },
+      "match": {},
       "cachedSelector": null,
       "cachedConfidence": 0.7,
-      "resolveHint": "Unlabeled icon button (three vertical dots) in the rightmost column of the row matching user_email. Live-verified via `row.querySelector('button')` where row is the <tr> whose textContent includes user_email — that <tr> has exactly one <button>, the kebab. No stable class/data-cy found as of 2026-07-11; resolved by DOM structure (only button in the matched row), not by selector string.",
+      "fallbackSelectors": [
+        "table tbody tr button",
+        ".v-data-table__tr button",
+        "tbody tr button"
+      ],
+      "resolveHint": "Icon-only kebab button (three vertical dots), no aria-label/text \u2014 a11y and text_match strategies in target-resolver's Steps 2-4 are unreliable here (Step 2's a11y_aria_label/a11y_placeholder can false-match an unrelated page-wide element containing 'more' or 'actions' in its aria-label/placeholder, e.g. the search input, if `match` carries name_contains keys). FIX (2026-07-11, WQ cleanup pass): filter the People list via search-input to the single target row FIRST (step s1b/s1c), then resolve this target with `match: {}` (empty) so resolution skips straight to Step 6 css_cascade against fallbackSelectors, which is now unambiguous (search-filtered table has exactly one <tr>, one <button>). Raw `js` querySelector/eval fallback (previously documented in this note) does NOT work \u2014 background.ts's js-step handler is a pattern allowlist (paginationTotal/dumpText/pageScan/window.__ only), not real eval; arbitrary DOM-scripting js steps throw 'No matching pattern for js step' or unrelated internal errors.",
       "resolvedOn": "2026-07-11T00:00:00Z",
-      "resolvedVia": "structural_row_scan"
+      "resolvedVia": "css_cascade"
     },
     "remove-person-menuitem": {
       "match": {
         "role": "menuitem",
-        "name_contains": ["remove person"]
+        "name_contains": [
+          "remove person"
+        ]
       },
       "cachedSelector": ".v-overlay--active .v-list-item",
       "cachedConfidence": 0.85,
-      "resolveHint": "Row-action dropdown (opened by row-kebab-button) has 4 items: 'View person', 'Run workflow' (opens submenu, not needed here), 'Remove person' (red text, hard delete), 'Deactivate person' (orange text, soft — NOT what this recipe wants). Match by exact textContent 'Remove person'.",
+      "resolveHint": "Row-action dropdown (opened by row-kebab-button) has 4 items: 'View person', 'Run workflow' (opens submenu, not needed here), 'Remove person' (red text, hard delete), 'Deactivate person' (orange text, soft \u2014 NOT what this recipe wants). Match by exact textContent 'Remove person'.",
       "resolvedOn": "2026-07-11T00:00:00Z",
       "resolvedVia": "text_match"
     },
     "remove-confirm-button": {
       "match": {
         "role": "button",
-        "name_contains": ["remove"]
+        "name_contains": [
+          "remove"
+        ]
       },
       "cachedSelector": ".v-dialog--active button, .v-overlay--active button",
       "cachedConfidence": 0.8,
-      "resolveHint": "Confirm dialog titled 'Remove <Full Name>' has two buttons: 'Go back' and 'Remove' (red/error variant). Match by exact textContent 'Remove' scoped to the active dialog/overlay — do not match the row-kebab 'Remove person' menuitem text again.",
+      "resolveHint": "Confirm dialog titled 'Remove <Full Name>' has two buttons: 'Go back' and 'Remove' (red/error variant). Match by exact textContent 'Remove' scoped to the active dialog/overlay \u2014 do not match the row-kebab 'Remove person' menuitem text again.",
       "resolvedOn": "2026-07-11T00:00:00Z",
       "resolvedVia": "text_match"
     }
@@ -109,10 +123,25 @@
       "note": "Sanity check the target row exists and its display name, before mutating anything. Abort (branch) if empty."
     },
     {
+      "stepId": "s1b",
+      "action": "type",
+      "target": "search-input",
+      "value": "{{user_email}}",
+      "note": "Filter the People list to exactly the target row so row-kebab-button resolves unambiguously (see abstractTargets.row-kebab-button.resolveHint). Required precondition for s2 \u2014 do not remove."
+    },
+    {
+      "stepId": "s1c",
+      "action": "wait_for",
+      "selector": "table tbody tr",
+      "timeout": 4000,
+      "onTimeout": "continue",
+      "note": "Settle after filter."
+    },
+    {
       "stepId": "s2",
       "action": "click",
       "target": "row-kebab-button",
-      "note": "Open the row action menu for the row matching user_email. NOTE: as of 2026-07-11 the engine's target-resolver could not reliably click this via CSS selector alone in ad-hoc testing — a structural row-scan (find <tr> containing user_email text, click its lone <button>) was used instead via direct DOM script. If click-by-target fails here, fall back to a `js` step: `document.querySelector('table tbody tr:has-text(\"' + user_email + '\")').querySelector('button').click()` equivalent."
+      "note": "Open the row action menu for the (now-unique, post-filter) row matching user_email. HEALED 2026-07-11: previously unresolvable via target-resolver on an unfiltered 37-row table (icon-only button, no aria-label/text) and the documented js-eval fallback doesn't work (background.ts js-step handler is pattern-allowlisted, not real eval \u2014 see abstractTargets.row-kebab-button.resolveHint). Fix: filter via search-input (s1b/s1c) first, then resolve with empty `match` to force css_cascade. Live-verified 2026-07-11 removing 'Resync Livetake' test record, bookend 38 -> 37 (see WQ cleanup completion note)."
     },
     {
       "stepId": "s3",
@@ -124,7 +153,7 @@
       "stepId": "s4",
       "action": "click_text",
       "text": "Remove person",
-      "note": "NOT 'Deactivate person' — that's the soft/reversible option. NOT 'Run workflow' — that's the Offboarding workflow (see 02-user-delete)."
+      "note": "NOT 'Deactivate person' \u2014 that's the soft/reversible option. NOT 'Run workflow' \u2014 that's the Offboarding workflow (see 02-user-delete)."
     },
     {
       "stepId": "s5",
@@ -135,7 +164,10 @@
     {
       "stepId": "s5b",
       "action": "read",
-      "candidates": [".v-dialog--active", ".v-overlay--active"],
+      "candidates": [
+        ".v-dialog--active",
+        ".v-overlay--active"
+      ],
       "store_as": "confirm_dialog_text",
       "note": "VERIFY identity before confirming: dialog title should read 'Remove <Full Name>' matching the person for user_email."
     },
@@ -155,7 +187,10 @@
     {
       "stepId": "s7",
       "action": "read",
-      "candidates": [".v-snackbar--active", "[class*=snackbar]"],
+      "candidates": [
+        ".v-snackbar--active",
+        "[class*=snackbar]"
+      ],
       "store_as": "confirmation_message",
       "minLength": 1
     },
@@ -183,7 +218,10 @@
     "nodes": {
       "people-list": {
         "signals": [
-          { "type": "url_matches", "pattern": "/organization/people$" }
+          {
+            "type": "url_matches",
+            "pattern": "/organization/people$"
+          }
         ]
       }
     }
