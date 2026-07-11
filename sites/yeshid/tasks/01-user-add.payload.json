@@ -244,6 +244,13 @@
       "note": "Opens the create-person panel at /organization/people/create (in-app route, live-verified 2026-07-10)."
     },
     {
+      "stepId": "s2b0b",
+      "action": "wait_for",
+      "selector": "[data-cy=\"first-name-input\"]",
+      "timeout": 8000,
+      "note": "FIXED 2026-07-11: s2b0's inline guard on 'first-name-input' is declared but not enforced by the live executor (same class of dead-field bug as onMatch/optional found 2026-07-10) -- s2b/s3 were firing before the create-person panel (incl. a Stripe billing iframe now loaded alongside it) finished rendering, causing 'Cannot resolve: first-name-input'. Explicit wait_for step closes the race."
+    },
+    {
       "stepId": "s2b",
       "action": "click_preset",
       "target": "start-date-picker",
