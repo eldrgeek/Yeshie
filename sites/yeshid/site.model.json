@@ -17,7 +17,7 @@
       "authenticatedSignal": ".v-navigation-drawer a[href=\"/overview\"]",
       "notes": "Google SSO — extension can click through automatically if google_account_email is configured"
     },
-    "lastUpdated": "2026-04-13T03:37:58.517Z"
+    "lastUpdated": "2026-07-11T03:29:16.716Z"
   },
   "stateGraph": {
     "nodes": {
@@ -486,11 +486,12 @@
           "first name"
         ]
       },
-      "cachedSelector": "#input-v-10",
-      "cachedConfidence": 0.88,
+      "cachedSelector": "[data-cy=\"first-name-input\"] input",
+      "cachedConfidence": 0.85,
       "resolveHint": "Vuetify input with label 'First name'. ID changes each session — resolve by label proximity.",
-      "resolvedOn": "2026-03-31T00:11:57.745179+00:00",
-      "resolvedVia": "vuetify_label_match"
+      "resolvedOn": "2026-07-11T03:28:51.319Z",
+      "resolvedVia": "vuetify_label_match",
+      "resolutionMethod": "vuetify_label_match"
     },
     "last-name-input": {
       "description": "Last name text field on onboard form",
@@ -500,11 +501,12 @@
           "last name"
         ]
       },
-      "cachedSelector": "#input-v-12",
-      "cachedConfidence": 0.88,
+      "cachedSelector": "[data-cy=\"last-name-input\"] input",
+      "cachedConfidence": 0.85,
       "resolveHint": "Vuetify input with label 'Last name'.",
-      "resolvedOn": "2026-03-31T00:11:57.745179+00:00",
-      "resolvedVia": "vuetify_label_match"
+      "resolvedOn": "2026-07-11T03:28:51.441Z",
+      "resolvedVia": "vuetify_label_match",
+      "resolutionMethod": "vuetify_label_match"
     },
     "company-email-input": {
       "description": "Company email address field on onboard form",
@@ -514,11 +516,12 @@
           "company email"
         ]
       },
-      "cachedSelector": "#input-v-14",
-      "cachedConfidence": 0.88,
+      "cachedSelector": "[data-cy=\"company-email-input\"] input",
+      "cachedConfidence": 0.85,
       "resolveHint": "Vuetify input with label 'Company email address'.",
-      "resolvedOn": "2026-03-31T00:11:57.745179+00:00",
-      "resolvedVia": "vuetify_label_match"
+      "resolvedOn": "2026-07-11T03:28:51.550Z",
+      "resolvedVia": "vuetify_label_match",
+      "resolutionMethod": "vuetify_label_match"
     },
     "personal-email-input": {
       "description": "Personal/recovery email field on onboard form",
@@ -529,11 +532,12 @@
           "recovery"
         ]
       },
-      "cachedSelector": "#input-v-18",
-      "cachedConfidence": 0.88,
+      "cachedSelector": "[data-cy=\"recovery-email-input\"] input",
+      "cachedConfidence": 0.85,
       "resolveHint": "Vuetify input with label 'Personal / recovery email address'.",
-      "resolvedOn": "2026-03-31T00:11:57.745179+00:00",
-      "resolvedVia": "vuetify_label_match"
+      "resolvedOn": "2026-07-11T03:28:51.658Z",
+      "resolvedVia": "vuetify_label_match",
+      "resolutionMethod": "vuetify_label_match"
     },
     "create-onboard-button": {
       "description": "Submit button on onboard form",
@@ -1132,6 +1136,17 @@
               "timeout": 3000
             }
           ]
+        }
+      ]
+    },
+    "step-s7-observed": {
+      "description": "Observed from step s7 during successful run",
+      "observedAt": "2026-07-11T03:29:16.715Z",
+      "signals": [
+        {
+          "kind": "url_change",
+          "url": "https://app.yeshid.com/organization/people",
+          "outcome": "success"
         }
       ]
     }

@@ -8,7 +8,8 @@
     "test:teach": "playwright test tests/teach-mode",
     "test:heal": "node skills/heal/tests/run-all.js",
     "test:dry-run-all": "node skills/heal/tests/test-dry-run-all.js",
-    "test:github": "node tests/integration/github-recipes.mjs"
+    "test:github": "node tests/integration/github-recipes.mjs",
+    "test:e2e:yeshid-add-user": "node tests/e2e/yeshid-add-user.e2e.mjs"
   },
   "dependencies": {
     "puppeteer-core": "^22.0.0",

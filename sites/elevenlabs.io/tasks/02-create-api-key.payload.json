@@ -1,0 +1,29 @@
+{
+  "_meta": {
+    "task": "create-api-key",
+    "description": "Open the 'Create Key' dialog on ElevenLabs API keys settings, fill the key name, and STOP before the final create/confirm submit. A human clicks the final button. This is the 'new key' half of a rotation — ElevenLabs has no in-place 'regenerate' for an existing key (confirmed: no v1/user/api-keys or v1/workspace/api_keys REST path either, see providers/ELEVENLABS.md), so rotation = create a new key here, propagate it, then disable/delete the old one via 03-open-key-menu.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": { "type": "elevenlabs_session", "note": "Requires active elevenlabs.io login session." },
+    "params": {
+      "key_name": { "required": true, "description": "Display name for the new key", "example": "soma-zoom-presence (rotated 2026-07)" }
+    },
+    "risk": "safe up to the stop point — the omitted final step would mint a live, billable-scope key",
+    "needs_live_verification": true,
+    "botDetection": { "wall": "none observed", "strategy": "n/a" },
+    "selectorNotes": "VERIFIED live 2026-07-09: the 'Create Key' button on the list page has stable text 'Create Key' (no data-testid seen). UNVERIFIED: the dialog's name-input selector and the final submit button — we confirmed the 'Create Key' button exists but did not open the dialog in this pass (deliberately, to avoid any risk of misclicking near a create/consume-scope flow during a live class). s3/s4/s5 below use best-guess generic selectors ([role='dialog'] input) and MUST be re-verified against the live DOM before this recipe is trusted to run unattended — expect to fix selectors on first real run per the Yeshie 'heal, don't abandon' policy."
+  },
+  "runId": "elevenlabs-create-api-key-{{timestamp}}",
+  "mode": "action",
+  "site": "elevenlabs.io",
+  "params": { "key_name": "{{key_name}}" },
+  "chain": [
+    { "stepId": "s1", "action": "open_tab", "url": "https://elevenlabs.io/app/settings/api-keys" },
+    { "stepId": "s2", "action": "wait_for", "selector": "table, [role='table']", "timeout": 15000 },
+    { "stepId": "s3", "action": "click_text", "text": "Create Key", "note": "VERIFIED button text. Opens the create-key dialog." },
+    { "stepId": "s4", "action": "wait_for", "selector": "[role='dialog']", "timeout": 8000, "note": "UNVERIFIED selector — ElevenLabs' Next.js app may use a different dialog wrapper; re-anchor on first live run." },
+    { "stepId": "s5", "action": "type", "selector": "[role='dialog'] input[type='text'], [role='dialog'] input:not([type='password']):not([type='checkbox'])", "value": "{{key_name}}", "note": "UNVERIFIED selector for the name field — guessed generic; fix against live DOM." },
+    { "stepId": "s6", "action": "read", "store_as": "dialog_state", "note": "STOP HERE. Human reviews the filled dialog and clicks the actual 'Create' / 'Save' button (label unconfirmed — likely 'Create' or 'Add'). DO NOT automate that click. Capture the new key value only via the human's own copy action, never via this recipe's 'read' (ElevenLabs shows the raw secret exactly once, at creation, in the dialog — a 'read' step here WOULD see it in the clear, which is why runCount stays 0 until Mike explicitly asks to fire this)." }
+  ]
+}

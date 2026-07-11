@@ -285,6 +285,16 @@ export function createRelay(port = 3333) {
   // Pending calls: commandId → { resolve, reject, timer }
   const pending = new Map();
 
+  // Async (fire-and-forget) skill runs: id → { id, status, result, error, createdAt, updatedAt }
+  // A run submitted via POST /run/async registers a normal `pending` entry whose
+  // resolve/reject deposit the settled ChainResult here instead of replying to an
+  // HTTP request. That reuses every existing hook — chain_result, chain_error,
+  // status_update progress, and disconnect-rejection all already operate on
+  // `pending`. Caller polls GET /run/result/:id for the ChainResult. This is the
+  // escape hatch for recipes (e.g. chat.deepseek.com with DeepThink) whose run
+  // exceeds the ~60s synchronous MCP cap.
+  const asyncRuns = new Map();
+
   // HUD ask store
   const hudAsks = new Map();
 
@@ -801,7 +811,7 @@ export function createRelay(port = 3333) {
     // --- Existing endpoints ---
 
     if (path === '/status' && req.method === 'GET') {
-      jsonReply(res, 200, { ok: true, extensionConnected: !!extensionSocket, pending: pending.size });
+      jsonReply(res, 200, { ok: true, extensionConnected: !!extensionSocket, pending: pending.size, asyncRuns: asyncRuns.size });
       return;
     }
 
@@ -1568,6 +1578,58 @@ export function createRelay(port = 3333) {
       } catch (err) {
         jsonReply(res, 500, { error: err.message });
       }
+      return;
+    }
+
+    // --- Async (fire-and-forget) skill run ------------------------------------
+    // Submit a payload, get an id back immediately, poll GET /run/result/:id for
+    // the ChainResult. For recipes whose run exceeds the ~60s synchronous cap
+    // (e.g. chat.deepseek.com with DeepThink reasoning on).
+    if (path === '/run/async' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const { payload, params, tabId, timeoutMs = 300_000 } = body;
+      if (!extensionSocket) {
+        jsonReply(res, 503, { error: 'Extension not connected' });
+        return;
+      }
+      const commandId = Math.random().toString(36).slice(2) + Date.now();
+      const now = Date.now();
+      asyncRuns.set(commandId, { id: commandId, status: 'running', result: null, error: null, createdAt: now, updatedAt: now });
+      const settle = (patch) => {
+        const cur = asyncRuns.get(commandId) || { id: commandId, createdAt: now };
+        asyncRuns.set(commandId, { ...cur, ...patch, updatedAt: Date.now() });
+      };
+      const timer = setTimeout(() => {
+        pending.delete(commandId);
+        settle({ status: 'error', error: `Timeout after ${timeoutMs}ms` });
+      }, timeoutMs);
+      pending.set(commandId, {
+        resolve: (result) => { clearTimeout(timer); settle({ status: 'done', result }); },
+        reject:  (err)    => { clearTimeout(timer); settle({ status: 'error', error: err.message }); },
+        timer,
+        lastStatus: null,
+      });
+      extensionSocket.emit('skill_run', { commandId, payload, params, tabId });
+      console.log(`[relay] HTTP async skill_run ${commandId}`);
+      jsonReply(res, 202, { ok: true, id: commandId, status: 'running' });
+      return;
+    }
+
+    // Poll an async run. Returns { id, status: running|done|error, result, error, progress }.
+    const asyncResultM = path.match(/^\/run\/result\/([^/]+)$/);
+    if (asyncResultM && req.method === 'GET') {
+      const id = decodeURIComponent(asyncResultM[1]);
+      // Expire settled runs older than the job TTL to bound memory.
+      const nowP = Date.now();
+      for (const [rid, run] of asyncRuns) {
+        if (run.status !== 'running' && nowP - run.updatedAt > JOB_TTL_MS) asyncRuns.delete(rid);
+      }
+      const run = asyncRuns.get(id);
+      if (!run) { jsonReply(res, 404, { error: 'run not found', id }); return; }
+      // While running, surface live step progress from the pending entry.
+      const progress = run.status === 'running' ? (pending.get(id)?.lastStatus || null) : null;
+      jsonReply(res, 200, { ...run, progress });
       return;
     }
 

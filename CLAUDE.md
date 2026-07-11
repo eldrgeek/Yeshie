@@ -63,11 +63,47 @@ than completed in CIC.
 
 | Pattern | Rule |
 |---------|------|
-| MCP timeout | ~60s hard cap — use `nohup bash runner.sh &` fire-and-forget for long tasks |
+| MCP timeout | `yeshie_run` MCP tool ~60s hard cap. For long recipes (e.g. DeepSeek+DeepThink) submit async: `POST /run/async` → id, poll `GET /run/result/:id`, or use `node scripts/run-async.mjs <recipe>` (see Async runner below) |
 | Claude CLI flags | `--output-format stream-json` requires `--verbose` with `-p`; omit `--input-format` for plain prompt strings |
 | Outer loop | Edits to `background.ts` / `target-resolver.ts`. Inner loop = model JSON only. |
 | Health check | `curl -s http://localhost:3333/status` — expect `{"ok":true,"extensionConnected":true}` |
 | Chrome debug | `chrome-debug` / `chrome-debug-restart` — both aliases launch the canonical `ChromeMain` user-data-dir on port 9222. No login needed because `ChromeMain` was copied from the old default Chrome dir. |
+
+## Async recipe runner — beat the ~60s MCP cap (added 2026-07-10)
+
+The synchronous `POST /run` (what `yeshie_run` wraps) blocks the caller and the MCP
+tool tops out at ~60s. Recipes whose page runs longer — e.g.
+`chat.deepseek.com/tasks/01-submit-prompt` with **DeepThink** reasoning on
+(30–60s of chain-of-thought) — can't be verified through it. Use the async path:
+
+- **`POST /run/async`** — body `{payload, params?, tabId?, timeoutMs?}` (default
+  `timeoutMs` 300000). Returns `202 {ok:true, id, status:"running"}` **immediately**;
+  the caller is never blocked. Internally it's a normal `skill_run` whose settled
+  ChainResult is stashed instead of HTTP-replied — so every existing hook
+  (`chain_result`, `chain_error`, `status_update` progress, disconnect-rejection)
+  still applies.
+- **`GET /run/result/:id`** — poll. Returns `{id, status: running|done|error,
+  result, error, progress}`. `result` is the full ChainResult once `done`. Settled
+  runs expire after the 30-min job TTL. `GET /status` now also reports `asyncRuns`.
+- **`node scripts/run-async.mjs <recipe-path> [--param k=v] [--submit-only]
+  [--poll <id>] [--json]`** — ergonomic wrapper: resolves `{{params}}` client-side
+  (payload's own `params` block supplies defaults, `--param` overrides), submits,
+  and polls to completion (or `--submit-only` for true fire-and-forget + later
+  `--poll <id>`). Path is relative to `sites/` or absolute. Exit 0 = green
+  (`goalReached && success`).
+
+Verified green 2026-07-10: DeepSeek submit-prompt, DeepThink ON, all 9 steps `ok`,
+correct answer, through `run-async.mjs`.
+
+**Known limit (separate from the transport):** the DeepSeek recipe's completion
+detection (button `.ds-loading` spinner, `s5a`/`s5b`) is empirically unreliable —
+in real runs `s5a` times out the full 15s without catching the spinner, so
+detection degrades to "wait ~15s then read." Fine for normal-length answers; a
+pathologically long generation (e.g. a 3500-word essay) gets read before it
+finishes → truncated/empty. The robust fix is an **engine-level content-stability
+wait** (`state.stable`) in `step-executor.ts` — no reliable DOM completion selector
+survives scrutiny (the post-message action toolbar `.ds-button--borderlessNeutral`
+is hover/length-dependent). Filed as follow-up; benefits every streaming-chat recipe.
 
 ## Chrome DevTools (for site surveys)
 
