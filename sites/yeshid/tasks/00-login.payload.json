@@ -15,16 +15,21 @@
       }
     },
     "selfImproving": true,
-    "runCount": 0,
-    "lastSuccess": null,
+    "runCount": 1,
+    "lastSuccess": "2026-07-11T03:16:18.464Z",
     "auth": {
       "type": "sso_automatable",
       "googleAccountEmail": "mw@mike-wolf.com"
-    }
+    },
+    "lastDurationMs": 1254
   },
   "runId": "yeshid-login-{{timestamp}}",
   "mode": "verification",
   "site": "app.yeshid.com",
+  "params": {
+    "google_account_email": "mw@mike-wolf.com",
+    "base_url": "https://app.yeshid.com"
+  },
   "chain": [
     {
       "stepId": "s1",
@@ -33,13 +38,21 @@
       "note": "Navigate to base URL. If already authenticated, will redirect to /overview."
     },
     {
+      "stepId": "s1b",
+      "action": "wait_for",
+      "url_pattern": "app\\.yeshid\\.com/(overview|login)",
+      "timeout": 10000,
+      "onTimeout": "continue",
+      "note": "SETTLE before assessing. Navigating to base_url auto-authenticates via the existing Google session, which briefly bounces the URL; without this wait, s2 assessed mid-redirect, read 'unauthenticated', and fell through to a Sign-in button that had already vanished. Wait until the URL settles onto a definitive YeshID page (/overview when authed, /login when not); proceed on timeout."
+    },
+    {
       "stepId": "s2",
       "action": "assess_state",
       "expect": {
         "state": "authenticated"
       },
       "onMatch": "exit_success",
-      "note": "If already authenticated, exit immediately."
+      "note": "If already authenticated, exit immediately (engine honors onMatch:exit_success)."
     },
     {
       "stepId": "s3",
@@ -55,13 +68,15 @@
         "visible": true
       },
       "timeout": 8000,
-      "note": "wait for [data-email=\"{{google_account_email}}\"] before next step (was delay 3000ms)"
+      "onTimeout": "continue",
+      "note": "Wait for the Google account chooser. onTimeout:continue \u2014 a single-account session auto-selects and skips the chooser, so don't hard-fail here; s6 confirms the landing."
     },
     {
       "stepId": "s5",
       "action": "click",
       "selector": "[data-email=\"{{google_account_email}}\"]",
-      "note": "Click the matching Google account on the account chooser page."
+      "optional": true,
+      "note": "Click the matching Google account on the chooser (optional \u2014 absent when Google auto-selects a single account)."
     },
     {
       "stepId": "s6",

@@ -39,11 +39,16 @@
     },
     "items-per-page-select": {
       "match": {
-        "css": ".v-data-table-footer .v-select"
+        "css": ".v-data-table-footer__items-per-page .v-field"
       },
-      "cachedSelector": ".v-data-table-footer .v-select",
-      "cachedConfidence": 0.8,
-      "resolveHint": "Items-per-page dropdown in the table footer."
+      "cachedSelector": ".v-data-table-footer__items-per-page .v-field",
+      "cachedConfidence": 0.9,
+      "resolveHint": "Vuetify 3 items-per-page control in the data-table footer (role=combobox, shows '10'). Click to open, then pick the largest option. Class changed from .v-data-table-footer .v-select to .v-data-table-footer__items-per-page .v-field.",
+      "fallbackSelectors": [
+        ".v-data-table-footer__items-per-page .v-field",
+        ".v-data-table-footer__items-per-page [role='combobox']",
+        ".v-data-table-footer .v-select"
+      ]
     },
     "person-groups-section": {
       "match": {
