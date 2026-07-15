@@ -25,14 +25,15 @@
     "profile_button": {
       "description": "Profile/account button in the bottom-left sidebar",
       "anchors": {
-        "ariaLabel": "Open account menu"
+        "ariaLabel": "Open profile menu"
       },
       "fallbackSelectors": [
-        "[data-testid='profile-button']",
+        "[data-testid='accounts-profile-button']",
+        "button[aria-label*='open profile menu' i]",
         "button[aria-label*='account']",
-        "nav button:last-child",
         "[aria-label='Open account menu']",
-        "button[aria-haspopup='menu']"
+        "button[aria-haspopup='menu']",
+        "nav button:last-child"
       ]
     },
     "settings_menu_item": {
