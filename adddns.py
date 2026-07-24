@@ -216,7 +216,7 @@ def main() -> int:
     if not args.plan and not args.apply:
         parser.error("Choose --plan or --apply")
 
-    token = 'NETLIFY_TOKEN_REDACTED'
+    token = os.environ.get("NETLIFY_AUTH_TOKEN", "")
     if not token:
         print("Missing NETLIFY_TOKEN environment variable", file=sys.stderr)
         return 2
