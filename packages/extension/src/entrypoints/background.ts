@@ -1704,9 +1704,40 @@ export default defineBackground(() => {
   // the DOM but bypasses React's synthetic event system (state stays empty, Enter is ignored).
   // We detect textarea vs contenteditable and use nativeInputValueSetter for textarea so React
   // sees the value before we press Enter.
-  async function trustedType(tabId: number, selector: string, text: string, submit: boolean = false) {
+  async function trustedType(tabId: number, selector: string, text: string, submit: boolean = false, frameId: number | null = null) {
     await ensureDebugger(tabId);
     const target = { tabId };
+
+    if (frameId != null) {
+      // Frame-scoped typing: chrome.debugger Runtime.evaluate runs in the top
+      // frame only, so the DOM side (find/focus/select) goes through
+      // executeScript in the target frame, and the text lands via trusted
+      // Input.insertText — CDP input follows the focused element across
+      // frames. No trailing Tab in frame mode: focus is preserved so recipes
+      // can commit with an explicit `key` step (matching hand-driven flows on
+      // widgets like the Google share combobox, where Tab/Enter each have
+      // their own meaning).
+      const focused = await execInTab(tabId, (sel: string) => {
+        const el = document.querySelector(sel) as any;
+        if (!el) return false;
+        el.focus(); el.click();
+        if (typeof el.select === 'function') { el.select(); }
+        else if (el.isContentEditable) {
+          const r = document.createRange(); r.selectNodeContents(el);
+          const s = window.getSelection(); if (s) { s.removeAllRanges(); s.addRange(r); }
+        }
+        return true;
+      }, [selector], frameId);
+      if (!focused) throw new Error('trustedType(frame): selector not found: ' + selector);
+      await new Promise(r => setTimeout(r, 80));
+      await chrome.debugger.sendCommand(target, 'Input.insertText', { text });
+      if (submit) {
+        await new Promise(r => setTimeout(r, 80));
+        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+      }
+      return { ok: true };
+    }
 
     // Detect whether the target is a native textarea (React-controlled) or contenteditable
     const { result: tagResult } = await chrome.debugger.sendCommand(target, 'Runtime.evaluate', {
@@ -1949,6 +1980,92 @@ export default defineBackground(() => {
     }
   }
 
+  // ── Trusted coordinate click, frame-aware ────────────────────────────────────
+  // Real Input.dispatchMouseEvent at the element's viewport coordinates. Some
+  // Google closure widgets (seen live 2026-07-24: the Docs share dialog's role
+  // menu) flip their ARIA state on a synthetic PointerEvent/MouseEvent sequence
+  // but only RENDER the popup contents on trusted events — PRE_GUARDED_CLICK
+  // "succeeds" while the menu stays empty. Recipes opt in with `trusted: true`
+  // on click / click_text steps. For frame-scoped steps the element rect (frame
+  // viewport) is offset by the iframe element's rect (top document, found by
+  // the step's `frame` URL substring). Element visibility is judged by rect
+  // size, not offsetParent — position:fixed menu items have offsetParent null.
+  async function trustedCoordClick(
+    tabId: number,
+    opts: { selector?: string | null; text?: string | null; exact?: boolean; frameId?: number | null; framePattern?: string | null; timeoutMs?: number }
+  ): Promise<{ ok: boolean; x?: number; y?: number; text?: string; error?: string }> {
+    await ensureDebugger(tabId);
+    const findRect = (sel: string | null, text: string | null, exact: boolean) => {
+      let el: any = sel ? document.querySelector(sel) : null;
+      if (!el && text) {
+        const lower = text.toLowerCase();
+        const candidates = Array.from(document.querySelectorAll('a,button,[role="button"],[role="menuitem"],[role="menuitemradio"],[role="option"],li'))
+          .filter((e: any) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; })
+          .filter((e: any) => {
+            const t = (e.textContent || '').trim().toLowerCase();
+            return exact ? t === lower : t.includes(lower);
+          });
+        // Deepest-first: a WRAPPER whose textContent merely contains the target
+        // matches too, and it precedes its children in document order — its
+        // center can land on a sibling item (live bug: 'Viewer' matched the
+        // role-menu container, center hit 'Commenter'). Exact own-text match
+        // wins outright; otherwise take the smallest-area candidate.
+        const own = (e: any) => Array.from(e.childNodes).filter((n: any) => n.nodeType === 3).map((n: any) => n.textContent).join('').trim().toLowerCase();
+        el = candidates.find((e: any) => own(e) === lower)
+          || candidates.sort((a: any, b: any) => {
+               const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+               return (ra.width * ra.height) - (rb.width * rb.height);
+             })[0]
+          || null;
+      }
+      if (!el) return null;
+      el.scrollIntoView({ block: 'center', inline: 'nearest' });
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) return null;
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2, text: (el.textContent || '').trim().slice(0, 60) };
+    };
+    const frameOffset = (pattern: string) => {
+      const f = Array.from(document.querySelectorAll('iframe')).find((fr: any) => (fr.src || '').includes(pattern)) as HTMLIFrameElement | undefined;
+      if (!f) return null;
+      const r = f.getBoundingClientRect();
+      return { x: r.x, y: r.y };
+    };
+
+    const deadline = Date.now() + (opts.timeoutMs ?? 5000);
+    while (Date.now() < deadline) {
+      let rect: any = await execInTab(tabId, findRect, [opts.selector || null, opts.text || null, !!opts.exact], opts.frameId ?? null);
+      if (rect) {
+        // Menus/dialogs animate into place — clicking coordinates measured
+        // mid-animation hits a neighbor. Re-measure until two consecutive
+        // reads agree within 2px (bounded by the deadline).
+        while (Date.now() < deadline) {
+          await new Promise(r => setTimeout(r, 150));
+          const again: any = await execInTab(tabId, findRect, [opts.selector || null, opts.text || null, !!opts.exact], opts.frameId ?? null);
+          if (!again) break;
+          const settled = Math.abs(again.x - rect.x) < 2 && Math.abs(again.y - rect.y) < 2;
+          rect = again;
+          if (settled) break;
+        }
+      }
+      if (rect) {
+        let ox = 0, oy = 0;
+        if (opts.frameId != null && opts.framePattern) {
+          const off: any = await execInTab(tabId, frameOffset, [opts.framePattern]);
+          if (!off) return { ok: false, error: 'iframe element not found for offset: ' + opts.framePattern };
+          ox = off.x; oy = off.y;
+        }
+        const x = Math.round(ox + rect.x);
+        const y = Math.round(oy + rect.y);
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+        return { ok: true, x, y, text: rect.text };
+      }
+      await new Promise(r => setTimeout(r, 200));
+    }
+    return { ok: false, error: 'Element not found for trusted click: ' + (opts.selector || opts.text) };
+  }
+
   // ── Observability: log auth flow events to relay ─────────────────────────────
   async function logToRelay(event: string, data: any) {
     try {
@@ -1993,14 +2110,33 @@ export default defineBackground(() => {
   }
 
   // ── executeScript helper ──────────────────────────────────────────────────────
-  async function execInTab(tabId: number, func: Function, args: any[]) {
+  async function execInTab(tabId: number, func: Function, args: any[], frameId: number | null = null) {
     const results = await chrome.scripting.executeScript({
-      target: { tabId },
+      target: frameId != null ? { tabId, frameIds: [frameId] } : { tabId },
       func: func as any,
       args,
       world: 'MAIN'
     });
     return results?.[0]?.result;
+  }
+
+  // Resolve a step's `frame` (URL substring) to a frameId via an allFrames
+  // sweep — no chrome.webNavigation permission needed, and it works for both
+  // same-origin and OOPIF frames since host_permissions is <all_urls>.
+  // Returns null when no frame matches; callers decide whether that's fatal
+  // (wait_for polls instead, because dialog iframes load asynchronously).
+  async function resolveFrameId(tabId: number, urlSubstring: string): Promise<number | null> {
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId, allFrames: true },
+        func: () => location.href,
+        world: 'MAIN'
+      });
+      const hit = (results || []).find(r => r.frameId !== 0 && typeof r.result === 'string' && (r.result as string).includes(urlSubstring));
+      return hit ? hit.frameId : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   function getSignatureTimeout(signatures: any[] = [], fallback = 2000) {
@@ -2054,10 +2190,10 @@ export default defineBackground(() => {
     };
   }
 
-  async function evaluateActionOutcome(tabId: number, step: any, initialUrl: string, failureBaseline: Record<string, string | null>, responseBaseline: Record<string, string | null>, stateGraph: any = null) {
+  async function evaluateActionOutcome(tabId: number, step: any, initialUrl: string, failureBaseline: Record<string, string | null>, responseBaseline: Record<string, string | null>, stateGraph: any = null, frameId: number | null = null) {
     const hasFailure = Array.isArray(step.failureSignature) && step.failureSignature.length > 0;
     const hasResponse = Array.isArray(step.responseSignature) && step.responseSignature.length > 0;
-    await execInTab(tabId, PRE_FLUSH_UI, []);
+    await execInTab(tabId, PRE_FLUSH_UI, [], frameId);
 
     const failureTimeout = getSignatureTimeout(step.failureSignature, 0);
     const responseTimeout = getSignatureTimeout(step.responseSignature, 0);
@@ -2066,16 +2202,16 @@ export default defineBackground(() => {
       : 600;
     const startedAt = Date.now();
 
-    let failureSignature = hasFailure ? await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.failureSignature, initialUrl, failureBaseline, stateGraph]) : undefined;
-    let responseSignature = hasResponse ? await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.responseSignature, initialUrl, responseBaseline, stateGraph]) : undefined;
+    let failureSignature = hasFailure ? await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.failureSignature, initialUrl, failureBaseline, stateGraph], frameId) : undefined;
+    let responseSignature = hasResponse ? await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.responseSignature, initialUrl, responseBaseline, stateGraph], frameId) : undefined;
     while ((hasFailure || hasResponse) && Date.now() - startedAt < timeout) {
       if (failureSignature?.matched || responseSignature?.matched) break;
       await new Promise(r => setTimeout(r, 200));
-      if (hasFailure) failureSignature = await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.failureSignature, initialUrl, failureBaseline, stateGraph]);
-      if (hasResponse) responseSignature = await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.responseSignature, initialUrl, responseBaseline, stateGraph]);
+      if (hasFailure) failureSignature = await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.failureSignature, initialUrl, failureBaseline, stateGraph], frameId);
+      if (hasResponse) responseSignature = await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.responseSignature, initialUrl, responseBaseline, stateGraph], frameId);
     }
 
-    const mutationDiagnostics = await execInTab(tabId, PRE_READ_MUTATIONS, [true]);
+    const mutationDiagnostics = await execInTab(tabId, PRE_READ_MUTATIONS, [true], frameId);
 
     const outcome =
       failureSignature?.matched ? 'failure'
@@ -2120,6 +2256,18 @@ export default defineBackground(() => {
     }
 
     try {
+      // Per-step frame scoping: `frame` = URL substring of the target iframe
+      // (e.g. the Google Docs share dialog lives in a /drivesharing/driveshare
+      // iframe — no top-document selector can reach inside it). Resolved fresh
+      // every step because dialog iframes come and go; wait_for re-resolves in
+      // its own poll loop instead, so it can await an iframe that hasn't
+      // loaded yet.
+      let frameId: number | null = null;
+      if (step.frame && a !== 'wait_for') {
+        frameId = await resolveFrameId(tabId, interpolate(step.frame, { ...params, ...buffer }));
+        if (frameId == null) throw new Error('frame not found: ' + step.frame);
+      }
+
       if (a === 'navigate') {
         const url = interpolate(step.url || step.value || '', { ...params, ...buffer });
         if (!url) throw new Error('navigate step missing url');
@@ -2215,20 +2363,20 @@ export default defineBackground(() => {
 
       if (a === 'type') {
         const value = interpolate(step.value || '', { ...params, ...buffer });
-        const initialUrl = await execInTab(tabId, () => window.location.href, []);
-        await execInTab(tabId, PRE_ARM_MUTATION_OBSERVER, []);
+        const initialUrl = await execInTab(tabId, () => window.location.href, [], frameId);
+        await execInTab(tabId, PRE_ARM_MUTATION_OBSERVER, [], frameId);
         const failureBaseline = step.failureSignature?.length
-          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.failureSignature])
+          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.failureSignature], frameId)
           : {};
         const responseBaseline = step.responseSignature?.length
-          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.responseSignature])
+          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.responseSignature], frameId)
           : {};
         const tgt = step.target ? abstractTargets?.[step.target] : null;
         let resolvedSelector = step.selector ? interpolate(step.selector, { ...params, ...buffer }) : null;
         let resolvedVia = 'direct';
         let confidence = 1.0;
         if (tgt) {
-          const res = await execInTab(tabId, PRE_RESOLVE_TARGET, [tgt]);
+          const res = await execInTab(tabId, PRE_RESOLVE_TARGET, [tgt], frameId);
           if (!res?.found) throw new Error('Cannot resolve: ' + step.target);
           resolvedSelector = res.selector;
           resolvedVia = res.resolvedVia;
@@ -2240,8 +2388,8 @@ export default defineBackground(() => {
           }
         }
         if (!resolvedSelector) throw new Error('No selector for: ' + (step.target || step.selector));
-        await trustedType(tabId, resolvedSelector, value, !!step.submit);
-        const outcomeFields = await evaluateActionOutcome(tabId, step, initialUrl, failureBaseline, responseBaseline, run.payload?.stateGraph || null);
+        await trustedType(tabId, resolvedSelector, value, !!step.submit, frameId);
+        const outcomeFields = await evaluateActionOutcome(tabId, step, initialUrl, failureBaseline, responseBaseline, run.payload?.stateGraph || null, frameId);
         if (outcomeFields.outcome === 'failure') {
           const msg = outcomeFields.failureSignature?.text || 'Form action rejected by the page';
           return { stepId: step.stepId, action: a, status: 'error', error: msg, value, selector: resolvedSelector, resolvedVia, confidence, target: step.target, ...outcomeFields, durationMs: Date.now() - t0 };
@@ -2250,28 +2398,30 @@ export default defineBackground(() => {
       }
 
       if (a === 'click') {
-        const initialUrl = await execInTab(tabId, () => window.location.href, []);
-        await execInTab(tabId, PRE_ARM_MUTATION_OBSERVER, []);
+        const initialUrl = await execInTab(tabId, () => window.location.href, [], frameId);
+        await execInTab(tabId, PRE_ARM_MUTATION_OBSERVER, [], frameId);
         const failureBaseline = step.failureSignature?.length
-          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.failureSignature])
+          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.failureSignature], frameId)
           : {};
         const responseBaseline = step.responseSignature?.length
-          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.responseSignature])
+          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.responseSignature], frameId)
           : {};
         const tgt = step.target ? abstractTargets?.[step.target] : null;
         let resolvedSelector = step.selector ? interpolate(step.selector, { ...params, ...buffer }) : null;
         let resolvedVia = 'direct';
         let buttonText = null;
         if (tgt) {
-          const res = await execInTab(tabId, PRE_RESOLVE_TARGET, [tgt]);
+          const res = await execInTab(tabId, PRE_RESOLVE_TARGET, [tgt], frameId);
           if (!res?.found) throw new Error('Cannot resolve: ' + step.target);
           resolvedSelector = res.selector;
           resolvedVia = res.resolvedVia;
           buttonText = res.buttonText || null;
         }
-        const r = await execInTab(tabId, PRE_GUARDED_CLICK, [resolvedSelector, buttonText]);
+        const r = step.trusted
+          ? await trustedCoordClick(tabId, { selector: resolvedSelector, text: buttonText, frameId, framePattern: step.frame ? interpolate(step.frame, { ...params, ...buffer }) : null, timeoutMs: step.timeout || 5000 })
+          : await execInTab(tabId, PRE_GUARDED_CLICK, [resolvedSelector, buttonText], frameId);
         if (!r?.ok) throw new Error(r?.error || 'Click failed');
-        const outcomeFields = await evaluateActionOutcome(tabId, step, initialUrl, failureBaseline, responseBaseline, run.payload?.stateGraph || null);
+        const outcomeFields = await evaluateActionOutcome(tabId, step, initialUrl, failureBaseline, responseBaseline, run.payload?.stateGraph || null, frameId);
         if (outcomeFields.outcome === 'failure') {
           const msg = outcomeFields.failureSignature?.text || 'Action rejected by the page';
           return { stepId: step.stepId, action: a, status: 'error', error: msg, selector: resolvedSelector, resolvedVia, target: step.target, clickDiag: r, ...outcomeFields, durationMs: Date.now() - t0 };
@@ -2304,15 +2454,38 @@ export default defineBackground(() => {
         }
 
         // Element selector mode
+        // Frame-scoped waits re-resolve the frameId inside the poll loop —
+        // the iframe this wait targets (e.g. a dialog) may not exist yet when
+        // the step starts, and may be torn down/recreated between polls.
+        const framePat = step.frame ? interpolate(step.frame, { ...params, ...buffer }) : null;
+        let waitFrameId: number | null = framePat ? await resolveFrameId(tabId, framePat) : null;
         let sel: string | null = step.selector || null;
         if (!sel && step.target && abstractTargets?.[step.target]) {
-          const res = await execInTab(tabId, PRE_RESOLVE_TARGET, [abstractTargets[step.target]]);
+          const res = framePat && waitFrameId == null
+            ? null // frame not up yet — fall through to fallbackSelectors
+            : await execInTab(tabId, PRE_RESOLVE_TARGET, [abstractTargets[step.target]], waitFrameId);
           sel = res?.selector || null;
           if (!sel) sel = abstractTargets[step.target].fallbackSelectors?.[0] || null;
         }
         if (!sel) sel = interpolate(step.target || '', params); // last resort: literal
         while (Date.now() - start < timeout) {
-          const match = await execInTab(tabId, PRE_MATCH_WAIT_FOR, [step, sel as string, null]); // null: stateGraph causes PRE_ASSESS_STATE ref error in MAIN world
+          if (framePat && waitFrameId == null) {
+            waitFrameId = await resolveFrameId(tabId, framePat);
+            if (waitFrameId == null) { await new Promise(r => setTimeout(r, 300)); continue; }
+          }
+          let match: any = null;
+          try {
+            match = await execInTab(tabId, PRE_MATCH_WAIT_FOR, [step, sel as string, null], waitFrameId); // null: stateGraph causes PRE_ASSESS_STATE ref error in MAIN world
+          } catch (e) {
+            // Swallow and retry until the deadline: executeScript throws
+            // transiently while the page is mid-navigation ("Cannot access
+            // contents of the page…") — which is precisely the situation a
+            // wait_for exists to ride out. Frame-scoped waits also re-resolve
+            // the frame (dialog iframes get torn down and recreated).
+            if (framePat) waitFrameId = null;
+            await new Promise(r => setTimeout(r, 300));
+            continue;
+          }
           if (match?.matched) return { stepId: step.stepId, action: a, status: 'ok', selector: sel, state: match.state, durationMs: Date.now() - t0 };
           await new Promise(r => setTimeout(r, 300));
         }
@@ -2324,11 +2497,11 @@ export default defineBackground(() => {
         const candidates = step.candidates || (step.selector ? [step.selector] : []);
         if (candidates.length === 0) {
           // No selectors — do a full page snapshot
-          const snapshot = await execInTab(tabId, PRE_PAGE_SNAPSHOT, []);
+          const snapshot = await execInTab(tabId, PRE_PAGE_SNAPSHOT, [], frameId);
           if (step.store_as) buffer[step.store_as] = snapshot;
           return { stepId: step.stepId, action: a, status: 'ok', text: JSON.stringify(snapshot), snapshot, durationMs: Date.now() - t0 };
         }
-        const r = await execInTab(tabId, PRE_GUARDED_READ, [candidates]);
+        const r = await execInTab(tabId, PRE_GUARDED_READ, [candidates], frameId);
         if (step.store_as) buffer[step.store_as] = r?.text || null;
         return { stepId: step.stepId, action: a, status: 'ok', text: r?.text || null, selector: r?.selector, durationMs: Date.now() - t0 };
       }
@@ -2396,7 +2569,12 @@ export default defineBackground(() => {
       if (a === 'click_text') {
         const text = interpolate(step.text || '', { ...params, ...buffer });
         const exact = step.exact === true;
-        const r = await execInTab(tabId, PRE_FIND_AND_CLICK_TEXT, [text, 1500, exact]);
+        if (step.trusted) {
+          const r = await trustedCoordClick(tabId, { text, exact, frameId, framePattern: step.frame ? interpolate(step.frame, { ...params, ...buffer }) : null, timeoutMs: step.timeout || 5000 });
+          if (!r.ok) throw new Error(r.error || ('Text not found: ' + text));
+          return { stepId: step.stepId, action: a, status: 'ok', result: r, durationMs: Date.now() - t0 };
+        }
+        const r = await execInTab(tabId, PRE_FIND_AND_CLICK_TEXT, [text, 1500, exact], frameId);
         if (!r?.found) throw new Error('Text not found: ' + text);
         return { stepId: step.stepId, action: a, status: 'ok', result: r, durationMs: Date.now() - t0 };
       }

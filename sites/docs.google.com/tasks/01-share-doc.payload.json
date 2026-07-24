@@ -1,0 +1,354 @@
+{
+  "_meta": {
+    "task": "share-doc",
+    "site": "docs.google.com",
+    "description": "Share a Google Doc with one or more email addresses at a given role (Editor/Commenter/Viewer), optionally with a notification message, then re-open the Share dialog and verify the recipients appear in the People-with-access list. Requires Mike to be logged into Google in the connected Chrome (ChromeMain).",
+    "params": {
+      "doc_url": {
+        "required": true,
+        "description": "Full URL of the Google Doc to share",
+        "hint": "e.g. 'https://docs.google.com/document/d/1BhxR5bX05vdlF0J28MgyF_ZdmvxYdmamKbxMytG2JG0/edit'"
+      },
+      "emails": {
+        "required": true,
+        "description": "Recipient email address(es), comma-separated. The share combobox chips comma-separated input; a final Enter commits the trailing token.",
+        "hint": "e.g. 'a@example.com, b@example.com'"
+      },
+      "role": {
+        "required": true,
+        "description": "Access role — must be the EXACT visible menu text: 'Editor', 'Commenter', or 'Viewer'",
+        "hint": "Editor | Commenter | Viewer"
+      },
+      "message": {
+        "required": false,
+        "description": "Optional notification message. Empty string skips the message step (Google still sends its default notify email unless 'Notify people' is unchecked — this recipe leaves the checkbox at its default, checked).",
+        "hint": "e.g. 'Here is the draft we discussed.'"
+      },
+      "verify_email": {
+        "required": false,
+        "description": "One email to assert in the People-with-access list after sending (recommend the first of {{emails}}). Empty string skips the assert; the list is still captured in access_list either way.",
+        "hint": "e.g. 'a@example.com'"
+      }
+    },
+    "risk": "SENDS EMAIL — clicking Send grants access and (by default) notifies every recipient. There is no undo for the notification. Sharing outside the doc owner's domain may pop an extra 'Share anyway' confirmation (handled by optional step s10b).",
+    "selectorNotes": {
+      "iframe": "THE LOAD-BEARING FACT (found on first live run, 2026-07-24): everything inside the Share dialog renders in a same-origin iframe, src /drivesharing/driveshare — top-document selectors can never reach it. Every dialog step carries frame:'drivesharing/driveshare' (engine per-step frame scoping, added for this recipe; the '/driveshare' part matters — a sibling bridge frame drivesharing/_/bscframe matches the bare word). The Share button, naming interstitial, and doc chrome are top-document: steps s1–s4c, s13–s14c, s18 have no frame.",
+      "share_button": "#docs-titlebar-share-client-button — long-stable container id in the Docs titlebar; the clickable child is a div[role='button'] whose aria-label starts with 'Share'. It is now a scb-split-button (main button + quick-actions arrow); the fallback cascade resolves the main half.",
+      "recipient_input": "div[role='dialog'] input[aria-label*='Add people'] — Google has cycled the label suffix ('Add people and groups' / 'Add people, groups, and calendar events'), so anchor on the stable 'Add people' prefix, scoped to the dialog.",
+      "chips": "div[role='dialog'] [data-hovercard-id] — each committed recipient chip carries data-hovercard-id=<email>; presence confirms the address resolved to a chip rather than staying loose text.",
+      "role_dropdown": "Live-verified 2026-07-24: the role selector next to the recipient row is a native <button aria-label='Editor. change permission' aria-haspopup='menu'> (NOT a div[role='combobox'] — that was the authoring-session guess). Anchor: button[aria-label*='change permission'], which also excludes the adjacent 'Restricted change general access' button. Options are menu items — click_text with the exact role word selects them.",
+      "message": "div[role='dialog'] textarea (aria-label 'Message') — appears once recipients are chipped (same view in the current UI; older flows showed it on a second notify screen after the first Send, which optional steps s11b/s12b absorb).",
+      "send": "The confirm button is text 'Send' inside the dialog — no stable id; click_text is the anchor."
+    },
+    "flowReference": "Authored 2026-07-24 from the hand-driven CIC flow that shared the Izzy voice-release doc (id 1BhxR5bX05vdlF0J28MgyF_ZdmvxYdmamKbxMytG2JG0): Share button -> recipient combobox (chips on Enter) -> role dropdown -> Send -> notify step with Message textarea -> Send.",
+    "selfImproving": true,
+    "runCount": 2,
+    "lastSuccess": "2026-07-24T15:28:50Z",
+    "verified": "RELAY-VERIFIED 2026-07-24T15:28:50Z (CCc live runs). Definitive pass: clean-state share of a scratch untitled doc to claude@mike-wolf.com as Viewer — all 29 steps green, and the s16 access_list read shows 'Claude AI claude@mike-wolf.com Viewer' against FRESH server state (verification phase navigates anew before re-opening Share). Test share revoked after (titlebar back to 'Private to only me'). runCount counts green chain completions; an earlier green (same day) had selected the wrong role via an ancestor-text match — fixed in the engine (deepest-match + rect-stability for trusted clicks). CAVEAT: s17 asserts PRESENCE of verify_email in People-with-access, not the role — callers who care about the role must check the returned access_list text (it contains '<name> <email> <Role>' per member). RE-SHARE LIMITATION: if the recipient is ALREADY a member, the dialog switches to a role-edit flow where changes need 'Save', not 'Send' — this recipe targets NEW shares only; s17 will still pass (member present) but a requested role CHANGE will not apply. Engine additions this recipe drove (background.ts): per-step frame scoping (step.frame), trusted coordinate clicks (step.trusted), wait_for tolerance of mid-navigation executeScript errors."
+  },
+  "runId": "docs-share-doc-{{timestamp}}",
+  "site": "docs.google.com",
+  "mode": "exploratory",
+  "params": {
+    "doc_url": "",
+    "emails": "",
+    "role": "Editor",
+    "message": "",
+    "verify_email": ""
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "{{doc_url}}",
+      "note": "Open the doc"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "#docs-titlebar-share-client-button, div[aria-label^='Share']",
+      "timeout": 15000,
+      "note": "Doc chrome loaded — titlebar Share button present"
+    },
+    {
+      "stepId": "s3",
+      "action": "assess_state",
+      "stateGraph": {
+        "nodes": {
+          "auth_required": {
+            "signals": [
+              {
+                "type": "url_matches",
+                "pattern": "accounts\\.google\\.com"
+              }
+            ]
+          },
+          "doc_open": {
+            "signals": [
+              {
+                "type": "url_matches",
+                "pattern": "docs\\.google\\.com/document"
+              }
+            ]
+          }
+        }
+      },
+      "onMatch": {
+        "auth_required": "exit_fail"
+      },
+      "onMismatch": "continue",
+      "note": "Fail fast if bounced to Google auth"
+    },
+    {
+      "stepId": "s4",
+      "action": "click",
+      "target": "share_button",
+      "note": "Open the Share dialog"
+    },
+    {
+      "stepId": "s4b",
+      "action": "wait_for",
+      "selector": ".javascriptMaterialdesignGm3WizDialog-dialog__surface",
+      "timeout": 3000,
+      "onTimeout": "continue",
+      "note": "Settle wait for the 'Name before sharing' interstitial that appears for UNTITLED docs (top document, GM3 dialog: 'Give your untitled document a name' with Skip/Save). Soft — named docs skip straight past."
+    },
+    {
+      "stepId": "s4c",
+      "action": "click_text",
+      "text": "Skip",
+      "optional": true,
+      "note": "Dismiss the naming interstitial without naming. Optional: on a named doc there is no Skip button and this absorbs the miss. Found on first live run 2026-07-24 — the hand-driven authoring session used an already-named doc and never saw this."
+    },
+    {
+      "stepId": "s5",
+      "action": "wait_for",
+      "selector": "div[role='dialog'] input[aria-label*='Add people']",
+      "frame": "drivesharing/driveshare",
+      "timeout": 15000,
+      "note": "Share dialog open with recipient combobox. The dialog content lives in the same-origin iframe /drivesharing/driveshare — every dialog step needs frame:'drivesharing'. Timeout covers iframe load."
+    },
+    {
+      "stepId": "s6",
+      "action": "type",
+      "target": "recipient_input",
+      "frame": "drivesharing/driveshare",
+      "value": "{{emails}}",
+      "note": "Comma-separated list; the combobox chips on comma/paste. Frame-mode typing preserves focus (no trailing Tab), so s7's Enter commits the chip."
+    },
+    {
+      "stepId": "s7",
+      "action": "key",
+      "key": "Enter",
+      "note": "Commit the trailing token to a chip (Enter takes the literal typed email, which is the top suggestion)"
+    },
+    {
+      "stepId": "s7b",
+      "action": "wait",
+      "ms": 1000,
+      "note": "Settle: on a slow page the suggestion list may not be up yet when s7's Enter fires, and the commit is silently lost"
+    },
+    {
+      "stepId": "s7c",
+      "action": "key",
+      "key": "Enter",
+      "note": "Second commit attempt — harmless no-op when s7 already chipped (Enter on the empty combobox does nothing)"
+    },
+    {
+      "stepId": "s8",
+      "action": "wait_for",
+      "selector": "div[role='dialog'] [data-hovercard-id*='{{verify_email}}']",
+      "frame": "drivesharing/driveshare",
+      "timeout": 8000,
+      "note": "Recipient chip committed. Email-scoped when verify_email is set — the GENERIC [data-hovercard-id] false-matches the owner's own People-with-access row instantly and guards nothing. (With verify_email empty this degrades to the generic match.)"
+    },
+    {
+      "stepId": "s8b",
+      "action": "wait_for",
+      "selector": "div[role='dialog'] button[aria-label*='change permission']",
+      "frame": "drivesharing/driveshare",
+      "timeout": 12000,
+      "note": "The role button renders a beat AFTER the chip commits — target resolution is one-shot, so guard for it explicitly before clicking (first live run failed here on the race)."
+    },
+    {
+      "stepId": "s9",
+      "action": "click",
+      "target": "role_dropdown",
+      "frame": "drivesharing/driveshare",
+      "note": "Open the role selector (defaults to Editor) trusted:true — synthetic clicks flip aria-expanded but Google renders the menu contents only on real (CDP) mouse events.",
+      "trusted": true
+    },
+    {
+      "stepId": "s10",
+      "action": "click_text",
+      "text": "{{role}}",
+      "frame": "drivesharing/driveshare",
+      "note": "Pick the role by its exact menu text: Editor | Commenter | Viewer trusted:true + frame — menu items are position:fixed (offsetParent null), rect-based hit-testing via trusted coordinate click.",
+      "trusted": true
+    },
+    {
+      "stepId": "s11",
+      "action": "type",
+      "target": "message_field",
+      "frame": "drivesharing/driveshare",
+      "value": "{{message}}",
+      "condition": "{{message}}",
+      "optional": true,
+      "note": "Optional notification message (current UI shows it on this view; if absent here, s11b covers the older notify screen)"
+    },
+    {
+      "stepId": "s12",
+      "action": "click_text",
+      "text": "Send",
+      "frame": "drivesharing/driveshare",
+      "note": "SENDS — grants access and emails recipients",
+      "trusted": true
+    },
+    {
+      "stepId": "s11b",
+      "action": "type",
+      "target": "message_field",
+      "frame": "drivesharing/driveshare",
+      "value": "{{message}}",
+      "condition": "{{message}}",
+      "optional": true,
+      "note": "Older flow variant: a notify screen with the Message textarea appears AFTER the first Send"
+    },
+    {
+      "stepId": "s12b",
+      "action": "click_text",
+      "text": "Send",
+      "frame": "drivesharing/driveshare",
+      "optional": true,
+      "note": "Second Send for the notify-screen variant; also absorbs a 'Share anyway' style confirm if Google inserts one. Harmless no-op when the dialog already closed.",
+      "trusted": true
+    },
+    {
+      "stepId": "s10b",
+      "action": "click_text",
+      "text": "Share anyway",
+      "frame": "drivesharing/driveshare",
+      "optional": true,
+      "note": "External-domain sharing confirmation, when shown",
+      "trusted": true
+    },
+    {
+      "stepId": "s13",
+      "action": "wait_for",
+      "selector": "#docs-titlebar-share-client-button, div[aria-label^='Share']",
+      "timeout": 10000,
+      "onTimeout": "continue",
+      "note": "Dialog closed, back on the doc"
+    },
+    {
+      "stepId": "s13b",
+      "action": "navigate",
+      "url": "{{doc_url}}",
+      "note": "Fresh page load before verification — the share client wedges after an open/Send/close cycle in one page instance and a re-open click then shows an empty dialog shell (live-observed 2026-07-24). A fresh load also makes the verification honest: it reads persisted server state, not dialog residue."
+    },
+    {
+      "stepId": "s13c",
+      "action": "wait_for",
+      "selector": "#docs-titlebar-share-client-button, div[aria-label^='Share']",
+      "timeout": 15000,
+      "note": "Doc chrome loaded again"
+    },
+    {
+      "stepId": "s14",
+      "action": "click",
+      "target": "share_button",
+      "note": "Re-open Share to verify the share stuck"
+    },
+    {
+      "stepId": "s14b",
+      "action": "wait_for",
+      "selector": ".javascriptMaterialdesignGm3WizDialog-dialog__surface",
+      "timeout": 3000,
+      "onTimeout": "continue",
+      "note": "Naming interstitial settle (untitled docs show it on every Share open)"
+    },
+    {
+      "stepId": "s14c",
+      "action": "click_text",
+      "text": "Skip",
+      "optional": true,
+      "note": "Dismiss naming interstitial if present"
+    },
+    {
+      "stepId": "s15",
+      "action": "wait_for",
+      "selector": "div[role='dialog']",
+      "frame": "drivesharing/driveshare",
+      "timeout": 15000,
+      "note": "Share dialog re-opened — now shows People-with-access list. frame scoping also dodges the top-document trap: the doc page always contains a hidden div[role='dialog'] (#document-details-bubble-container), so an unscoped wait here would false-match instantly."
+    },
+    {
+      "stepId": "s16",
+      "action": "read",
+      "candidates": [
+        "div[role='dialog']"
+      ],
+      "frame": "drivesharing/driveshare",
+      "store_as": "access_list",
+      "note": "Capture the People-with-access list for the caller"
+    },
+    {
+      "stepId": "s17",
+      "action": "wait_for",
+      "selector": "div[role='dialog'] [data-hovercard-id*='{{verify_email}}']",
+      "frame": "drivesharing/driveshare",
+      "timeout": 8000,
+      "condition": "{{verify_email}}",
+      "note": "Verify the share stuck: the People-with-access entry carries data-hovercard-id=<email>. Timeout here = share did NOT stick = chain fails (that's the point). Skipped when verify_email empty. (Not 'assert' — that action exists only in the jsdom test mirror, not the extension runtime.)"
+    },
+    {
+      "stepId": "s18",
+      "action": "key",
+      "key": "Escape",
+      "note": "Close the Share dialog, leave the doc clean"
+    }
+  ],
+  "abstractTargets": {
+    "share_button": {
+      "description": "Share button in the Docs titlebar (top right)",
+      "anchors": {
+        "ariaLabel": "Share"
+      },
+      "fallbackSelectors": [
+        "#docs-titlebar-share-client-button div[role='button']",
+        "#docs-titlebar-share-client-button",
+        "div[aria-label^='Share.']",
+        "div[role='button'][aria-label^='Share']"
+      ]
+    },
+    "recipient_input": {
+      "description": "Add-people combobox in the Share dialog",
+      "anchors": {
+        "ariaLabel": "Add people"
+      },
+      "fallbackSelectors": [
+        "div[role='dialog'] input[aria-label*='Add people']",
+        "div[role='dialog'] input[type='text']"
+      ]
+    },
+    "role_dropdown": {
+      "description": "Role selector next to the recipient row (shows current role, default 'Editor'). Current UI (live-verified 2026-07-24): a native <button aria-label='Editor. change permission' aria-haspopup='menu'> inside the drivesharing iframe. NOT the 'Restricted change general access' button — 'change permission' vs 'change general access' disambiguates. Older combobox guesses retained as trailing fallbacks.",
+      "fallbackSelectors": [
+        "div[role='dialog'] button[aria-label*='change permission']",
+        "div[role='dialog'] div[role='combobox'][aria-label*='ole']",
+        "div[role='dialog'] div[role='combobox']",
+        "div[role='dialog'] [aria-label='Roles']"
+      ]
+    },
+    "message_field": {
+      "description": "Notification message textarea in the Share dialog",
+      "anchors": {
+        "ariaLabel": "Message"
+      },
+      "fallbackSelectors": [
+        "div[role='dialog'] textarea[aria-label='Message']",
+        "div[role='dialog'] textarea"
+      ]
+    }
+  }
+}
