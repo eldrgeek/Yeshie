@@ -17,26 +17,8 @@ Five daily runs, each found all 5 yeshie memory files clean and accurate (durabl
 ## Consolidated: 2026-06-27 through 2026-07-02 (clean runs)
 Four daily runs (06-27, 06-28, 07-01, 07-02), each found all 5 yeshie memory files clean and accurate (durable reference/feedback rules — no stale state, relative dates, or contradictions; unchanged since 2026-06-12); MEMORY.md index accurate, all 5 referenced files present. References re-verified live: skills/heal/detect-loop.sh present, package.json "type":"module", branch playmaker-chatgpt-bridge. Relay localhost:3333/tabs/list returned 503 on 2026-07-01 (transient) but back to 200 on 2026-07-02 — relay_preflight_check covers exactly this and needs no edit. No content edits needed in any run.
 
-## 2026-07-07 AutoDream Run
-- Files reviewed: 6 (MEMORY.md + 5 memory files)
-- Files updated: 0
-- Files merged: 0
-- Files removed: 0
-- Memory dir found at: /Users/mikewolf/Projects/yeshie/.auto-memory
-- Summary: All 5 yeshie memory files clean and accurate (durable reference/feedback rules — no stale state, relative dates, or contradictions; unchanged since 2026-06-12); MEMORY.md index accurate, all 5 referenced files present. References re-verified live on disk: skills/heal/detect-loop.sh present, package.json "type":"module", branch playmaker-chatgpt-bridge, relay localhost:3333/tabs/list returns 200. No content edits needed.
+## Consolidated: 2026-07-07 through 2026-07-14 (clean runs)
+Six logged runs (07-07, 07-08, 07-11, 07-12, 07-13, 07-14; gaps on 07-09/07-10), each found all 5 yeshie memory files clean and accurate (durable reference/feedback rules — no stale state, relative dates, or contradictions; unchanged since 2026-06-12); MEMORY.md index accurate, all 5 referenced files present. References re-verified live on disk each run: skills/heal/detect-loop.sh present, package.json "type":"module", branch playmaker-chatgpt-bridge, relay localhost:3333/tabs/list returns 200. No content edits needed in any run.
 
-## 2026-07-08 AutoDream Run
-- Files reviewed: 6 (MEMORY.md + 5 memory files)
-- Files updated: 0
-- Files merged: 0
-- Files removed: 0
-- Memory dir found at: /Users/mikewolf/Projects/yeshie/.auto-memory
-- Summary: All 5 yeshie memory files clean and accurate (durable reference/feedback rules — no stale state, relative dates, or contradictions; unchanged since 2026-06-12); MEMORY.md index accurate, all 5 referenced files present. References re-verified live on disk: skills/heal/detect-loop.sh present, package.json "type":"module", branch playmaker-chatgpt-bridge, relay localhost:3333/tabs/list returns 200. No content edits needed.
-
-## 2026-07-11 AutoDream Run
-- Files reviewed: 6 (MEMORY.md + 5 memory files)
-- Files updated: 0
-- Files merged: 0
-- Files removed: 0
-- Memory dir found at: /Users/mikewolf/Projects/yeshie/.auto-memory
-- Summary: All 5 yeshie memory files clean and accurate (durable reference/feedback rules — no stale state, relative dates, or contradictions; unchanged since 2026-06-12); MEMORY.md index accurate, all 5 referenced files present. References re-verified live on disk: skills/heal/detect-loop.sh present, package.json "type":"module", branch playmaker-chatgpt-bridge, relay localhost:3333/tabs/list returns 200. No content edits needed.
+## Consolidated: 2026-07-15 through 2026-07-20 (clean runs)
+Seven passes (07-15, 07-16, 07-17, 07-18, 07-19 [two passes], 07-20 [two passes]). All 5 yeshie memory files clean and accurate every run (durable reference/feedback rules — no stale state, relative dates, or contradictions; unchanged since 2026-06-12); MEMORY.md index accurate, all 5 referenced files present. References re-verified live on disk each run, most recently 2026-07-20: skills/heal/detect-loop.sh present, package.json "type":"module", branch playmaker-chatgpt-bridge, relay localhost:3333/tabs/list returns 200. No content edits needed. Only cleanup was consolidating individual entries into blocks: the 07-15..07-20 entries here, and (second 07-20 pass) merging the standalone 07-13 and 07-14 entries into the 2026-07-07..07-14 block above.

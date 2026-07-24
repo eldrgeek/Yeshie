@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import { execFile, spawn } from 'child_process';
 import { homedir } from 'os';
 import { YSocketIO } from 'y-socket.io/dist/server';
+import { parsePulseVoiceTurn, pulseVoiceTeammates } from './pulse-voice.js';
 
 // ====================== dispatch_input config ======================
 // See ~/Projects/SOMA/specs/heartbeat-pattern-v1.md
@@ -1230,7 +1231,93 @@ export function createRelay(port = 3333) {
       return;
     }
 
-    // ── /dispatch/conversation: merged Pulse thread (Mike + Dee) ─────────────
+    // ── pulse/voice/turn: Meta glasses / phone voice turn routing ────────
+    if (path === '/pulse/voice/turn' && req.method === 'POST') {
+      const clientIp = extractClientIp(req);
+      if (!isAllowedClientIp(clientIp)) {
+        jsonReply(res, 403, { error: 'Forbidden: source IP not allowed', ip: clientIp });
+        return;
+      }
+
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const rawText = String(body?.text || '').trim();
+      if (!rawText) { jsonReply(res, 400, { error: 'text required' }); return; }
+      if (rawText.length > 4000) { jsonReply(res, 413, { error: 'text too large' }); return; }
+
+      let turn;
+      try { turn = parsePulseVoiceTurn(body); }
+      catch (e) { jsonReply(res, 400, { error: e.message, teammates: pulseVoiceTeammates }); return; }
+
+      const timestamp = new Date().toISOString();
+      const clientId = body?.client_id ? String(body.client_id).slice(0, 64) : undefined;
+      try { mkdirSync(DISPATCH_DIR, { recursive: true }); } catch {}
+
+      if (turn.mode === 'dispatch') {
+        const dispatchUrl = process.env.PULSE_DISPATCH_URL || 'http://127.0.0.1:3340/dispatch';
+        let response;
+        try {
+          response = await fetch(dispatchUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: turn.text,
+              target: turn.dispatchTarget,
+              source: 'pulse-glasses',
+            }),
+          });
+        } catch (e) {
+          jsonReply(res, 502, { error: `dispatcher unavailable: ${e.message}` });
+          return;
+        }
+        const dispatchResult = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          jsonReply(res, 502, { error: dispatchResult.error || `dispatcher returned ${response.status}` });
+          return;
+        }
+
+        const entry = {
+          body: rawText,
+          source: 'pulse-glasses',
+          recipient: 'dispatcher',
+          mode: 'dispatch',
+          handled_by: 'pulse-voice',
+          timestamp,
+          ...(clientId ? { client_id: clientId } : {}),
+        };
+        appendFileSync(INBOX_PATH, JSON.stringify(entry) + '\n');
+        const ack = {
+          source: 'dispatcher',
+          speaker: 'Dispatcher',
+          timestamp: new Date().toISOString(),
+          body: `Dispatched to ${dispatchResult.resolved_target || turn.dispatchTarget}. Job ${dispatchResult.id || 'queued'}.`,
+          in_reply_to: timestamp,
+        };
+        appendFileSync(DEE_REPLIES_PATH, JSON.stringify(ack) + '\n');
+        io.emit('message', { type: 'dee_reply', from: ack.source, speaker: ack.speaker, ts: ack.timestamp, body: ack.body, in_reply_to: timestamp });
+        jsonReply(res, 202, { ok: true, timestamp, mode: 'dispatch', recipient: 'dispatcher', dispatch: dispatchResult });
+        return;
+      }
+
+      const entry = {
+        body: turn.text,
+        source: 'pulse-glasses',
+        recipient: turn.recipient,
+        mode: turn.mode,
+        voice: true,
+        timestamp,
+        ...(clientId ? { client_id: clientId } : {}),
+      };
+      try {
+        appendFileSync(INBOX_PATH, JSON.stringify(entry) + '\n');
+        jsonReply(res, 200, { ok: true, timestamp, mode: turn.mode, recipient: turn.recipient });
+      } catch {
+        jsonReply(res, 500, { error: 'Failed to queue voice turn' });
+      }
+      return;
+    }
+
+    // ── /dispatch/conversation: merged Pulse thread (Mike + AI team) ─────────
     // Returns inbox.jsonl entries with source starting with "pulse" merged with
     // dee_replies.jsonl, sorted by timestamp ascending.
     // Query params: since=<ISO ts>, limit=<n> (default 200, max 500)
@@ -1259,11 +1346,17 @@ export function createRelay(port = 3333) {
           return m;
         });
 
-      const deeMessages = parseJsonlFile(DEE_REPLIES_PATH)
-        .filter(e => e.source === 'dee')
-        .map(e => ({ from: 'dee', ts: e.timestamp, body: e.body, in_reply_to: e.in_reply_to }));
+      const teamMessages = parseJsonlFile(DEE_REPLIES_PATH)
+        .filter(e => typeof e.source === 'string' && e.source.trim())
+        .map(e => ({
+          from: e.source,
+          speaker: e.speaker || e.source,
+          ts: e.timestamp,
+          body: e.body,
+          in_reply_to: e.in_reply_to,
+        }));
 
-      let messages = [...mikeMessages, ...deeMessages]
+      let messages = [...mikeMessages, ...teamMessages]
         .sort((a, b) => new Date(a.ts) - new Date(b.ts));
 
       if (sinceDate) {
@@ -1310,8 +1403,14 @@ export function createRelay(port = 3333) {
 
       if (source !== 'inbox') {
         parseJsonlLines(DEE_REPLIES_PATH)
-          .filter(e => e.source === 'dee')
-          .forEach(e => candidates.push({ from: 'dee', ts: e.timestamp, body: e.body || '', source: e.source }));
+          .filter(e => typeof e.source === 'string' && e.source.trim())
+          .forEach(e => candidates.push({
+            from: e.source,
+            speaker: e.speaker || e.source,
+            ts: e.timestamp,
+            body: e.body || '',
+            source: e.source,
+          }));
       }
 
       if (sinceDate) {

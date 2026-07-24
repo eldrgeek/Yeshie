@@ -1,9 +1,10 @@
 ---
 audience: silicon
 document: reference
-sync_version: 1
-last_updated: 2026-04-04
+sync_version: 2
+last_updated: 2026-07-13
 repo: yeshie
+authorship_update: "Mike Wolf (system direction), OpenAI Codex (2026-07-13 voice-relay contract pass)"
 ---
 
 # Reference
@@ -30,6 +31,10 @@ Base URL: `http://localhost:3333`
 |--------|------|------|----------|
 | POST | `/run` | `{payload, params, tabId, timeoutMs}` | ChainResult JSON |
 | GET | `/status` | — | `{ok: bool, extensionConnected: bool, pending: int}` |
+| POST | `/pulse/voice/turn` | `{text, mode?, recipient?, dispatch_target?, client_id?}` | Routed voice-turn envelope |
+| GET | `/dispatch/conversation` | query `since`, `limit` | Merged Mike + named AI-team messages |
+
+`/pulse/voice/turn` accepts `auto|conversation|dispatch|strategy`. It writes conversational turns to `~/.dispatch/inbox.jsonl`; dispatch turns are submitted to the Pulse dispatcher on port 3340 and receive an immediate spoken acknowledgement. Named replies in `dee_replies.jsonl` use `source`, `speaker`, and `in_reply_to`.
 
 ## ChainResult Schema
 

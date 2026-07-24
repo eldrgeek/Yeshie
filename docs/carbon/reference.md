@@ -1,14 +1,21 @@
 ---
 audience: carbon
 document: reference
-sync_version: 1
-last_updated: 2026-04-04
+sync_version: 2
+last_updated: 2026-07-13
 repo: yeshie
+authorship_update: "Mike Wolf (system direction), OpenAI Codex (2026-07-13 voice-relay contract pass)"
 ---
 
 # Reference
 
 A guide to the APIs, file formats, and action types you'll encounter when working with Yeshie. See [../silicon/reference.md](../silicon/reference.md) for a denser, tabular version.
+
+## Pulse and Meta-glasses voice turns
+
+Pulse sends a transcript to `POST /pulse/voice/turn`. The relay can treat it as a normal conversation, address a named SOMA teammate, convene a strategy panel, or pass real work to the Pulse dispatcher on port 3340. `GET /dispatch/conversation` returns Mike's messages plus replies from Dee, Codex, other named personas, the strategy team, or the dispatcher. Each reply identifies its `speaker` and the original turn through `in_reply_to`, which lets Pulse speak exactly the matching response.
+
+Examples include “Codex, assess this plan,” “start a strategic discussion,” and “dispatch to code: fix the tests.”
 
 ---
 
