@@ -110,6 +110,17 @@ export default defineBackground(() => {
       ack({ active: recordingState.active, episodeId: recordingState.episodeId });
     });
 
+    // Pulse asks Yeshie to place the human at an exact approval control.
+    // Reuse the same handler as side-panel teach mode; this only highlights
+    // and observes the target. It never clicks the control.
+    socket.on('teach_start', async ({ steps, tabId }: any, ack: (result: any) => void) => {
+      try {
+        ack(await handleTeachMessage({ type: 'teach_start', steps, targetTabId: tabId }));
+      } catch (err: any) {
+        ack({ ok: false, error: err.message });
+      }
+    });
+
     // Relay injects a chat message into a specific tab's side-panel conversation.
     // The message appears as if the user typed it, then flows through the normal
     // chat path so the listener receives it just like any user-initiated message.
@@ -258,6 +269,87 @@ export default defineBackground(() => {
 
   // ── Teach session state (survives SPA navigation) ────────────────────────────
   const teachSessions = new Map<number, { steps: any[]; currentStepIndex: number }>();
+
+  async function handleTeachMessage(msg: any): Promise<{ ok: boolean; tabId?: number; error?: string }> {
+    // Preference order: (1) explicitly requested HTTPS tab, (2) active HTTPS
+    // tab, (3) YeshID, (4) any HTTPS tab. Chrome-internal and HTTP pages are
+    // intentionally excluded from this human-approval control plane.
+    let targetTabId: number | undefined;
+    if (msg.targetTabId !== undefined) {
+      try {
+        const requested = await chrome.tabs.get(msg.targetTabId);
+        if (!requested.url?.startsWith('https://')) {
+          return { ok: false, error: `Tab ${msg.targetTabId} is not an HTTPS page` };
+        }
+        targetTabId = requested.id;
+      } catch (err: any) {
+        return { ok: false, error: `Could not resolve tab ${msg.targetTabId}: ${err.message}` };
+      }
+    } else {
+      const focused = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      const activeHttpsTab = focused.find(tab => tab.url?.startsWith('https://'));
+      if (activeHttpsTab?.id) {
+        targetTabId = activeHttpsTab.id;
+      } else {
+        const yeshidTabs = await chrome.tabs.query({ url: 'https://app.yeshid.com/*' });
+        if (yeshidTabs[0]?.id) {
+          targetTabId = yeshidTabs[0].id;
+        } else {
+          const allHttpsTabs = await chrome.tabs.query({ url: 'https://*/*' });
+          if (allHttpsTabs[0]?.id) targetTabId = allHttpsTabs[0].id;
+        }
+      }
+    }
+
+    if (!targetTabId) {
+      return { ok: false, error: 'No suitable HTTPS tab found' };
+    }
+
+    const teachMsg: any = { type: msg.type };
+    if (msg.type === 'teach_start') teachMsg.steps = msg.steps;
+    if (msg.type === 'teach_goto') teachMsg.stepIndex = msg.stepIndex;
+
+    const trySend = async (): Promise<boolean> => {
+      try {
+        await chrome.tabs.sendMessage(targetTabId!, teachMsg);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    let delivered = await trySend();
+    if (!delivered) {
+      console.log('[Yeshie] Content overlay not loaded in tab', targetTabId, '— injecting');
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: targetTabId },
+          files: ['content-overlay.js'],
+        });
+        for (let i = 0; i < 5 && !delivered; i++) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+          delivered = await trySend();
+        }
+      } catch (err: any) {
+        console.warn('[Yeshie] Failed to inject content overlay:', err.message);
+        return { ok: false, error: `Could not inject overlay into tab ${targetTabId}: ${err.message}` };
+      }
+    }
+
+    if (!delivered) {
+      return {
+        ok: false,
+        error: `Content overlay loaded but message delivery to tab ${targetTabId} still failed`,
+      };
+    }
+
+    if (msg.type === 'teach_start') {
+      teachSessions.set(targetTabId, { steps: msg.steps, currentStepIndex: 0 });
+    } else if (msg.type === 'teach_end') {
+      teachSessions.delete(targetTabId);
+    }
+    return { ok: true, tabId: targetTabId };
+  }
 
   function collectSurpriseEvidence(stepResults: any[] = [], topLevelError?: string) {
     const collected = stepResults.flatMap((r: any) => Array.isArray(r?.surpriseEvidence) ? r.surpriseEvidence : []);
@@ -3305,82 +3397,9 @@ export default defineBackground(() => {
       return true;
     }
     if (msg.type === 'teach_start' || msg.type === 'teach_goto' || msg.type === 'teach_end') {
-      // Forward teach messages to the correct tab.
-      // Preference order: (1) targetTabId from side panel (originating tab's conversation),
-      // (2) currently active real tab, (3) YeshID tab, (4) any https tab.
-      (async () => {
-        // Find best tab
-        let targetTabId: number | undefined;
-        // If the side panel specified a tab (from the conversation that triggered this), use it
-        if (msg.targetTabId) {
-          targetTabId = msg.targetTabId;
-        } else {
-          const focused = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-          const realTab = focused.find(t => t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('chrome-extension://'));
-          if (realTab?.id) {
-            targetTabId = realTab.id;
-          } else {
-            const yeshidTabs = await chrome.tabs.query({ url: 'https://app.yeshid.com/*' });
-            if (yeshidTabs[0]?.id) targetTabId = yeshidTabs[0].id;
-            else {
-              const allTabs = await chrome.tabs.query({ url: 'https://*/*' });
-              if (allTabs[0]?.id) targetTabId = allTabs[0].id;
-            }
-          }
-        }
-
-        if (!targetTabId) {
-          sendResponse({ ok: false, error: 'No suitable tab found. Open the YeshID page first.' });
-          return;
-        }
-
-        const teachMsg: any = { type: msg.type };
-        if (msg.type === 'teach_start') teachMsg.steps = msg.steps;
-        if (msg.type === 'teach_goto') teachMsg.stepIndex = msg.stepIndex;
-
-        // Attempt to send; if content script not loaded, inject it and retry once
-        const trySend = async (): Promise<{ ok: boolean; error?: string }> => {
-          try {
-            await chrome.tabs.sendMessage(targetTabId!, teachMsg);
-            return { ok: true };
-          } catch (_) {
-            return { ok: false };
-          }
-        };
-
-        let result = await trySend();
-        if (!result.ok) {
-          // Content overlay not injected — inject it now (happens after hot-reload)
-          console.log('[Yeshie] Content overlay not loaded in tab', targetTabId, '— injecting');
-          try {
-            await chrome.scripting.executeScript({
-              target: { tabId: targetTabId! },
-              files: ['content-overlay.js']
-            });
-            // Poll for readiness: up to 5 × 200ms = 1s instead of a fixed 300ms delay
-            for (let i = 0; i < 5 && !result.ok; i++) {
-              await new Promise(r => setTimeout(r, 200));
-              result = await trySend();
-            }
-          } catch (injectErr: any) {
-            console.warn('[Yeshie] Failed to inject content overlay:', injectErr.message);
-            sendResponse({ ok: false, error: `Could not inject overlay into tab ${targetTabId}: ${injectErr.message}` });
-            return;
-          }
-        }
-
-        if (!result.ok) {
-          sendResponse({ ok: false, error: 'Content overlay loaded but message delivery still failed. Try navigating the YeshID tab.' });
-        } else {
-          // Track teach session so we can restore it after SPA navigation
-          if (msg.type === 'teach_start') {
-            teachSessions.set(targetTabId, { steps: msg.steps, currentStepIndex: 0 });
-          } else if (msg.type === 'teach_end') {
-            teachSessions.delete(targetTabId);
-          }
-          sendResponse({ ok: true, tabId: targetTabId });
-        }
-      })();
+      handleTeachMessage(msg)
+        .then(sendResponse)
+        .catch((err: any) => sendResponse({ ok: false, error: err.message }));
       return true;
     }
     // Teach progress tracking — sent by content script, used to maintain restore point

@@ -203,6 +203,81 @@ function isAllowedClientIp(ip) {
   return false;
 }
 
+const TEACH_START_KEYS = new Set(['steps', 'tabId']);
+const TEACH_STEP_KEYS = new Set([
+  'stepIndex',
+  'totalSteps',
+  'instruction',
+  'targetSelector',
+  'highlightTarget',
+  'waitForAction',
+  'position',
+]);
+const TEACH_POSITIONS = new Set(['top', 'bottom', 'left', 'right', 'auto']);
+const TEACH_WAIT_ACTIONS = new Set(['click', 'type', 'navigate']);
+
+function validateTeachStartPayload(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return 'body must be an object';
+  }
+  const unknownTopLevel = Object.keys(body).filter(key => !TEACH_START_KEYS.has(key));
+  if (unknownTopLevel.length > 0) {
+    return `unknown field${unknownTopLevel.length === 1 ? '' : 's'}: ${unknownTopLevel.join(', ')}`;
+  }
+  if (!Array.isArray(body.steps) || body.steps.length === 0) {
+    return 'steps must be a non-empty array';
+  }
+  if (body.steps.length > 25) {
+    return 'steps must contain at most 25 items';
+  }
+  if (body.tabId !== undefined && (!Number.isInteger(body.tabId) || body.tabId <= 0)) {
+    return 'tabId must be a positive integer';
+  }
+
+  for (let i = 0; i < body.steps.length; i++) {
+    const step = body.steps[i];
+    const prefix = `steps[${i}]`;
+    if (!step || typeof step !== 'object' || Array.isArray(step)) {
+      return `${prefix} must be an object`;
+    }
+    const unknownStepFields = Object.keys(step).filter(key => !TEACH_STEP_KEYS.has(key));
+    if (unknownStepFields.length > 0) {
+      return `${prefix} has unknown field${unknownStepFields.length === 1 ? '' : 's'}: ${unknownStepFields.join(', ')}`;
+    }
+    if (!Number.isInteger(step.stepIndex) || step.stepIndex !== i) {
+      return `${prefix}.stepIndex must equal ${i}`;
+    }
+    if (!Number.isInteger(step.totalSteps) || step.totalSteps !== body.steps.length) {
+      return `${prefix}.totalSteps must equal ${body.steps.length}`;
+    }
+    if (typeof step.instruction !== 'string' || !step.instruction.trim() || step.instruction.length > 500) {
+      return `${prefix}.instruction must be a non-empty string of at most 500 characters`;
+    }
+    // The existing tooltip renders instruction text as HTML. Keep this HTTP
+    // control plane text-only so a caller cannot inject markup into a page.
+    if (/[<>]/.test(step.instruction)) {
+      return `${prefix}.instruction must be plain text`;
+    }
+    if (typeof step.targetSelector !== 'string' || !step.targetSelector.trim() || step.targetSelector.length > 1000) {
+      return `${prefix}.targetSelector must be a non-empty string of at most 1000 characters`;
+    }
+    if (typeof step.highlightTarget !== 'boolean') {
+      return `${prefix}.highlightTarget must be a boolean`;
+    }
+    if (!TEACH_POSITIONS.has(step.position)) {
+      return `${prefix}.position must be one of: ${[...TEACH_POSITIONS].join(', ')}`;
+    }
+    if (
+      step.waitForAction !== undefined
+      && step.waitForAction !== null
+      && !TEACH_WAIT_ACTIONS.has(step.waitForAction)
+    ) {
+      return `${prefix}.waitForAction must be click, type, navigate, or null`;
+    }
+  }
+  return null;
+}
+
 // ====================== Conversation Logger ======================
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -1651,6 +1726,58 @@ export function createRelay(port = 3333) {
         } catch {}
       }
       jsonReply(res, 200, { events });
+      return;
+    }
+
+    // ── Pulse human gate: show a teach overlay at the exact browser control ──
+    // This endpoint never clicks the target. It only asks the extension's
+    // existing teach_start handler to highlight it and waits for the extension
+    // to acknowledge the resolved HTTPS tab.
+    if (path === '/teach/start' && req.method === 'POST') {
+      const clientIp = extractClientIp(req);
+      if (!isAllowedClientIp(clientIp)) {
+        jsonReply(res, 403, { error: 'Forbidden: source IP not allowed', ip: clientIp });
+        return;
+      }
+      const secret = loadRelaySecret();
+      if (!secret) {
+        jsonReply(res, 503, { error: 'Relay secret not configured' });
+        return;
+      }
+      const provided = req.headers['x-dispatch-token'] || '';
+      if (provided !== secret) {
+        jsonReply(res, 401, { error: 'Bad token' });
+        return;
+      }
+
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const validationError = validateTeachStartPayload(body);
+      if (validationError) {
+        jsonReply(res, 400, { error: `Invalid teach-start payload: ${validationError}` });
+        return;
+      }
+      if (!extensionSocket) {
+        jsonReply(res, 503, { error: 'Extension not connected' });
+        return;
+      }
+
+      try {
+        const result = await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('Timeout waiting for teach_start acknowledgment')), 10_000);
+          extensionSocket.emit('teach_start', { steps: body.steps, tabId: body.tabId }, (ack) => {
+            clearTimeout(timer);
+            resolve(ack);
+          });
+        });
+        if (!result || result.ok !== true || !Number.isInteger(result.tabId)) {
+          jsonReply(res, 502, { error: result?.error || 'Extension returned an invalid teach_start acknowledgment' });
+          return;
+        }
+        jsonReply(res, 200, { ok: true, tabId: result.tabId });
+      } catch (err) {
+        jsonReply(res, 504, { error: err.message });
+      }
       return;
     }
 

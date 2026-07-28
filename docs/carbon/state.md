@@ -1,9 +1,10 @@
 ---
 audience: carbon
 document: state
-sync_version: 1
-last_updated: 2026-04-04
+sync_version: 2
+last_updated: 2026-07-27
 repo: yeshie
+authorship_update: "Mike Wolf (human-gate doctrine), OpenAI Codex (2026-07-27 Pulse action bridge)"
 ---
 
 # Current State
@@ -28,6 +29,12 @@ A snapshot of what's working, what's in progress, and what's next. Updated: Apri
 **The core architecture problems are solved.** Two issues that made earlier approaches fail are now fixed:
 - Page navigation used to kill automation mid-task. The background worker approach means navigations are invisible to the chain executor.
 - YeshID's Content Security Policy blocks JavaScript eval. Pre-bundled functions via `chrome.scripting.executeScript` bypass this entirely.
+
+**Pulse human approval is wired.** Trusted local workflows can call the
+authenticated `/teach/start` endpoint to make Yeshie open its teaching overlay
+on an exact HTTPS-tab control. Six focused tests pass, and the running relay
+plus extension completed a live disposable-tab smoke test. This path
+highlights and observes only; it never clicks an approval control.
 
 ---
 

@@ -1,9 +1,10 @@
 ---
 audience: silicon
 document: architecture
-sync_version: 1
-last_updated: 2026-04-04
+sync_version: 2
+last_updated: 2026-07-27
 repo: yeshie
+authorship_update: "Mike Wolf (human-gate doctrine), OpenAI Codex (2026-07-27 Pulse action bridge)"
 ---
 
 # Architecture
@@ -65,6 +66,8 @@ File: `packages/relay/index.js`
 
 - HTTP server + Socket.IO (port 3333)
 - `POST /run` → emits to connected extension → awaits `chainResult` event → returns HTTP response
+- Authenticated `POST /teach/start` → emits a validated TeachStep to the
+  extension → highlights/observes an exact HTTPS-tab control; never clicks it
 - `GET /status` → `{"ok":true,"extensionConnected":bool,"pending":N}`
 - Logs conversations to `logs/conversations/{date}.jsonl`
 - Keepalive alarm (24s) prevents extension service worker sleep
@@ -140,3 +143,4 @@ Background worker polls `localhost:27182` every 2s. On build number change: `chr
 | Socket.IO (not plain WebSocket) | Reconnection handling, event namespacing |
 | Three-layer model (L1/L2/L3) | Reuse framework knowledge across sites |
 | JSON payloads (not code) | Portable, inspectable, self-improving |
+| Highlight-only human gate | Automation navigates and points; the human alone supplies irreducible consent |

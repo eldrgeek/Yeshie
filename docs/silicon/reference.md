@@ -1,10 +1,10 @@
 ---
 audience: silicon
 document: reference
-sync_version: 2
-last_updated: 2026-07-13
+sync_version: 3
+last_updated: 2026-07-27
 repo: yeshie
-authorship_update: "Mike Wolf (system direction), OpenAI Codex (2026-07-13 voice-relay contract pass)"
+authorship_update: "Mike Wolf (system direction), OpenAI Codex (2026-07-27 Pulse human-gate contract pass)"
 ---
 
 # Reference
@@ -31,10 +31,19 @@ Base URL: `http://localhost:3333`
 |--------|------|------|----------|
 | POST | `/run` | `{payload, params, tabId, timeoutMs}` | ChainResult JSON |
 | GET | `/status` | — | `{ok: bool, extensionConnected: bool, pending: int}` |
+| POST | `/teach/start` | `{steps: TeachStep[], tabId?: int}` + `X-Dispatch-Token` | `{ok: true, tabId: int}` |
 | POST | `/pulse/voice/turn` | `{text, mode?, recipient?, dispatch_target?, client_id?}` | Routed voice-turn envelope |
 | GET | `/dispatch/conversation` | query `since`, `limit` | Merged Mike + named AI-team messages |
 
 `/pulse/voice/turn` accepts `auto|conversation|dispatch|strategy`. It writes conversational turns to `~/.dispatch/inbox.jsonl`; dispatch turns are submitted to the Pulse dispatcher on port 3340 and receive an immediate spoken acknowledgement. Named replies in `dee_replies.jsonl` use `source`, `speaker`, and `in_reply_to`.
+
+`/teach/start` is the Pulse human-gate surface. It is restricted to allowed
+network sources and requires the token from `~/.dispatch/relay.secret`.
+Top-level input is exactly `steps` plus optional `tabId`; unknown fields are
+rejected. Each TeachStep supplies `stepIndex`, `totalSteps`, plain-text
+`instruction`, `targetSelector`, `highlightTarget`, `waitForAction`, and
+`position`. The extension highlights and observes the target. This endpoint
+never clicks it.
 
 ## ChainResult Schema
 

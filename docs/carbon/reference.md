@@ -1,10 +1,10 @@
 ---
 audience: carbon
 document: reference
-sync_version: 2
-last_updated: 2026-07-13
+sync_version: 3
+last_updated: 2026-07-27
 repo: yeshie
-authorship_update: "Mike Wolf (system direction), OpenAI Codex (2026-07-13 voice-relay contract pass)"
+authorship_update: "Mike Wolf (system direction), OpenAI Codex (2026-07-27 Pulse human-gate contract pass)"
 ---
 
 # Reference
@@ -16,6 +16,23 @@ A guide to the APIs, file formats, and action types you'll encounter when workin
 Pulse sends a transcript to `POST /pulse/voice/turn`. The relay can treat it as a normal conversation, address a named SOMA teammate, convene a strategy panel, or pass real work to the Pulse dispatcher on port 3340. `GET /dispatch/conversation` returns Mike's messages plus replies from Dee, Codex, other named personas, the strategy team, or the dispatcher. Each reply identifies its `speaker` and the original turn through `in_reply_to`, which lets Pulse speak exactly the matching response.
 
 Examples include “Codex, assess this plan,” “start a strategic discussion,” and “dispatch to code: fix the tests.”
+
+---
+
+## Pulse Human-Gate API
+
+`POST /teach/start` lets a trusted local workflow put Mike at one exact web
+control without performing the approval for him. The caller sends
+`{steps: TeachStep[], tabId?: number}` and the `X-Dispatch-Token` stored in
+`~/.dispatch/relay.secret`. The relay rejects unknown fields, malformed steps,
+untrusted network sources, and missing or incorrect tokens.
+
+On success it returns `{ok: true, tabId}` after the extension has injected the
+normal teaching overlay into an HTTPS tab. Each step contains a plain-text
+instruction, a target selector, highlighting options, and the action to
+observe. There is intentionally no auto-click option: Yeshie navigates and
+points, Mike supplies the irreducible consent, and the requesting workflow
+must verify the effect afterward.
 
 ---
 

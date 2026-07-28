@@ -1,9 +1,10 @@
 ---
 audience: silicon
 document: state
-sync_version: 1
-last_updated: 2026-04-04
+sync_version: 2
+last_updated: 2026-07-27
 repo: yeshie
+authorship_update: "Mike Wolf (human-gate doctrine), OpenAI Codex (2026-07-27 Pulse action bridge)"
 ---
 
 # State
@@ -60,6 +61,7 @@ status: 176/176 passing
 | `packages/relay/index.js` | production |
 | `packages/extension/` background worker | production |
 | Auth / login recovery (waitForAuth + PRE_CLICK_GOOGLE_ACCOUNT) | implemented, not E2E validated |
+| Pulse `/teach/start` human gate | production; 6 focused tests + live relay/extension HTTPS-tab smoke |
 
 ## Architecture Issues Resolved
 
@@ -75,4 +77,5 @@ status: 176/176 passing
 - Generated DOM IDs (`input-v-10`, `input-v-12`) change per page load — always use semantic resolution
 - `chrome.sidePanel.close()` requires Chrome 141+ for programmatic close
 - Auth flow unit-tested but not validated against a real expired session cycle
+- `/teach/start` highlights and observes only; it never clicks an approval control
 - `05-integration-setup` payload has `preRunChecklist` that must be satisfied before first run
