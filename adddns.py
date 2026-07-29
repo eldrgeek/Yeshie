@@ -3,7 +3,7 @@
 Sync DNS records to a Netlify DNS zone.
 
 Usage:
-  export NETLIFY_TOKEN=your_token_here
+  export NETLIFY_AUTH_TOKEN=your_token_here
   python netlify_dns_sync.py --domain mike-wolf.com --plan
   python netlify_dns_sync.py --domain mike-wolf.com --apply
   python netlify_dns_sync.py --domain mike-wolf.com --apply --prune
@@ -218,7 +218,7 @@ def main() -> int:
 
     token = os.environ.get("NETLIFY_AUTH_TOKEN", "")
     if not token:
-        print("Missing NETLIFY_TOKEN environment variable", file=sys.stderr)
+        print("Missing NETLIFY_AUTH_TOKEN environment variable", file=sys.stderr)
         return 2
 
     client = NetlifyDNS(token=token)
