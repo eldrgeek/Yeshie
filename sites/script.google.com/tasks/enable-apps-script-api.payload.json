@@ -1,0 +1,200 @@
+{
+  "_meta": {
+    "name": "gas-enable-apps-script-api",
+    "site": "script.google.com",
+    "description": "Turn ON the per-account 'Google Apps Script API' user setting at script.google.com/home/usersettings, so clasp / the Apps Script API can create and manage projects for that account. Asserts the ACTIVE Google account before touching the toggle (toggling the wrong account is a silent wrong answer), and is idempotent: the click is skipped when the setting is already on.",
+    "version": "1.0.0",
+    "verified": true,
+    "verifiedDate": "2026-08-02",
+    "author": "Yeshie session 2026-08-02",
+    "mode": "verification",
+    "auth": {
+      "type": "none"
+    },
+    "skipAuthCheck": true,
+    "prerequisite": "Relay up + extension connected (curl -s http://localhost:3333/status -> {\"ok\":true,\"extensionConnected\":true}). Chrome signed into the target Google account.",
+    "verificationByConsequence": "cd ~/Projects/playmaker/gdocs-addon && clasp -u personal list-scripts | BEFORE: 'User has not enabled the Apps Script API. Enable it by visiting https://script.google.com/home/usersettings then retry.' | AFTER: 'Found 1 script.' (exit 0). A green toggle is NOT proof; the CLI succeeding is. Google warns the setting can take minutes to propagate, though in the 2026-08-02 run it was effective immediately.",
+    "anomalies": [
+      "PRE-CHAIN AUTH CHECK WILL EAT THIS RECIPE IF YOU OMIT _meta.skipAuthCheck / _meta.auth.type='none'. startRun()'s getAuthConfig() defaults authType to 'sso_automatable' (a legacy app.yeshid.com default). When params.base_url host == the already-open tab's host, the runtime runs PRE_CHECK_AUTH (a YeshID-shaped login heuristic), decides script.google.com is unauthenticated, tries to navigate to <base_url>/login (which does not exist), waits 120s and fails the whole chain with 'Authentication failed - user did not complete login within timeout' and an EMPTY buffer - zero steps executed. Observed live 2026-08-02: run 1 passed only because the active tab happened to be OFF script.google.com (tabOnAuthDomain=false -> check skipped); the identical run 2, with a script.google.com tab already open, died before step s1. Any recipe for a site where Chrome is already signed in must declare auth type 'none'.",
+      "MASTER/DETAIL PAGE: /home/usersettings renders TWO span[role='tabpanel'] panels. Panel 1 (the extra class 'KKjvXb' marks the visible one) is the settings LIST: div[role='button'][jsname='BJHtg'] holding the label 'Google Apps Script API' + a state div reading 'On'/'Off'. Panel 2 is the DETAIL pane holding the actual toggle plus a 'Back to Settings' button. The toggle exists in the DOM from first paint but has a ZERO bounding rect until the row is clicked — so a coordinate click on it fails until you open the detail panel first. Hence s7 (click the row) before s9 (click the toggle).",
+      "THE TOGGLE IS A jsaction/jsshadow CONTROL: div[role='checkbox'][aria-label='Toggle allow Google Apps Script API'] with jscontroller='EcW08c', jsshadow, and jsaction='...click:cOuCgd; mousedown:UX7yZ; mouseup:lbsD7e;...'. This is the SAME family that blocked deploy-apps-script.payload.json. It was NOT a blocker here: 'click' with trusted:true (CDP Input.dispatchMouseEvent real mouse events via trustedCoordClick) flipped it first try. Prefer trusted:true over element.click() for any jsaction control — the deploy recipe's blocker note should be retested with trusted:true.",
+      "aria-checked FLIPS BEFORE THE TEXT LABEL RE-RENDERS. Verified live: wait_for aria-checked='true' matched, but an immediately-following read of the 'On'/'Off' text still returned 'Off'; ~seconds later the DOM read 'On' everywhere. aria-checked is the authoritative, synchronous signal; the On/Off text lags behind the server round-trip. Never verify on the text alone — hence the s11 delay before the s12 cosmetic read.",
+      "NO ARBITRARY JS: the runtime's 'js' action is a PATTERN ALLOWLIST (MV3 CSP, PRE_RUN_DOMQUERY), not eval. Only pageScan(), dumpText('kw'), statByLabel(), paginationTotal(), tableRowCount(), window.__var__, and row/button/checkbox/field patterns work. Anything else returns {__error:'No matching pattern for js step'} and FAILS the step. dumpText('@') is the account probe used here (it skips the giant WIZ_global_data script because leaves are capped at 100 chars).",
+      "wait_for DOES NOT INTERPOLATE step.selector — only step.url_pattern, and step.target as a 'last resort literal'. The account assertion therefore passes its selector as 'target' (not 'selector') so that {{account}} interpolates. This only works while no abstractTargets key equals that literal string; do not add one.",
+      "PARAMS MUST BE SENT TOP-LEVEL TO THE RELAY. startRun() receives params from the skill_run message; payload.params is NOT auto-merged by the extension. POST /run or /run/async with body {payload, params, timeoutMs}. scripts/run-async.mjs interpolates payload.params CLIENT-side instead and sends no params — which also means params.base_url tab-targeting is lost on that path.",
+      "SET params.base_url so the runtime picks a script.google.com tab instead of whatever tab is active. Mike uses this browser live; without base_url the chain can navigate his foreground tab out from under him.",
+      "READ SELECTOR SHORT-CIRCUIT: PRE_GUARDED_READ returns on the FIRST element matching a candidate even when its text is empty/null — an early loose match masks later good candidates. A first attempt using \"div[role='button'] > div + div\" returned null for that reason. Anchor reads semantically with :has() instead (Chrome 150 supports :has).",
+      "ACCOUNT SIGNALS: the authoritative one is the Google bar avatar aria-label, e.g. 'Google Account: Mike Wolf  \\n(mw.personalmail@gmail.com)' — matched with [aria-label*='<email>']. On Mike's ChromeMain profile mw.personalmail@gmail.com is the DEFAULT session (no authuser param, u/0); the expected authuser=1 was NOT needed. If a future account needs it, pass settings_url with ?authuser=N.",
+      "SESSION CHURN: script.google.com periodically spawns an accounts.google.com/RotateCookiesPage iframe and can replace the tab target id mid-session. Don't hold a CDP target id across steps; let the chain do its work in one run.",
+      "Cosmetic: the repo's {\"_\": \"PHASE ...\"} comment entries are executed as real steps and come back as status:'unsupported' with a null stepId. They do not affect goalReached/success (verified across all three runs) — just expect them in stepResults when reading a ChainResult."
+    ],
+    "blockers": [],
+    "notForThisRecipe": [
+      "This recipe only flips a plain per-account SETTING. It never grants an OAuth scope. If an OAuth consent / 'Authorization required' / 'Allow' screen ever appears in this flow, that is out of scope — STOP and escalate to Mike; approving a scope grant is not Yeshie's to click."
+    ],
+    "verificationRuns": [
+      {
+        "run": 1,
+        "date": "2026-08-02",
+        "path": "cold — API OFF",
+        "result": "all 12 steps ok; s9 clicked the toggle via trusted CDP mouse events; s10 confirmed aria-checked=true",
+        "note": "passed only because the active tab was off-domain, so the pre-chain auth check was skipped — this run is what exposed the auth-check trap in run 2"
+      },
+      {
+        "run": 2,
+        "date": "2026-08-02",
+        "path": "regression — script.google.com tab already open",
+        "result": "FAILED before s1: 'Authentication failed — user did not complete login within timeout', 0 steps, empty buffer",
+        "note": "root cause: default authType 'sso_automatable'. Fixed by _meta.auth.type='none' + _meta.skipAuthCheck=true"
+      },
+      {
+        "run": 3,
+        "date": "2026-08-02",
+        "path": "idempotency — API already ON, script.google.com tab open",
+        "result": "goalReached=true; state_before='On'; needs_enable=null; s9 SKIPPED; s10 still confirmed aria-checked=true; state_after='On'",
+        "note": "proves both the auth fix and the idempotency gate"
+      }
+    ]
+  },
+  "params": {
+    "base_url": "https://script.google.com",
+    "settings_url": "https://script.google.com/home/usersettings",
+    "account": "mw.personalmail@gmail.com"
+  },
+  "abstractTargets": {
+    "apps_script_api_toggle": {
+      "description": "The on/off switch for the Google Apps Script API, in the detail panel of /home/usersettings.",
+      "cachedSelector": "[aria-label=\"Toggle allow Google Apps Script API\"]",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-08-02T00:00:00.000Z",
+      "resolvedVia": "a11y_aria_label",
+      "anchors": {
+        "ariaLabel": "Toggle allow Google Apps Script API"
+      },
+      "match": {
+        "role": "checkbox",
+        "name_contains": [
+          "Toggle allow Google Apps Script API"
+        ]
+      },
+      "fallbackSelectors": [
+        "[aria-label=\"Toggle allow Google Apps Script API\"]",
+        "div[role='checkbox'][aria-label*='Apps Script API']",
+        "div[jsname='EvAjje'][role='checkbox']"
+      ],
+      "notes": "jsaction/jsshadow control — click it with trusted:true (real CDP mouse events). aria-checked is the state of record."
+    }
+  },
+  "chain": [
+    {
+      "_": "PHASE 1 — Land on the settings page and PROVE which account we are about to change"
+    },
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "{{settings_url}}",
+      "note": "Apps Script per-user settings. Single setting: 'Google Apps Script API'."
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "[aria-label='Toggle allow Google Apps Script API']",
+      "timeout": 25000,
+      "note": "HARD GATE: settings UI rendered. The toggle is in the DOM from first paint even though it is not yet visible."
+    },
+    {
+      "stepId": "s3",
+      "action": "wait_for",
+      "target": "[aria-label*='{{account}}']",
+      "timeout": 15000,
+      "note": "HARD GATE — ACCOUNT ASSERTION. Matches the Google bar avatar aria-label ('Google Account: <name> (<email>)'). If Chrome's active session is a DIFFERENT Google account, this THROWS and the chain stops BEFORE the toggle is touched. Uses 'target' (not 'selector') because wait_for only interpolates target. Do not weaken this to onTimeout:continue — toggling the wrong account looks exactly like success."
+    },
+    {
+      "stepId": "s4",
+      "action": "js",
+      "code": "dumpText('@')",
+      "store_as": "account_seen",
+      "note": "Evidence for the run record: on this page the only short text leaf containing '@' is the signed-in account email."
+    },
+    {
+      "_": "PHASE 2 — Read current state (this is what makes the recipe idempotent)"
+    },
+    {
+      "stepId": "s5",
+      "action": "read",
+      "selector": "div:has(> [aria-label='Toggle allow Google Apps Script API'])",
+      "store_as": "state_before",
+      "note": "Parent of the toggle; its text is 'On' or 'Off'. Always matches."
+    },
+    {
+      "stepId": "s6",
+      "action": "read",
+      "selector": "div:has(> [aria-label='Toggle allow Google Apps Script API'][aria-checked='false'])",
+      "store_as": "needs_enable",
+      "note": "IDEMPOTENCY GATE. Matches ONLY while the API is off -> text 'Off'. Already on -> no match -> read stores null -> interpolate() renders '' -> the s9 condition is falsy -> the click is SKIPPED. Never let this become a non-empty constant, or a re-run would toggle the API back OFF."
+    },
+    {
+      "_": "PHASE 3 — Open the detail panel, then flip the switch"
+    },
+    {
+      "stepId": "s7",
+      "action": "click_text",
+      "text": "Google Apps Script API",
+      "trusted": true,
+      "timeout": 8000,
+      "note": "Clicks the settings LIST row, which slides in the detail panel that actually holds the toggle. trustedCoordClick only considers elements with a non-zero rect, so the hidden detail-panel copies of this text are not candidates. Harmless/idempotent: opening the panel changes no state."
+    },
+    {
+      "stepId": "s8",
+      "action": "delay",
+      "ms": 1500,
+      "note": "Panel slide animation — the toggle needs a settled non-zero bounding rect before a coordinate click."
+    },
+    {
+      "stepId": "s9",
+      "action": "click",
+      "target": "apps_script_api_toggle",
+      "trusted": true,
+      "timeout": 10000,
+      "condition": "{{needs_enable}}",
+      "responseSignature": [
+        {
+          "type": "attribute_change",
+          "selector": "[aria-label='Toggle allow Google Apps Script API']",
+          "attribute": "aria-checked",
+          "value": "true",
+          "timeout": 10000
+        }
+      ],
+      "note": "trusted:true is REQUIRED — this is a jsaction/jsshadow control. Skipped entirely when already enabled."
+    },
+    {
+      "_": "PHASE 4 — Verify by state, not by appearance"
+    },
+    {
+      "stepId": "s10",
+      "action": "wait_for",
+      "target": "apps_script_api_toggle",
+      "state": {
+        "attribute": {
+          "aria-checked": "true"
+        }
+      },
+      "timeout": 25000,
+      "note": "HARD GATE and the real proof of this recipe. Passes whether we just flipped it or it was already on. aria-checked is synchronous and authoritative; the On/Off text is not."
+    },
+    {
+      "stepId": "s11",
+      "action": "delay",
+      "ms": 1500,
+      "note": "The On/Off text label lags aria-checked by a server round-trip. Without this, s12 reads a stale 'Off'."
+    },
+    {
+      "stepId": "s12",
+      "action": "read",
+      "selector": "div:has(> [aria-label='Toggle allow Google Apps Script API'])",
+      "store_as": "state_after",
+      "note": "Cosmetic confirmation only — expect 'On'. s10 already proved it. Final authority is the clasp command in _meta.verificationByConsequence."
+    }
+  ]
+}
