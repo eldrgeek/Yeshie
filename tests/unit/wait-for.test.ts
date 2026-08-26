@@ -79,6 +79,17 @@ describe('wait_for text / selector / state.stable', () => {
     expect(r.error).toContain('text "Done"');
   });
 
+  it('onTimeout continue returns ok instead of failing a settle wait', () => {
+    const r = exec('<div></div>').execute({
+      stepId: 's1',
+      action: 'wait_for',
+      selector: '#never',
+      onTimeout: 'continue',
+    } as any);
+    expect(r.status).toBe('ok');
+    expect(r.timedOut).toBe(true);
+  });
+
   it('StepExecutor state.stable is false on the first snapshot', () => {
     const ex = exec('<div id="stream">token</div>');
     const r = ex.execute({ stepId: 's1', action: 'wait_for', selector: '#stream', state: { stable: true }, quietMs: 0 });

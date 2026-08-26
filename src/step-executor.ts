@@ -35,6 +35,7 @@ export interface StepResult {
   error?: string;
   delayMs?: number;
   keys?: string[];
+  timedOut?: boolean;
   surpriseEvidence?: import('./runtime-contract.js').SurpriseEvidence[];
 }
 
@@ -99,6 +100,7 @@ export interface Step {
   urlSchemaKey?: string;
   condition?: string;
   url_pattern?: string;
+  onTimeout?: string;
   expect?: { state?: string };
   quietMs?: number;
   state?: {
@@ -579,6 +581,16 @@ export class StepExecutor {
 
       if (a === 'wait_for') {
         if (!this.matchesWaitState(step)) {
+          if (step.onTimeout === 'continue') {
+            return {
+              stepId: step.stepId,
+              action: a,
+              status: 'ok',
+              selector: step.selector ?? null,
+              timedOut: true,
+              durationMs: Date.now() - t0,
+            };
+          }
           if (step.url_pattern) throw new Error('wait_for url timeout: ' + this.I(step.url_pattern));
           const label = step.text || step.state?.text
             ? `text "${this.I(String(step.text || step.state?.text))}"`
