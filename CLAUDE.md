@@ -1,6 +1,6 @@
 # Yeshie — Working Memory
 
-Chrome extension + local relay server: Claude sends payload JSON → extension executes autonomously across page navigations → returns ChainResult.
+Chrome MV3 extension + local relay `http://127.0.0.1:3333`: Claude sends payload JSON (`sites/<domain>/tasks/*.payload.json`) → extension executes autonomously across page navigations → returns ChainResult. This is the **only** web-automation path. CIC is discovery-only. `PLAN.md` (CDP/Puppeteer) is historical/superseded.
 
 ## References
 
@@ -15,28 +15,25 @@ Chrome extension + local relay server: Claude sends payload JSON → extension e
 | Site payloads | `~/Projects/yeshie/sites/` |
 | Full spec | `~/Projects/yeshie/SPECIFICATION.md` |
 
-## Recipe count (corrected 2026-07-04, WQ-122; re-verified 2026-07-04, WQ-124 sweep)
+## Recipe count (2026-08-26; prior sweep 2026-07-04 WQ-122/WQ-124)
 
 A "recipe" is a `sites/<domain>/tasks/*.payload.json` file (that's what the per-site
 `README.md` files, e.g. `sites/github.com/README.md`, call them). The top-level
 `recipes/` directory is a one-off (`auth-flow-handler` only, added whole 2026-05-05,
 no history since) — not the repo's actual recipe home; don't count only that dir.
 
-True count as of 2026-07-04: **188 git-tracked recipes** (208 on disk incl. in-progress
-untracked work — corrected from 209, off-by-one in the original WQ-122 pass, re-verified
-2026-07-04 WQ-124: `find sites -name '*.payload.json' | wc -l` = 208) across 30 site dirs
-(corrected from 27 — `find sites -mindepth 1 -maxdepth 1 -type d | wc -l` = 30).
-`github.com` is the largest set (100 recipes, of
-which 38 are "live verified," per its own README — the rest need an authenticated
-session to verify). Full per-site breakdown: `find sites -name "*.payload.json" | sed
-'s#/tasks/.*##' | sort | uniq -c | sort -rn`.
+Current corpus: **35 site dirs / ~220 recipes**. `github.com` is the largest set
+(100 recipes, of which 38 public ones were "live verified," per its own README —
+the rest need an authenticated session to verify). `google-admin` and `okta`
+already have payloads. This git branch may lag the operator laptop (e.g. Rocket
+Money live-verified there, not landed here). Full per-site breakdown:
+`find sites -name "*.payload.json" | sed 's#/tasks/.*##' | sort | uniq -c | sort -rn`.
 
-The prior "46+ recipes" figure (root `~/Projects/CLAUDE.md`) never matched any point in
-git history — count went 6 (Mar 30) → 24 (Apr 10) → 28 (Apr 12) → 84 (Jun 12) → 184
-(Jun 13) → 188 (Jun 19) → 208 (today, WIP; corrected from 209). It was never 46 at any commit; likely an
-early guess that got carried forward without re-measuring when the corpus grew. No
-recipes were lost — only a handful of superseded `sites/okta/tasks/*` files were
-deleted/renamed as that set matured; corpus size only ever grew.
+2026-07-04 WQ-124 snapshot (historical): 188 git-tracked / 208 on disk across 30
+site dirs. Count went 6 (Mar 30) → 24 (Apr 10) → 28 (Apr 12) → 84 (Jun 12) → 184
+(Jun 13) → 188 (Jun 19) → 208 (Jul 4) → ~220 (Aug 26). It was never 46 at any
+commit. No recipes were lost — only a handful of superseded `sites/okta/tasks/*`
+files were deleted/renamed as that set matured; corpus size only ever grew.
 
 ## Runtime policy — Yeshie-first (Mike, 2026-07-08)
 
@@ -64,9 +61,10 @@ than completed in CIC.
 | Pattern | Rule |
 |---------|------|
 | MCP timeout | `yeshie_run` MCP tool ~60s hard cap. For long recipes (e.g. DeepSeek+DeepThink) submit async: `POST /run/async` → id, poll `GET /run/result/:id`, or use `node scripts/run-async.mjs <recipe>` (see Async runner below) |
+| Health check | `curl -s http://127.0.0.1:3333/status` — expect `{"ok":true,"extensionConnected":true}` |
+| extract_text | First-class action: `selector` + `store_as`. Exists in `step-executor.ts` / `background.ts`. |
 | Claude CLI flags | `--output-format stream-json` requires `--verbose` with `-p`; omit `--input-format` for plain prompt strings |
 | Outer loop | Edits to `background.ts` / `target-resolver.ts`. Inner loop = model JSON only. |
-| Health check | `curl -s http://localhost:3333/status` — expect `{"ok":true,"extensionConnected":true}` |
 | Chrome debug | `chrome-debug` / `chrome-debug-restart` — both aliases launch the canonical `ChromeMain` user-data-dir on port 9222. No login needed because `ChromeMain` was copied from the old default Chrome dir. |
 
 ## Async recipe runner — beat the ~60s MCP cap (added 2026-07-10)

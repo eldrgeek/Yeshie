@@ -1,10 +1,10 @@
 ---
 audience: silicon
 document: reference
-sync_version: 3
-last_updated: 2026-07-27
+sync_version: 4
+last_updated: 2026-08-26
 repo: yeshie
-authorship_update: "Mike Wolf (system direction), OpenAI Codex (2026-07-27 Pulse human-gate contract pass)"
+authorship_update: "Mike Wolf (system direction), OpenAI Codex (2026-07-27 Pulse human-gate contract pass), 2026-08-26 async run API"
 ---
 
 # Reference
@@ -25,15 +25,21 @@ File: `~/Projects/cc-bridge-mcp/server.js`
 
 ## Relay HTTP API
 
-Base URL: `http://localhost:3333`
+Base URL: `http://127.0.0.1:3333`
+
+Live runtime is this relay + the Chrome MV3 extension. CIC is discovery-only. `extract_text` is a first-class action type (see below).
 
 | Method | Path | Body | Response |
 |--------|------|------|----------|
-| POST | `/run` | `{payload, params, tabId, timeoutMs}` | ChainResult JSON |
-| GET | `/status` | — | `{ok: bool, extensionConnected: bool, pending: int}` |
+| POST | `/run` | `{payload, params, tabId, timeoutMs}` | ChainResult JSON (sync; MCP `yeshie_run` wraps this; ~60s MCP cap) |
+| POST | `/run/async` | `{payload, params?, tabId?, timeoutMs?}` (default `timeoutMs` 300000) | `202 {ok: true, id, status: "running"}` immediately |
+| GET | `/run/result/:id` | — | `{id, status: running\|done\|error, result, error, progress}`. `result` is the full ChainResult once `done`. Settled runs expire after 30-min job TTL. |
+| GET | `/status` | — | `{ok: bool, extensionConnected: bool, pending: int, asyncRuns: int}` |
 | POST | `/teach/start` | `{steps: TeachStep[], tabId?: int}` + `X-Dispatch-Token` | `{ok: true, tabId: int}` |
 | POST | `/pulse/voice/turn` | `{text, mode?, recipient?, dispatch_target?, client_id?}` | Routed voice-turn envelope |
 | GET | `/dispatch/conversation` | query `since`, `limit` | Merged Mike + named AI-team messages |
+
+`POST /run/async` registers a normal `skill_run` whose settled ChainResult is stashed instead of HTTP-replied — existing hooks (`chain_result`, `chain_error`, `status_update` progress, disconnect-rejection) still apply. Wrapper: `node scripts/run-async.mjs <recipe-path>`. Use this for recipes that outlast the ~60s synchronous MCP cap (e.g. DeepSeek + DeepThink).
 
 `/pulse/voice/turn` accepts `auto|conversation|dispatch|strategy`. It writes conversational turns to `~/.dispatch/inbox.jsonl`; dispatch turns are submitted to the Pulse dispatcher on port 3340 and receive an immediate spoken acknowledgement. Named replies in `dee_replies.jsonl` use `source`, `speaker`, and `in_reply_to`.
 

@@ -1,15 +1,29 @@
 ---
 audience: carbon
 document: reference
-sync_version: 3
-last_updated: 2026-07-27
+sync_version: 4
+last_updated: 2026-08-26
 repo: yeshie
-authorship_update: "Mike Wolf (system direction), OpenAI Codex (2026-07-27 Pulse human-gate contract pass)"
+authorship_update: "Mike Wolf (system direction), OpenAI Codex (2026-07-27 Pulse human-gate contract pass), 2026-08-26 async run API"
 ---
 
 # Reference
 
 A guide to the APIs, file formats, and action types you'll encounter when working with Yeshie. See [../silicon/reference.md](../silicon/reference.md) for a denser, tabular version.
+
+The live runtime is the Chrome MV3 extension plus the local relay at `http://127.0.0.1:3333`. Claude-in-Chrome is discovery-only. Health is `GET /status` (`extensionConnected`). Sync runs are `POST /run` or MCP `yeshie_run`. Long jobs use `POST /run/async` and poll `GET /run/result/:id`. `extract_text` is a first-class action type.
+
+## Relay HTTP: sync vs async runs
+
+`POST /run` blocks until the chain finishes and returns a ChainResult. MCP `yeshie_run` wraps this path and tops out at ~60s.
+
+For recipes that run longer (DeepSeek + DeepThink, other streaming UIs):
+
+- `POST /run/async` with `{payload, params?, tabId?, timeoutMs?}` (default timeout 300000ms) returns `202 {ok: true, id, status: "running"}` immediately.
+- Poll `GET /run/result/:id` for `{id, status: running|done|error, result, error, progress}`. `result` is the full ChainResult once `done`. Settled runs expire after a 30-minute job TTL. `GET /status` also reports `asyncRuns`.
+- Wrapper: `node scripts/run-async.mjs <recipe-path>`.
+
+Internally the async path is a normal `skill_run` whose result is stashed instead of HTTP-replied, so existing chain hooks still apply.
 
 ## Pulse and Meta-glasses voice turns
 
@@ -139,6 +153,7 @@ Each step in the chain has an `action` field. Here's what each one does:
 | `click_preset` | Click a chip or preset element in a picker. |
 | `probe_affordances` | Discover and return all interactive elements on the current page. |
 | `delay` | Wait a specified number of milliseconds. **Discouraged** — prefer `wait_for`, which proceeds the instant the needed element appears (faster) and only times out on a genuinely stuck page (more robust). |
+| `extract_text` | Read text from a CSS selector into a named buffer (`selector` + `store_as`). For `<input>`/`<textarea>` reads `.value`; otherwise `.textContent`. |
 
 ---
 

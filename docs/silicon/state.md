@@ -1,13 +1,17 @@
 ---
 audience: silicon
 document: state
-sync_version: 2
-last_updated: 2026-07-27
+sync_version: 3
+last_updated: 2026-08-26
 repo: yeshie
-authorship_update: "Mike Wolf (human-gate doctrine), OpenAI Codex (2026-07-27 Pulse action bridge)"
+authorship_update: "Mike Wolf (human-gate doctrine), OpenAI Codex (2026-07-27 Pulse action bridge), 2026-08-26 runtime-docs alignment"
 ---
 
 # State
+
+Runtime: Chrome MV3 extension + local relay `http://127.0.0.1:3333` + `sites/<domain>/tasks/*.payload.json`. CIC is discovery-only. `PLAN.md` is historical/superseded.
+
+Corpus: **35 site dirs / ~220 recipes**. `google-admin` and `okta` already have payloads — there is no "extend to a second site" gap.
 
 ## Unit Tests
 
@@ -45,20 +49,21 @@ status: 176/176 passing
 
 | Item | Priority | Status |
 |------|----------|--------|
+| Auth flow end-to-end test | high | `waitForAuth` + `PRE_CLICK_GOOGLE_ACCOUNT` implemented, not E2E'd against a real expired session |
+| Listener `no_listener` | high | `GET /chat/status` `listenerConnected` is still false unless a listener is actively polling; side panel gets `no_listener` |
+| improve.js automation | medium | script ready; not wired into `POST /run`; still a manual post-run step |
+| Engine-level `state.stable` wait | medium | needed for streaming UIs (DeepSeek etc.); no reliable DOM completion selector |
 | Validate 05-integration-setup | medium | blocked: SCIM docs preRunChecklist not yet completed |
-| Auth flow end-to-end test | high | implemented, not tested against real expired session |
-| Self-improvement merge (improve.js) | medium | script ready, not run post-validation |
 | Tracked-artifact cleanup | low | .gitignore updated; old tracked build/vendor files not removed |
-| Extend to second site | medium | architecture supports it; no payloads for google-admin or okta |
 
 ## Proven Components
 
 | Component | Status |
 |-----------|--------|
 | `src/target-resolver.ts` | production — 6-step resolution, vuetify_label_match |
-| `src/step-executor.ts` | production — all 13 action types |
+| `src/step-executor.ts` | production — action types including `extract_text` |
 | `src/dry-run.ts` | production — pre-flight resolution |
-| `packages/relay/index.js` | production |
+| `packages/relay/index.js` | production — `POST /run`, `POST /run/async`, `GET /run/result/:id` |
 | `packages/extension/` background worker | production |
 | Auth / login recovery (waitForAuth + PRE_CLICK_GOOGLE_ACCOUNT) | implemented, not E2E validated |
 | Pulse `/teach/start` human gate | production; 6 focused tests + live relay/extension HTTPS-tab smoke |
@@ -79,3 +84,6 @@ status: 176/176 passing
 - Auth flow unit-tested but not validated against a real expired session cycle
 - `/teach/start` highlights and observes only; it never clicks an approval control
 - `05-integration-setup` payload has `preRunChecklist` that must be satisfied before first run
+- `improve.js` is not invoked automatically after `POST /run`
+- Chat listener: `GET /chat/status` reports `listenerConnected: false` when no poller is active → `no_listener`
+- Streaming-chat recipes degrade without an engine-level `state.stable` wait
