@@ -5,6 +5,9 @@
 process.env.RELAY_TEST_MODE = '1';
 
 import http from 'http';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 
 // Dynamic import for ESM relay module
 let createRelay: any;
@@ -290,6 +293,8 @@ describe('Relay HTTP endpoints', () => {
     expect(data.ok).toBe(true);
     expect(data.extensionConnected).toBe(false);
     expect(typeof data.pending).toBe('number');
+    expect(data.lastDisconnectAt).toBeNull();
+    expect(data.buildVersion).toBeNull();
   });
 
   test('POST /run returns 503 when no extension connected', async () => {
@@ -427,9 +432,9 @@ describe('Relay HTTP endpoints', () => {
 
 import { io as ioClient, Socket as ClientSocket } from 'socket.io-client';
 
-function connectSocket(url: string, role: string): Promise<ClientSocket> {
+function connectSocket(url: string, role: string, extraAuth: Record<string, string> = {}): Promise<ClientSocket> {
   return new Promise((resolve) => {
-    const s = ioClient(url, { auth: { role }, transports: ['websocket'] });
+    const s = ioClient(url, { auth: { role, ...extraAuth }, transports: ['websocket'] });
     s.on('connect', () => resolve(s));
   });
 }
@@ -636,5 +641,129 @@ describe('Relay Socket.IO events', () => {
     const ack = await ackP;
     expect(ack.ok).toBe(false);
     other.disconnect();
+  });
+});
+
+describe('Relay single-owner socket and auto-heal', () => {
+  test('GET /status reports lastDisconnectAt after owner disconnect', async () => {
+    const ext = await connectSocket(baseUrl, 'extension', { buildVersion: '0.1.513' });
+    await new Promise(r => setTimeout(r, 80));
+    const connected = await request('GET', '/status');
+    expect(connected.data.extensionConnected).toBe(true);
+    expect(connected.data.buildVersion).toBe('0.1.513');
+    ext.disconnect();
+    await new Promise(r => setTimeout(r, 80));
+    const after = await request('GET', '/status');
+    expect(after.data.extensionConnected).toBe(false);
+    expect(typeof after.data.lastDisconnectAt).toBe('string');
+    expect(after.data.buildVersion).toBe('0.1.513');
+  });
+
+  test('second extension socket replaces the first (no dual-register fallback)', async () => {
+    const first = await connectSocket(baseUrl, 'extension', { buildVersion: 'old' });
+    await new Promise(r => setTimeout(r, 50));
+    const firstDisconnected = new Promise<void>((resolve) => {
+      first.on('disconnect', () => resolve());
+    });
+    const second = await connectSocket(baseUrl, 'extension', { buildVersion: 'new' });
+    await firstDisconnected;
+    await new Promise(r => setTimeout(r, 50));
+    const { data } = await request('GET', '/status');
+    expect(data.extensionConnected).toBe(true);
+    expect(data.buildVersion).toBe('new');
+
+    const client = await connectSocket(baseUrl, 'client');
+    const receivedBySecond = new Promise<any>((resolve) => {
+      second.on('skill_run', (payload) => resolve(payload));
+    });
+    let firstGotRun = false;
+    first.on('skill_run', () => { firstGotRun = true; });
+    client.emit('skill_run', { commandId: 'owner-only', payload: { chain: [] }, params: {} }, () => {});
+    const got = await receivedBySecond;
+    expect(got.commandId).toBe('owner-only');
+    await new Promise(r => setTimeout(r, 50));
+    expect(firstGotRun).toBe(false);
+
+    client.disconnect();
+    second.disconnect();
+  });
+
+  test('POST /run auto-heals a successful self-improving payload', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'yeshie-relay-heal-'));
+    const taskDir = join(root, 'sites', 'demo', 'tasks');
+    mkdirSync(taskDir, { recursive: true });
+    const payloadPath = join(taskDir, '01-task.payload.json');
+    writeFileSync(payloadPath, JSON.stringify({
+      _meta: { task: 'demo-task', selfImproving: true, runCount: 0 },
+      mode: 'verification',
+      abstractTargets: {
+        search: { cachedSelector: null, cachedConfidence: 0, resolvedOn: null },
+      },
+    }, null, 2));
+
+    const ext = await connectSocket(baseUrl, 'extension');
+    await new Promise(r => setTimeout(r, 80));
+    ext.on('skill_run', ({ commandId }) => {
+      ext.emit('chain_result', {
+        commandId,
+        result: {
+          success: true,
+          goalReached: true,
+          durationMs: 9,
+          modelUpdates: {
+            resolvedTargets: {
+              search: { selector: '[aria-label="Search"]', confidence: 0.91, resolvedVia: 'a11y_aria_label' },
+            },
+          },
+        },
+      });
+    });
+
+    const { status, data } = await request('POST', '/run', {
+      payload: { _meta: { task: 'demo-task', selfImproving: true }, chain: [] },
+      payloadPath,
+      params: {},
+      timeoutMs: 5000,
+    });
+    expect(status).toBe(200);
+    expect(data.autoHeal?.healed).toBe(true);
+    const payload = JSON.parse(readFileSync(payloadPath, 'utf8'));
+    expect(payload.abstractTargets.search.cachedSelector).toBe('[aria-label="Search"]');
+    ext.disconnect();
+  });
+
+  test('POST /run does not heal a failed run', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'yeshie-relay-noheal-'));
+    const taskDir = join(root, 'sites', 'demo', 'tasks');
+    mkdirSync(taskDir, { recursive: true });
+    const payloadPath = join(taskDir, '01-task.payload.json');
+    writeFileSync(payloadPath, JSON.stringify({
+      _meta: { task: 'demo-task', selfImproving: true, runCount: 0 },
+      abstractTargets: {
+        search: { cachedSelector: null, cachedConfidence: 0 },
+      },
+    }, null, 2));
+
+    const ext = await connectSocket(baseUrl, 'extension');
+    await new Promise(r => setTimeout(r, 80));
+    ext.on('skill_run', ({ commandId }) => {
+      ext.emit('chain_result', {
+        commandId,
+        result: { success: false, goalReached: false, error: 'boom' },
+      });
+    });
+
+    const { status, data } = await request('POST', '/run', {
+      payload: { _meta: { selfImproving: true } },
+      payloadPath,
+      params: {},
+      timeoutMs: 5000,
+    });
+    expect(status).toBe(200);
+    expect(data.autoHeal?.healed).toBe(false);
+    expect(data.autoHeal?.reason).toBe('run_not_successful');
+    const payload = JSON.parse(readFileSync(payloadPath, 'utf8'));
+    expect(payload.abstractTargets.search.cachedSelector).toBeNull();
+    ext.disconnect();
   });
 });

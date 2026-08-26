@@ -11,6 +11,7 @@ import { execFile, spawn } from 'child_process';
 import { homedir } from 'os';
 import { YSocketIO } from 'y-socket.io/dist/server';
 import { parsePulseVoiceTurn, pulseVoiceTeammates } from './pulse-voice.js';
+import { maybeAutoHeal } from '../../improve.js';
 
 // ====================== dispatch_input config ======================
 // See ~/Projects/SOMA/specs/heartbeat-pattern-v1.md
@@ -281,7 +282,25 @@ function validateTeachStartPayload(body) {
 // ====================== Conversation Logger ======================
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = join(__dirname, '..', '..');
+const SITES_ROOT = join(REPO_ROOT, 'sites');
 const JOBS_STATE_FILE = join(__dirname, 'jobs-state.json');
+
+function attachAutoHeal(body, result) {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return result;
+  try {
+    const autoHeal = maybeAutoHeal({
+      payload: body?.payload,
+      payloadPath: body?.payloadPath || body?.payload_path,
+      chainResult: result,
+      sitesRoot: SITES_ROOT,
+    });
+    return { ...result, autoHeal };
+  } catch (e) {
+    console.warn('[relay] auto-heal skipped:', e.message);
+    return { ...result, autoHeal: { healed: false, reason: 'heal_error', error: e.message } };
+  }
+}
 const LOGS_DIR = join(__dirname, '..', '..', 'logs', 'conversations');
 
 function ensureLogsDir() {
@@ -432,9 +451,12 @@ export function createRelay(port = 3333) {
     process.on(sig, () => { try { for (const doc of collab.documents.values()) collabSave(doc); } catch (e) {} process.exit(0); });
   }
 
-  // Track connected extensions — last registered is primary; others are fallbacks
+  // Single owner socket. A second extension connection replaces the first;
+  // we never keep a fallback. Dual-register + "fell back to previous
+  // extension socket" is the flap that makes agents abandon Yeshie.
   let extensionSocket = null;
-  const extensionSockets = new Set();
+  let lastDisconnectAt = null;
+  let extensionBuildVersion = null;
 
   // Chat state (per-instance)
   let chatQueue = [];
@@ -680,22 +702,19 @@ export function createRelay(port = 3333) {
     console.log(`[relay] connected: ${who} (${socket.id})`);
 
     if (who === 'extension') {
-      extensionSockets.add(socket);
+      const incomingVersion = socket.handshake.auth?.buildVersion || socket.handshake.auth?.version || null;
+      const prev = (extensionSocket && extensionSocket.id !== socket.id) ? extensionSocket : null;
       extensionSocket = socket;
-      console.log('[relay] extension registered');
+      if (incomingVersion) extensionBuildVersion = incomingVersion;
+      console.log('[relay] extension registered', socket.id, extensionBuildVersion || '');
 
-      socket.on('disconnect', () => {
-        extensionSockets.delete(socket);
-        console.log('[relay] extension disconnected');
+      socket.on('disconnect', (reason) => {
+        lastDisconnectAt = new Date().toISOString();
+        console.log('[relay] extension disconnected', socket.id, reason || '');
         if (extensionSocket === socket) {
-          // Fall back to another connected extension socket if one exists
-          extensionSocket = extensionSockets.size > 0
-            ? [...extensionSockets][extensionSockets.size - 1]
-            : null;
-          if (extensionSocket) {
-            console.log('[relay] fell back to previous extension socket');
-          } else if (pending.size > 0) {
-            // No fallback — fail in-flight runs immediately
+          extensionSocket = null;
+          if (pending.size > 0) {
+            // No owner — fail in-flight runs immediately
             console.log(`[relay] rejecting ${pending.size} pending run(s) due to extension disconnect`);
             for (const [, p] of pending) {
               clearTimeout(p.timer);
@@ -737,6 +756,11 @@ export function createRelay(port = 3333) {
       socket.on('notify', ({ message, title }) => {
         runOsascript(message || 'Done', title || 'Yeshie');
       });
+
+      if (prev) {
+        console.log('[relay] replacing previous extension socket (single owner)', prev.id, '->', socket.id);
+        try { prev.disconnect(true); } catch { /* ignore */ }
+      }
     }
 
     if (who === 'client') {
@@ -887,7 +911,14 @@ export function createRelay(port = 3333) {
     // --- Existing endpoints ---
 
     if (path === '/status' && req.method === 'GET') {
-      jsonReply(res, 200, { ok: true, extensionConnected: !!extensionSocket, pending: pending.size, asyncRuns: asyncRuns.size });
+      jsonReply(res, 200, {
+        ok: true,
+        extensionConnected: !!extensionSocket,
+        pending: pending.size,
+        asyncRuns: asyncRuns.size,
+        lastDisconnectAt,
+        buildVersion: extensionBuildVersion,
+      });
       return;
     }
 
@@ -1800,7 +1831,7 @@ export function createRelay(port = 3333) {
           extensionSocket.emit('skill_run', { commandId, payload, params, tabId });
           console.log(`[relay] HTTP skill_run ${commandId}`);
         });
-        jsonReply(res, 200, result);
+        jsonReply(res, 200, attachAutoHeal(body, result));
       } catch (err) {
         jsonReply(res, 500, { error: err.message });
       }
@@ -1831,7 +1862,7 @@ export function createRelay(port = 3333) {
         settle({ status: 'error', error: `Timeout after ${timeoutMs}ms` });
       }, timeoutMs);
       pending.set(commandId, {
-        resolve: (result) => { clearTimeout(timer); settle({ status: 'done', result }); },
+        resolve: (result) => { clearTimeout(timer); settle({ status: 'done', result: attachAutoHeal(body, result) }); },
         reject:  (err)    => { clearTimeout(timer); settle({ status: 'error', error: err.message }); },
         timer,
         lastStatus: null,

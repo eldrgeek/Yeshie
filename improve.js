@@ -14,6 +14,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const MAX_CACHED_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const GENERATED_ID_RE = /^(input-v-\d+|checkbox-v-\d+|_react_|react-\d+|:r)/;
+const PROTECTED_RECIPE_RES = [
+  /sites\/app\.rocketmoney\.com\/tasks\/01-list-all-recurring(?:\.payload)?\.json$/i,
+  /sites\/app\.rocketmoney\.com\/tasks\/02-list-inactive(?:\.payload)?\.json$/i,
+];
 
 function normalizeResolvedTargetUpdate(update = {}) {
   const resolvedVia = update.resolvedVia || update.resolutionMethod || 'escalate';
@@ -62,6 +66,84 @@ function resolveSiteModelPath(payloadPath) {
   const taskDir = path.dirname(payloadPath);
   const siteDir = path.dirname(taskDir);
   return path.join(siteDir, 'site.model.json');
+}
+
+export function isProtectedRecipe(payloadPath, payload) {
+  const pathStr = String(payloadPath || '').replace(/\\/g, '/');
+  if (PROTECTED_RECIPE_RES.some((re) => re.test(pathStr))) return true;
+  const site = String(payload?.site || '').toLowerCase();
+  const task = String(payload?._meta?.task || payload?._meta?.id || '').toLowerCase();
+  const isRM = site.includes('rocketmoney') || pathStr.toLowerCase().includes('rocketmoney');
+  if (!isRM) return false;
+  return /01-list-all-recurring|list-all-recurring/.test(`${pathStr} ${task}`)
+    || /(?:^|[/\s])02-list-inactive(?:\.payload)?/.test(`${pathStr} ${task}`)
+    || task === 'list-inactive';
+}
+
+function isSelfImproving(payload) {
+  return payload?._meta?.selfImproving === true || payload?.selfImproving === true;
+}
+
+export function isHealAllowed({ payload, payloadPath, chainResult } = {}) {
+  if (!chainResult) return { ok: false, reason: 'no_result' };
+  if (chainResult.success !== true || chainResult.goalReached !== true) {
+    return { ok: false, reason: 'run_not_successful' };
+  }
+  if (!isSelfImproving(payload)) return { ok: false, reason: 'selfImproving_disabled' };
+  if (isProtectedRecipe(payloadPath, payload)) return { ok: false, reason: 'protected_recipe' };
+  if (!payloadPath) return { ok: false, reason: 'no_payload_path' };
+  if (!fs.existsSync(payloadPath)) return { ok: false, reason: 'payload_missing' };
+  return { ok: true };
+}
+
+function walkPayloadFiles(dir, acc = []) {
+  if (!dir || !fs.existsSync(dir)) return acc;
+  let entries = [];
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return acc; }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) walkPayloadFiles(full, acc);
+    else if (entry.name.endsWith('.payload.json')) acc.push(full);
+  }
+  return acc;
+}
+
+export function resolvePayloadPath({ payloadPath, payload, sitesRoot } = {}) {
+  const explicit = payloadPath || payload?._meta?.payloadPath || payload?._meta?.sourcePath;
+  if (explicit) {
+    const resolved = path.isAbsolute(explicit) ? explicit : path.resolve(sitesRoot ? path.join(sitesRoot, '..') : process.cwd(), explicit);
+    return resolved;
+  }
+  const task = payload?._meta?.task;
+  const site = payload?.site;
+  if (!task || !sitesRoot || !fs.existsSync(sitesRoot)) return null;
+  const matches = [];
+  for (const file of walkPayloadFiles(sitesRoot)) {
+    try {
+      const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (doc?._meta?.task !== task) continue;
+      if (site && doc.site && doc.site !== site) continue;
+      matches.push(file);
+    } catch { /* skip unreadable */ }
+  }
+  return matches.length === 1 ? matches[0] : null;
+}
+
+export function maybeAutoHeal({ payload, payloadPath, chainResult, sitesRoot } = {}) {
+  const resolvedPath = resolvePayloadPath({ payloadPath, payload, sitesRoot }) || payloadPath || null;
+  const allowed = isHealAllowed({ payload, payloadPath: resolvedPath, chainResult });
+  if (!allowed.ok) return { healed: false, reason: allowed.reason, payloadPath: resolvedPath || null };
+  try {
+    const result = applyImprovements(resolvedPath, chainResult);
+    return {
+      healed: !!result?.changed,
+      reason: result?.changed ? 'applied' : (result?.reason || 'unchanged'),
+      payloadPath: resolvedPath,
+    };
+  } catch (err) {
+    console.warn('[heal] auto-heal failed:', err.message);
+    return { healed: false, reason: 'heal_error', error: err.message, payloadPath: resolvedPath };
+  }
 }
 
 /**
@@ -119,6 +201,11 @@ export function mergeResponseSignatures(siteModel, stepId, observed) {
 }
 
 export function applyImprovements(payloadPath, chainResult) {
+  if (isProtectedRecipe(payloadPath)) {
+    console.log('Protected recipe — no improvements applied:', payloadPath);
+    return { changed: false, reason: 'protected_recipe' };
+  }
+
   const succeeded =
     chainResult?.goalReached === true ||
     chainResult?.success === true ||

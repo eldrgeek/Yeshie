@@ -3,6 +3,12 @@ import { tmpdir } from 'os';
 import { join, resolve, dirname } from 'path';
 import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import {
+  applyImprovements,
+  isHealAllowed,
+  isProtectedRecipe,
+  maybeAutoHeal,
+} from '../../improve.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, '../..');
@@ -144,6 +150,123 @@ describe('improve.js', () => {
     expect(payload.abstractTargets.email.resolvedVia).toBe('a11y_placeholder');
     expect(payload.abstractTargets.email.anchors).toEqual({ name: 'email' });
     expect(payload.mode).toBe('production');
+  });
+
+  it('isHealAllowed requires success AND goalReached AND selfImproving', () => {
+    const payload = { _meta: { selfImproving: true } };
+    const payloadPath = '/tmp/does-not-need-to-exist.json';
+    expect(isHealAllowed({
+      payload,
+      payloadPath,
+      chainResult: { success: false, goalReached: true },
+    }).ok).toBe(false);
+    expect(isHealAllowed({
+      payload,
+      payloadPath,
+      chainResult: { success: true, goalReached: false },
+    }).reason).toBe('run_not_successful');
+    expect(isHealAllowed({
+      payload: { _meta: { selfImproving: false } },
+      payloadPath,
+      chainResult: { success: true, goalReached: true },
+    }).reason).toBe('selfImproving_disabled');
+  });
+
+  it('heal guard refuses Rocket Money 01/02 even on a successful self-improving run', () => {
+    const root = mkdtempSync(join(tmpdir(), 'yeshie-rm-guard-'));
+    const taskDir = join(root, 'sites', 'app.rocketmoney.com', 'tasks');
+    mkdirSync(taskDir, { recursive: true });
+    const payloadPath = join(taskDir, '01-list-all-recurring.payload.json');
+    writeFileSync(payloadPath, JSON.stringify({
+      _meta: { task: 'list-all-recurring', selfImproving: true, runCount: 0 },
+      site: 'app.rocketmoney.com',
+      mode: 'verification',
+      abstractTargets: {
+        row: { cachedSelector: null, cachedConfidence: 0, resolvedOn: null },
+      },
+    }, null, 2));
+
+    expect(isProtectedRecipe(payloadPath)).toBe(true);
+    expect(isHealAllowed({
+      payload: { _meta: { selfImproving: true }, site: 'app.rocketmoney.com' },
+      payloadPath,
+      chainResult: { success: true, goalReached: true },
+    }).reason).toBe('protected_recipe');
+
+    const result = applyImprovements(payloadPath, {
+      success: true,
+      goalReached: true,
+      durationMs: 10,
+      modelUpdates: {
+        resolvedTargets: {
+          row: { selector: '.recurring-row', confidence: 0.99, resolvedVia: 'css_cascade' },
+        },
+      },
+    });
+    expect(result.changed).toBe(false);
+    expect(result.reason).toBe('protected_recipe');
+    const payload = JSON.parse(readFileSync(payloadPath, 'utf8'));
+    expect(payload.abstractTargets.row.cachedSelector).toBeNull();
+  });
+
+  it('heal guard refuses 02-list-inactive by filename', () => {
+    expect(isProtectedRecipe('sites/app.rocketmoney.com/tasks/02-list-inactive.payload.json')).toBe(true);
+    expect(isProtectedRecipe('sites/yeshid/tasks/01-user-add.payload.json')).toBe(false);
+  });
+
+  it('maybeAutoHeal writes cachedSelector on a successful self-improving run', () => {
+    const root = mkdtempSync(join(tmpdir(), 'yeshie-autoheal-'));
+    const taskDir = join(root, 'sites', 'demo', 'tasks');
+    mkdirSync(taskDir, { recursive: true });
+    const payloadPath = join(taskDir, '01-task.payload.json');
+    writeFileSync(payloadPath, JSON.stringify({
+      _meta: { task: 'demo-task', selfImproving: true, runCount: 0 },
+      mode: 'verification',
+      abstractTargets: {
+        search: { cachedSelector: null, cachedConfidence: 0, resolvedOn: null },
+      },
+    }, null, 2));
+
+    const out = maybeAutoHeal({
+      payload: { _meta: { task: 'demo-task', selfImproving: true } },
+      payloadPath,
+      chainResult: {
+        success: true,
+        goalReached: true,
+        durationMs: 12,
+        modelUpdates: {
+          resolvedTargets: {
+            search: { selector: '[aria-label="Search"]', confidence: 0.9, resolvedVia: 'a11y_aria_label' },
+          },
+        },
+      },
+    });
+    expect(out.healed).toBe(true);
+    const payload = JSON.parse(readFileSync(payloadPath, 'utf8'));
+    expect(payload.abstractTargets.search.cachedSelector).toBe('[aria-label="Search"]');
+  });
+
+  it('maybeAutoHeal does not write on a failed run', () => {
+    const root = mkdtempSync(join(tmpdir(), 'yeshie-autoheal-fail-'));
+    const taskDir = join(root, 'sites', 'demo', 'tasks');
+    mkdirSync(taskDir, { recursive: true });
+    const payloadPath = join(taskDir, '01-task.payload.json');
+    writeFileSync(payloadPath, JSON.stringify({
+      _meta: { task: 'demo-task', selfImproving: true, runCount: 0 },
+      abstractTargets: {
+        search: { cachedSelector: null, cachedConfidence: 0 },
+      },
+    }, null, 2));
+
+    const out = maybeAutoHeal({
+      payload: { _meta: { selfImproving: true } },
+      payloadPath,
+      chainResult: { success: false, goalReached: false },
+    });
+    expect(out.healed).toBe(false);
+    expect(out.reason).toBe('run_not_successful');
+    const payload = JSON.parse(readFileSync(payloadPath, 'utf8'));
+    expect(payload.abstractTargets.search.cachedSelector).toBeNull();
   });
 
   it('creates missing _meta and accepts success-based chain results', () => {
