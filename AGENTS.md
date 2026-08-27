@@ -84,7 +84,7 @@ Both services must be running for any payload execution:
 #### Relay HTTP API
 The relay server on `http://127.0.0.1:3333` exposes these endpoints directly. Use `curl` to interact:
 
-- **`GET /status`** — health check, returns `{"ok":true,"extensionConnected":<bool>,"pending":<int>,"asyncRuns":<int>}`
+- **`GET /status`** — health check, returns `{"ok":true,"extensionConnected":<bool>,"pending":<int>,"asyncRuns":<int>,"lastDisconnectAt":<iso\|null>,"buildVersion":<str\|null>}`
 - **`POST /run`** — execute a payload against a browser tab (sync; MCP `yeshie_run` wraps this)
   ```bash
   curl -s -X POST http://127.0.0.1:3333/run \
@@ -110,8 +110,7 @@ The relay server on `http://127.0.0.1:3333` exposes these endpoints directly. Us
 Prefer `yeshie_run()` via MCP over curl. If running curl, always include `"timeoutMs": 120000`.
 
 ### Self-improvement
-After any successful chain run, run: `node improve.js <payload_path> /tmp/chain-result.json`
-This merges resolved selectors back into the payload and moves it toward production mode. The script is **not** wired into `POST /run` — it is still a manual post-run step.
+`improve.js` auto-heal is wired into `POST /run` and `POST /run/async` ([#55](https://github.com/eldrgeek/Yeshie/pull/55)). It runs only when `success && goalReached` and `_meta.selfImproving === true`, then writes `cachedSelector` through the existing merge path. Skipped on failed runs. Hard-blocked for `sites/app.rocketmoney.com/tasks/01-list-all-recurring` and `02-list-inactive`. Manual still works: `node improve.js <payload_path> /tmp/chain-result.json`.
 
 ### YeshID quirks
 - Labels use `div.mb-2` siblings, NOT `.v-label` inside `.v-input`

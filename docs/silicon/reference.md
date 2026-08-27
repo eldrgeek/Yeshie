@@ -1,10 +1,10 @@
 ---
 audience: silicon
 document: reference
-sync_version: 4
-last_updated: 2026-08-26
+sync_version: 5
+last_updated: 2026-08-27
 repo: yeshie
-authorship_update: "Mike Wolf (system direction), OpenAI Codex (2026-07-27 Pulse human-gate contract pass), 2026-08-26 async run API"
+authorship_update: "Mike Wolf (system direction), OpenAI Codex (2026-07-27 Pulse human-gate contract pass), 2026-08-26 async run API, 2026-08-27 assume #55 landed"
 ---
 
 # Reference
@@ -27,19 +27,21 @@ File: `~/Projects/cc-bridge-mcp/server.js`
 
 Base URL: `http://127.0.0.1:3333`
 
-Live runtime is this relay + the Chrome MV3 extension. CIC is discovery-only. `extract_text` is a first-class action type (see below).
+Live runtime is this relay + the Chrome MV3 extension. CIC is discovery-only. `extract_text` is a first-class action type (see below). `wait_for` includes `state.stable`. Auto-heal is wired into `/run` ([#55](https://github.com/eldrgeek/Yeshie/pull/55)).
 
 | Method | Path | Body | Response |
 |--------|------|------|----------|
-| POST | `/run` | `{payload, params, tabId, timeoutMs}` | ChainResult JSON (sync; MCP `yeshie_run` wraps this; ~60s MCP cap) |
-| POST | `/run/async` | `{payload, params?, tabId?, timeoutMs?}` (default `timeoutMs` 300000) | `202 {ok: true, id, status: "running"}` immediately |
+| POST | `/run` | `{payload, params, tabId, timeoutMs}` | ChainResult JSON (sync; MCP `yeshie_run` wraps this; ~60s MCP cap). Auto-heal runs after `success && goalReached` when `_meta.selfImproving === true` (#55). |
+| POST | `/run/async` | `{payload, params?, tabId?, timeoutMs?}` (default `timeoutMs` 300000) | `202 {ok: true, id, status: "running"}` immediately. Same auto-heal as `/run` when the stashed result settles green. |
 | GET | `/run/result/:id` | — | `{id, status: running\|done\|error, result, error, progress}`. `result` is the full ChainResult once `done`. Settled runs expire after 30-min job TTL. |
-| GET | `/status` | — | `{ok: bool, extensionConnected: bool, pending: int, asyncRuns: int}` |
+| GET | `/status` | — | `{ok, extensionConnected, pending, asyncRuns, lastDisconnectAt, buildVersion}` |
 | POST | `/teach/start` | `{steps: TeachStep[], tabId?: int}` + `X-Dispatch-Token` | `{ok: true, tabId: int}` |
 | POST | `/pulse/voice/turn` | `{text, mode?, recipient?, dispatch_target?, client_id?}` | Routed voice-turn envelope |
 | GET | `/dispatch/conversation` | query `since`, `limit` | Merged Mike + named AI-team messages |
 
 `POST /run/async` registers a normal `skill_run` whose settled ChainResult is stashed instead of HTTP-replied — existing hooks (`chain_result`, `chain_error`, `status_update` progress, disconnect-rejection) still apply. Wrapper: `node scripts/run-async.mjs <recipe-path>`. Use this for recipes that outlast the ~60s synchronous MCP cap (e.g. DeepSeek + DeepThink).
+
+Auto-heal (`improve.js` `maybeAutoHeal`): after `/run` or `/run/async` settles, merge `cachedSelector` only when `success && goalReached` and `_meta.selfImproving === true`. Skipped on failed runs. Hard-blocked for Rocket Money `01-list-all-recurring` and `02-list-inactive`. Manual `node improve.js <payload> <chain-result>` still works.
 
 `/pulse/voice/turn` accepts `auto|conversation|dispatch|strategy`. It writes conversational turns to `~/.dispatch/inbox.jsonl`; dispatch turns are submitted to the Pulse dispatcher on port 3340 and receive an immediate spoken acknowledgement. Named replies in `dee_replies.jsonl` use `source`, `speaker`, and `in_reply_to`.
 
@@ -104,7 +106,7 @@ StepResult {
 | `navigate` | Navigate to URL (value = URL, supports `{{params.base_url}}`) |
 | `type` | Type value into target input |
 | `click` | Click target element |
-| `wait_for` | Wait for target to become present/visible |
+| `wait_for` | Wait on selector, text, and/or `state.stable` (content fingerprint quiet for `quietMs`; default 800ms). `onTimeout: "continue"` honored. Prefer over `delay`. Landed in #55. |
 | `read` | Read text/value from target |
 | `assess_state` | Evaluate condition, return boolean |
 | `js` | Run pre-bundled DOM query (routed by PRE_RUN_DOMQUERY) |
@@ -143,6 +145,20 @@ StepResult {
 
 `wait` with only `ms` is equivalent to `delay`. `wait` with a `selector` polls until the element appears or timeout elapses.
 
+## `wait_for` Action Schema
+
+Landed in [#55](https://github.com/eldrgeek/Yeshie/pull/55). Implementation: `src/wait-for.ts`.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `selector` / `target` | string | CSS selector or abstract target to wait for |
+| `text` | string | Wait until this text is present (also `state.text`) |
+| `state.stable` | `true` or number | Content-stability wait. `true` uses default `quietMs` 800; a number is quiet-ms. Fingerprint is `length:tail(280)` of visible text. |
+| `quietMs` | number | Alternate quiet window when `state.stable` is boolean |
+| `onTimeout` | `"continue"` \| (default fail) | `"continue"` returns `ok` with `timedOut: true` instead of throwing |
+
+Recipes should `wait_for` a condition rather than a fixed `delay`.
+
 ## `extract_text` Action Schema
 
 | Field | Type | Notes |
@@ -176,6 +192,7 @@ Pattern-matches code strings to pre-bundled fns (no eval):
 | File | Purpose |
 |------|---------|
 | `src/target-resolver.ts` | Semantic element resolution (7-step cascade) |
+| `src/wait-for.ts` | `wait_for` matcher: selector, text, `state.stable` (#55) |
 | `src/step-executor.ts` | All 13 action type handlers |
 | `src/dry-run.ts` | Pre-flight resolution checker |
 | `src/schema.ts` | Zod schema for payload validation |

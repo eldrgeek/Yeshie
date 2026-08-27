@@ -1,8 +1,8 @@
 ---
 audience: carbon
 document: overview
-sync_version: 2
-last_updated: 2026-08-26
+sync_version: 3
+last_updated: 2026-08-27
 repo: yeshie
 ---
 
@@ -24,11 +24,11 @@ If you're new here, start with this document, then read [architecture](./archite
 
 **2. The Relay Server** is the messenger. Claude and the Chrome extension live in different systems and can't talk directly. The relay runs on your local machine (`http://127.0.0.1:3333`) and bridges between them: Claude sends an HTTP request describing what to do, the relay passes it to the extension over a WebSocket, the extension does the work, and the result travels back the same way.
 
-Health check: `GET /status` should return `extensionConnected: true`. Run a recipe with `POST /run` (or the MCP tool `yeshie_run`). Jobs that outlast the ~60s MCP cap use `POST /run/async` and poll `GET /run/result/:id`.
+Health check: `GET /status` should return `extensionConnected: true` (also `lastDisconnectAt` and `buildVersion`). Run a recipe with `POST /run` (or the MCP tool `yeshie_run`). Jobs that outlast the ~60s MCP cap use `POST /run/async` and poll `GET /run/result/:id`. Successful runs auto-heal the recipe when `_meta.selfImproving` is true ([#55](https://github.com/eldrgeek/Yeshie/pull/55)).
 
 **3. Task Payloads and Site Models** are the playbook and the memory. A payload (recipe) is a structured list of steps: "navigate to this URL, find the button labeled 'Onboard', click it, fill in the first name field..." Site models are accumulated notes about how a website works — which elements to look for, what they're called, how pages connect. These start mostly empty and fill in automatically as tasks run successfully.
 
-Action types include `extract_text` (read text from a selector into a buffer). Prefer `wait_for` over fixed `delay` steps.
+Action types include `extract_text` (read text from a selector into a buffer). `wait_for` can wait on a selector, on visible text, or on `state.stable` (the page content fingerprint stays quiet for `quietMs`). Prefer `wait_for` over fixed `delay` steps. These wait modes landed in [#55](https://github.com/eldrgeek/Yeshie/pull/55).
 
 ---
 

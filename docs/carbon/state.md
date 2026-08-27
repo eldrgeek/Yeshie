@@ -1,17 +1,17 @@
 ---
 audience: carbon
 document: state
-sync_version: 3
-last_updated: 2026-08-26
+sync_version: 4
+last_updated: 2026-08-27
 repo: yeshie
-authorship_update: "Mike Wolf (human-gate doctrine), OpenAI Codex (2026-07-27 Pulse action bridge), 2026-08-26 runtime-docs alignment"
+authorship_update: "Mike Wolf (human-gate doctrine), OpenAI Codex (2026-07-27 Pulse action bridge), 2026-08-26 runtime-docs alignment, 2026-08-27 assume #55 landed"
 ---
 
 # Current State
 
-A snapshot of what's working, what's in progress, and what's next. Updated: August 26, 2026.
+A snapshot of what's working, what's in progress, and what's next. Updated: August 27, 2026.
 
-The live runtime is the Chrome MV3 extension plus the local relay at `http://127.0.0.1:3333`, driven by recipes at `sites/<domain>/tasks/*.payload.json`. `PLAN.md` is historical. Claude-in-Chrome is discovery-only. There are **35 site directories and ~220 recipes**. `google-admin` and `okta` already have payloads — there is no "extend to a second site" gap.
+The live runtime is the Chrome MV3 extension plus the local relay at `http://127.0.0.1:3333`, driven by recipes at `sites/<domain>/tasks/*.payload.json`. `PLAN.md` is historical. Claude-in-Chrome is discovery-only. There are **35 site directories and ~220 recipes**. `google-admin` and `okta` already have payloads — there is no "extend to a second site" gap. These docs assume [#55](https://github.com/eldrgeek/Yeshie/pull/55) landed (`wait_for` including `state.stable`, and `improve.js` auto-heal on `/run`).
 
 ---
 
@@ -28,7 +28,7 @@ The live runtime is the Chrome MV3 extension plus the local relay at `http://127
 | `03-user-modify` | Changes first name, last name, or email (14 steps) | ~8.4 seconds |
 | `04-site-explore` | Maps all pages, buttons, and forms on the site | ~30 seconds |
 
-**The recipe corpus is multi-site.** Recipes live at `sites/<domain>/tasks/*.payload.json`. `github.com` is the largest set. `extract_text` is a real action type. Long jobs go through `POST /run/async` and `GET /run/result/:id`.
+**The recipe corpus is multi-site.** Recipes live at `sites/<domain>/tasks/*.payload.json`. `github.com` is the largest set. `extract_text` is a real action type. `wait_for` can wait on a selector, on text, or on `state.stable` ([#55](https://github.com/eldrgeek/Yeshie/pull/55)). Long jobs go through `POST /run/async` and `GET /run/result/:id`. Successful self-improving runs auto-heal via `improve.js` on `/run`.
 
 **The core architecture problems are solved.** Two issues that made earlier approaches fail are now fixed:
 - Page navigation used to kill automation mid-task. The background worker approach means navigations are invisible to the chain executor.
@@ -48,13 +48,17 @@ highlights and observes only; it never clicks an approval control.
 
 **The side-panel listener reports offline.** `GET /chat/status` still shows `listenerConnected: false` unless a listener is actively polling. The side panel then gets `no_listener` ("Yeshie is offline").
 
-**`improve.js` is not wired into `/run`.** The script works, but a successful `POST /run` does not invoke it. Someone still has to run `node improve.js <payload> <chain-result>` by hand after a green chain.
-
-**Streaming UIs need an engine-level `state.stable` wait.** Chat recipes (DeepSeek and similar) have no reliable DOM completion selector. Detection degrades to "wait then read," which truncates long generations. The fix belongs in `step-executor.ts`, not in per-site selectors.
+**Extension flap is only partially addressed.** [#55](https://github.com/eldrgeek/Yeshie/pull/55) made the relay keep a single owner socket (new connection replaces the previous; no dual-register fallback), added reconnect backoff + `forceNew`, and stopped reclaiming a server-kicked zombie. `GET /status` now reports `lastDisconnectAt` and `buildVersion`. That is not the same as "flap is gone"; do not claim it fully done without a live verification.
 
 **`05-integration-setup` hasn't been run yet.** This payload sets up a SCIM integration in YeshID. Before running it, there's a `preRunChecklist` that requires researching SCIM documentation specific to the integration target. Nobody has done that research yet.
 
 **Build artifact cleanup.** The `.gitignore` now correctly excludes generated files (built extension, node_modules, etc.), but the repo still has some of these files already tracked from before the ignore rules were added. Cleaning them out requires an intentional removal pass.
+
+## What #55 already shipped (not pending)
+
+**`wait_for` includes `state.stable`.** Recipes can wait on a selector, on visible text, or on a content fingerprint that stays quiet for `quietMs` (default 800ms). `onTimeout: "continue"` is honored. Prefer this over a fixed `delay`.
+
+**`improve.js` is wired into `/run`.** After a chain with `success && goalReached` and `_meta.selfImproving === true`, the relay auto-heals `cachedSelector` through the existing merge path. Failed runs skip heal. Rocket Money `01-list-all-recurring` and `02-list-inactive` are hard-blocked.
 
 ---
 

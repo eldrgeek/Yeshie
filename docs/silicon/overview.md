@@ -1,8 +1,8 @@
 ---
 audience: silicon
 document: overview
-sync_version: 2
-last_updated: 2026-08-26
+sync_version: 3
+last_updated: 2026-08-27
 repo: yeshie
 ---
 
@@ -26,7 +26,7 @@ CIC is discovery scaffolding only — never the runtime.
 
 | Need | How |
 |------|-----|
-| Health | `GET http://127.0.0.1:3333/status` → `{ok, extensionConnected, pending, asyncRuns}` |
+| Health | `GET http://127.0.0.1:3333/status` → `{ok, extensionConnected, pending, asyncRuns, lastDisconnectAt, buildVersion}` |
 | Sync run | `POST /run` or MCP `yeshie_run` |
 | Long jobs (MCP ~60s cap) | `POST /run/async` → poll `GET /run/result/:id` (or `node scripts/run-async.mjs`) |
 
@@ -84,7 +84,7 @@ A recipe is a `sites/<domain>/tasks/*.payload.json` file.
 
 ## Action types (note)
 
-`extract_text` exists (`selector` + `store_as`). Prefer `wait_for` over `delay`. Engine-level `state.stable` wait for streaming UIs is pending — see `ACTION_ITEMS.md`.
+`extract_text` exists (`selector` + `store_as`). `wait_for` supports selector, text, and `state.stable` (content fingerprint quiet for `quietMs`; default 800ms) — landed in [#55](https://github.com/eldrgeek/Yeshie/pull/55). Prefer `wait_for` over `delay`. Auto-heal (`improve.js`) is wired into `POST /run` and `/run/async` when `success && goalReached` and `_meta.selfImproving === true`.
 
 ## Process Management
 
