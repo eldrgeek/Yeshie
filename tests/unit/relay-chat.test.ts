@@ -688,7 +688,7 @@ describe('Relay single-owner socket and auto-heal', () => {
     second.disconnect();
   });
 
-  test('POST /run auto-heals a successful self-improving payload', async () => {
+  test('POST /run refuses to auto-heal a payloadPath outside the repo sites tree', async () => {
     const root = mkdtempSync(join(tmpdir(), 'yeshie-relay-heal-'));
     const taskDir = join(root, 'sites', 'demo', 'tasks');
     mkdirSync(taskDir, { recursive: true });
@@ -726,9 +726,10 @@ describe('Relay single-owner socket and auto-heal', () => {
       timeoutMs: 5000,
     });
     expect(status).toBe(200);
-    expect(data.autoHeal?.healed).toBe(true);
+    expect(data.autoHeal?.healed).toBe(false);
+    expect(data.autoHeal?.reason).toBe('path_escape');
     const payload = JSON.parse(readFileSync(payloadPath, 'utf8'));
-    expect(payload.abstractTargets.search.cachedSelector).toBe('[aria-label="Search"]');
+    expect(payload.abstractTargets.search.cachedSelector).toBeNull();
     ext.disconnect();
   });
 
