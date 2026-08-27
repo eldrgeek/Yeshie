@@ -1,15 +1,17 @@
 ---
 audience: carbon
 document: state
-sync_version: 2
-last_updated: 2026-07-27
+sync_version: 4
+last_updated: 2026-08-27
 repo: yeshie
-authorship_update: "Mike Wolf (human-gate doctrine), OpenAI Codex (2026-07-27 Pulse action bridge)"
+authorship_update: "Mike Wolf (human-gate doctrine), OpenAI Codex (2026-07-27 Pulse action bridge), 2026-08-26 runtime-docs alignment, 2026-08-27 assume #55 landed"
 ---
 
 # Current State
 
-A snapshot of what's working, what's in progress, and what's next. Updated: April 4, 2026.
+A snapshot of what's working, what's in progress, and what's next. Updated: August 27, 2026.
+
+The live runtime is the Chrome MV3 extension plus the local relay at `http://127.0.0.1:3333`, driven by recipes at `sites/<domain>/tasks/*.payload.json`. `PLAN.md` is historical. Claude-in-Chrome is discovery-only. There are **35 site directories and ~220 recipes**. `google-admin` and `okta` already have payloads — there is no "extend to a second site" gap. These docs assume [#55](https://github.com/eldrgeek/Yeshie/pull/55) landed (`wait_for` including `state.stable`, and `improve.js` auto-heal on `/run`).
 
 ---
 
@@ -26,6 +28,8 @@ A snapshot of what's working, what's in progress, and what's next. Updated: Apri
 | `03-user-modify` | Changes first name, last name, or email (14 steps) | ~8.4 seconds |
 | `04-site-explore` | Maps all pages, buttons, and forms on the site | ~30 seconds |
 
+**The recipe corpus is multi-site.** Recipes live at `sites/<domain>/tasks/*.payload.json`. `github.com` is the largest set. `extract_text` is a real action type. `wait_for` can wait on a selector, on text, or on `state.stable` ([#55](https://github.com/eldrgeek/Yeshie/pull/55)). Long jobs go through `POST /run/async` and `GET /run/result/:id`. Successful self-improving runs auto-heal via `improve.js` on `/run`.
+
 **The core architecture problems are solved.** Two issues that made earlier approaches fail are now fixed:
 - Page navigation used to kill automation mid-task. The background worker approach means navigations are invisible to the chain executor.
 - YeshID's Content Security Policy blocks JavaScript eval. Pre-bundled functions via `chrome.scripting.executeScript` bypass this entirely.
@@ -40,15 +44,21 @@ highlights and observes only; it never clicks an approval control.
 
 ## What's Pending
 
+**Auth flow recovery hasn't been tested against a real expired session.** `waitForAuth` and `PRE_CLICK_GOOGLE_ACCOUNT` exist. Unit tests pass. The full end-to-end scenario (chain starts, session expires mid-run, extension re-authenticates automatically, chain resumes) has not been run against a live expired session.
+
+**The side-panel listener reports offline.** `GET /chat/status` still shows `listenerConnected: false` unless a listener is actively polling. The side panel then gets `no_listener` ("Yeshie is offline").
+
+**Extension flap is only partially addressed.** [#55](https://github.com/eldrgeek/Yeshie/pull/55) made the relay keep a single owner socket (new connection replaces the previous; no dual-register fallback), added reconnect backoff + `forceNew`, and stopped reclaiming a server-kicked zombie. `GET /status` now reports `lastDisconnectAt` and `buildVersion`. That is not the same as "flap is gone"; do not claim it fully done without a live verification.
+
 **`05-integration-setup` hasn't been run yet.** This payload sets up a SCIM integration in YeshID. Before running it, there's a `preRunChecklist` that requires researching SCIM documentation specific to the integration target. Nobody has done that research yet.
-
-**Auth flow recovery hasn't been tested against a real expired session.** The code exists — `waitForAuth`, `PRE_CHECK_AUTH`, mid-chain `auth_required` recovery, automatic Google account selection. Unit tests pass. But the full end-to-end scenario (chain starts, session expires mid-run, extension re-authenticates automatically, chain resumes) hasn't been run against a live expired session. It may work perfectly. It may have edge cases. We don't know yet.
-
-**The self-improvement script hasn't been run post-validation.** `improve.js` is ready and working, but nobody has run it after the successful payload runs to merge the resolved selectors back in. Doing so would make subsequent runs faster (direct cached selectors instead of exploratory resolution) and push the payloads closer to "production" mode.
 
 **Build artifact cleanup.** The `.gitignore` now correctly excludes generated files (built extension, node_modules, etc.), but the repo still has some of these files already tracked from before the ignore rules were added. Cleaning them out requires an intentional removal pass.
 
-**Extension to other sites.** There are site directories for `google-admin` and `okta`, but no validated payloads. The architecture is ready — the three-layer knowledge model works for any site. It just needs someone to write and validate payloads.
+## What #55 already shipped (not pending)
+
+**`wait_for` includes `state.stable`.** Recipes can wait on a selector, on visible text, or on a content fingerprint that stays quiet for `quietMs` (default 800ms). `onTimeout: "continue"` is honored. Prefer this over a fixed `delay`.
+
+**`improve.js` is wired into `/run`.** After a chain with `success && goalReached` and `_meta.selfImproving === true`, the relay auto-heals `cachedSelector` through the existing merge path. Failed runs skip heal. Rocket Money `01-list-all-recurring` and `02-list-inactive` are hard-blocked.
 
 ---
 
@@ -71,7 +81,7 @@ These are things that weren't obvious at the start and took time to discover:
 npm test
 
 # Relay health — should show extensionConnected: true
-curl -s http://localhost:3333/status
+curl -s http://127.0.0.1:3333/status
 
 # Try a live task (quick smoke test)
 # Run 03-user-modify via yeshie_run or curl (see quickstart.md)

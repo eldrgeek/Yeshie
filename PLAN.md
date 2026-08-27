@@ -1,6 +1,13 @@
+> **HISTORICAL / SUPERSEDED.** This file is the 2026-03-30 CDP-first / Puppeteer executor plan, plus a later Claude-in-Chrome runtime revision. **Neither is the live runtime.** Do not implement from this document. Do not add Playwright, CDP, Computer Use, or a second browser stack.
+>
+> **Live runtime:** Chrome MV3 extension (`packages/extension`) + local relay `http://127.0.0.1:3333` (`packages/relay/index.js`) + recipes at `sites/<domain>/tasks/*.payload.json`. Health: `GET /status` (`extensionConnected`). Run: `POST /run` or MCP `yeshie_run`. Long jobs: `POST /run/async` → `GET /run/result/:id`. Claude-in-Chrome (CIC) is discovery-only, never the runtime.
+>
+> Current facts: `CLAUDE.md` (working-memory front door), `docs/silicon/overview.md`, `docs/silicon/reference.md`.
+
 # Yeshie — Implementation Plan (CDP-First, TDD, Dark Factory)
 **Spec:** SPECIFICATION.md Rev 13  
 **Date:** 2026-03-30  
+**Status:** superseded — kept as historical record only  
 **Strategy:** Bottom-up TDD, CDP-first, dark factory — human writes zero code
 
 ---

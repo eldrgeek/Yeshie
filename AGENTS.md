@@ -22,9 +22,11 @@ Both folders contain the same document set:
 | `state.md` | Unit test results, integration test status, pending work, known caveats |
 | `decisions.md` | Architectural decision records (ADR-001 through ADR-007) |
 
-**When starting a new task:** read `docs/silicon/overview.md` and `docs/silicon/state.md` first. These give you current component layout and task status in minimal tokens. Check `docs/silicon/architecture.md` if you need to understand data flow. Use `docs/carbon/` for deeper explanations of anything that doesn't make sense.
+**When starting a new task:** read `CLAUDE.md` first (working-memory front door), then `docs/silicon/overview.md` and `docs/silicon/state.md`. These give you current component layout and task status in minimal tokens. Check `docs/silicon/architecture.md` if you need to understand data flow. Use `docs/carbon/` for deeper explanations of anything that doesn't make sense.
 
-**Don't rely only on CLAUDE.md** — it's a good entry point but may lag behind the docs/ directory, which is updated more granularly.
+**CLAUDE.md vs silicon:** `CLAUDE.md` is the working-memory front door. `docs/silicon/overview.md` last had a full refresh on 2026-04-04 and lagged CLAUDE.md on runtime facts until 2026-08-26. After that alignment, `docs/silicon/overview.md` and `docs/silicon/reference.md` must agree with `CLAUDE.md` on: Chrome MV3 extension + relay `http://127.0.0.1:3333`; 35 site dirs / ~220 `*.payload.json`; health `GET /status` → `extensionConnected`; run `POST /run` or MCP `yeshie_run`; long jobs `POST /run/async`; `extract_text` exists; CIC is discovery-only, never runtime. Do not treat silicon as fresher than CLAUDE.md by default.
+
+**Live runtime (the only web-automation path):** Chrome MV3 extension + local relay `http://127.0.0.1:3333` + `sites/<domain>/tasks/*.payload.json`. `PLAN.md` (CDP/Puppeteer executor) is historical/superseded. Do not add Playwright, CDP, Computer Use, or a second browser stack. Claude-in-Chrome is discovery scaffolding only.
 
 ---
 
@@ -75,17 +77,17 @@ When adding a new document, add a row to the Documentation Map table above.
 
 ### Services (via HTTP)
 Both services must be running for any payload execution:
-- **Health check:** `curl -s http://localhost:3333/status` — expect `{"ok":true,"extensionConnected":true,"pending":0}`
+- **Health check:** `curl -s http://127.0.0.1:3333/status` — expect `{"ok":true,"extensionConnected":true,"pending":0}`
 - If `extensionConnected: false`: reload extension in `chrome://extensions`
 - Restart services: `launchctl kickstart -k gui/$(id -u)/com.yeshie.relay`
 
 #### Relay HTTP API
-The relay server on `localhost:3333` exposes these endpoints directly. Use `curl` to interact:
+The relay server on `http://127.0.0.1:3333` exposes these endpoints directly. Use `curl` to interact:
 
-- **`GET /status`** — health check, returns `{"ok":true,"extensionConnected":<bool>,"pending":<int>}`
-- **`POST /run`** — execute a payload against a browser tab
+- **`GET /status`** — health check, returns `{"ok":true,"extensionConnected":<bool>,"pending":<int>,"asyncRuns":<int>,"lastDisconnectAt":<iso\|null>,"buildVersion":<str\|null>}`
+- **`POST /run`** — execute a payload against a browser tab (sync; MCP `yeshie_run` wraps this)
   ```bash
-  curl -s -X POST http://localhost:3333/run \
+  curl -s -X POST http://127.0.0.1:3333/run \
     -H "Content-Type: application/json" \
     -d "{
       \"payload\": $(cat sites/yeshid/tasks/03-user-modify.payload.json),
@@ -94,6 +96,8 @@ The relay server on `localhost:3333` exposes these endpoints directly. Use `curl
       \"timeoutMs\": 120000
     }"
   ```
+- **`POST /run/async`** — fire-and-forget run for jobs that outlast the ~60s MCP cap. Body `{payload, params?, tabId?, timeoutMs?}` (default `timeoutMs` 300000). Returns `202 {ok:true, id, status:"running"}` immediately. Internally a normal `skill_run` whose ChainResult is stashed.
+- **`GET /run/result/:id`** — poll an async run. Returns `{id, status: running|done|error, result, error, progress}`. `result` is the full ChainResult once `done`. Settled runs expire after the 30-min job TTL. Wrapper: `node scripts/run-async.mjs <recipe-path>`.
 - **`POST /chat`** — send a chat message to the side panel
 - **`GET /chat/listen`** — long-poll for incoming chat messages from the side panel
 
@@ -106,8 +110,7 @@ The relay server on `localhost:3333` exposes these endpoints directly. Use `curl
 Prefer `yeshie_run()` via MCP over curl. If running curl, always include `"timeoutMs": 120000`.
 
 ### Self-improvement
-After any successful chain run, run: `node improve.js <payload_path> /tmp/chain-result.json`
-This merges resolved selectors back into the payload and moves it toward production mode.
+`improve.js` auto-heal is wired into `POST /run` and `POST /run/async` ([#55](https://github.com/eldrgeek/Yeshie/pull/55)). It runs only when `success && goalReached` and `_meta.selfImproving === true`, then writes `cachedSelector` through the existing merge path. Skipped on failed runs. Hard-blocked for `sites/app.rocketmoney.com/tasks/01-list-all-recurring` and `02-list-inactive`. Manual still works: `node improve.js <payload_path> /tmp/chain-result.json`.
 
 ### YeshID quirks
 - Labels use `div.mb-2` siblings, NOT `.v-label` inside `.v-input`
