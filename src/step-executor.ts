@@ -35,6 +35,7 @@ export interface StepResult {
   error?: string;
   delayMs?: number;
   keys?: string[];
+  timedOut?: boolean;
   surpriseEvidence?: import('./runtime-contract.js').SurpriseEvidence[];
 }
 
@@ -77,6 +78,12 @@ export interface StateGraph {
 
 import { TargetResolver, AbstractTarget } from './target-resolver.js';
 import { createSurpriseEvidence } from './runtime-contract.js';
+import {
+  ContentStabilityTracker,
+  evaluateWaitFor,
+  quietMsOf,
+  wantsStable,
+} from './wait-for.js';
 
 export interface Step {
   stepId: string;
@@ -93,13 +100,17 @@ export interface Step {
   urlSchemaKey?: string;
   condition?: string;
   url_pattern?: string;
+  onTimeout?: string;
   expect?: { state?: string };
+  quietMs?: number;
   state?: {
     visible?: boolean;
     enabled?: boolean;
     attribute?: Record<string, unknown>;
     name?: string;
     stateGraph?: StateGraph;
+    stable?: boolean | number;
+    text?: string;
   };
   stateGraph?: StateGraph;
   responseSignature?: ResponseSignature[];
@@ -126,6 +137,7 @@ export interface ResponseSignature {
 export class StepExecutor {
   private resolver: TargetResolver;
   private buffer: Record<string, unknown> = {};
+  readonly stability = new ContentStabilityTracker();
 
   constructor(
     private doc: Document,
@@ -387,35 +399,18 @@ export class StepExecutor {
   }
 
   private matchesWaitState(step: Step): boolean {
-    if (step.url_pattern) {
-      const pattern = this.I(step.url_pattern);
-      return new RegExp(pattern).test(window.location.href);
+    const result = evaluateWaitFor(step, {
+      href: window.location.href,
+      doc: this.doc,
+      interpolate: (s) => this.I(s),
+      assessState: (graph) => this.assessState(graph as StateGraph),
+    });
+    if (!result.matched) return false;
+    if (wantsStable(step)) {
+      const key = step.stepId || step.selector || step.text || 'wait';
+      return this.stability.observe(String(key), result.contentHash, quietMsOf(step));
     }
-
-    if (step.state?.stateGraph?.nodes || step.stateGraph?.nodes) {
-      const graph = (step.state?.stateGraph || step.stateGraph) as StateGraph;
-      const expectedState = step.state?.name || step.expect?.state;
-      if (!expectedState) return this.assessState(graph) !== 'unknown';
-      return this.assessState(graph) === expectedState;
-    }
-
-    let sel: string | null = step.selector || null;
-    if (!sel && typeof step.target === 'string' && step.target.startsWith('#')) sel = step.target;
-    if (!sel && typeof step.target === 'string' && (step.target.includes('.') || step.target.includes('['))) sel = step.target as string;
-    const el = sel ? this.doc.querySelector(sel) as HTMLElement | null : null;
-
-    if (step.state) {
-      if (step.state.visible !== undefined) return step.state.visible ? !!el : !el;
-      if (step.state.enabled !== undefined) {
-        const enabled = !!el && !(el as HTMLInputElement | HTMLButtonElement).disabled && el.getAttribute('aria-disabled') !== 'true';
-        return step.state.enabled ? enabled : !enabled;
-      }
-      if (step.state.attribute && sel) {
-        return Object.entries(step.state.attribute).every(([key, expected]) => el?.getAttribute(key) === String(expected));
-      }
-    }
-
-    return !!el;
+    return true;
   }
 
   private snapshotPage() {
@@ -586,14 +581,30 @@ export class StepExecutor {
 
       if (a === 'wait_for') {
         if (!this.matchesWaitState(step)) {
+          if (step.onTimeout === 'continue') {
+            return {
+              stepId: step.stepId,
+              action: a,
+              status: 'ok',
+              selector: step.selector ?? null,
+              timedOut: true,
+              durationMs: Date.now() - t0,
+            };
+          }
           if (step.url_pattern) throw new Error('wait_for url timeout: ' + this.I(step.url_pattern));
-          throw new Error('wait_for timeout: ' + this.I(step.selector ?? step.target ?? '[state]'));
+          const label = step.text || step.state?.text
+            ? `text "${this.I(String(step.text || step.state?.text))}"`
+            : wantsStable(step)
+              ? (this.I(step.selector ?? step.target ?? '') || 'state.stable')
+              : this.I(step.selector ?? step.target ?? '[state]');
+          throw new Error('wait_for timeout: ' + label);
         }
         return {
           stepId: step.stepId,
           action: a,
           status: 'ok',
           selector: step.selector ?? null,
+          text: step.text || step.state?.text ? this.I(String(step.text || step.state?.text)) : undefined,
           url: step.url_pattern ? window.location.href : undefined,
           durationMs: Date.now() - t0,
         };
