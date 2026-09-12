@@ -40,6 +40,13 @@ import path from 'node:path';
 const RELAY = process.env.YESHIE_RELAY || 'http://localhost:3333';
 const ROOT = path.join(process.env.HOME, 'Projects/yeshie/sites');
 const args = process.argv.slice(2);
+const ATTRIBUTION_ENV_HEADERS = [
+  ['TRACEPARENT', 'traceparent'],
+  ['AGENT_PROGRAM', 'x-agent-program'],
+  ['AGENT_SEAT', 'x-agent-seat'],
+  ['AGENT_TASK', 'x-agent-task'],
+  ['AGENT_PRINCIPAL', 'x-on-behalf-of'],
+];
 
 const flag = (k) => args.includes(`--${k}`);
 const opt = (k, d) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i + 1] : d; };
@@ -62,6 +69,15 @@ const interpolate = (obj, p) => {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+function buildAttributionHeaders() {
+  const headers = {};
+  for (const [envKey, headerName] of ATTRIBUTION_ENV_HEADERS) {
+    const value = process.env[envKey];
+    if (value) headers[headerName] = value;
+  }
+  return headers;
+}
+
 async function submit(recipeArg) {
   const file = path.isAbsolute(recipeArg) ? recipeArg : path.join(ROOT, recipeArg);
   const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -72,7 +88,8 @@ async function submit(recipeArg) {
   const payload = interpolate(raw, merged);
   const timeoutMs = parseInt(opt('timeout-ms', '300000'), 10);
   const res = await fetch(`${RELAY}/run/async`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...buildAttributionHeaders() },
     body: JSON.stringify({ payload, timeoutMs }),
   });
   const data = await res.json();

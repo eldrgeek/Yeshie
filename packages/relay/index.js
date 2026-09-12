@@ -5,6 +5,7 @@
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { appendFileSync, mkdirSync, existsSync, readFileSync, readdirSync, writeFileSync, statSync } from 'fs';
+import { buildRunRequestedConversationEntry } from './run-attribution.js';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { execFile, spawn } from 'child_process';
@@ -1790,6 +1791,16 @@ export function createRelay(port = 3333) {
         return;
       }
       const commandId = Math.random().toString(36).slice(2) + Date.now();
+      // Attribution: which AI (W3C traceparent + agent headers) asked for this run.
+      // Param NAMES only are recorded, never values (run-attribution.js).
+      logConversation(buildRunRequestedConversationEntry({
+        headers: req.headers,
+        commandId,
+        route: path,
+        payload,
+        params,
+        tabId,
+      }));
       try {
         const result = await new Promise((resolve, reject) => {
           const timer = setTimeout(() => {
@@ -1820,6 +1831,14 @@ export function createRelay(port = 3333) {
         return;
       }
       const commandId = Math.random().toString(36).slice(2) + Date.now();
+      logConversation(buildRunRequestedConversationEntry({
+        headers: req.headers,
+        commandId,
+        route: path,
+        payload,
+        params,
+        tabId,
+      }));
       const now = Date.now();
       asyncRuns.set(commandId, { id: commandId, status: 'running', result: null, error: null, createdAt: now, updatedAt: now });
       const settle = (patch) => {
