@@ -3,8 +3,8 @@
     "task": "issue-list",
     "description": "List issues on a GitHub repository. Supports filtering by state (open/closed). Public repos accessible without login.",
     "selfImproving": true,
-    "runCount": 0,
-    "lastSuccess": null,
+    "runCount": 1,
+    "lastSuccess": "2026-09-12T18:23:31.435Z",
     "auth": {
       "type": "none_public_repo",
       "note": "Public repos accessible without login"
@@ -25,7 +25,8 @@
       }
     },
     "risk": "safe",
-    "needs_live_verification": false
+    "needs_live_verification": false,
+    "lastDurationMs": 3117
   },
   "runId": "github-issue-list-{{timestamp}}",
   "mode": "verification",
