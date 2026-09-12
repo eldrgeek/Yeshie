@@ -2,8 +2,8 @@
   "_meta": {
     "task": "anchor-comment-on-text",
     "description": "Post an offset-based Google Docs comment on macOS; anchor remains UNVERIFIED.",
-    "validationStatus": "UNVERIFIED LIVE",
-    "runCount": 0,
+    "validationStatus": "LIVE FAILED; round 6 fix not live verified",
+    "runCount": 1,
     "lastSuccess": null,
     "requiredParams": [
       "start_offset",
@@ -29,12 +29,25 @@
       "Move to document start via macOS commands.",
       "Move right start_offset times.",
       "Extend selection target_phrase.length times.",
-      "Open composer, focus, type comment_text, post.",
+      "Dismiss spelling/grammar chip with plain Escape and bounded visibility polling.",
+      "Try Cmd+Option+M twice without commands, then toolbar Insert comment; re-dismiss returning chips.",
+      "Confirm writable comment textarea focus, type comment_text, post.",
       "Return anchor UNVERIFIED and verified false."
     ],
     "callerVerification": "PlayMaker must identify the posted comment and call Drive API comments.list with fields including comments(id,quotedFileContent),nextPageToken. Compare quotedFileContent.value exactly to target_phrase. On mismatch delete that comment using comments.delete. Missing quoted content or API failure does not verify the anchor. Reconcile uncertain posting outcomes before retrying.",
     "failureContract": "Each browser operation is bounded to two seconds and movement honours cancellation. Failure prevents subsequent posting steps. After movement, cleanup refocuses body and issues plain ArrowRight via moveRight with no Shift. Cleanup failures are reported. Already submitted browser commands cannot be recalled.",
-    "caveats": "UNVERIFIED LIVE: Unicode caret steps, structural elements and concurrent edits may differ from API offsets. No clipboard access."
+    "caveats": "UNVERIFIED LIVE: Unicode caret steps, structural elements and concurrent edits may differ from API offsets. No clipboard access.",
+    "liveFinding": {
+      "date": "2026-09-12",
+      "start_offset": 25,
+      "target_phrase": "ready for a reading",
+      "error": "Cannot focus comment composer",
+      "posted": false,
+      "evidence": "sites/docs.google.com/evidence-y1-live-run1.png",
+      "observation": "Caret at readin|g; grammar suggestion for reading covered the composer area and took focus. Screenshot is after failure; cleanup collapses selection, so it cannot prove the extend loop failed.",
+      "round6": "Plain Escape and bounded chip polling; two Cmd+Option+M attempts without commands, then toolbar fallback; require visible writable textarea focus before typing. Candidate chip DOM selectors remain unverified: no DOM snapshot available and browser/network use prohibited.",
+      "selectionAudit": "No loop off-by-one: 25 ArrowRight and 19 Shift+ArrowRight chords after Cmd+Home/moveToBeginningOfDocument. With LF paragraph separators this sample phrase begins at zero-based offset 25. A lost/intercepted chord or Docs caret/API paragraph mapping could explain one-short positioning; the post-failure cleanup also collapses selection. Screenshot alone cannot establish which occurred. Actual Docs caret/API mapping remains unverified."
+    }
   },
   "mode": "verification",
   "site": "docs.google.com",

@@ -5,7 +5,9 @@ export interface AnchorIO {
   attach(): Promise<unknown>;
   focusBody(): Promise<unknown>;
   event(event: object): Promise<unknown>;
-  focusComposer(): Promise<unknown>;
+  suggestionVisible(): Promise<boolean>;
+  insertComment(): Promise<boolean>;
+  focusComposer(): Promise<boolean>;
   type(text: string): Promise<unknown>;
   cancelled(): boolean;
 }
@@ -44,8 +46,36 @@ export async function anchorComment(offset: unknown, phrase: string, comment: st
     await key('cmd+Home');
     for (let i = 0; i < Number(offset); i++) await key('ArrowRight');
     for (let i = 0; i < phrase.length; i++) await key('shift+ArrowRight');
-    await key('cmd+alt+m');
-    await bounded(() => io.focusComposer());
+    // Retry only observed UI absence/interference, never rejected/timed-out IO.
+    // Polling is outside page scripts so timeout/cancellation cannot leave a
+    // continuation that later clicks, focuses, or posts.
+    const pause = () => bounded(() => new Promise<void>(resolve => setTimeout(resolve, 50)));
+    const dismissSuggestions = async () => {
+      await key('Escape'); // No modifiers or editing commands.
+      for (let poll = 0; poll < 10; poll++) {
+        if (!await bounded(() => io.suggestionVisible())) return;
+        await pause();
+        await key('Escape');
+      }
+      throw new Error('Cannot dismiss spelling or grammar suggestion chip');
+    };
+    let focused = false;
+    for (let attempt = 0; attempt < 3 && !focused; attempt++) {
+      await dismissSuggestions();
+      if (attempt < 2) await key('cmd+alt+m');
+      else if (!await bounded(() => io.insertComment())) break;
+      for (let poll = 0; poll < 10; poll++) {
+        if (await bounded(() => io.suggestionVisible())) break; // Re-dismiss on next attempt.
+        if (await bounded(() => io.focusComposer())) {
+          // Check again after focus: a suggestion can reappear during opening.
+          if (await bounded(() => io.suggestionVisible())) break;
+          focused = await bounded(() => io.focusComposer());
+          if (focused) break;
+        }
+        await pause();
+      }
+    }
+    if (!focused) throw new Error('Cannot focus comment composer');
     await bounded(() => io.type(comment));
     await key('cmd+Enter');
     return { anchor: 'UNVERIFIED', verified: false, start_offset: offset, length: phrase.length };

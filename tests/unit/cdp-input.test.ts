@@ -71,7 +71,9 @@ it.each([-1,1.5,Infinity,'bad',10001])('rejects invalid repeat %s', count => {
 it('recipe validates and selects by count before inserting and posting', () => {
   const recipe = JSON.parse(readFileSync(new URL('../../sites/docs.google.com/tasks/04-anchor-comment-on-text.payload.json', import.meta.url),'utf8'));
   expect(PayloadSchema.safeParse(recipe).success).toBe(true);
-  expect(recipe._meta.validationStatus).toBe('UNVERIFIED LIVE');
+  expect(recipe._meta.validationStatus).toBe('LIVE FAILED; round 6 fix not live verified');
+  expect(recipe._meta.runCount).toBe(1);
+  expect(recipe._meta.liveFinding.posted).toBe(false);
   expect(recipe._meta.requiredParams).toEqual(['start_offset', 'target_phrase', 'comment_text']);
   expect(recipe.chain).toEqual([{stepId:'anchor-comment', action:'anchor_comment', start_offset:'{{start_offset}}', text:'{{target_phrase}}', comment_text:'{{comment_text}}'}]);
 });

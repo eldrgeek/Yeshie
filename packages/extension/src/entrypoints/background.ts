@@ -1,3 +1,4 @@
+import { docsCommentDOM } from '../docs-comment-dom.js';
 import { anchorComment } from '../anchor-comment.js';
 import { keyRepeatCount, repeatedKeys, dragSelection } from '../../../../src/cdp-input.js';
 import { io } from 'socket.io-client';
@@ -2786,15 +2787,13 @@ export default defineBackground(() => {
               }, []);
               if (!ok) throw new Error('Cannot focus document body');
             },
-            focusComposer: async () => {
-              const ok = await execInTab(tabId, () => {
-                const el = document.querySelector<HTMLElement>('[contenteditable="true"][role="textbox"][aria-label="Comment"]');
-                if (!el) return false;
-                el.focus();
-                return document.activeElement === el;
-              }, []);
-              if (!ok) throw new Error('Cannot focus comment composer');
+            suggestionVisible: async () => {
+              const visible = await execInTab(tabId, docsCommentDOM, ['suggestionVisible']);
+              if (typeof visible !== 'boolean') throw new Error('Cannot inspect suggestion chip');
+              return visible;
             },
+            insertComment: async () => (await execInTab(tabId, docsCommentDOM, ['insertComment'])) === true,
+            focusComposer: async () => (await execInTab(tabId, docsCommentDOM, ['focusComposer'])) === true,
             type: text => chrome.debugger.sendCommand({ tabId }, 'Input.insertText', { text }),
           });
         return { stepId: step.stepId, action: a, status: 'ok', result, durationMs: Date.now() - t0 };
