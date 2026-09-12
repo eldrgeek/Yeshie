@@ -185,9 +185,14 @@
     },
     {
       "stepId": "s5",
-      "action": "delay",
-      "ms": 5000,
-      "note": "Monaco + toolbar settle. Clicking earlier is what made the old Deploy-dropdown path flaky."
+      "action": "wait_for",
+      "selector": ".monaco-editor",
+      "state": {
+        "stable": 1500
+      },
+      "timeout": 20000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (5000ms) on 2026-09-12. Monaco + toolbar settle: waits until the editor text has been quiet for 1.5s. Clicking earlier is what made the old Deploy-dropdown path flaky. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
     },
     {
       "_": "PHASE 2 - Open Test deployments WITHOUT touching the Deploy dropdown"
@@ -215,9 +220,12 @@
     },
     {
       "stepId": "s8",
-      "action": "delay",
-      "ms": 4000,
-      "note": "Dialog width settles only after the Head Deployment ID row loads; coordinates measured earlier are wrong."
+      "action": "wait_for",
+      "selector": "[role='dialog']",
+      "text": "Head Deployment ID",
+      "timeout": 15000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (4000ms) on 2026-09-12. The dialog width settles after the Head Deployment ID row loads, so this waits for that row's text. Later clicks: s10 is coordinate-free, and s13's trusted click re-measures its target until two reads agree within 2px. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
     },
     {
       "_": "PHASE 3 - Select deployment type 'Editor Add-on' (idempotent, gated on ARIA state)"
@@ -240,8 +248,11 @@
     },
     {
       "stepId": "s11",
-      "action": "delay",
-      "ms": 2000
+      "action": "wait_for",
+      "selector": "[aria-label='Enable deployment types'][aria-expanded='true']",
+      "timeout": 2000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (2000ms) on 2026-09-12. Waits for the effect of s10 (the type list expanding), capped at the old 2s. If s10 did not take, this times out, s12 reads the list still collapsed, and s13 retries with a trusted click. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
     },
     {
       "stepId": "s12",
@@ -294,8 +305,11 @@
     },
     {
       "stepId": "s17",
-      "action": "delay",
-      "ms": 2000
+      "action": "wait_for",
+      "selector": "[role='menuitemcheckbox'][aria-label='Editor Add-on'][aria-checked='true']",
+      "timeout": 2000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (2000ms) on 2026-09-12. Waits for the effect of s16 (aria-checked true), capped at the old 2s. If s16 did not take, s18 reads it still unchecked and s19 retries trusted. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
     },
     {
       "stepId": "s18",
@@ -322,9 +336,12 @@
     },
     {
       "stepId": "s21",
-      "action": "delay",
-      "ms": 3000,
-      "note": "The dialog re-renders into the Editor Add-on configuration (Head Deployment ID + tests table)."
+      "action": "wait_for",
+      "selector": "[role='dialog']",
+      "text": "Create new test",
+      "timeout": 10000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (3000ms) on 2026-09-12. The dialog re-renders into the Editor Add-on configuration; 'Create new test' is the control s23 clicks next, so its text appearing is the readiness signal. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
     },
     {
       "stepId": "s22",
@@ -359,9 +376,14 @@
     },
     {
       "stepId": "s25",
-      "action": "delay",
-      "ms": 9000,
-      "note": "REQUIRED. The dialog is still re-flowing; a picker-button click measured earlier lands ~65px off and silently misses."
+      "action": "wait_for",
+      "selector": "[role='dialog']",
+      "state": {
+        "stable": 3000
+      },
+      "timeout": 20000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (9000ms) on 2026-09-12. The dialog re-flows after the create-test form renders; a picker-button click measured earlier landed ~65px off. Waits until the dialog text has been quiet for 3s, and s26's trusted click then re-measures its target until two reads agree within 2px. HIGHEST-RISK conversion in this file: the old 9s was an empirical floor, and a text fingerprint cannot see a purely geometric re-flow. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
     },
     {
       "_": "PHASE 5 - Choose the Test document via the Drive picker. UNVERIFIED PAST s28 - see _meta.blockers."
@@ -390,9 +412,15 @@
     },
     {
       "stepId": "s28",
-      "action": "delay",
-      "ms": 6000,
-      "note": "Picker content load. Its default tab is 'Recent'."
+      "action": "wait_for",
+      "selector": "body",
+      "frame": "picker",
+      "state": {
+        "stable": 1500
+      },
+      "timeout": 15000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (6000ms) on 2026-09-12. Drive picker content load (default tab 'Recent'): waits until the picker frame's text has been quiet for 1.5s. {{doc_title}} is not used as the wait text because wait_for does not interpolate it. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
     },
     {
       "stepId": "s29",
@@ -413,8 +441,15 @@
     },
     {
       "stepId": "s31",
-      "action": "delay",
-      "ms": 4000
+      "action": "wait_for",
+      "selector": "body",
+      "frame": "picker",
+      "state": {
+        "stable": 1500
+      },
+      "timeout": 8000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (4000ms) on 2026-09-12. After the row click, waits until the picker text has been quiet for 1.5s so the s32 diagnostic read sees the post-selection state. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
     },
     {
       "stepId": "s32",
@@ -437,8 +472,14 @@
     },
     {
       "stepId": "s34",
-      "action": "delay",
-      "ms": 7000
+      "action": "wait_for",
+      "selector": "[role='dialog']",
+      "state": {
+        "stable": 2000
+      },
+      "timeout": 15000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (7000ms) on 2026-09-12. After the picker confirm, waits until the dialog text has been quiet for 2s before the s35 evidence read. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
     },
     {
       "stepId": "s35",
@@ -459,8 +500,14 @@
     },
     {
       "stepId": "s37",
-      "action": "delay",
-      "ms": 9000
+      "action": "wait_for",
+      "selector": "[role='dialog']",
+      "state": {
+        "stable": 2000
+      },
+      "timeout": 20000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (9000ms) on 2026-09-12. After Save test, waits until the dialog text has been quiet for 2s before s38 reads it. The real signal is still s38's content (a tests-table row), not this wait. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
     },
     {
       "stepId": "s38",
@@ -496,9 +543,14 @@
     },
     {
       "stepId": "v2",
-      "action": "delay",
-      "ms": 10000,
-      "note": "Docs is slow to wire its menubar; onOpen()/add-on menus attach late."
+      "action": "wait_for",
+      "selector": "#docs-menubar",
+      "state": {
+        "stable": 3000
+      },
+      "timeout": 20000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (10000ms) on 2026-09-12. Docs wires its menubar slowly and add-on menus attach late: waits until the menubar text has been quiet for 3s. v3 remains the hard gate on #docs-extensions-menu. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
     },
     {
       "stepId": "v3",
@@ -517,8 +569,15 @@
     },
     {
       "stepId": "v5",
-      "action": "delay",
-      "ms": 3000
+      "action": "wait_for",
+      "selector": ".goog-menu.goog-menu-vertical:not([style*='display: none'])",
+      "text": "Apps Script",
+      "state": {
+        "stable": 1000
+      },
+      "timeout": 8000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (3000ms) on 2026-09-12. Waits for the open Extensions menu (the baseline always contains 'Apps Script'), then 1s of quiet so a late-attaching add-on entry is included in v6's read. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
     },
     {
       "stepId": "v6",
@@ -538,8 +597,14 @@
     },
     {
       "stepId": "v8",
-      "action": "delay",
-      "ms": 2500
+      "action": "wait_for",
+      "selector": ".goog-menu.goog-menu-vertical:not([style*='display: none'])",
+      "state": {
+        "stable": 1000
+      },
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (2500ms) on 2026-09-12. Waits until the open menu's text has been quiet for 1s before v9 reads the add-on submenu. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
     },
     {
       "stepId": "v9",

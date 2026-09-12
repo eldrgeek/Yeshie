@@ -18,7 +18,7 @@
       "PRE-CHAIN AUTH CHECK WILL EAT THIS RECIPE IF YOU OMIT _meta.skipAuthCheck / _meta.auth.type='none'. startRun()'s getAuthConfig() defaults authType to 'sso_automatable' (a legacy app.yeshid.com default). When params.base_url host == the already-open tab's host, the runtime runs PRE_CHECK_AUTH (a YeshID-shaped login heuristic), decides script.google.com is unauthenticated, tries to navigate to <base_url>/login (which does not exist), waits 120s and fails the whole chain with 'Authentication failed - user did not complete login within timeout' and an EMPTY buffer - zero steps executed. Observed live 2026-08-02: run 1 passed only because the active tab happened to be OFF script.google.com (tabOnAuthDomain=false -> check skipped); the identical run 2, with a script.google.com tab already open, died before step s1. Any recipe for a site where Chrome is already signed in must declare auth type 'none'.",
       "MASTER/DETAIL PAGE: /home/usersettings renders TWO span[role='tabpanel'] panels. Panel 1 (the extra class 'KKjvXb' marks the visible one) is the settings LIST: div[role='button'][jsname='BJHtg'] holding the label 'Google Apps Script API' + a state div reading 'On'/'Off'. Panel 2 is the DETAIL pane holding the actual toggle plus a 'Back to Settings' button. The toggle exists in the DOM from first paint but has a ZERO bounding rect until the row is clicked — so a coordinate click on it fails until you open the detail panel first. Hence s7 (click the row) before s9 (click the toggle).",
       "THE TOGGLE IS A jsaction/jsshadow CONTROL: div[role='checkbox'][aria-label='Toggle allow Google Apps Script API'] with jscontroller='EcW08c', jsshadow, and jsaction='...click:cOuCgd; mousedown:UX7yZ; mouseup:lbsD7e;...'. This is the SAME family that blocked deploy-apps-script.payload.json. It was NOT a blocker here: 'click' with trusted:true (CDP Input.dispatchMouseEvent real mouse events via trustedCoordClick) flipped it first try. Prefer trusted:true over element.click() for any jsaction control — the deploy recipe's blocker note should be retested with trusted:true.",
-      "aria-checked FLIPS BEFORE THE TEXT LABEL RE-RENDERS. Verified live: wait_for aria-checked='true' matched, but an immediately-following read of the 'On'/'Off' text still returned 'Off'; ~seconds later the DOM read 'On' everywhere. aria-checked is the authoritative, synchronous signal; the On/Off text lags behind the server round-trip. Never verify on the text alone — hence the s11 delay before the s12 cosmetic read.",
+      "aria-checked FLIPS BEFORE THE TEXT LABEL RE-RENDERS. Verified live: wait_for aria-checked='true' matched, but an immediately-following read of the 'On'/'Off' text still returned 'Off'; ~seconds later the DOM read 'On' everywhere. aria-checked is the authoritative, synchronous signal; the On/Off text lags behind the server round-trip. Never verify on the text alone — hence the s11 wait_for (label text contains 'On') before the s12 cosmetic read.",
       "NO ARBITRARY JS: the runtime's 'js' action is a PATTERN ALLOWLIST (MV3 CSP, PRE_RUN_DOMQUERY), not eval. Only pageScan(), dumpText('kw'), statByLabel(), paginationTotal(), tableRowCount(), window.__var__, and row/button/checkbox/field patterns work. Anything else returns {__error:'No matching pattern for js step'} and FAILS the step. dumpText('@') is the account probe used here (it skips the giant WIZ_global_data script because leaves are capped at 100 chars).",
       "wait_for DOES NOT INTERPOLATE step.selector — only step.url_pattern, and step.target as a 'last resort literal'. The account assertion therefore passes its selector as 'target' (not 'selector') so that {{account}} interpolates. This only works while no abstractTargets key equals that literal string; do not add one.",
       "PARAMS MUST BE SENT TOP-LEVEL TO THE RELAY. startRun() receives params from the skill_run message; payload.params is NOT auto-merged by the extension. POST /run or /run/async with body {payload, params, timeoutMs}. scripts/run-async.mjs interpolates payload.params CLIENT-side instead and sends no params — which also means params.base_url tab-targeting is lost on that path.",
@@ -146,9 +146,10 @@
     },
     {
       "stepId": "s8",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Panel slide animation — the toggle needs a settled non-zero bounding rect before a coordinate click."
+      "action": "wait_for",
+      "selector": "[aria-label='Toggle allow Google Apps Script API']",
+      "timeout": 10000,
+      "note": "Guard: the toggle is still in the DOM after the s7 row click. Replaced 'delay 1500' on 2026-09-12. That delay covered the panel slide, i.e. waiting for the toggle to get a settled non-zero bounding rect. wait_for cannot test geometry, so that settle now lives in s9 itself: a trusted click (trustedCoordClick) polls until its target has a non-zero rect, then re-measures until two consecutive reads agree within 2px, bounded by s9's timeout. Hard gate on purpose: if the toggle is gone, s9 would fail anyway."
     },
     {
       "stepId": "s9",
@@ -185,9 +186,12 @@
     },
     {
       "stepId": "s11",
-      "action": "delay",
-      "ms": 1500,
-      "note": "The On/Off text label lags aria-checked by a server round-trip. Without this, s12 reads a stale 'Off'."
+      "action": "wait_for",
+      "selector": "div:has(> [aria-label='Toggle allow Google Apps Script API'])",
+      "text": "On",
+      "timeout": 15000,
+      "onTimeout": "continue",
+      "note": "Guard for the cosmetic s12 read. Replaced 'delay 1500' on 2026-09-12. The On/Off text label lags aria-checked by a server round-trip, so this waits until the toggle's parent (the element s5 and s12 read) contains 'On'. A stale label cannot satisfy it, because 'Off' does not contain 'On'. Soft (onTimeout: continue) because s10 is the hard proof; a label that never re-renders must not fail a recipe that has already proved its state."
     },
     {
       "stepId": "s12",

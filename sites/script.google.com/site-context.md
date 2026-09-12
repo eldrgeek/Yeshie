@@ -114,7 +114,7 @@ Google's UI here is Closure/jsaction: controls carry `jscontroller`, `jsshadow`,
 ## Known Anomalies (editor / deploy)
 
 - GCP SPA: each navigation takes 3-5s to fully render
-- Monaco initialization takes ~3-4s after page load — include `delay 5000` before `js` injection
+- Monaco initialization takes ~3-4s after page load — guard `js` injection with `wait_for` on `.monaco-editor` plus `state.stable`, not a fixed `delay` (fixed delays fail `tests/unit/no-fixed-delay.test.ts`)
 - Project name is "Untitled project" on creation; click the title text to rename inline
 - The gear icon for deploy type may have `aria-label="Select type"` or similar
 - Authorization may be skipped if the Google account already granted DocumentApp scope to a previous script

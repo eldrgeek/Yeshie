@@ -412,14 +412,30 @@ def find_claude_app():
     return None
 
 
+def activate_running_app(app):
+    """Ask AppKit to bring `app` to the front. Returns True if AppKit accepted.
+
+    activateWithOptions_ is deprecated since macOS 14 but still present on
+    macOS 26.3 / PyObjC 12.1, so it stays first: it is the call proven live.
+    activateFromApplication_options_ is the macOS 14+ replacement, used only
+    if the old selector is ever removed. Neither is called on SDKs lacking it.
+    """
+    options = getattr(AppKit, 'NSApplicationActivateIgnoringOtherApps', 2)
+    activate = getattr(app, 'activateWithOptions_', None)
+    if activate:
+        return bool(activate(options))
+    activate_from = getattr(app, 'activateFromApplication_options_', None)
+    if activate_from:
+        me = AppKit.NSRunningApplication.currentApplication()
+        return bool(activate_from(me, options))
+    return False
+
+
 def activate_claude():
     app = find_claude_app()
     if not app:
         return False
-    options = getattr(AppKit, 'NSApplicationActivateIgnoringOtherApps', 1)
-    activate = getattr(app, 'activateWithOptions_', None)
-    if activate:
-        activate(options)
+    activate_running_app(app)
     return True
 
 
@@ -440,11 +456,9 @@ def get_content_root(app_elem, timeout=5.0):
 
     # Primary: AppKit activation
     ws = AppKit.NSWorkspace.sharedWorkspace()
-    activated = False
     for running_app in ws.runningApplications():
         if running_app.bundleIdentifier() == CLAUDE_BUNDLE_ID:
-            activated = running_app.activateWithOptions_(
-                AppKit.NSApplicationActivateIgnoringOtherApps)
+            activate_running_app(running_app)
             break
 
     # Belt-and-suspenders: osascript activation (works even from background scripts)
@@ -539,9 +553,11 @@ def run(argv=None):
     saved_draft = (get_attr(current_ta, 'AXValue') or '') if current_ta else ''
 
     # ── HUD / system notification ─────────────────────────────────────────────
+    import os as _os
     import subprocess as _sp2
     import urllib.request as _ur
     import json as _js
+    relay = _os.environ.get('YESHIE_RELAY', 'http://localhost:3333').rstrip('/')
     short_msg = msg[:72] + ('…' if len(msg) > 72 else '')
     notif_title = 'SOMA'
     notif_body  = f'Injecting: {short_msg}' + (' (draft preserved)' if saved_draft else '')
@@ -550,7 +566,7 @@ def run(argv=None):
     try:
         _ur.urlopen(
             _ur.Request(
-                'http://localhost:3333/notify',
+                f'{relay}/notify',
                 data=_js.dumps({'message': notif_body, 'title': notif_title}).encode(),
                 headers={'Content-Type': 'application/json'},
                 method='POST',
