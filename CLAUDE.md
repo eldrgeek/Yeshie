@@ -38,6 +38,28 @@ early guess that got carried forward without re-measuring when the corpus grew. 
 recipes were lost — only a handful of superseded `sites/okta/tasks/*` files were
 deleted/renamed as that set matured; corpus size only ever grew.
 
+## VPS relay — SSH bridge for authorized externals (added 2026-08-12/13, DISABLED)
+
+The Yeshie/Pulse dispatch relay (Mac `:3333` standby, VPS primary at
+`wss://vpsmikewolf.duckdns.org:3443`, described above and in
+`second-brain/Resources/vps-config.md`) is one thing; this is a **separate,
+sibling capability** built alongside it, not a change to `packages/relay/index.js`
+or the live `yeshie-relay` pm2 process.
+
+A websocket-to-`sshd(:22)` bridge lets authorized external people (Mark
+Inarai, James Crook) reach an SSH shell on the VPS through the relay's public
+TLS endpoint, without ever opening public `:22` (which stays firewalled by
+design). Source: `~/Projects/_estate/relay-ssh/`. Deployed read-only to
+VPS `~/relay-ssh-bridge/` — a sibling directory, does not touch
+`~/yeshie-relay/`.
+
+**Current state: DISABLED.** Not started, not in pm2/systemd, no nginx route
+exists yet. End-to-end tested via an SSH tunnel (not the public path) —
+proof at `_estate/relay-ssh/proof/`. Full design + threat model:
+`_estate/relay-ssh/SECURITY-NOTES.md`. Enablement checklist (Locke security
+review → Mike's nod → mint tokens → start service → route via nginx):
+`_estate/relay-ssh/STATUS.md`.
+
 ## Runtime policy — Yeshie-first (Mike, 2026-07-08)
 
 Browser automation runs on **Yeshie recipes via the relay**, not Claude-in-Chrome
