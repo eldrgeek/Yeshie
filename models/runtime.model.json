@@ -46,8 +46,8 @@
     },
     {
       "name": "wait_for",
-      "description": "Wait for element to reach a state (visible/enabled) or attribute value. Supports: state.visible, state.enabled, state.attribute[key]=value.",
-      "fields": ["target", "state", "timeout"]
+      "description": "Wait until a condition holds: element selector, visible text, URL pattern, or state.stable (content fingerprint unchanged for quietMs). Resolves as soon as the condition is true; times out otherwise. Do not use a fixed delay.",
+      "fields": ["target", "selector", "text", "state", "state.stable", "quietMs", "url_pattern", "timeout"]
     },
     {
       "name": "read",

@@ -14,6 +14,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const MAX_CACHED_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const GENERATED_ID_RE = /^(input-v-\d+|checkbox-v-\d+|_react_|react-\d+|:r)/;
+const PROTECTED_RECIPE_RES = [
+  /sites\/app\.rocketmoney\.com\/tasks\/01-list-all-recurring(?:\.payload)?\.json$/i,
+  /sites\/app\.rocketmoney\.com\/tasks\/02-list-inactive(?:\.payload)?\.json$/i,
+];
 
 function normalizeResolvedTargetUpdate(update = {}) {
   const resolvedVia = update.resolvedVia || update.resolutionMethod || 'escalate';
@@ -62,6 +66,150 @@ function resolveSiteModelPath(payloadPath) {
   const taskDir = path.dirname(payloadPath);
   const siteDir = path.dirname(taskDir);
   return path.join(siteDir, 'site.model.json');
+}
+
+export function isProtectedRecipe(payloadPath, payload) {
+  const pathStr = String(payloadPath || '').replace(/\\/g, '/');
+  if (PROTECTED_RECIPE_RES.some((re) => re.test(pathStr))) return true;
+  const site = String(payload?.site || '').toLowerCase();
+  const task = String(payload?._meta?.task || payload?._meta?.id || '').toLowerCase();
+  const isRM = site.includes('rocketmoney') || pathStr.toLowerCase().includes('rocketmoney');
+  if (!isRM) return false;
+  return /01-list-all-recurring|list-all-recurring/.test(`${pathStr} ${task}`)
+    || /(?:^|[/\s])02-list-inactive(?:\.payload)?/.test(`${pathStr} ${task}`)
+    || task === 'list-inactive';
+}
+
+export function runSucceeded(chainResult) {
+  return chainResult?.success === true && chainResult?.goalReached === true;
+}
+
+function isSelfImproving(payload) {
+  return payload?._meta?.selfImproving === true || payload?.selfImproving === true;
+}
+
+/**
+ * True iff candidate is inside rootDir after resolving symlinks.
+ * Rejects `..` escape and symlink-out-of-tree.
+ */
+export function isInsideRoot(candidate, rootDir) {
+  if (!candidate || !rootDir) return false;
+  let rootReal;
+  try { rootReal = fs.realpathSync(rootDir); }
+  catch { return false; }
+
+  let childReal;
+  try {
+    childReal = fs.realpathSync(candidate);
+  } catch {
+    try {
+      const parentReal = fs.realpathSync(path.dirname(path.resolve(candidate)));
+      childReal = path.join(parentReal, path.basename(candidate));
+    } catch {
+      childReal = path.resolve(candidate);
+    }
+  }
+
+  const rel = path.relative(rootReal, childReal);
+  return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
+}
+
+export function isHealAllowed({ payload, payloadPath, chainResult } = {}) {
+  if (!chainResult) return { ok: false, reason: 'no_result' };
+  if (!runSucceeded(chainResult)) {
+    return { ok: false, reason: 'run_not_successful' };
+  }
+  if (!isSelfImproving(payload)) return { ok: false, reason: 'selfImproving_disabled' };
+  if (isProtectedRecipe(payloadPath, payload)) return { ok: false, reason: 'protected_recipe' };
+  if (!payloadPath) return { ok: false, reason: 'no_payload_path' };
+  if (!fs.existsSync(payloadPath)) return { ok: false, reason: 'payload_missing' };
+  return { ok: true };
+}
+
+function walkPayloadFiles(dir, acc = []) {
+  if (!dir || !fs.existsSync(dir)) return acc;
+  let entries = [];
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return acc; }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) walkPayloadFiles(full, acc);
+    else if (entry.name.endsWith('.payload.json')) acc.push(full);
+  }
+  return acc;
+}
+
+export function resolvePayloadPath({ payloadPath, payload, sitesRoot } = {}) {
+  const confined = resolveHealWritePath({ payloadPath, payload, sitesRoot });
+  return confined.ok ? confined.payloadPath : null;
+}
+
+/**
+ * Auto-heal write target. Only a path that realpath-resolves inside sitesRoot.
+ * Client-supplied payloadPath outside that tree is ignored (path_escape).
+ */
+export function resolveHealWritePath({ payloadPath, payload, sitesRoot } = {}) {
+  if (!sitesRoot) return { ok: false, reason: 'no_sites_root' };
+  try { fs.realpathSync(sitesRoot); }
+  catch { return { ok: false, reason: 'no_sites_root' }; }
+
+  const explicit = payloadPath || payload?._meta?.payloadPath || payload?._meta?.sourcePath;
+  if (explicit) {
+    const tries = [];
+    if (path.isAbsolute(explicit)) {
+      tries.push(path.resolve(explicit));
+    } else {
+      tries.push(path.resolve(sitesRoot, explicit));
+      tries.push(path.resolve(path.dirname(sitesRoot), explicit));
+    }
+    let sawInside = false;
+    for (const candidate of tries) {
+      if (!isInsideRoot(candidate, sitesRoot)) continue;
+      sawInside = true;
+      if (!fs.existsSync(candidate)) continue;
+      if (!isInsideRoot(candidate, sitesRoot)) continue;
+      return { ok: true, payloadPath: fs.realpathSync(candidate) };
+    }
+    return { ok: false, reason: sawInside ? 'payload_missing' : 'path_escape' };
+  }
+
+  const task = payload?._meta?.task;
+  const site = payload?.site;
+  if (!task) return { ok: false, reason: 'no_payload_path' };
+  const matches = [];
+  for (const file of walkPayloadFiles(sitesRoot)) {
+    try {
+      const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (doc?._meta?.task !== task) continue;
+      if (site && doc.site && doc.site !== site) continue;
+      if (!isInsideRoot(file, sitesRoot)) continue;
+      matches.push(file);
+    } catch { /* skip unreadable */ }
+  }
+  if (matches.length !== 1) return { ok: false, reason: 'no_payload_path' };
+  return { ok: true, payloadPath: fs.realpathSync(matches[0]) };
+}
+
+export function maybeAutoHeal({ payload, payloadPath, chainResult, sitesRoot } = {}) {
+  if (!runSucceeded(chainResult)) {
+    return { healed: false, reason: 'run_not_successful', payloadPath: null };
+  }
+  const confined = resolveHealWritePath({ payloadPath, payload, sitesRoot });
+  if (!confined.ok) {
+    return { healed: false, reason: confined.reason, payloadPath: null };
+  }
+  const allowed = isHealAllowed({ payload, payloadPath: confined.payloadPath, chainResult });
+  if (!allowed.ok) return { healed: false, reason: allowed.reason, payloadPath: confined.payloadPath };
+  try {
+    const result = applyImprovements(confined.payloadPath, chainResult);
+    return {
+      healed: !!result?.changed,
+      reason: result?.changed ? 'applied' : (result?.reason || 'unchanged'),
+      payloadPath: confined.payloadPath,
+    };
+  } catch (err) {
+    console.warn('[heal] auto-heal failed:', err.message);
+    return { healed: false, reason: 'heal_error', error: err.message, payloadPath: confined.payloadPath };
+  }
 }
 
 /**
@@ -119,18 +267,18 @@ export function mergeResponseSignatures(siteModel, stepId, observed) {
 }
 
 export function applyImprovements(payloadPath, chainResult) {
-  const succeeded =
-    chainResult?.goalReached === true ||
-    chainResult?.success === true ||
-    chainResult?.event === 'chain_complete';
+  if (isProtectedRecipe(payloadPath)) {
+    console.log('Protected recipe — no improvements applied:', payloadPath);
+    return { changed: false, reason: 'protected_recipe' };
+  }
 
-  if (!succeeded) {
+  if (!runSucceeded(chainResult)) {
     console.log('Run did not complete successfully — no improvements applied.');
-    console.log(`Event: ${chainResult.event}, goalReached: ${chainResult.goalReached}`);
-    if (chainResult.guardFails) {
+    console.log(`success: ${chainResult?.success}, goalReached: ${chainResult?.goalReached}`);
+    if (chainResult?.guardFails) {
       console.log('Guard failures:', JSON.stringify(chainResult.guardFails, null, 2));
     }
-    return { changed: false };
+    return { changed: false, reason: 'run_not_successful' };
   }
 
   console.log(`\nApplying improvements from successful run (${chainResult.durationMs}ms)...\n`);

@@ -1,5 +1,6 @@
 import { io } from 'socket.io-client';
 import { createResolvedTargetUpdate, createSurpriseEvidence } from '../../../../src/runtime-contract.js';
+import { ContentStabilityTracker, quietMsOf, wantsStable } from '../../../../src/wait-for.js';
 
 export default defineBackground(() => {
   console.log('[Yeshie] Background worker started');
@@ -17,20 +18,40 @@ export default defineBackground(() => {
   // (Chrome logs it even though Socket.IO auto-retries and succeeds).
   let socket: ReturnType<typeof io>;
   setTimeout(() => {
+    const buildVersion = chrome.runtime.getManifest().version;
     socket = io(RELAY_URL, {
-      auth: { role: 'extension' },
+      auth: { role: 'extension', buildVersion },
       transports: ['websocket'],
       reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 400,
+      reconnectionDelayMax: 8000,
+      randomizationFactor: 0.5,
+      timeout: 10000,
+      forceNew: true,
     });
 
     socket.on('connect', () => {
-      console.log('[Yeshie] Connected to relay', socket.id);
+      console.log('[Yeshie] Connected to relay', socket.id, 'build', buildVersion);
     });
 
-    socket.on('disconnect', () => {
-      console.log('[Yeshie] Disconnected from relay');
+    socket.on('disconnect', (reason: string) => {
+      console.log('[Yeshie] Disconnected from relay', reason);
+      // Do not reconnect on server-initiated disconnect: the relay kicks the
+      // previous owner when a new extension socket registers. Auto-reclaiming
+      // would recreate the dual-register flap this backoff is meant to stop.
+    });
+
+    socket.on('connect_error', (err: Error) => {
+      console.warn('[Yeshie] relay connect_error', err?.message || err);
+    });
+
+    socket.io.on('reconnect_attempt', (n: number) => {
+      console.log('[Yeshie] relay reconnect attempt', n);
+    });
+
+    socket.io.on('reconnect', () => {
+      console.log('[Yeshie] relay reconnected', socket.id);
     });
 
     // Relay sends skill_run commands
@@ -1206,10 +1227,19 @@ export default defineBackground(() => {
   }
 
   function PRE_MATCH_WAIT_FOR(step: any, selector: string | null, stateGraph: any) {
+    const readText = (node: Element | null) => {
+      if (!node) return '';
+      const tag = (node as HTMLElement).tagName?.toLowerCase?.() || '';
+      if (tag === 'input' || tag === 'textarea') return (node as HTMLInputElement).value || '';
+      return String((node as HTMLElement).innerText || node.textContent || '');
+    };
+    const fp = (t: string) => `${t.length}:${t.slice(-280)}`;
+
     if (step.url_pattern) {
       return {
         matched: new RegExp(step.url_pattern).test(window.location.href),
         url: window.location.href,
+        contentHash: '',
       };
     }
 
@@ -1220,23 +1250,33 @@ export default defineBackground(() => {
       return {
         matched: expectedState ? currentState === expectedState : currentState !== 'unknown',
         state: currentState,
+        contentHash: '',
       };
     }
 
     const el = selector ? document.querySelector(selector) as HTMLElement | null : null;
+    const scope = (el || document.body) as Element | null;
+    const pageText = readText(scope);
+    const contentHash = fp(pageText);
+    const needle = step.text || step.state?.text;
+    if (needle && !pageText.includes(String(needle))) {
+      return { matched: false, contentHash, text: pageText };
+    }
     if (step.state) {
-      if (step.state.visible !== undefined) return { matched: step.state.visible ? !!el : !el };
+      if (step.state.visible !== undefined) return { matched: step.state.visible ? !!el : !el, contentHash, text: pageText };
       if (step.state.enabled !== undefined) {
         const enabled = !!el && !(el as HTMLInputElement | HTMLButtonElement).disabled && el.getAttribute('aria-disabled') !== 'true';
-        return { matched: step.state.enabled ? enabled : !enabled };
+        return { matched: step.state.enabled ? enabled : !enabled, contentHash, text: pageText };
       }
       if (step.state.attribute) {
         const matched = !!el && Object.entries(step.state.attribute).every(([key, expected]) => el?.getAttribute(key) === String(expected));
-        return { matched };
+        return { matched, contentHash, text: pageText };
       }
     }
-
-    return { matched: !!el };
+    if (selector && !el && step.state?.visible !== false && !needle) {
+      return { matched: false, contentHash, text: pageText };
+    }
+    return { matched: true, contentHash, text: pageText };
   }
 
   function PRE_FIND_ROW_AND_CLICK(identifier: string) {
@@ -2532,6 +2572,10 @@ export default defineBackground(() => {
         // is wrong. Use it ONLY for settle/paint waits — a wait_for that guards a
         // real precondition should still throw loudly (omit onTimeout).
         const softTimeout = step.onTimeout === 'continue';
+        const stable = wantsStable(step);
+        const quietMs = quietMsOf(step);
+        const tracker = new ContentStabilityTracker();
+        const trackKey = String(step.stepId || step.selector || step.text || 'wait');
 
         // URL pattern mode: poll until window.location matches
         if (step.url_pattern) {
@@ -2545,7 +2589,7 @@ export default defineBackground(() => {
           throw new Error('wait_for url timeout: ' + pat);
         }
 
-        // Element selector mode
+        // Element / text / state.stable mode
         // Frame-scoped waits re-resolve the frameId inside the poll loop —
         // the iframe this wait targets (e.g. a dialog) may not exist yet when
         // the step starts, and may be torn down/recreated between polls.
@@ -2559,7 +2603,10 @@ export default defineBackground(() => {
           sel = res?.selector || null;
           if (!sel) sel = abstractTargets[step.target].fallbackSelectors?.[0] || null;
         }
-        if (!sel) sel = interpolate(step.target || '', params); // last resort: literal
+        const hasText = !!(step.text || step.state?.text);
+        if (!sel && step.target && !stable && !hasText) {
+          sel = interpolate(step.target || '', params); // last resort: literal
+        }
         while (Date.now() - start < timeout) {
           if (framePat && waitFrameId == null) {
             waitFrameId = await resolveFrameId(tabId, framePat);
@@ -2578,11 +2625,20 @@ export default defineBackground(() => {
             await new Promise(r => setTimeout(r, 300));
             continue;
           }
-          if (match?.matched) return { stepId: step.stepId, action: a, status: 'ok', selector: sel, state: match.state, durationMs: Date.now() - t0 };
+          if (match?.matched) {
+            if (stable && !tracker.observe(trackKey, match.contentHash || '', quietMs)) {
+              await new Promise(r => setTimeout(r, 200));
+              continue;
+            }
+            return { stepId: step.stepId, action: a, status: 'ok', selector: sel, state: match.state, durationMs: Date.now() - t0 };
+          }
           await new Promise(r => setTimeout(r, 300));
         }
         if (softTimeout) return { stepId: step.stepId, action: a, status: 'ok', selector: sel, timedOut: true, durationMs: Date.now() - t0 };
-        throw new Error('wait_for timeout: ' + sel);
+        const label = hasText
+          ? `text "${interpolate(String(step.text || step.state?.text || ''), { ...params, ...buffer })}"`
+          : (sel || (stable ? 'state.stable' : '[state]'));
+        throw new Error('wait_for timeout: ' + label);
       }
 
       if (a === 'read') {

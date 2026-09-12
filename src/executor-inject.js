@@ -39,12 +39,15 @@
   // ── Utilities ─────────────────────────────────────────────────────────────
   const I = (s, p) => typeof s !== 'string' ? s : s.replace(/\{\{(\w+)\}\}/g, (_, k) => p[k] ?? '');
 
-  function wF(fn, t = 10000) {
+  function wF(fn, t = 10000, pollMs = 0) {
     return new Promise((res, rej) => {
       if (fn()) return res(true);
-      const tm = setTimeout(() => { ob.disconnect(); rej(new Error('waitFor timeout after ' + t + 'ms')); }, t);
-      const ob = new MutationObserver(() => { if (fn()) { clearTimeout(tm); ob.disconnect(); res(true); } });
+      const tm = setTimeout(() => { cleanup(); rej(new Error('waitFor timeout after ' + t + 'ms')); }, t);
+      const ob = new MutationObserver(() => { if (fn()) { cleanup(); res(true); } });
       ob.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true });
+      let iv;
+      if (pollMs > 0) iv = setInterval(() => { if (fn()) { cleanup(); res(true); } }, pollMs);
+      function cleanup() { clearTimeout(tm); ob.disconnect(); if (iv) clearInterval(iv); }
     });
   }
 
@@ -244,8 +247,45 @@
 
       // ── wait_for ──────────────────────────────────────────────────────────
       if (a === 'wait_for') {
-        const sel = I(step.selector || step.target, { ...params, ...buf });
-        await wF(() => { const e = document.querySelector(sel); return e && e.offsetParent !== null; }, step.timeout || 8000);
+        const timeout = step.timeout || 8000;
+        const sel = I(step.selector || '', { ...params, ...buf }) || null;
+        const needle = (step.text || step.state?.text)
+          ? I(step.text || step.state.text, { ...params, ...buf })
+          : null;
+        const wantsStable = step.state?.stable === true || typeof step.state?.stable === 'number';
+        const quietMs = typeof step.state?.stable === 'number' ? step.state.stable : (step.quietMs || 800);
+        if (step.url_pattern) {
+          const pat = I(step.url_pattern, { ...params, ...buf });
+          await wF(() => new RegExp(pat).test(location.href), timeout, 200);
+          return { stepId: step.stepId, action: a, status: 'ok', url: location.href, durationMs: Date.now() - t0 };
+        }
+        let last = null, lastChange = Date.now(), n = 0;
+        const readText = (el) => {
+          if (!el) return '';
+          const tag = el.tagName?.toLowerCase();
+          if (tag === 'input' || tag === 'textarea') return el.value || '';
+          return el.innerText || el.textContent || '';
+        };
+        await wF(() => {
+          const el = sel ? document.querySelector(sel) : document.body;
+          if (sel && step.state?.visible === false) return !document.querySelector(sel);
+          if (sel && !el) return false;
+          const pageText = readText(el);
+          if (needle && !pageText.includes(needle)) return false;
+          if (step.state?.visible === true && !(el && el.offsetParent !== null && el !== document.body)) return false;
+          if (step.state?.enabled !== undefined) {
+            const enabled = !!el && !el.disabled && el.getAttribute('aria-disabled') !== 'true';
+            if (step.state.enabled ? !enabled : enabled) return false;
+          }
+          if (wantsStable) {
+            const fp = pageText.length + ':' + pageText.slice(-280);
+            const now = Date.now();
+            if (fp !== last) { last = fp; lastChange = now; n = 1; return false; }
+            n++;
+            return n >= 2 && now - lastChange >= quietMs;
+          }
+          return true;
+        }, timeout, wantsStable ? 200 : 0);
         return { stepId: step.stepId, action: a, status: 'ok', selector: sel, durationMs: Date.now() - t0 };
       }
 

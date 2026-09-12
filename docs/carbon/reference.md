@@ -1,15 +1,31 @@
 ---
 audience: carbon
 document: reference
-sync_version: 3
-last_updated: 2026-07-27
+sync_version: 5
+last_updated: 2026-08-27
 repo: yeshie
-authorship_update: "Mike Wolf (system direction), OpenAI Codex (2026-07-27 Pulse human-gate contract pass)"
+authorship_update: "Mike Wolf (system direction), OpenAI Codex (2026-07-27 Pulse human-gate contract pass), 2026-08-26 async run API, 2026-08-27 assume #55 landed"
 ---
 
 # Reference
 
 A guide to the APIs, file formats, and action types you'll encounter when working with Yeshie. See [../silicon/reference.md](../silicon/reference.md) for a denser, tabular version.
+
+The live runtime is the Chrome MV3 extension plus the local relay at `http://127.0.0.1:3333`. Claude-in-Chrome is discovery-only. Health is `GET /status` (`extensionConnected`, plus `lastDisconnectAt` and `buildVersion`). Sync runs are `POST /run` or MCP `yeshie_run`. Long jobs use `POST /run/async` and poll `GET /run/result/:id`. `extract_text` is a first-class action type. `wait_for` includes `state.stable`. Auto-heal is wired into `/run` ([#55](https://github.com/eldrgeek/Yeshie/pull/55)).
+
+## Relay HTTP: sync vs async runs
+
+`POST /run` blocks until the chain finishes and returns a ChainResult. MCP `yeshie_run` wraps this path and tops out at ~60s.
+
+For recipes that run longer (DeepSeek + DeepThink, other streaming UIs):
+
+- `POST /run/async` with `{payload, params?, tabId?, timeoutMs?}` (default timeout 300000ms) returns `202 {ok: true, id, status: "running"}` immediately.
+- Poll `GET /run/result/:id` for `{id, status: running|done|error, result, error, progress}`. `result` is the full ChainResult once `done`. Settled runs expire after a 30-minute job TTL. `GET /status` also reports `asyncRuns`.
+- Wrapper: `node scripts/run-async.mjs <recipe-path>`.
+
+Internally the async path is a normal `skill_run` whose result is stashed instead of HTTP-replied, so existing chain hooks still apply.
+
+After `/run` or `/run/async` settles green (`success && goalReached`) with `_meta.selfImproving === true`, the relay runs `improve.js` auto-heal and writes `cachedSelector` back. Failed runs skip heal. Rocket Money `01-list-all-recurring` and `02-list-inactive` are hard-blocked. You can still run `node improve.js` by hand.
 
 ## Pulse and Meta-glasses voice turns
 
@@ -127,7 +143,7 @@ Each step in the chain has an `action` field. Here's what each one does:
 | `navigate` | Go to a URL. Supports `{{params.base_url}}` template substitution. |
 | `type` | Type text into an input field. Uses chrome.debugger for trusted events. |
 | `click` | Click an element. |
-| `wait_for` | Wait until an element appears or becomes visible before continuing. |
+| `wait_for` | Wait until a selector is present, until visible text matches, or until `state.stable` (content fingerprint quiet for `quietMs`, default 800ms). Prefer this over `delay`. Landed in #55. |
 | `read` | Read text or value from an element and store it in the chain result. |
 | `assess_state` | Check whether a condition is true (e.g. "is this snackbar visible?"). |
 | `js` | Run a pre-bundled DOM query function (routed by pattern matching, not eval). |
@@ -139,6 +155,9 @@ Each step in the chain has an `action` field. Here's what each one does:
 | `click_preset` | Click a chip or preset element in a picker. |
 | `probe_affordances` | Discover and return all interactive elements on the current page. |
 | `delay` | Wait a specified number of milliseconds. **Discouraged** — prefer `wait_for`, which proceeds the instant the needed element appears (faster) and only times out on a genuinely stuck page (more robust). |
+| `extract_text` | Read text from a CSS selector into a named buffer (`selector` + `store_as`). For `<input>`/`<textarea>` reads `.value`; otherwise `.textContent`. |
+
+`wait_for` (landed in [#55](https://github.com/eldrgeek/Yeshie/pull/55)) can wait on a selector, on visible `text`, or on `state.stable` — a content fingerprint that stays unchanged for `quietMs` (default 800ms). `onTimeout: "continue"` returns ok with `timedOut: true` instead of failing the chain.
 
 ---
 
@@ -185,7 +204,7 @@ When a chain finishes (successfully or not), the relay returns a ChainResult:
 }
 ```
 
-The `resolvedSelectors` section is the raw material for self-improvement. Run `node improve.js <payload_path> <chain_result_path>` to merge it back into the payload.
+The `resolvedSelectors` section is the raw material for self-improvement. After #55, a successful self-improving `POST /run` merges this automatically. You can still run `node improve.js <payload_path> <chain_result_path>` by hand.
 
 ---
 
@@ -209,10 +228,11 @@ If you need to look at code, here's where to find things:
 |------|-------------|
 | `src/target-resolver.ts` | The 7-step element resolution cascade |
 | `src/step-executor.ts` | Handler for each action type |
+| `src/wait-for.ts` | `wait_for` matcher: selector, text, `state.stable` (#55) |
 | `src/dry-run.ts` | Pre-flight check that validates a payload can execute |
 | `src/schema.ts` | Zod validation schema for payload files |
 | `packages/relay/index.js` | The HTTP + WebSocket relay server |
 | `packages/extension/src/entrypoints/background.ts` | The main extension brain |
-| `improve.js` | Self-improvement merge script |
+| `improve.js` | Self-improvement merge script (auto-heal on `/run` after #55) |
 | `sites/yeshid/tasks/` | All validated YeshID payloads |
 | `models/` | L1 and L2 knowledge model files |

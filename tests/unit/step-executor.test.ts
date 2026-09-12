@@ -377,6 +377,13 @@ describe('wait_for action', () => {
     const r = ex.execute({ stepId: 's2', action: 'wait_for', selector: '#status-pill', state: { attribute: { 'data-state': 'ready' } } });
     expect(r.status).toBe('ok');
   });
+
+  it('supports text presence checks', () => {
+    document.body.innerHTML = fixtureHtml;
+    const ex = new StepExecutor(document, {}, {}, {});
+    const r = ex.execute({ stepId: 's2', action: 'wait_for', text: 'User added successfully' });
+    expect(r.status).toBe('ok');
+  });
 });
 
 // ── read ──────────────────────────────────────────────────────────────────────
