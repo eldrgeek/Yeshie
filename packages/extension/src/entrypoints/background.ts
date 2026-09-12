@@ -1,3 +1,5 @@
+import { anchorComment } from '../anchor-comment.js';
+import { keyRepeatCount, repeatedKeys, dragSelection } from '../../../../src/cdp-input.js';
 import { io } from 'socket.io-client';
 import { createResolvedTargetUpdate, createSurpriseEvidence } from '../../../../src/runtime-contract.js';
 import { ContentStabilityTracker, quietMsOf, wantsStable } from '../../../../src/wait-for.js';
@@ -1991,60 +1993,48 @@ export default defineBackground(() => {
     _debuggerTabId = tabId;
   }
 
+  // Bounded input attachment recovery
+  async function ensureInputDebugger(tabId: number, cancelled: () => boolean) {
+    const check = () => { if (cancelled()) throw new Error('Input cancelled'); };
+    // Three operations fit inside the callers' 2s attachment deadline. Each
+    // operation races separately, so a late result cannot start the next one.
+    const bounded = async (operation: () => Promise<unknown>) => {
+      check();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let poll: ReturnType<typeof setInterval> | undefined;
+      try {
+        await Promise.race([
+          Promise.resolve().then(() => { check(); return operation(); }),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error('Debugger operation timed out')), 500);
+            poll = setInterval(() => {
+              if (cancelled()) reject(new Error('Input cancelled'));
+            }, 10);
+          }),
+        ]);
+        check();
+      } finally { clearTimeout(timer); clearInterval(poll); }
+    };
+    check();
+    if (_debuggerTabId === tabId) return;
+    try {
+      await bounded(() => chrome.debugger.attach({ tabId }, '1.3'));
+    } catch (error: any) {
+      check();
+      if (!/already attached/i.test(error?.message || '')) throw error;
+      await bounded(() => chrome.debugger.detach({ tabId }));
+      check();
+      await bounded(() => chrome.debugger.attach({ tabId }, '1.3'));
+    }
+    check();
+    _debuggerTabId = tabId;
+  }
+
   async function releaseDebugger() {
     if (_debuggerTabId !== null) {
       try { await chrome.debugger.detach({ tabId: _debuggerTabId }); } catch (_) {}
       _debuggerTabId = null;
     }
-  }
-
-  async function dispatchKeyChordCDP(tabId: number, spec: string) {
-    const parts = spec.toLowerCase().split('+');
-    const rawKey = parts[parts.length - 1];
-    const ctrl = parts.includes('ctrl') || parts.includes('control');
-    const meta = parts.includes('meta') || parts.includes('cmd') || parts.includes('command');
-    const shift = parts.includes('shift');
-    const alt = parts.includes('alt');
-
-    const KEY_MAP: Record<string, { key: string; code: string; vkCode: number }> = {
-      enter:     { key: 'Enter',      code: 'Enter',      vkCode: 13 },
-      return:    { key: 'Enter',      code: 'Enter',      vkCode: 13 },
-      escape:    { key: 'Escape',     code: 'Escape',     vkCode: 27 },
-      esc:       { key: 'Escape',     code: 'Escape',     vkCode: 27 },
-      tab:       { key: 'Tab',        code: 'Tab',        vkCode: 9  },
-      backspace: { key: 'Backspace',  code: 'Backspace',  vkCode: 8  },
-      space:     { key: ' ',          code: 'Space',      vkCode: 32 },
-      arrowdown: { key: 'ArrowDown',  code: 'ArrowDown',  vkCode: 40 },
-      arrowup:   { key: 'ArrowUp',    code: 'ArrowUp',    vkCode: 38 },
-      arrowleft: { key: 'ArrowLeft',  code: 'ArrowLeft',  vkCode: 37 },
-      arrowright:{ key: 'ArrowRight', code: 'ArrowRight', vkCode: 39 },
-      delete:    { key: 'Delete',     code: 'Delete',     vkCode: 46 },
-      home:      { key: 'Home',       code: 'Home',       vkCode: 36 },
-      end:       { key: 'End',        code: 'End',        vkCode: 35 },
-      pageup:    { key: 'PageUp',     code: 'PageUp',     vkCode: 33 },
-      pagedown:  { key: 'PageDown',   code: 'PageDown',   vkCode: 34 },
-      '/':       { key: '/',          code: 'Slash',      vkCode: 191 },
-      slash:     { key: '/',          code: 'Slash',      vkCode: 191 },
-    };
-
-    const mapped = KEY_MAP[rawKey] ?? {
-      key: rawKey.length === 1 ? rawKey : rawKey.charAt(0).toUpperCase() + rawKey.slice(1),
-      code: rawKey.length === 1 ? 'Key' + rawKey.toUpperCase() : rawKey.charAt(0).toUpperCase() + rawKey.slice(1),
-      vkCode: rawKey.length === 1 ? rawKey.toUpperCase().charCodeAt(0) : 0,
-    };
-
-    const modifiers = (alt ? 1 : 0) | (ctrl ? 2 : 0) | (meta ? 4 : 0) | (shift ? 8 : 0);
-
-    const base = {
-      key: mapped.key,
-      code: mapped.code,
-      windowsVirtualKeyCode: mapped.vkCode,
-      nativeVirtualKeyCode: mapped.vkCode,
-      modifiers,
-    };
-
-    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchKeyEvent', { type: 'keyDown', ...base });
-    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchKeyEvent', { type: 'keyUp', ...base });
   }
 
   // ── Trusted click via chrome.debugger Runtime.evaluate ───────────────────────
@@ -2773,16 +2763,72 @@ export default defineBackground(() => {
         return { stepId: step.stepId, action: a, status: 'ok', message, durationMs: Date.now() - t0 };
       }
 
+      if (a === 'anchor_comment') {
+        const values = { ...params, ...buffer };
+        const rawOffset = interpolate(String(step.start_offset ?? ''), values);
+        const result = await anchorComment(
+          /^\d+$/.test(rawOffset) ? Number(rawOffset) : NaN,
+          interpolate(step.text || '', values),
+          interpolate(step.comment_text || '', values), {
+            cancelled: () => !!abortFlags.get(run.runId) || run.status === 'aborted',
+            platform: async () => (await chrome.runtime.getPlatformInfo()).os,
+            attach: async () => {
+              await ensureInputDebugger(tabId, () => !!abortFlags.get(run.runId) || run.status === 'aborted');
+            },
+            event: event => chrome.debugger.sendCommand({ tabId }, 'Input.dispatchKeyEvent', event),
+            focusBody: async () => {
+              const ok = await execInTab(tabId, () => {
+                const frame = document.querySelector<HTMLIFrameElement>('.docs-texteventtarget-iframe');
+                const body = frame?.contentDocument?.querySelector<HTMLElement>('[contenteditable="true"]');
+                if (!body) return false;
+                body.focus();
+                return frame?.contentDocument?.activeElement === body;
+              }, []);
+              if (!ok) throw new Error('Cannot focus document body');
+            },
+            focusComposer: async () => {
+              const ok = await execInTab(tabId, () => {
+                const el = document.querySelector<HTMLElement>('[contenteditable="true"][role="textbox"][aria-label="Comment"]');
+                if (!el) return false;
+                el.focus();
+                return document.activeElement === el;
+              }, []);
+              if (!ok) throw new Error('Cannot focus comment composer');
+            },
+            type: text => chrome.debugger.sendCommand({ tabId }, 'Input.insertText', { text }),
+          });
+        return { stepId: step.stepId, action: a, status: 'ok', result, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'drag_select') {
+        await dragSelection(step.start, step.end, {
+          attach: async () => {
+            await ensureInputDebugger(tabId, () => !!abortFlags.get(run.runId) || run.status === 'aborted');
+          },
+          platform: async () => (await chrome.runtime.getPlatformInfo()).os,
+          send: (method, event) => chrome.debugger.sendCommand({ tabId }, method, event),
+          cancelled: () => !!abortFlags.get(run.runId) || run.status === 'aborted',
+        });
+        return { stepId: step.stepId, action: a, status: 'ok', durationMs: Date.now() - t0 };
+      }
+
       if (a === 'key') {
         const spec = step.key || step.value || '';
         const specs: string[] = Array.isArray(step.keys) ? step.keys
           : (spec.includes(' ') ? spec.split(/\s+/).filter(Boolean) : [spec]);
         if (!specs.length || !specs[0]) throw new Error('key action requires key or value');
-        await ensureDebugger(tabId);
-        for (const s of specs) {
-          await dispatchKeyChordCDP(tabId, s);
-          if (specs.length > 1) await new Promise(r => setTimeout(r, 60));
-        }
+        const repeat = keyRepeatCount(
+          step.repeat === undefined ? 1 : interpolate(String(step.repeat), { ...params, ...buffer }),
+          step.repeatText === undefined ? undefined : interpolate(step.repeatText, { ...params, ...buffer }),
+        );
+        await repeatedKeys(specs, repeat, {
+          attach: async () => {
+            await ensureInputDebugger(tabId, () => !!abortFlags.get(run.runId) || run.status === 'aborted');
+          },
+          platform: async () => (await chrome.runtime.getPlatformInfo()).os,
+          send: (method, event) => chrome.debugger.sendCommand({ tabId }, method, event),
+          cancelled: () => !!abortFlags.get(run.runId) || run.status === 'aborted',
+        });
         return { stepId: step.stepId, action: a, status: 'ok', value: spec, keys: specs, durationMs: Date.now() - t0 };
       }
 

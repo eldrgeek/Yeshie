@@ -1,0 +1,54 @@
+{
+  "_meta": {
+    "task": "anchor-comment-on-text",
+    "description": "Post an offset-based Google Docs comment on macOS; anchor remains UNVERIFIED.",
+    "validationStatus": "UNVERIFIED LIVE",
+    "runCount": 0,
+    "lastSuccess": null,
+    "requiredParams": [
+      "start_offset",
+      "target_phrase",
+      "comment_text"
+    ],
+    "params": {
+      "start_offset": {
+        "required": true,
+        "description": "PlayMaker sync computes zero-based characters from start of body text using Docs API; integer 0 to 10000, not raw structural index."
+      },
+      "target_phrase": {
+        "required": true,
+        "description": "Used only for JavaScript target_phrase.length (1 to 10000), never lookup or verification."
+      },
+      "comment_text": {
+        "required": true,
+        "description": "Nonempty comment to post."
+      }
+    },
+    "execution": [
+      "Focus body.",
+      "Move to document start via macOS commands.",
+      "Move right start_offset times.",
+      "Extend selection target_phrase.length times.",
+      "Open composer, focus, type comment_text, post.",
+      "Return anchor UNVERIFIED and verified false."
+    ],
+    "callerVerification": "PlayMaker must identify the posted comment and call Drive API comments.list with fields including comments(id,quotedFileContent),nextPageToken. Compare quotedFileContent.value exactly to target_phrase. On mismatch delete that comment using comments.delete. Missing quoted content or API failure does not verify the anchor. Reconcile uncertain posting outcomes before retrying.",
+    "failureContract": "Each browser operation is bounded to two seconds and movement honours cancellation. Failure prevents subsequent posting steps. After movement, cleanup refocuses body and issues plain ArrowRight via moveRight with no Shift. Cleanup failures are reported. Already submitted browser commands cannot be recalled.",
+    "caveats": "UNVERIFIED LIVE: Unicode caret steps, structural elements and concurrent edits may differ from API offsets. No clipboard access."
+  },
+  "mode": "verification",
+  "site": "docs.google.com",
+  "preRunChecklist": [
+    "Open intended document in editing mode on macOS with Find and dialogs closed.",
+    "Caller must supply start_offset, target_phrase and comment_text and verify the posted anchor through Drive API."
+  ],
+  "chain": [
+    {
+      "stepId": "anchor-comment",
+      "action": "anchor_comment",
+      "start_offset": "{{start_offset}}",
+      "text": "{{target_phrase}}",
+      "comment_text": "{{comment_text}}"
+    }
+  ]
+}
