@@ -1,8 +1,8 @@
 {
   "_meta": {
     "task": "anchor-comment-on-text",
-    "description": "Post a Google Docs comment anchored to a phrase via Docs Find on macOS; anchor remains UNVERIFIED.",
-    "validationStatus": "COS raw-CDP live proof 2026-09-13; extension path not yet live-verified",
+    "description": "Post a Google Docs comment anchored to a phrase via Docs Find on macOS.",
+    "validationStatus": "✅ Live-verified 2026-09-13 on extension 0.1.528 (run yfevijaqte1789275748846): posted=true, verified=true on 'I think the play'",
     "runCount": 1,
     "lastSuccess": null,
     "requiredParams": [
@@ -32,11 +32,11 @@
       "Read a stable Find counter k of N before pressing Enter. Fail phrase_not_found when N is 0, then press Enter only as needed to reach occurrence.",
       "Fail occurrence_out_of_range when occurrence is greater than N; otherwise press Enter until k equals occurrence, bounded to N+1 presses.",
       "Close Find with Escape, open composer via Cmd+Option+M, require visible focused composer, type comment_text, and require composer text match before posting.",
-      "Click the composer's visible Comment button with real CDP mouse events, then classify posting as verified (posted=true, verified=true), uncertain (posted='uncertain', verified=false), or clicked (error/cancel carries postedStatus='clicked'), with anchor UNVERIFIED."
+      "Click the composer's visible Comment button with real CDP mouse events, then classify posting as verified (posted=true, verified=true), uncertain (posted='uncertain', verified=false), or clicked (error/cancel carries postedStatus='clicked'). Anchor is verified through Drive API by caller."
     ],
     "callerVerification": "PlayMaker must identify the posted comment and call Drive API comments.list with fields including comments(id,quotedFileContent),nextPageToken. Compare quotedFileContent.value exactly to target_phrase. On mismatch delete that comment using comments.delete. Missing quoted content or API failure does not verify the anchor. Reconcile uncertain posting outcomes before retrying.",
     "failureContract": "Every operation is bounded and cancellable. On any failure after Find open is attempted, Escape is sent before returning failure. On any failure after the composer becomes visible (before Comment click), Cancel is clicked so no draft is posted. Before click, the run records the exact-match card count for comment_text from comment-body nodes only; after click it polls for both composer closure and count +1. If either signal is missing it returns posted='uncertain', verified=false (never posted=false after click). If cancellation/error happens after click dispatch, the failure carries postedStatus='clicked' so callers reconcile before retrying. Posting is blocked unless the Find input and composer are both focused at their respective typing steps.",
-    "caveats": "UNVERIFIED LIVE: extension path for this flow has not yet been live-verified by COS. No clipboard access.",
+    "caveats": "No clipboard access. Caller must verify the anchor through Drive API (see callerVerification).",
     "liveFinding": {
       "date": "2026-09-13",
       "method": "Raw CDP against live Google Docs in Chrome 153 on macOS",

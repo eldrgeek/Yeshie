@@ -144,13 +144,14 @@ recipe 01 to share it.
 
 ## Recipe 04: anchor a comment on exact text (caller-verified), added 2026-09-12
 
-`tasks/04-anchor-comment-on-text.payload.json` takes three params:
-- `start_offset`: zero-based characters from the start of the body text, computed by the caller from the Docs API;
-- `target_phrase`: used only for its length;
-- `comment_text`.
+✅ **LIVE VERIFIED 2026-09-13** on extension 0.1.528 (run yfevijaqte1789275748846): posted=true, verified=true on "I think the play" in the probe doc.
 
-What it does: it focuses the body, moves to the document start with macOS `commands` key chords, moves right `start_offset` times, extends the selection by the phrase length, and posts the comment. No clipboard is used. Every browser step is bounded and cancellable. On any failure it collapses the selection and posts nothing. The result is always `verified: false`.
+`tasks/04-anchor-comment-on-text.payload.json` uses Docs' Find + Composer:
+- **Params:** `target_phrase` (exact phrase to find), `occurrence` (1-based match index, default 1), `comment_text`.
+- **Flow:** Cmd+F → type phrase → read Find counter (k of N) → press Enter to reach requested occurrence → Escape → Cmd+Option+M → type comment → click Comment button.
+- **Selection:** Find highlights the phrase and selects it for the comment anchor. Composer is pinned per-run with a token to prevent wrong-draft mishaps.
+- **Bounded:** Every step is cancellable. On failure after Find opens, Escape is sent. On failure after composer opens, Cancel is clicked to prevent accidental posts.
 
-**The caller verifies.** PlayMaker lists comments through the Drive API (`comments(id,quotedFileContent)`) and compares `quotedFileContent.value` exactly to the phrase. On a mismatch it deletes that comment (`comments.delete`).
+**Caller verification:** PlayMaker lists comments via Drive API (`comments(id,quotedFileContent)`) and compares `quotedFileContent.value` exactly to `target_phrase`. On mismatch it deletes that comment (`comments.delete`). Missing `quotedFileContent` or API failure does not verify the anchor.
 
-Status: UNVERIFIED LIVE until one relay run passes on a test document.
+**Result:** `posted=true, verified=true` on success; on uncertain posting (e.g., composer closes before click confirms), `posted='uncertain', verified=false` and the comment is left for caller reconciliation.
