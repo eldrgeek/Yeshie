@@ -387,7 +387,14 @@ export function createRelay(port = 3333) {
   httpServer.keepAliveTimeout = 65_000;
   httpServer.headersTimeout = 66_000;
   const io = new Server(httpServer, {
-    cors: { origin: '*', methods: ['GET', 'POST'] }
+    cors: { origin: '*', methods: ['GET', 'POST'] },
+    // An extension's service worker must answer each ping within pingTimeout.
+    // Socket.IO's default is 20s. On 2026-09-13 the Mac ran at load 120-250
+    // with swap ~97%, workers missed that window, and the relay dropped live
+    // instances with "ping timeout" every few minutes. 60s keeps a starved but
+    // alive worker connected. The cost: a dead socket is detected within
+    // pingInterval + pingTimeout = 85s instead of 45s.
+    pingTimeout: 60_000,
   });
 
   // Pending calls: commandId → { resolve, reject, timer }
