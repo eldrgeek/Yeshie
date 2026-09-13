@@ -30,6 +30,7 @@
     { "stepId": "s5", "action": "type", "selector": "[data-testid=\"create-form-styles-wrapper\"] textarea", "value": "{{style}}", "note": "Styles field, scoped by stable wrapper testid" },
     { "stepId": "s6", "action": "type", "selector": "input[placeholder=\"Song Title (Optional)\"]", "value": "{{title}}" },
     { "stepId": "s7", "action": "wait_for", "selector": "button[aria-label=\"Create song\"]", "timeout": 6000, "note": "enabled once fields have content" },
-    { "stepId": "s8", "action": "click", "selector": "button[aria-label=\"Create song\"]", "note": "GENERATES — consumes credits. Remove this step to fill-only." }
+    { "stepId": "s8", "action": "click", "selector": "button[aria-label=\"Create song\"]", "note": "GENERATES — consumes credits. Remove this step to fill-only." },
+    { "stepId": "s9", "action": "wait_for", "text": "{{title}}", "timeout": 20000, "note": "PROOF the song was created: its title must appear in the clip list. Added 2026-09-12 after a FALSE GREEN — 4 runs in a row clicked Create 'ok' but Suno made nothing (likely a concurrent-generation cap when runs are ~25s apart). Space runs until the previous clips finish." }
   ]
 }
