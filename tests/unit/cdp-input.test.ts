@@ -129,7 +129,7 @@ it.each([-1,1.5,Infinity,'bad',10001])('rejects invalid repeat %s', count => {
 it('recipe validates and selects by count before inserting and posting', () => {
   const recipe = JSON.parse(readFileSync(new URL('../../sites/docs.google.com/tasks/04-anchor-comment-on-text.payload.json', import.meta.url),'utf8'));
   expect(PayloadSchema.safeParse(recipe).success).toBe(true);
-  expect(recipe._meta.validationStatus).toBe('COS raw-CDP live proof 2026-09-13; extension path not yet live-verified');
+  expect(recipe._meta.validationStatus).toMatch(/Live-verified 2026-09-13/);
   expect(recipe._meta.runCount).toBe(1);
   expect(recipe._meta.requiredParams).toEqual(['target_phrase', 'comment_text']);
   expect(recipe._meta.params.occurrence.default).toBe(1);
