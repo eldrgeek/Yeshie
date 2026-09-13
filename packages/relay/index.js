@@ -6,6 +6,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { appendFileSync, mkdirSync, existsSync, readFileSync, readdirSync, writeFileSync, statSync } from 'fs';
 import { buildRunRequestedConversationEntry } from './run-attribution.js';
+import { createInstanceRegistry, normalizeTarget } from './instances.js';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { execFile, spawn } from 'child_process';
@@ -205,7 +206,7 @@ function isAllowedClientIp(ip) {
   return false;
 }
 
-const TEACH_START_KEYS = new Set(['steps', 'tabId']);
+const TEACH_START_KEYS = new Set(['steps', 'tabId', 'target']);
 const TEACH_STEP_KEYS = new Set([
   'stepIndex',
   'totalSteps',
@@ -234,6 +235,9 @@ function validateTeachStartPayload(body) {
   }
   if (body.tabId !== undefined && (!Number.isInteger(body.tabId) || body.tabId <= 0)) {
     return 'tabId must be a positive integer';
+  }
+  if (body.target !== undefined && typeof body.target !== 'string' && (!body.target || typeof body.target !== 'object' || Array.isArray(body.target))) {
+    return 'target must be a profile string or an object';
   }
 
   for (let i = 0; i < body.steps.length; i++) {
@@ -460,12 +464,53 @@ export function createRelay(port = 3333) {
     process.on(sig, () => { try { for (const doc of collab.documents.values()) collabSave(doc); } catch (e) {} process.exit(0); });
   }
 
-  // Single owner socket. A second extension connection replaces the first;
-  // we never keep a fallback. Dual-register + "fell back to previous
-  // extension socket" is the flap that makes agents abandon Yeshie.
-  let extensionSocket = null;
+  // Many extension instances (one per Chrome profile) stay connected at once.
+  // Every job resolves to exactly one instance or is refused; the relay never
+  // guesses, because a wrong route acts as the wrong Google account. A reconnect
+  // with the same instanceId replaces that instance's older socket; different
+  // instances never displace each other (the old single-owner rule made the two
+  // profiles take the connection from each other). See instances.js and
+  // docs/design/multi-connection-relay.md.
+  const registry = createInstanceRegistry();
   let lastDisconnectAt = null;
   let extensionBuildVersion = null;
+
+  const ROUTE_STATUS = { not_connected: 503, target_not_found: 404, ambiguous_target: 409, default_profile_not_connected: 409, tab_leased: 409 };
+  function routeRefusal(res, r) {
+    jsonReply(res, ROUTE_STATUS[r.code] || 409, {
+      ok: false, code: r.code, error: r.error,
+      ...(r.candidates ? { candidates: r.candidates } : {}),
+      ...(r.connected ? { connected: r.connected } : {}),
+      ...(r.heldBy ? { heldBy: r.heldBy } : {}),
+    });
+  }
+  // Resolve a request body's target (or legacy tabId) to one instance, or reply
+  // with the refusal and return null.
+  function routeRequest(res, body) {
+    const r = registry.resolve(normalizeTarget(body?.target, body?.tabId));
+    if (!r.ok) { routeRefusal(res, r); return null; }
+    return r;
+  }
+  // Send a skill_run to the routed instance. When the relay resolved the tab it
+  // takes the tab lease first; otherwise the extension asks with lease_tab once
+  // it has picked a tab inside its own profile.
+  function dispatchRun(route, { commandId, payload, params }, entry) {
+    const inst = route.instance;
+    if (route.tabId != null) {
+      const lease = registry.acquireLease(inst.instanceId, route.tabId, commandId);
+      if (!lease.ok) return lease;
+    }
+    pending.set(commandId, { ...entry, instanceId: inst.instanceId, tabId: route.tabId ?? null, lastStatus: null });
+    inst.socket.emit('skill_run', { commandId, payload, params, tabId: route.tabId ?? undefined });
+    return { ok: true };
+  }
+  // Drop a job's pending entry and its tab lease together.
+  function settlePending(commandId) {
+    const p = pending.get(commandId);
+    pending.delete(commandId);
+    registry.releaseJob(commandId);
+    return p;
+  }
 
   // Chat state (per-instance)
   let chatQueue = [];
@@ -711,27 +756,56 @@ export function createRelay(port = 3333) {
     console.log(`[relay] connected: ${who} (${socket.id})`);
 
     if (who === 'extension') {
-      const incomingVersion = socket.handshake.auth?.buildVersion || socket.handshake.auth?.version || null;
-      const prev = (extensionSocket && extensionSocket.id !== socket.id) ? extensionSocket : null;
-      extensionSocket = socket;
-      if (incomingVersion) extensionBuildVersion = incomingVersion;
-      console.log('[relay] extension registered', socket.id, extensionBuildVersion || '');
+      const { instance, superseded } = registry.register(socket, socket.handshake.auth || {});
+      if (instance.version) extensionBuildVersion = instance.version;
+      console.log('[relay] extension instance registered', instance.instanceId,
+        instance.profile.label || instance.profile.email || 'unknown-profile', instance.version || '', socket.id);
+
+      // The pending job for commandId, only if it was dispatched to the instance
+      // this socket belongs to. A result from any other instance is ignored, so
+      // a result can never reach the wrong caller.
+      const ownJob = (commandId) => {
+        const p = pending.get(commandId);
+        const inst = registry.bySocket(socket);
+        return (p && inst && p.instanceId === inst.instanceId) ? { p, inst } : null;
+      };
+      const stampRoute = (result, p, inst) => {
+        if (result && typeof result === 'object' && !Array.isArray(result)) {
+          result.route = { instanceId: inst.instanceId, profile: inst.profile.label || inst.profile.email || null, email: inst.profile.email, tabId: p.tabId ?? null };
+        }
+      };
 
       socket.on('disconnect', (reason) => {
         lastDisconnectAt = new Date().toISOString();
         console.log('[relay] extension disconnected', socket.id, reason || '');
-        if (extensionSocket === socket) {
-          extensionSocket = null;
-          if (pending.size > 0) {
-            // No owner — fail in-flight runs immediately
-            console.log(`[relay] rejecting ${pending.size} pending run(s) due to extension disconnect`);
-            for (const [, p] of pending) {
-              clearTimeout(p.timer);
-              p.reject(new Error('Extension disconnected mid-run'));
-            }
-            pending.clear();
-          }
+        // unregister() returns null for a socket that was already superseded by
+        // a reconnect of the same instance; its jobs belong to the new socket.
+        const gone = registry.unregister(socket);
+        if (!gone) return;
+        let n = 0;
+        for (const [id, p] of pending) {
+          if (p.instanceId !== gone.instanceId) continue;
+          clearTimeout(p.timer);
+          pending.delete(id);
+          p.reject(new Error('Extension disconnected mid-run'));
+          n++;
         }
+        if (n) console.log(`[relay] rejected ${n} pending run(s) on instance ${gone.instanceId} due to disconnect`);
+      });
+
+      socket.on('instance_state', (state) => {
+        registry.updateState(socket, state || {});
+      });
+
+      // The extension picked a tab itself (no tab was named); it asks for the
+      // lease before running. Idempotent for the job that already holds it.
+      socket.on('lease_tab', ({ commandId, tabId } = {}, ack) => {
+        if (typeof ack !== 'function') return;
+        const own = ownJob(commandId);
+        if (!own) { ack({ ok: false, error: `Job ${commandId} is not running on this instance` }); return; }
+        const r = registry.acquireLease(own.inst.instanceId, tabId, commandId);
+        if (r.ok) own.p.tabId = tabId;
+        ack(r);
       });
 
       socket.on('chain_result', ({ commandId, result }) => {
@@ -739,26 +813,27 @@ export function createRelay(port = 3333) {
         // out has had its pending entry deleted, but the chain still settles
         // here later — we still want the failure filed to soma-errors.
         reportChainOutcome(result);
-        const p = pending.get(commandId);
-        if (!p) return;
-        clearTimeout(p.timer);
-        pending.delete(commandId);
-        p.resolve(result);
+        const own = ownJob(commandId);
+        if (!own) return;
+        clearTimeout(own.p.timer);
+        settlePending(commandId);
+        stampRoute(result, own.p, own.inst);
+        own.p.resolve(result);
       });
 
       socket.on('chain_error', ({ commandId, error, result }) => {
         reportChainOutcome(result, error);
-        const p = pending.get(commandId);
-        if (!p) return;
-        clearTimeout(p.timer);
-        pending.delete(commandId);
-        if (result) { p.resolve(result); return; }
-        p.reject(new Error(error));
+        const own = ownJob(commandId);
+        if (!own) return;
+        clearTimeout(own.p.timer);
+        settlePending(commandId);
+        if (result) { stampRoute(result, own.p, own.inst); own.p.resolve(result); return; }
+        own.p.reject(new Error(error));
       });
 
       socket.on('status_update', ({ commandId, stepIndex, totalSteps, action }) => {
-        const p = pending.get(commandId);
-        if (p) p.lastStatus = { stepIndex, totalSteps, action };
+        const own = ownJob(commandId);
+        if (own) own.p.lastStatus = { stepIndex, totalSteps, action };
       });
 
       // Case 1: chain `notify` step — extension emits this, relay fires osascript
@@ -766,21 +841,32 @@ export function createRelay(port = 3333) {
         runOsascript(message || 'Done', title || 'Yeshie');
       });
 
-      if (prev) {
-        console.log('[relay] replacing previous extension socket (single owner)', prev.id, '->', socket.id);
-        try { prev.disconnect(true); } catch { /* ignore */ }
+      if (superseded) {
+        console.log('[relay] instance reconnected; replacing its older socket', instance.instanceId, superseded.id, '->', socket.id);
+        try { superseded.emit('superseded', { instanceId: instance.instanceId, by: socket.id }); } catch { /* ignore */ }
+        try { superseded.disconnect(true); } catch { /* ignore */ }
       }
     }
 
     if (who === 'client') {
-      socket.on('skill_run', ({ commandId, payload, params, tabId }, ack) => {
-        if (!extensionSocket) {
-          ack({ error: 'Extension not connected' });
-          return;
-        }
-        console.log(`[relay] skill_run ${commandId} → extension`);
-        extensionSocket.emit('skill_run', { commandId, payload, params, tabId });
-        ack({ queued: true, commandId });
+      socket.on('skill_run', ({ commandId, payload, params, tabId, target }, ack) => {
+        const reply = typeof ack === 'function' ? ack : () => {};
+        const route = registry.resolve(normalizeTarget(target, tabId));
+        if (!route.ok) { reply({ error: route.error, code: route.code, candidates: route.candidates }); return; }
+        // The result returns to this client socket (previously it was dropped).
+        const timer = setTimeout(() => {
+          settlePending(commandId);
+          socket.emit('chain_error', { commandId, error: 'Timeout after 300000ms' });
+        }, 300_000);
+        if (timer.unref) timer.unref();
+        const d = dispatchRun(route, { commandId, payload, params }, {
+          timer,
+          resolve: (result) => socket.emit('chain_result', { commandId, result }),
+          reject: (err) => socket.emit('chain_error', { commandId, error: err.message }),
+        });
+        if (!d.ok) { clearTimeout(timer); reply({ error: d.error, code: d.code, heldBy: d.heldBy }); return; }
+        console.log(`[relay] skill_run ${commandId} → instance ${route.instance.instanceId}`);
+        reply({ queued: true, commandId, instanceId: route.instance.instanceId, tabId: route.tabId ?? null });
       });
 
       socket.on('get_status', ({ commandId }, ack) => {
@@ -789,7 +875,12 @@ export function createRelay(port = 3333) {
       });
 
       socket.on('extension_status', (_, ack) => {
-        ack({ connected: !!extensionSocket, id: extensionSocket?.id || null });
+        const first = registry.defaultInstance() || registry.all()[0] || null;
+        ack({
+          connected: registry.size > 0,
+          id: first?.socket.id || null,
+          instances: registry.all().map(i => ({ instanceId: i.instanceId, profile: i.profile.label || i.profile.email || null, email: i.profile.email, version: i.version })),
+        });
       });
     }
 
@@ -797,17 +888,18 @@ export function createRelay(port = 3333) {
     // a specific tab's side-panel conversation for testing and automation.
     // The relay forwards inject_chat to the extension, which surfaces it in the
     // correct tab's conversation and routes it through the normal /chat flow.
-    socket.on('inject_chat', ({ tabId, message }) => {
+    socket.on('inject_chat', ({ tabId, message, target }) => {
       if (!tabId || !message) {
         socket.emit('inject_ack', { ok: false, error: 'tabId and message required' });
         return;
       }
-      if (!extensionSocket) {
-        socket.emit('inject_ack', { ok: false, error: 'Extension not connected' });
+      const route = registry.resolve(normalizeTarget(target, tabId));
+      if (!route.ok) {
+        socket.emit('inject_ack', { ok: false, error: route.error, code: route.code });
         return;
       }
       logConversation({ event: 'injected_message', tabId, message });
-      extensionSocket.emit('inject_chat', { tabId, message });
+      route.instance.socket.emit('inject_chat', { tabId, message });
       socket.emit('inject_ack', { ok: true });
     });
   });
@@ -920,13 +1012,31 @@ export function createRelay(port = 3333) {
     // --- Existing endpoints ---
 
     if (path === '/status' && req.method === 'GET') {
+      const listing = registry.list();
       jsonReply(res, 200, {
         ok: true,
-        extensionConnected: !!extensionSocket,
+        extensionConnected: registry.size > 0,
         pending: pending.size,
         asyncRuns: asyncRuns.size,
         lastDisconnectAt,
-        buildVersion: extensionBuildVersion,
+        buildVersion: registry.defaultInstance()?.version || extensionBuildVersion,
+        defaultProfile: listing.defaultProfile,
+        instances: listing.instances.map(i => ({
+          instanceId: i.instanceId, profile: i.profile, email: i.email, version: i.version,
+          isDefault: i.isDefault, legacy: i.legacy, tabs: Array.isArray(i.tabs) ? i.tabs.length : null,
+        })),
+        leases: listing.leases.length,
+      });
+      return;
+    }
+
+    // Every connected extension instance with its profile, windows and tabs,
+    // plus active tab leases and running jobs. CLI: scripts/yeshie-instances.mjs
+    if (path === '/instances' && req.method === 'GET') {
+      jsonReply(res, 200, {
+        ok: true,
+        ...registry.list(),
+        jobs: [...pending].map(([jobId, p]) => ({ jobId, instanceId: p.instanceId ?? null, tabId: p.tabId ?? null, lastStatus: p.lastStatus || null })),
       });
       return;
     }
@@ -1797,15 +1907,13 @@ export function createRelay(port = 3333) {
         jsonReply(res, 400, { error: `Invalid teach-start payload: ${validationError}` });
         return;
       }
-      if (!extensionSocket) {
-        jsonReply(res, 503, { error: 'Extension not connected' });
-        return;
-      }
+      const teachRoute = routeRequest(res, body);
+      if (!teachRoute) return;
 
       try {
         const result = await new Promise((resolve, reject) => {
           const timer = setTimeout(() => reject(new Error('Timeout waiting for teach_start acknowledgment')), 10_000);
-          extensionSocket.emit('teach_start', { steps: body.steps, tabId: body.tabId }, (ack) => {
+          teachRoute.instance.socket.emit('teach_start', { steps: body.steps, tabId: teachRoute.tabId ?? undefined }, (ack) => {
             clearTimeout(timer);
             resolve(ack);
           });
@@ -1824,11 +1932,10 @@ export function createRelay(port = 3333) {
     if (path === '/run' && req.method === 'POST') {
       let body;
       try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
-      const { payload, params, tabId, timeoutMs = 120_000 } = body;
-      if (!extensionSocket) {
-        jsonReply(res, 503, { error: 'Extension not connected' });
-        return;
-      }
+      const { payload, params, timeoutMs = 120_000 } = body;
+      const route = routeRequest(res, body);
+      if (!route) return;
+      const tabId = route.tabId ?? undefined;
       const commandId = Math.random().toString(36).slice(2) + Date.now();
       // Attribution: which AI (W3C traceparent + agent headers) asked for this run.
       // Param NAMES only are recorded, never values (run-attribution.js).
@@ -1843,15 +1950,16 @@ export function createRelay(port = 3333) {
       try {
         const result = await new Promise((resolve, reject) => {
           const timer = setTimeout(() => {
-            pending.delete(commandId);
+            settlePending(commandId);
             reject(new Error(`Timeout after ${timeoutMs}ms`));
           }, timeoutMs);
-          pending.set(commandId, { resolve, reject, timer, lastStatus: null });
-          extensionSocket.emit('skill_run', { commandId, payload, params, tabId });
-          console.log(`[relay] HTTP skill_run ${commandId}`);
+          const d = dispatchRun(route, { commandId, payload, params }, { resolve, reject, timer });
+          if (!d.ok) { clearTimeout(timer); reject(Object.assign(new Error(d.error), { refusal: d })); return; }
+          console.log(`[relay] HTTP skill_run ${commandId} → instance ${route.instance.instanceId}${tabId ? ` tab ${tabId}` : ''}`);
         });
         jsonReply(res, 200, attachAutoHeal(body, result));
       } catch (err) {
+        if (err.refusal) { routeRefusal(res, err.refusal); return; }
         jsonReply(res, 500, { error: err.message });
       }
       return;
@@ -1864,11 +1972,10 @@ export function createRelay(port = 3333) {
     if (path === '/run/async' && req.method === 'POST') {
       let body;
       try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
-      const { payload, params, tabId, timeoutMs = 300_000 } = body;
-      if (!extensionSocket) {
-        jsonReply(res, 503, { error: 'Extension not connected' });
-        return;
-      }
+      const { payload, params, timeoutMs = 300_000 } = body;
+      const route = routeRequest(res, body);
+      if (!route) return;
+      const tabId = route.tabId ?? undefined;
       const commandId = Math.random().toString(36).slice(2) + Date.now();
       logConversation(buildRunRequestedConversationEntry({
         headers: req.headers,
@@ -1879,24 +1986,23 @@ export function createRelay(port = 3333) {
         tabId,
       }));
       const now = Date.now();
-      asyncRuns.set(commandId, { id: commandId, status: 'running', result: null, error: null, createdAt: now, updatedAt: now });
       const settle = (patch) => {
         const cur = asyncRuns.get(commandId) || { id: commandId, createdAt: now };
         asyncRuns.set(commandId, { ...cur, ...patch, updatedAt: Date.now() });
       };
       const timer = setTimeout(() => {
-        pending.delete(commandId);
+        settlePending(commandId);
         settle({ status: 'error', error: `Timeout after ${timeoutMs}ms` });
       }, timeoutMs);
-      pending.set(commandId, {
+      const d = dispatchRun(route, { commandId, payload, params }, {
         resolve: (result) => { clearTimeout(timer); settle({ status: 'done', result: attachAutoHeal(body, result) }); },
         reject:  (err)    => { clearTimeout(timer); settle({ status: 'error', error: err.message }); },
         timer,
-        lastStatus: null,
       });
-      extensionSocket.emit('skill_run', { commandId, payload, params, tabId });
-      console.log(`[relay] HTTP async skill_run ${commandId}`);
-      jsonReply(res, 202, { ok: true, id: commandId, status: 'running' });
+      if (!d.ok) { clearTimeout(timer); routeRefusal(res, d); return; }
+      asyncRuns.set(commandId, { id: commandId, status: 'running', result: null, error: null, createdAt: now, updatedAt: now, instanceId: route.instance.instanceId, tabId: route.tabId ?? null });
+      console.log(`[relay] HTTP async skill_run ${commandId} → instance ${route.instance.instanceId}${tabId ? ` tab ${tabId}` : ''}`);
+      jsonReply(res, 202, { ok: true, id: commandId, status: 'running', instanceId: route.instance.instanceId, profile: route.instance.profile.label || route.instance.profile.email || null, tabId: route.tabId ?? null });
       return;
     }
 
@@ -1921,16 +2027,22 @@ export function createRelay(port = 3333) {
     // --- Tab management endpoints ---
 
     if (path === '/tabs/list' && req.method === 'GET') {
-      if (!extensionSocket) { jsonReply(res, 503, { error: 'Extension not connected' }); return; }
+      // ?profile=<email|label> or ?instanceId=<id> picks the instance; with
+      // neither, the default-profile rule applies (as for untargeted jobs).
+      const listTarget = {};
+      for (const k of ['profile', 'instanceId']) { const v = url.searchParams.get(k); if (v) listTarget[k] = v; }
+      const listRoute = routeRequest(res, { target: listTarget });
+      if (!listRoute) return;
       try {
         const tabs = await new Promise((resolve, reject) => {
           const timer = setTimeout(() => reject(new Error('Timeout waiting for list_tabs')), 10_000);
-          extensionSocket.emit('list_tabs', (result) => {
+          listRoute.instance.socket.emit('list_tabs', (result) => {
             clearTimeout(timer);
             resolve(result);
           });
         });
-        jsonReply(res, 200, tabs);
+        const who = { instanceId: listRoute.instance.instanceId, profile: listRoute.instance.profile.label || listRoute.instance.profile.email || null };
+        jsonReply(res, 200, Array.isArray(tabs) ? tabs.map(t => ({ ...t, ...who })) : tabs);
       } catch (err) {
         jsonReply(res, 500, { error: err.message });
       }
@@ -1942,11 +2054,12 @@ export function createRelay(port = 3333) {
       try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
       const { url } = body;
       if (!url) { jsonReply(res, 400, { error: 'url required' }); return; }
-      if (!extensionSocket) { jsonReply(res, 503, { error: 'Extension not connected' }); return; }
+      const tabRoute = routeRequest(res, body);
+      if (!tabRoute) return;
       try {
         const result = await new Promise((resolve, reject) => {
           const timer = setTimeout(() => reject(new Error('Timeout waiting for open_tab')), 20_000);
-          extensionSocket.emit('open_tab', { url }, (result) => {
+          tabRoute.instance.socket.emit('open_tab', { url }, (result) => {
             clearTimeout(timer);
             if (result?.ok === false) reject(new Error(result.error || 'open_tab failed'));
             else resolve(result);
@@ -1964,11 +2077,12 @@ export function createRelay(port = 3333) {
       try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
       const { tabId } = body;
       if (!tabId) { jsonReply(res, 400, { error: 'tabId required' }); return; }
-      if (!extensionSocket) { jsonReply(res, 503, { error: 'Extension not connected' }); return; }
+      const tabRoute = routeRequest(res, body);
+      if (!tabRoute) return;
       try {
         const result = await new Promise((resolve, reject) => {
           const timer = setTimeout(() => reject(new Error('Timeout waiting for refresh_tab')), 10_000);
-          extensionSocket.emit('refresh_tab', { tabId }, (result) => {
+          tabRoute.instance.socket.emit('refresh_tab', { tabId }, (result) => {
             clearTimeout(timer);
             if (result?.ok === false) reject(new Error(result.error || 'refresh_tab failed'));
             else resolve(result);
@@ -1987,11 +2101,12 @@ export function createRelay(port = 3333) {
       const { tabId, url } = body;
       if (!tabId) { jsonReply(res, 400, { error: 'tabId required' }); return; }
       if (!url) { jsonReply(res, 400, { error: 'url required' }); return; }
-      if (!extensionSocket) { jsonReply(res, 503, { error: 'Extension not connected' }); return; }
+      const tabRoute = routeRequest(res, body);
+      if (!tabRoute) return;
       try {
         const result = await new Promise((resolve, reject) => {
           const timer = setTimeout(() => reject(new Error('Timeout waiting for navigate_tab')), 20_000);
-          extensionSocket.emit('navigate_tab', { tabId, url }, (result) => {
+          tabRoute.instance.socket.emit('navigate_tab', { tabId, url }, (result) => {
             clearTimeout(timer);
             if (result?.ok === false) reject(new Error(result.error || 'navigate_tab failed'));
             else resolve(result);
@@ -2009,11 +2124,12 @@ export function createRelay(port = 3333) {
       try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
       const { tabId } = body;
       if (!tabId) { jsonReply(res, 400, { error: 'tabId required' }); return; }
-      if (!extensionSocket) { jsonReply(res, 503, { error: 'Extension not connected' }); return; }
+      const tabRoute = routeRequest(res, body);
+      if (!tabRoute) return;
       try {
         const result = await new Promise((resolve, reject) => {
           const timer = setTimeout(() => reject(new Error('Timeout waiting for close_tab')), 10_000);
-          extensionSocket.emit('close_tab', { tabId }, (result) => {
+          tabRoute.instance.socket.emit('close_tab', { tabId }, (result) => {
             clearTimeout(timer);
             if (result?.ok === false) reject(new Error(result.error || 'close_tab failed'));
             else resolve(result);
@@ -2031,11 +2147,12 @@ export function createRelay(port = 3333) {
       try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
       const { tabId } = body;
       if (!tabId) { jsonReply(res, 400, { error: 'tabId required' }); return; }
-      if (!extensionSocket) { jsonReply(res, 503, { error: 'Extension not connected' }); return; }
+      const tabRoute = routeRequest(res, body);
+      if (!tabRoute) return;
       try {
         const result = await new Promise((resolve, reject) => {
           const timer = setTimeout(() => reject(new Error('Timeout waiting for activate_tab')), 10_000);
-          extensionSocket.emit('activate_tab', { tabId }, (result) => {
+          tabRoute.instance.socket.emit('activate_tab', { tabId }, (result) => {
             clearTimeout(timer);
             if (result?.ok === false) reject(new Error(result.error || 'activate_tab failed'));
             else resolve(result);
@@ -2826,12 +2943,10 @@ h2{color:#58a6ff}hr{border-color:#333}
         jsonReply(res, 400, { error: 'tabId and message are required' });
         return;
       }
-      if (!extensionSocket) {
-        jsonReply(res, 503, { error: 'Extension not connected' });
-        return;
-      }
+      const injRoute = routeRequest(res, body);
+      if (!injRoute) return;
       logConversation({ event: 'injected_message', tabId, message });
-      extensionSocket.emit('inject_chat', { tabId, message });
+      injRoute.instance.socket.emit('inject_chat', { tabId, message });
       jsonReply(res, 200, { ok: true });
       return;
     }

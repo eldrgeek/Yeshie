@@ -5,6 +5,7 @@ import { io } from 'socket.io-client';
 import { createResolvedTargetUpdate, createSurpriseEvidence } from '../../../../src/runtime-contract.js';
 import { ContentStabilityTracker, expectedWaitState, quietMsOf, stateWaitMatched, waitStateGraph, wantsStable } from '../../../../src/wait-for.js';
 import { assertFailureMessage, assertNeedsPage, evaluateAssert } from '../../../../src/assert-step.js';
+import { loadInstanceIdentity, captureInstanceState, watchInstanceState } from '../instance-state';
 
 export default defineBackground(() => {
   console.log('[Yeshie] Background worker started');
@@ -21,10 +22,17 @@ export default defineBackground(() => {
   // Without this, the first connect attempt fails with a WebSocket error
   // (Chrome logs it even though Socket.IO auto-retries and succeeds).
   let socket: ReturnType<typeof io>;
-  setTimeout(() => {
+  setTimeout(async () => {
     const buildVersion = chrome.runtime.getManifest().version;
+    // Identify this instance (stable per Chrome profile) so the relay can keep
+    // every profile connected at once and route each job to the right account.
+    // docs/design/multi-connection-relay.md
+    const identity = await loadInstanceIdentity().catch((err) => {
+      console.warn('[Yeshie] instance identity unavailable', err?.message || err);
+      return null;
+    });
     socket = io(RELAY_URL, {
-      auth: { role: 'extension', buildVersion },
+      auth: { role: 'extension', buildVersion, instanceId: identity?.instanceId, profile: identity?.profile },
       transports: ['websocket'],
       reconnection: true,
       reconnectionAttempts: Infinity,
@@ -35,16 +43,32 @@ export default defineBackground(() => {
       forceNew: true,
     });
 
+    // Report this profile's windows and tabs on connect and on every change.
+    const reportState = watchInstanceState(async () => {
+      if (!socket?.connected) return;
+      try { socket.emit('instance_state', await captureInstanceState()); } catch { /* ignore */ }
+    });
+
     socket.on('connect', () => {
-      console.log('[Yeshie] Connected to relay', socket.id, 'build', buildVersion);
+      console.log('[Yeshie] Connected to relay', socket.id, 'build', buildVersion,
+        'instance', identity?.instanceId, identity?.profile?.email || '(no email)');
+      reportState();
     });
 
     socket.on('disconnect', (reason: string) => {
       console.log('[Yeshie] Disconnected from relay', reason);
-      // Do not reconnect on server-initiated disconnect: the relay kicks the
-      // previous owner when a new extension socket registers. Auto-reclaiming
-      // would recreate the dual-register flap this backoff is meant to stop.
+      // Do not reconnect on server-initiated disconnect: the relay only kicks a
+      // socket when the same instance (same profile) has reconnected on a newer
+      // socket ('superseded'). Other profiles never displace this one.
     });
+
+    // When the relay did not name a tab, this instance picks one inside its own
+    // profile and must hold the relay's lease on it before running. An older
+    // relay does not answer lease_tab; then the run proceeds unleased.
+    async function requestTabLease(commandId: string, tabId: number): Promise<{ ok: boolean; error?: string }> {
+      try { return await socket.timeout(3000).emitWithAck('lease_tab', { commandId, tabId }); }
+      catch { return { ok: true }; }
+    }
 
     socket.on('connect_error', (err: Error) => {
       console.warn('[Yeshie] relay connect_error', err?.message || err);
@@ -59,18 +83,28 @@ export default defineBackground(() => {
     });
 
     // Relay sends skill_run commands
-    socket.on('skill_run', ({ commandId, payload, params, tabId }: any) => {
-      console.log('[Yeshie] skill_run from relay', commandId);
+    socket.on('skill_run', async ({ commandId, payload, params, tabId }: any) => {
+      console.log('[Yeshie] skill_run from relay', commandId, tabId ? `tab ${tabId}` : '(tab not named)');
       const runId = crypto.randomUUID();
       chrome.storage.session.set({ __yeshieLastRunId: runId });
-      startRun(runId, payload, params || {}, tabId).then(() => {
+      try {
+        let runTabId = tabId;
+        if (!runTabId) {
+          runTabId = await autoDiscoverRunTab(params || {});
+          const lease = await requestTabLease(commandId, runTabId);
+          if (!lease.ok) {
+            socket.emit('chain_error', { commandId, error: lease.error || `Tab ${runTabId} is leased by another job` });
+            return;
+          }
+        }
+        await startRun(runId, payload, params || {}, runTabId);
         const run = runs.get(runId);
         const result = run?.result;
         // Always send full result (includes stepResults for diagnostics)
         socket.emit('chain_result', { commandId, result: result || { success: false, error: 'no result' } });
-      }).catch((err: any) => {
+      } catch (err: any) {
         socket.emit('chain_error', { commandId, error: err.message });
-      });
+      }
     });
 
     // Relay asks for all open tabs
@@ -3146,62 +3180,66 @@ export default defineBackground(() => {
   }
 
   // ── Chain runner ──────────────────────────────────────────────────────────────
-  async function startRun(runId: string, payload: any, params: Record<string, any>, tabId: number) {
-    // Auto-discover the target tab if none provided.
-    // Prefer a tab whose host matches params.base_url over the arbitrary active tab.
-    // The active tab of the last-focused window is very often NOT the site the recipe
-    // targets — grabbing it silently ran the whole chain against the wrong page (the
-    // 2026-07 chatgpt.com silent-failure class). We only fall back to the active tab
-    // when base_url isn't set or no matching tab exists.
-    if (!tabId) {
-      const baseUrl = params?.base_url;
-      // Normalize: chrome.tabs.query match patterns need `https://host/*` — a
-      // trailing slash on base_url (e.g. "https://chatgpt.com/") would produce
-      // an invalid "https://chatgpt.com//*" that matches nothing.
-      const baseUrlForMatch = baseUrl ? String(baseUrl).replace(/\/+$/, '') : baseUrl;
-      let baseHost: string | null = null;
-      try { if (baseUrl) baseHost = new URL(baseUrl).hostname; } catch { /* malformed */ }
-      const hostMatches = (u?: string) => {
-        if (!u || !baseHost) return false;
-        let h: string;
-        try { h = new URL(u).hostname; } catch { return false; }
-        if (h === baseHost) return true;
-        // github.com recipes also run on subdomains (gist.github.com, etc.)
-        if ((baseHost === 'github.com' || baseHost.endsWith('.github.com')) && (h === 'github.com' || h.endsWith('.github.com'))) return true;
-        return false;
-      };
+  // Auto-discover the target tab if none provided.
+  // Prefer a tab whose host matches params.base_url over the arbitrary active tab.
+  // The active tab of the last-focused window is very often NOT the site the recipe
+  // targets — grabbing it silently ran the whole chain against the wrong page (the
+  // 2026-07 chatgpt.com silent-failure class). We only fall back to the active tab
+  // when base_url isn't set or no matching tab exists.
+  async function autoDiscoverRunTab(params: Record<string, any>): Promise<number> {
+    let tabId = 0;
+    const baseUrl = params?.base_url;
+    // Normalize: chrome.tabs.query match patterns need `https://host/*` — a
+    // trailing slash on base_url (e.g. "https://chatgpt.com/") would produce
+    // an invalid "https://chatgpt.com//*" that matches nothing.
+    const baseUrlForMatch = baseUrl ? String(baseUrl).replace(/\/+$/, '') : baseUrl;
+    let baseHost: string | null = null;
+    try { if (baseUrl) baseHost = new URL(baseUrl).hostname; } catch { /* malformed */ }
+    const hostMatches = (u?: string) => {
+      if (!u || !baseHost) return false;
+      let h: string;
+      try { h = new URL(u).hostname; } catch { return false; }
+      if (h === baseHost) return true;
+      // github.com recipes also run on subdomains (gist.github.com, etc.)
+      if ((baseHost === 'github.com' || baseHost.endsWith('.github.com')) && (h === 'github.com' || h.endsWith('.github.com'))) return true;
+      return false;
+    };
 
-      const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
 
-      if (baseHost && !hostMatches(activeTab?.url)) {
-        // Active tab is on the wrong site (or there's none) — look for a base_url-host tab.
-        const queryUrl = (baseHost === 'github.com' || baseHost.endsWith('.github.com')) ? 'https://*.github.com/*' : `${baseUrlForMatch}/*`;
-        const matching = await chrome.tabs.query({ url: queryUrl });
-        // Prefer an active/focused matching tab, else the first matching tab.
-        const chosen = matching.find(t => t.active) || matching[0];
-        if (chosen?.id) {
-          tabId = chosen.id;
-          console.log('[Yeshie] Selected base_url-matching tab over active tab:', tabId, chosen.url);
-        } else if (activeTab?.id) {
-          tabId = activeTab.id;
-          console.warn('[Yeshie] No tab on base_url host', baseHost, '— falling back to active tab:', tabId, activeTab.url);
-        } else {
-          throw new Error('No active tab found. Open a browser tab first.');
-        }
+    if (baseHost && !hostMatches(activeTab?.url)) {
+      // Active tab is on the wrong site (or there's none) — look for a base_url-host tab.
+      const queryUrl = (baseHost === 'github.com' || baseHost.endsWith('.github.com')) ? 'https://*.github.com/*' : `${baseUrlForMatch}/*`;
+      const matching = await chrome.tabs.query({ url: queryUrl });
+      // Prefer an active/focused matching tab, else the first matching tab.
+      const chosen = matching.find(t => t.active) || matching[0];
+      if (chosen?.id) {
+        tabId = chosen.id;
+        console.log('[Yeshie] Selected base_url-matching tab over active tab:', tabId, chosen.url);
       } else if (activeTab?.id) {
         tabId = activeTab.id;
-        console.log('[Yeshie] Auto-discovered active tab:', tabId, activeTab.url);
+        console.warn('[Yeshie] No tab on base_url host', baseHost, '— falling back to active tab:', tabId, activeTab.url);
       } else {
-        // No active tab at all — last resort: any http tab (or base_url host tab).
-        const allTabs = await chrome.tabs.query({ url: baseUrlForMatch ? `${baseUrlForMatch}/*` : 'https://*/*' });
-        if (allTabs[0]?.id) {
-          tabId = allTabs[0].id;
-          console.log('[Yeshie] Found matching tab:', tabId, allTabs[0].url);
-        } else {
-          throw new Error('No active tab found. Open a browser tab first.');
-        }
+        throw new Error('No active tab found. Open a browser tab first.');
+      }
+    } else if (activeTab?.id) {
+      tabId = activeTab.id;
+      console.log('[Yeshie] Auto-discovered active tab:', tabId, activeTab.url);
+    } else {
+      // No active tab at all — last resort: any http tab (or base_url host tab).
+      const allTabs = await chrome.tabs.query({ url: baseUrlForMatch ? `${baseUrlForMatch}/*` : 'https://*/*' });
+      if (allTabs[0]?.id) {
+        tabId = allTabs[0].id;
+        console.log('[Yeshie] Found matching tab:', tabId, allTabs[0].url);
+      } else {
+        throw new Error('No active tab found. Open a browser tab first.');
       }
     }
+    return tabId;
+  }
+
+  async function startRun(runId: string, payload: any, params: Record<string, any>, tabId: number) {
+    if (!tabId) tabId = await autoDiscoverRunTab(params);
     const chain = payload.chain || [];
     const abstractTargets = JSON.parse(JSON.stringify(payload.abstractTargets || {}));
     const run = { runId, payload, params, tabId, abstractTargets, buffer: {} as any, stepIndex: 0, status: 'running', result: null as any, stepResults: [] as any[], resolvedTargets: [] as any[] };

@@ -659,32 +659,35 @@ describe('Relay single-owner socket and auto-heal', () => {
     expect(after.data.buildVersion).toBe('0.1.513');
   });
 
-  test('second extension socket replaces the first (no dual-register fallback)', async () => {
+  // Multi-instance relay (docs/design/multi-connection-relay.md): a second
+  // extension connection no longer displaces the first. Two legacy builds with
+  // no reported profile cannot be told apart, so an untargeted job is refused
+  // rather than sent to whichever connected last.
+  test('second extension socket coexists with the first; untargeted job between unknown profiles is refused', async () => {
     const first = await connectSocket(baseUrl, 'extension', { buildVersion: 'old' });
     await new Promise(r => setTimeout(r, 50));
-    const firstDisconnected = new Promise<void>((resolve) => {
-      first.on('disconnect', () => resolve());
-    });
+    let firstDropped = false;
+    first.on('disconnect', () => { firstDropped = true; });
     const second = await connectSocket(baseUrl, 'extension', { buildVersion: 'new' });
-    await firstDisconnected;
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise(r => setTimeout(r, 80));
+    expect(firstDropped).toBe(false);
     const { data } = await request('GET', '/status');
     expect(data.extensionConnected).toBe(true);
-    expect(data.buildVersion).toBe('new');
+    expect(data.instances).toHaveLength(2);
 
     const client = await connectSocket(baseUrl, 'client');
-    const receivedBySecond = new Promise<any>((resolve) => {
-      second.on('skill_run', (payload) => resolve(payload));
+    let gotRun = false;
+    first.on('skill_run', () => { gotRun = true; });
+    second.on('skill_run', () => { gotRun = true; });
+    const ack = await new Promise<any>((resolve) => {
+      client.emit('skill_run', { commandId: 'no-guess', payload: { chain: [] }, params: {} }, resolve);
     });
-    let firstGotRun = false;
-    first.on('skill_run', () => { firstGotRun = true; });
-    client.emit('skill_run', { commandId: 'owner-only', payload: { chain: [] }, params: {} }, () => {});
-    const got = await receivedBySecond;
-    expect(got.commandId).toBe('owner-only');
+    expect(ack.code).toBe('default_profile_not_connected');
     await new Promise(r => setTimeout(r, 50));
-    expect(firstGotRun).toBe(false);
+    expect(gotRun).toBe(false);
 
     client.disconnect();
+    first.disconnect();
     second.disconnect();
   });
 
