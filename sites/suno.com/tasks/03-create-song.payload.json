@@ -23,7 +23,8 @@
   "params": { "title": "{{title}}", "style": "{{style}}", "lyrics": "{{lyrics}}" },
   "chain": [
     { "stepId": "s1", "action": "navigate", "url": "https://suno.com/create" },
-    { "stepId": "s2", "action": "click_text", "text": "Advanced", "note": "ensure Advanced/Custom mode" },
+    { "stepId": "s1b", "action": "key", "key": "Escape", "optional": true, "note": "dismiss promo modals (2026-09-12: a 'v6 — Promo Extended' dialog covered the form and hid the tabs from click_text)" },
+    { "stepId": "s2", "action": "click", "selector": "button[role=\"tab\"][aria-label=\"Advanced\"]", "note": "ensure Advanced/Custom mode — anchored on role+aria-label, not visible text, so an overlay can't hide it" },
     { "stepId": "s3", "action": "wait_for", "selector": "div[aria-label=\"Lyrics editor\"]", "timeout": 10000 },
     { "stepId": "s4", "action": "type", "selector": "div[aria-label=\"Lyrics editor\"]", "value": "{{lyrics}}", "note": "contenteditable — trustedType uses Input.insertText" },
     { "stepId": "s5", "action": "type", "selector": "[data-testid=\"create-form-styles-wrapper\"] textarea", "value": "{{style}}", "note": "Styles field, scoped by stable wrapper testid" },
