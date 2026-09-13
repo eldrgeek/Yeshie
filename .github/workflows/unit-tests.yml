@@ -23,4 +23,7 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm ci --prefix packages/relay
-      - run: npm test
+      # These three suites drive macOS Accessibility and Claude Desktop, so they
+      # cannot load on a Linux runner (jest-worker crashes serialising the error).
+      # They still run in local `npm test` on the Mac.
+      - run: npm test -- --testPathIgnorePatterns='tests/unit/(ax-inject|ax-inspect|claude-desktop-control)\.test\.ts$'
