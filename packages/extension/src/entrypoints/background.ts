@@ -1,5 +1,9 @@
+import { docsCommentDOM } from '../docs-comment-dom.js';
+import { anchorComment } from '../anchor-comment.js';
+import { keyRepeatCount, repeatedKeys, dragSelection } from '../../../../src/cdp-input.js';
 import { io } from 'socket.io-client';
 import { createResolvedTargetUpdate, createSurpriseEvidence } from '../../../../src/runtime-contract.js';
+import { ContentStabilityTracker, quietMsOf, wantsStable } from '../../../../src/wait-for.js';
 
 export default defineBackground(() => {
   console.log('[Yeshie] Background worker started');
@@ -17,20 +21,40 @@ export default defineBackground(() => {
   // (Chrome logs it even though Socket.IO auto-retries and succeeds).
   let socket: ReturnType<typeof io>;
   setTimeout(() => {
+    const buildVersion = chrome.runtime.getManifest().version;
     socket = io(RELAY_URL, {
-      auth: { role: 'extension' },
+      auth: { role: 'extension', buildVersion },
       transports: ['websocket'],
       reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 400,
+      reconnectionDelayMax: 8000,
+      randomizationFactor: 0.5,
+      timeout: 10000,
+      forceNew: true,
     });
 
     socket.on('connect', () => {
-      console.log('[Yeshie] Connected to relay', socket.id);
+      console.log('[Yeshie] Connected to relay', socket.id, 'build', buildVersion);
     });
 
-    socket.on('disconnect', () => {
-      console.log('[Yeshie] Disconnected from relay');
+    socket.on('disconnect', (reason: string) => {
+      console.log('[Yeshie] Disconnected from relay', reason);
+      // Do not reconnect on server-initiated disconnect: the relay kicks the
+      // previous owner when a new extension socket registers. Auto-reclaiming
+      // would recreate the dual-register flap this backoff is meant to stop.
+    });
+
+    socket.on('connect_error', (err: Error) => {
+      console.warn('[Yeshie] relay connect_error', err?.message || err);
+    });
+
+    socket.io.on('reconnect_attempt', (n: number) => {
+      console.log('[Yeshie] relay reconnect attempt', n);
+    });
+
+    socket.io.on('reconnect', () => {
+      console.log('[Yeshie] relay reconnected', socket.id);
     });
 
     // Relay sends skill_run commands
@@ -108,6 +132,17 @@ export default defineBackground(() => {
     socket.on('record_toggle', async (ack: (result: any) => void) => {
       await toggleRecording();
       ack({ active: recordingState.active, episodeId: recordingState.episodeId });
+    });
+
+    // Pulse asks Yeshie to place the human at an exact approval control.
+    // Reuse the same handler as side-panel teach mode; this only highlights
+    // and observes the target. It never clicks the control.
+    socket.on('teach_start', async ({ steps, tabId }: any, ack: (result: any) => void) => {
+      try {
+        ack(await handleTeachMessage({ type: 'teach_start', steps, targetTabId: tabId }));
+      } catch (err: any) {
+        ack({ ok: false, error: err.message });
+      }
     });
 
     // Relay injects a chat message into a specific tab's side-panel conversation.
@@ -258,6 +293,87 @@ export default defineBackground(() => {
 
   // ── Teach session state (survives SPA navigation) ────────────────────────────
   const teachSessions = new Map<number, { steps: any[]; currentStepIndex: number }>();
+
+  async function handleTeachMessage(msg: any): Promise<{ ok: boolean; tabId?: number; error?: string }> {
+    // Preference order: (1) explicitly requested HTTPS tab, (2) active HTTPS
+    // tab, (3) YeshID, (4) any HTTPS tab. Chrome-internal and HTTP pages are
+    // intentionally excluded from this human-approval control plane.
+    let targetTabId: number | undefined;
+    if (msg.targetTabId !== undefined) {
+      try {
+        const requested = await chrome.tabs.get(msg.targetTabId);
+        if (!requested.url?.startsWith('https://')) {
+          return { ok: false, error: `Tab ${msg.targetTabId} is not an HTTPS page` };
+        }
+        targetTabId = requested.id;
+      } catch (err: any) {
+        return { ok: false, error: `Could not resolve tab ${msg.targetTabId}: ${err.message}` };
+      }
+    } else {
+      const focused = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      const activeHttpsTab = focused.find(tab => tab.url?.startsWith('https://'));
+      if (activeHttpsTab?.id) {
+        targetTabId = activeHttpsTab.id;
+      } else {
+        const yeshidTabs = await chrome.tabs.query({ url: 'https://app.yeshid.com/*' });
+        if (yeshidTabs[0]?.id) {
+          targetTabId = yeshidTabs[0].id;
+        } else {
+          const allHttpsTabs = await chrome.tabs.query({ url: 'https://*/*' });
+          if (allHttpsTabs[0]?.id) targetTabId = allHttpsTabs[0].id;
+        }
+      }
+    }
+
+    if (!targetTabId) {
+      return { ok: false, error: 'No suitable HTTPS tab found' };
+    }
+
+    const teachMsg: any = { type: msg.type };
+    if (msg.type === 'teach_start') teachMsg.steps = msg.steps;
+    if (msg.type === 'teach_goto') teachMsg.stepIndex = msg.stepIndex;
+
+    const trySend = async (): Promise<boolean> => {
+      try {
+        await chrome.tabs.sendMessage(targetTabId!, teachMsg);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    let delivered = await trySend();
+    if (!delivered) {
+      console.log('[Yeshie] Content overlay not loaded in tab', targetTabId, '— injecting');
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: targetTabId },
+          files: ['content-overlay.js'],
+        });
+        for (let i = 0; i < 5 && !delivered; i++) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+          delivered = await trySend();
+        }
+      } catch (err: any) {
+        console.warn('[Yeshie] Failed to inject content overlay:', err.message);
+        return { ok: false, error: `Could not inject overlay into tab ${targetTabId}: ${err.message}` };
+      }
+    }
+
+    if (!delivered) {
+      return {
+        ok: false,
+        error: `Content overlay loaded but message delivery to tab ${targetTabId} still failed`,
+      };
+    }
+
+    if (msg.type === 'teach_start') {
+      teachSessions.set(targetTabId, { steps: msg.steps, currentStepIndex: 0 });
+    } else if (msg.type === 'teach_end') {
+      teachSessions.delete(targetTabId);
+    }
+    return { ok: true, tabId: targetTabId };
+  }
 
   function collectSurpriseEvidence(stepResults: any[] = [], topLevelError?: string) {
     const collected = stepResults.flatMap((r: any) => Array.isArray(r?.surpriseEvidence) ? r.surpriseEvidence : []);
@@ -1114,10 +1230,19 @@ export default defineBackground(() => {
   }
 
   function PRE_MATCH_WAIT_FOR(step: any, selector: string | null, stateGraph: any) {
+    const readText = (node: Element | null) => {
+      if (!node) return '';
+      const tag = (node as HTMLElement).tagName?.toLowerCase?.() || '';
+      if (tag === 'input' || tag === 'textarea') return (node as HTMLInputElement).value || '';
+      return String((node as HTMLElement).innerText || node.textContent || '');
+    };
+    const fp = (t: string) => `${t.length}:${t.slice(-280)}`;
+
     if (step.url_pattern) {
       return {
         matched: new RegExp(step.url_pattern).test(window.location.href),
         url: window.location.href,
+        contentHash: '',
       };
     }
 
@@ -1128,23 +1253,33 @@ export default defineBackground(() => {
       return {
         matched: expectedState ? currentState === expectedState : currentState !== 'unknown',
         state: currentState,
+        contentHash: '',
       };
     }
 
     const el = selector ? document.querySelector(selector) as HTMLElement | null : null;
+    const scope = (el || document.body) as Element | null;
+    const pageText = readText(scope);
+    const contentHash = fp(pageText);
+    const needle = step.text || step.state?.text;
+    if (needle && !pageText.includes(String(needle))) {
+      return { matched: false, contentHash, text: pageText };
+    }
     if (step.state) {
-      if (step.state.visible !== undefined) return { matched: step.state.visible ? !!el : !el };
+      if (step.state.visible !== undefined) return { matched: step.state.visible ? !!el : !el, contentHash, text: pageText };
       if (step.state.enabled !== undefined) {
         const enabled = !!el && !(el as HTMLInputElement | HTMLButtonElement).disabled && el.getAttribute('aria-disabled') !== 'true';
-        return { matched: step.state.enabled ? enabled : !enabled };
+        return { matched: step.state.enabled ? enabled : !enabled, contentHash, text: pageText };
       }
       if (step.state.attribute) {
         const matched = !!el && Object.entries(step.state.attribute).every(([key, expected]) => el?.getAttribute(key) === String(expected));
-        return { matched };
+        return { matched, contentHash, text: pageText };
       }
     }
-
-    return { matched: !!el };
+    if (selector && !el && step.state?.visible !== false && !needle) {
+      return { matched: false, contentHash, text: pageText };
+    }
+    return { matched: true, contentHash, text: pageText };
   }
 
   function PRE_FIND_ROW_AND_CLICK(identifier: string) {
@@ -1572,6 +1707,34 @@ export default defineBackground(() => {
         return { found: false, label: labelText, reason: 'no numeric neighbor found' };
       }
 
+      // Pagination total: paginationTotal() reads a Vuetify data-table footer like
+      // "1-10 of 37" and returns the trailing total. More reliable than counting
+      // rendered <tr> rows when the table paginates (rendered row count caps at
+      // the page size and stops moving once the list is bigger than one page —
+      // confirmed live 2026-07-10 on /organization/people, which showed 10
+      // rendered rows both before and after a successful add once the org
+      // passed 10 people; the footer read correctly as "1-10 of 37" -> 37).
+      if (code.includes('paginationTotal')) {
+        const footer = document.querySelector('.v-data-table-footer__info, .v-data-table-footer, [class*="footer"]');
+        const text = footer?.textContent?.trim() || '';
+        const m = text.match(/of\s+(\d+)/i);
+        if (!m) return { found: false, text, reason: 'no "of N" pattern found in footer text' };
+        return { found: true, text, numericValue: parseInt(m[1], 10) };
+      }
+
+      // Table row count: tableRowCount('table') or tableRowCount() defaults to first <table>.
+      // Used for bookend verification counts (e.g. people-list row count before/after a mutation)
+      // that don't have a labeled stat on the page — anchors on the actual data table, not a
+      // decorative dashboard number.
+      if (code.includes('tableRowCount')) {
+        const selMatch = code.match(/tableRowCount\(\s*['"]?(.*?)['"]?\s*\)/);
+        const sel = selMatch?.[1] || 'table';
+        const table = document.querySelector(sel || 'table');
+        if (!table) return { __error: `tableRowCount: no element matched selector "${sel}"` };
+        const rows = table.querySelectorAll('tbody tr');
+        return { found: true, selector: sel, rowCount: rows.length, numericValue: rows.length };
+      }
+
       // Page survey scan: pageScan() — returns everything needed to survey a page
       // One call per page: data-cy targets, buttons, labels+inputs, nav links, page type hint.
       // Used by the site-survey skill so it only needs the Yeshie relay, not a separate browser tool.
@@ -1676,9 +1839,40 @@ export default defineBackground(() => {
   // the DOM but bypasses React's synthetic event system (state stays empty, Enter is ignored).
   // We detect textarea vs contenteditable and use nativeInputValueSetter for textarea so React
   // sees the value before we press Enter.
-  async function trustedType(tabId: number, selector: string, text: string, submit: boolean = false) {
+  async function trustedType(tabId: number, selector: string, text: string, submit: boolean = false, frameId: number | null = null) {
     await ensureDebugger(tabId);
     const target = { tabId };
+
+    if (frameId != null) {
+      // Frame-scoped typing: chrome.debugger Runtime.evaluate runs in the top
+      // frame only, so the DOM side (find/focus/select) goes through
+      // executeScript in the target frame, and the text lands via trusted
+      // Input.insertText — CDP input follows the focused element across
+      // frames. No trailing Tab in frame mode: focus is preserved so recipes
+      // can commit with an explicit `key` step (matching hand-driven flows on
+      // widgets like the Google share combobox, where Tab/Enter each have
+      // their own meaning).
+      const focused = await execInTab(tabId, (sel: string) => {
+        const el = document.querySelector(sel) as any;
+        if (!el) return false;
+        el.focus(); el.click();
+        if (typeof el.select === 'function') { el.select(); }
+        else if (el.isContentEditable) {
+          const r = document.createRange(); r.selectNodeContents(el);
+          const s = window.getSelection(); if (s) { s.removeAllRanges(); s.addRange(r); }
+        }
+        return true;
+      }, [selector], frameId);
+      if (!focused) throw new Error('trustedType(frame): selector not found: ' + selector);
+      await new Promise(r => setTimeout(r, 80));
+      await chrome.debugger.sendCommand(target, 'Input.insertText', { text });
+      if (submit) {
+        await new Promise(r => setTimeout(r, 80));
+        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+        await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+      }
+      return { ok: true };
+    }
 
     // Detect whether the target is a native textarea (React-controlled) or contenteditable
     const { result: tagResult } = await chrome.debugger.sendCommand(target, 'Runtime.evaluate', {
@@ -1800,60 +1994,48 @@ export default defineBackground(() => {
     _debuggerTabId = tabId;
   }
 
+  // Bounded input attachment recovery
+  async function ensureInputDebugger(tabId: number, cancelled: () => boolean) {
+    const check = () => { if (cancelled()) throw new Error('Input cancelled'); };
+    // Three operations fit inside the callers' 2s attachment deadline. Each
+    // operation races separately, so a late result cannot start the next one.
+    const bounded = async (operation: () => Promise<unknown>) => {
+      check();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let poll: ReturnType<typeof setInterval> | undefined;
+      try {
+        await Promise.race([
+          Promise.resolve().then(() => { check(); return operation(); }),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error('Debugger operation timed out')), 500);
+            poll = setInterval(() => {
+              if (cancelled()) reject(new Error('Input cancelled'));
+            }, 10);
+          }),
+        ]);
+        check();
+      } finally { clearTimeout(timer); clearInterval(poll); }
+    };
+    check();
+    if (_debuggerTabId === tabId) return;
+    try {
+      await bounded(() => chrome.debugger.attach({ tabId }, '1.3'));
+    } catch (error: any) {
+      check();
+      if (!/already attached/i.test(error?.message || '')) throw error;
+      await bounded(() => chrome.debugger.detach({ tabId }));
+      check();
+      await bounded(() => chrome.debugger.attach({ tabId }, '1.3'));
+    }
+    check();
+    _debuggerTabId = tabId;
+  }
+
   async function releaseDebugger() {
     if (_debuggerTabId !== null) {
       try { await chrome.debugger.detach({ tabId: _debuggerTabId }); } catch (_) {}
       _debuggerTabId = null;
     }
-  }
-
-  async function dispatchKeyChordCDP(tabId: number, spec: string) {
-    const parts = spec.toLowerCase().split('+');
-    const rawKey = parts[parts.length - 1];
-    const ctrl = parts.includes('ctrl') || parts.includes('control');
-    const meta = parts.includes('meta') || parts.includes('cmd') || parts.includes('command');
-    const shift = parts.includes('shift');
-    const alt = parts.includes('alt');
-
-    const KEY_MAP: Record<string, { key: string; code: string; vkCode: number }> = {
-      enter:     { key: 'Enter',      code: 'Enter',      vkCode: 13 },
-      return:    { key: 'Enter',      code: 'Enter',      vkCode: 13 },
-      escape:    { key: 'Escape',     code: 'Escape',     vkCode: 27 },
-      esc:       { key: 'Escape',     code: 'Escape',     vkCode: 27 },
-      tab:       { key: 'Tab',        code: 'Tab',        vkCode: 9  },
-      backspace: { key: 'Backspace',  code: 'Backspace',  vkCode: 8  },
-      space:     { key: ' ',          code: 'Space',      vkCode: 32 },
-      arrowdown: { key: 'ArrowDown',  code: 'ArrowDown',  vkCode: 40 },
-      arrowup:   { key: 'ArrowUp',    code: 'ArrowUp',    vkCode: 38 },
-      arrowleft: { key: 'ArrowLeft',  code: 'ArrowLeft',  vkCode: 37 },
-      arrowright:{ key: 'ArrowRight', code: 'ArrowRight', vkCode: 39 },
-      delete:    { key: 'Delete',     code: 'Delete',     vkCode: 46 },
-      home:      { key: 'Home',       code: 'Home',       vkCode: 36 },
-      end:       { key: 'End',        code: 'End',        vkCode: 35 },
-      pageup:    { key: 'PageUp',     code: 'PageUp',     vkCode: 33 },
-      pagedown:  { key: 'PageDown',   code: 'PageDown',   vkCode: 34 },
-      '/':       { key: '/',          code: 'Slash',      vkCode: 191 },
-      slash:     { key: '/',          code: 'Slash',      vkCode: 191 },
-    };
-
-    const mapped = KEY_MAP[rawKey] ?? {
-      key: rawKey.length === 1 ? rawKey : rawKey.charAt(0).toUpperCase() + rawKey.slice(1),
-      code: rawKey.length === 1 ? 'Key' + rawKey.toUpperCase() : rawKey.charAt(0).toUpperCase() + rawKey.slice(1),
-      vkCode: rawKey.length === 1 ? rawKey.toUpperCase().charCodeAt(0) : 0,
-    };
-
-    const modifiers = (alt ? 1 : 0) | (ctrl ? 2 : 0) | (meta ? 4 : 0) | (shift ? 8 : 0);
-
-    const base = {
-      key: mapped.key,
-      code: mapped.code,
-      windowsVirtualKeyCode: mapped.vkCode,
-      nativeVirtualKeyCode: mapped.vkCode,
-      modifiers,
-    };
-
-    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchKeyEvent', { type: 'keyDown', ...base });
-    await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchKeyEvent', { type: 'keyUp', ...base });
   }
 
   // ── Trusted click via chrome.debugger Runtime.evaluate ───────────────────────
@@ -1921,6 +2103,92 @@ export default defineBackground(() => {
     }
   }
 
+  // ── Trusted coordinate click, frame-aware ────────────────────────────────────
+  // Real Input.dispatchMouseEvent at the element's viewport coordinates. Some
+  // Google closure widgets (seen live 2026-07-24: the Docs share dialog's role
+  // menu) flip their ARIA state on a synthetic PointerEvent/MouseEvent sequence
+  // but only RENDER the popup contents on trusted events — PRE_GUARDED_CLICK
+  // "succeeds" while the menu stays empty. Recipes opt in with `trusted: true`
+  // on click / click_text steps. For frame-scoped steps the element rect (frame
+  // viewport) is offset by the iframe element's rect (top document, found by
+  // the step's `frame` URL substring). Element visibility is judged by rect
+  // size, not offsetParent — position:fixed menu items have offsetParent null.
+  async function trustedCoordClick(
+    tabId: number,
+    opts: { selector?: string | null; text?: string | null; exact?: boolean; frameId?: number | null; framePattern?: string | null; timeoutMs?: number }
+  ): Promise<{ ok: boolean; x?: number; y?: number; text?: string; error?: string }> {
+    await ensureDebugger(tabId);
+    const findRect = (sel: string | null, text: string | null, exact: boolean) => {
+      let el: any = sel ? document.querySelector(sel) : null;
+      if (!el && text) {
+        const lower = text.toLowerCase();
+        const candidates = Array.from(document.querySelectorAll('a,button,[role="button"],[role="menuitem"],[role="menuitemradio"],[role="option"],li'))
+          .filter((e: any) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; })
+          .filter((e: any) => {
+            const t = (e.textContent || '').trim().toLowerCase();
+            return exact ? t === lower : t.includes(lower);
+          });
+        // Deepest-first: a WRAPPER whose textContent merely contains the target
+        // matches too, and it precedes its children in document order — its
+        // center can land on a sibling item (live bug: 'Viewer' matched the
+        // role-menu container, center hit 'Commenter'). Exact own-text match
+        // wins outright; otherwise take the smallest-area candidate.
+        const own = (e: any) => Array.from(e.childNodes).filter((n: any) => n.nodeType === 3).map((n: any) => n.textContent).join('').trim().toLowerCase();
+        el = candidates.find((e: any) => own(e) === lower)
+          || candidates.sort((a: any, b: any) => {
+               const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+               return (ra.width * ra.height) - (rb.width * rb.height);
+             })[0]
+          || null;
+      }
+      if (!el) return null;
+      el.scrollIntoView({ block: 'center', inline: 'nearest' });
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) return null;
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2, text: (el.textContent || '').trim().slice(0, 60) };
+    };
+    const frameOffset = (pattern: string) => {
+      const f = Array.from(document.querySelectorAll('iframe')).find((fr: any) => (fr.src || '').includes(pattern)) as HTMLIFrameElement | undefined;
+      if (!f) return null;
+      const r = f.getBoundingClientRect();
+      return { x: r.x, y: r.y };
+    };
+
+    const deadline = Date.now() + (opts.timeoutMs ?? 5000);
+    while (Date.now() < deadline) {
+      let rect: any = await execInTab(tabId, findRect, [opts.selector || null, opts.text || null, !!opts.exact], opts.frameId ?? null);
+      if (rect) {
+        // Menus/dialogs animate into place — clicking coordinates measured
+        // mid-animation hits a neighbor. Re-measure until two consecutive
+        // reads agree within 2px (bounded by the deadline).
+        while (Date.now() < deadline) {
+          await new Promise(r => setTimeout(r, 150));
+          const again: any = await execInTab(tabId, findRect, [opts.selector || null, opts.text || null, !!opts.exact], opts.frameId ?? null);
+          if (!again) break;
+          const settled = Math.abs(again.x - rect.x) < 2 && Math.abs(again.y - rect.y) < 2;
+          rect = again;
+          if (settled) break;
+        }
+      }
+      if (rect) {
+        let ox = 0, oy = 0;
+        if (opts.frameId != null && opts.framePattern) {
+          const off: any = await execInTab(tabId, frameOffset, [opts.framePattern]);
+          if (!off) return { ok: false, error: 'iframe element not found for offset: ' + opts.framePattern };
+          ox = off.x; oy = off.y;
+        }
+        const x = Math.round(ox + rect.x);
+        const y = Math.round(oy + rect.y);
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+        return { ok: true, x, y, text: rect.text };
+      }
+      await new Promise(r => setTimeout(r, 200));
+    }
+    return { ok: false, error: 'Element not found for trusted click: ' + (opts.selector || opts.text) };
+  }
+
   // ── Observability: log auth flow events to relay ─────────────────────────────
   async function logToRelay(event: string, data: any) {
     try {
@@ -1965,14 +2233,33 @@ export default defineBackground(() => {
   }
 
   // ── executeScript helper ──────────────────────────────────────────────────────
-  async function execInTab(tabId: number, func: Function, args: any[]) {
+  async function execInTab(tabId: number, func: Function, args: any[], frameId: number | null = null) {
     const results = await chrome.scripting.executeScript({
-      target: { tabId },
+      target: frameId != null ? { tabId, frameIds: [frameId] } : { tabId },
       func: func as any,
       args,
       world: 'MAIN'
     });
     return results?.[0]?.result;
+  }
+
+  // Resolve a step's `frame` (URL substring) to a frameId via an allFrames
+  // sweep — no chrome.webNavigation permission needed, and it works for both
+  // same-origin and OOPIF frames since host_permissions is <all_urls>.
+  // Returns null when no frame matches; callers decide whether that's fatal
+  // (wait_for polls instead, because dialog iframes load asynchronously).
+  async function resolveFrameId(tabId: number, urlSubstring: string): Promise<number | null> {
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId, allFrames: true },
+        func: () => location.href,
+        world: 'MAIN'
+      });
+      const hit = (results || []).find(r => r.frameId !== 0 && typeof r.result === 'string' && (r.result as string).includes(urlSubstring));
+      return hit ? hit.frameId : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   function getSignatureTimeout(signatures: any[] = [], fallback = 2000) {
@@ -2026,10 +2313,10 @@ export default defineBackground(() => {
     };
   }
 
-  async function evaluateActionOutcome(tabId: number, step: any, initialUrl: string, failureBaseline: Record<string, string | null>, responseBaseline: Record<string, string | null>, stateGraph: any = null) {
+  async function evaluateActionOutcome(tabId: number, step: any, initialUrl: string, failureBaseline: Record<string, string | null>, responseBaseline: Record<string, string | null>, stateGraph: any = null, frameId: number | null = null) {
     const hasFailure = Array.isArray(step.failureSignature) && step.failureSignature.length > 0;
     const hasResponse = Array.isArray(step.responseSignature) && step.responseSignature.length > 0;
-    await execInTab(tabId, PRE_FLUSH_UI, []);
+    await execInTab(tabId, PRE_FLUSH_UI, [], frameId);
 
     const failureTimeout = getSignatureTimeout(step.failureSignature, 0);
     const responseTimeout = getSignatureTimeout(step.responseSignature, 0);
@@ -2038,16 +2325,16 @@ export default defineBackground(() => {
       : 600;
     const startedAt = Date.now();
 
-    let failureSignature = hasFailure ? await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.failureSignature, initialUrl, failureBaseline, stateGraph]) : undefined;
-    let responseSignature = hasResponse ? await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.responseSignature, initialUrl, responseBaseline, stateGraph]) : undefined;
+    let failureSignature = hasFailure ? await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.failureSignature, initialUrl, failureBaseline, stateGraph], frameId) : undefined;
+    let responseSignature = hasResponse ? await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.responseSignature, initialUrl, responseBaseline, stateGraph], frameId) : undefined;
     while ((hasFailure || hasResponse) && Date.now() - startedAt < timeout) {
       if (failureSignature?.matched || responseSignature?.matched) break;
       await new Promise(r => setTimeout(r, 200));
-      if (hasFailure) failureSignature = await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.failureSignature, initialUrl, failureBaseline, stateGraph]);
-      if (hasResponse) responseSignature = await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.responseSignature, initialUrl, responseBaseline, stateGraph]);
+      if (hasFailure) failureSignature = await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.failureSignature, initialUrl, failureBaseline, stateGraph], frameId);
+      if (hasResponse) responseSignature = await execInTab(tabId, PRE_MATCH_RESPONSE_SIGNATURES, [step.responseSignature, initialUrl, responseBaseline, stateGraph], frameId);
     }
 
-    const mutationDiagnostics = await execInTab(tabId, PRE_READ_MUTATIONS, [true]);
+    const mutationDiagnostics = await execInTab(tabId, PRE_READ_MUTATIONS, [true], frameId);
 
     const outcome =
       failureSignature?.matched ? 'failure'
@@ -2092,6 +2379,18 @@ export default defineBackground(() => {
     }
 
     try {
+      // Per-step frame scoping: `frame` = URL substring of the target iframe
+      // (e.g. the Google Docs share dialog lives in a /drivesharing/driveshare
+      // iframe — no top-document selector can reach inside it). Resolved fresh
+      // every step because dialog iframes come and go; wait_for re-resolves in
+      // its own poll loop instead, so it can await an iframe that hasn't
+      // loaded yet.
+      let frameId: number | null = null;
+      if (step.frame && a !== 'wait_for') {
+        frameId = await resolveFrameId(tabId, interpolate(step.frame, { ...params, ...buffer }));
+        if (frameId == null) throw new Error('frame not found: ' + step.frame);
+      }
+
       if (a === 'navigate') {
         const url = interpolate(step.url || step.value || '', { ...params, ...buffer });
         if (!url) throw new Error('navigate step missing url');
@@ -2187,20 +2486,20 @@ export default defineBackground(() => {
 
       if (a === 'type') {
         const value = interpolate(step.value || '', { ...params, ...buffer });
-        const initialUrl = await execInTab(tabId, () => window.location.href, []);
-        await execInTab(tabId, PRE_ARM_MUTATION_OBSERVER, []);
+        const initialUrl = await execInTab(tabId, () => window.location.href, [], frameId);
+        await execInTab(tabId, PRE_ARM_MUTATION_OBSERVER, [], frameId);
         const failureBaseline = step.failureSignature?.length
-          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.failureSignature])
+          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.failureSignature], frameId)
           : {};
         const responseBaseline = step.responseSignature?.length
-          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.responseSignature])
+          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.responseSignature], frameId)
           : {};
         const tgt = step.target ? abstractTargets?.[step.target] : null;
         let resolvedSelector = step.selector ? interpolate(step.selector, { ...params, ...buffer }) : null;
         let resolvedVia = 'direct';
         let confidence = 1.0;
         if (tgt) {
-          const res = await execInTab(tabId, PRE_RESOLVE_TARGET, [tgt]);
+          const res = await execInTab(tabId, PRE_RESOLVE_TARGET, [tgt], frameId);
           if (!res?.found) throw new Error('Cannot resolve: ' + step.target);
           resolvedSelector = res.selector;
           resolvedVia = res.resolvedVia;
@@ -2212,8 +2511,8 @@ export default defineBackground(() => {
           }
         }
         if (!resolvedSelector) throw new Error('No selector for: ' + (step.target || step.selector));
-        await trustedType(tabId, resolvedSelector, value, !!step.submit);
-        const outcomeFields = await evaluateActionOutcome(tabId, step, initialUrl, failureBaseline, responseBaseline, run.payload?.stateGraph || null);
+        await trustedType(tabId, resolvedSelector, value, !!step.submit, frameId);
+        const outcomeFields = await evaluateActionOutcome(tabId, step, initialUrl, failureBaseline, responseBaseline, run.payload?.stateGraph || null, frameId);
         if (outcomeFields.outcome === 'failure') {
           const msg = outcomeFields.failureSignature?.text || 'Form action rejected by the page';
           return { stepId: step.stepId, action: a, status: 'error', error: msg, value, selector: resolvedSelector, resolvedVia, confidence, target: step.target, ...outcomeFields, durationMs: Date.now() - t0 };
@@ -2222,28 +2521,30 @@ export default defineBackground(() => {
       }
 
       if (a === 'click') {
-        const initialUrl = await execInTab(tabId, () => window.location.href, []);
-        await execInTab(tabId, PRE_ARM_MUTATION_OBSERVER, []);
+        const initialUrl = await execInTab(tabId, () => window.location.href, [], frameId);
+        await execInTab(tabId, PRE_ARM_MUTATION_OBSERVER, [], frameId);
         const failureBaseline = step.failureSignature?.length
-          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.failureSignature])
+          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.failureSignature], frameId)
           : {};
         const responseBaseline = step.responseSignature?.length
-          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.responseSignature])
+          ? await execInTab(tabId, PRE_CAPTURE_SIGNATURE_BASELINE, [step.responseSignature], frameId)
           : {};
         const tgt = step.target ? abstractTargets?.[step.target] : null;
         let resolvedSelector = step.selector ? interpolate(step.selector, { ...params, ...buffer }) : null;
         let resolvedVia = 'direct';
         let buttonText = null;
         if (tgt) {
-          const res = await execInTab(tabId, PRE_RESOLVE_TARGET, [tgt]);
+          const res = await execInTab(tabId, PRE_RESOLVE_TARGET, [tgt], frameId);
           if (!res?.found) throw new Error('Cannot resolve: ' + step.target);
           resolvedSelector = res.selector;
           resolvedVia = res.resolvedVia;
           buttonText = res.buttonText || null;
         }
-        const r = await execInTab(tabId, PRE_GUARDED_CLICK, [resolvedSelector, buttonText]);
+        const r = step.trusted
+          ? await trustedCoordClick(tabId, { selector: resolvedSelector, text: buttonText, frameId, framePattern: step.frame ? interpolate(step.frame, { ...params, ...buffer }) : null, timeoutMs: step.timeout || 5000 })
+          : await execInTab(tabId, PRE_GUARDED_CLICK, [resolvedSelector, buttonText], frameId);
         if (!r?.ok) throw new Error(r?.error || 'Click failed');
-        const outcomeFields = await evaluateActionOutcome(tabId, step, initialUrl, failureBaseline, responseBaseline, run.payload?.stateGraph || null);
+        const outcomeFields = await evaluateActionOutcome(tabId, step, initialUrl, failureBaseline, responseBaseline, run.payload?.stateGraph || null, frameId);
         if (outcomeFields.outcome === 'failure') {
           const msg = outcomeFields.failureSignature?.text || 'Action rejected by the page';
           return { stepId: step.stepId, action: a, status: 'error', error: msg, selector: resolvedSelector, resolvedVia, target: step.target, clickDiag: r, ...outcomeFields, durationMs: Date.now() - t0 };
@@ -2254,6 +2555,18 @@ export default defineBackground(() => {
       if (a === 'wait_for') {
         const timeout = step.timeout || 8000;
         const start = Date.now();
+        // onTimeout: 'continue' — a SETTLE wait. Resolve the instant the target
+        // appears; if it never does, proceed anyway (status 'ok', timedOut:true)
+        // instead of failing the chain. This is what makes a delay→wait_for
+        // conversion strictly safe: it's faster than the old fixed sleep when the
+        // content shows up early, and never worse than it when the selector guess
+        // is wrong. Use it ONLY for settle/paint waits — a wait_for that guards a
+        // real precondition should still throw loudly (omit onTimeout).
+        const softTimeout = step.onTimeout === 'continue';
+        const stable = wantsStable(step);
+        const quietMs = quietMsOf(step);
+        const tracker = new ContentStabilityTracker();
+        const trackKey = String(step.stepId || step.selector || step.text || 'wait');
 
         // URL pattern mode: poll until window.location matches
         if (step.url_pattern) {
@@ -2263,34 +2576,71 @@ export default defineBackground(() => {
             if (match?.matched) return { stepId: step.stepId, action: a, status: 'ok', url: match.url, durationMs: Date.now() - t0 };
             await new Promise(r => setTimeout(r, 200));
           }
+          if (softTimeout) return { stepId: step.stepId, action: a, status: 'ok', url_pattern: pat, timedOut: true, durationMs: Date.now() - t0 };
           throw new Error('wait_for url timeout: ' + pat);
         }
 
-        // Element selector mode
+        // Element / text / state.stable mode
+        // Frame-scoped waits re-resolve the frameId inside the poll loop —
+        // the iframe this wait targets (e.g. a dialog) may not exist yet when
+        // the step starts, and may be torn down/recreated between polls.
+        const framePat = step.frame ? interpolate(step.frame, { ...params, ...buffer }) : null;
+        let waitFrameId: number | null = framePat ? await resolveFrameId(tabId, framePat) : null;
         let sel: string | null = step.selector || null;
         if (!sel && step.target && abstractTargets?.[step.target]) {
-          const res = await execInTab(tabId, PRE_RESOLVE_TARGET, [abstractTargets[step.target]]);
+          const res = framePat && waitFrameId == null
+            ? null // frame not up yet — fall through to fallbackSelectors
+            : await execInTab(tabId, PRE_RESOLVE_TARGET, [abstractTargets[step.target]], waitFrameId);
           sel = res?.selector || null;
           if (!sel) sel = abstractTargets[step.target].fallbackSelectors?.[0] || null;
         }
-        if (!sel) sel = interpolate(step.target || '', params); // last resort: literal
+        const hasText = !!(step.text || step.state?.text);
+        if (!sel && step.target && !stable && !hasText) {
+          sel = interpolate(step.target || '', params); // last resort: literal
+        }
         while (Date.now() - start < timeout) {
-          const match = await execInTab(tabId, PRE_MATCH_WAIT_FOR, [step, sel as string, null]); // null: stateGraph causes PRE_ASSESS_STATE ref error in MAIN world
-          if (match?.matched) return { stepId: step.stepId, action: a, status: 'ok', selector: sel, state: match.state, durationMs: Date.now() - t0 };
+          if (framePat && waitFrameId == null) {
+            waitFrameId = await resolveFrameId(tabId, framePat);
+            if (waitFrameId == null) { await new Promise(r => setTimeout(r, 300)); continue; }
+          }
+          let match: any = null;
+          try {
+            match = await execInTab(tabId, PRE_MATCH_WAIT_FOR, [step, sel as string, null], waitFrameId); // null: stateGraph causes PRE_ASSESS_STATE ref error in MAIN world
+          } catch (e) {
+            // Swallow and retry until the deadline: executeScript throws
+            // transiently while the page is mid-navigation ("Cannot access
+            // contents of the page…") — which is precisely the situation a
+            // wait_for exists to ride out. Frame-scoped waits also re-resolve
+            // the frame (dialog iframes get torn down and recreated).
+            if (framePat) waitFrameId = null;
+            await new Promise(r => setTimeout(r, 300));
+            continue;
+          }
+          if (match?.matched) {
+            if (stable && !tracker.observe(trackKey, match.contentHash || '', quietMs)) {
+              await new Promise(r => setTimeout(r, 200));
+              continue;
+            }
+            return { stepId: step.stepId, action: a, status: 'ok', selector: sel, state: match.state, durationMs: Date.now() - t0 };
+          }
           await new Promise(r => setTimeout(r, 300));
         }
-        throw new Error('wait_for timeout: ' + sel);
+        if (softTimeout) return { stepId: step.stepId, action: a, status: 'ok', selector: sel, timedOut: true, durationMs: Date.now() - t0 };
+        const label = hasText
+          ? `text "${interpolate(String(step.text || step.state?.text || ''), { ...params, ...buffer })}"`
+          : (sel || (stable ? 'state.stable' : '[state]'));
+        throw new Error('wait_for timeout: ' + label);
       }
 
       if (a === 'read') {
         const candidates = step.candidates || (step.selector ? [step.selector] : []);
         if (candidates.length === 0) {
           // No selectors — do a full page snapshot
-          const snapshot = await execInTab(tabId, PRE_PAGE_SNAPSHOT, []);
+          const snapshot = await execInTab(tabId, PRE_PAGE_SNAPSHOT, [], frameId);
           if (step.store_as) buffer[step.store_as] = snapshot;
           return { stepId: step.stepId, action: a, status: 'ok', text: JSON.stringify(snapshot), snapshot, durationMs: Date.now() - t0 };
         }
-        const r = await execInTab(tabId, PRE_GUARDED_READ, [candidates]);
+        const r = await execInTab(tabId, PRE_GUARDED_READ, [candidates], frameId);
         if (step.store_as) buffer[step.store_as] = r?.text || null;
         return { stepId: step.stepId, action: a, status: 'ok', text: r?.text || null, selector: r?.selector, durationMs: Date.now() - t0 };
       }
@@ -2358,7 +2708,12 @@ export default defineBackground(() => {
       if (a === 'click_text') {
         const text = interpolate(step.text || '', { ...params, ...buffer });
         const exact = step.exact === true;
-        const r = await execInTab(tabId, PRE_FIND_AND_CLICK_TEXT, [text, 1500, exact]);
+        if (step.trusted) {
+          const r = await trustedCoordClick(tabId, { text, exact, frameId, framePattern: step.frame ? interpolate(step.frame, { ...params, ...buffer }) : null, timeoutMs: step.timeout || 5000 });
+          if (!r.ok) throw new Error(r.error || ('Text not found: ' + text));
+          return { stepId: step.stepId, action: a, status: 'ok', result: r, durationMs: Date.now() - t0 };
+        }
+        const r = await execInTab(tabId, PRE_FIND_AND_CLICK_TEXT, [text, 1500, exact], frameId);
         if (!r?.found) throw new Error('Text not found: ' + text);
         return { stepId: step.stepId, action: a, status: 'ok', result: r, durationMs: Date.now() - t0 };
       }
@@ -2409,16 +2764,87 @@ export default defineBackground(() => {
         return { stepId: step.stepId, action: a, status: 'ok', message, durationMs: Date.now() - t0 };
       }
 
+      if (a === 'anchor_comment') {
+        const values = { ...params, ...buffer };
+        const rawOccurrence = interpolate(String(step.occurrence ?? ''), values);
+        const result = await anchorComment(
+          interpolate(step.target_phrase || step.text || '', values),
+          rawOccurrence ? (/^\d+$/.test(rawOccurrence) ? Number(rawOccurrence) : NaN) : undefined,
+          interpolate(step.comment_text || '', values), {
+            cancelled: () => !!abortFlags.get(run.runId) || run.status === 'aborted',
+            platform: async () => (await chrome.runtime.getPlatformInfo()).os,
+            attach: async () => {
+              await ensureInputDebugger(tabId, () => !!abortFlags.get(run.runId) || run.status === 'aborted');
+            },
+            send: (method, payload) => chrome.debugger.sendCommand({ tabId }, method, payload),
+            bodyState: async () => {
+              const state = await execInTab(tabId, docsCommentDOM, ['bodyState']);
+              if (!state || typeof state !== 'object') throw new Error('Cannot inspect body state');
+              return state as { clickPoint: { x: number; y: number } | null; focused: boolean };
+            },
+            modalText: async () => {
+              const text = await execInTab(tabId, docsCommentDOM, ['blockingModalText']);
+              if (text === null || typeof text === 'string') return text;
+              throw new Error('Cannot inspect blocking modal');
+            },
+            findState: async () => {
+              const state = await execInTab(tabId, docsCommentDOM, ['findBoxState']);
+              if (!state || typeof state !== 'object') throw new Error('Cannot inspect find box');
+              return state as { visible: boolean; focused: boolean; current: number; total: number };
+            },
+            composerState: async composerToken => {
+              const state = await execInTab(tabId, docsCommentDOM, ['composerState', '', composerToken]);
+              if (!state || typeof state !== 'object') throw new Error('Cannot inspect composer');
+              return state as { visible: boolean; focused: boolean; text: string };
+            },
+            composerCommentButtonPoint: async composerToken => {
+              const point = await execInTab(tabId, docsCommentDOM, ['composerCommentButtonPoint', '', composerToken]);
+              if (point === null || typeof point === 'object') return point as { x: number; y: number } | null;
+              throw new Error('Cannot inspect comment button');
+            },
+            composerCancelButtonPoint: async composerToken => {
+              const point = await execInTab(tabId, docsCommentDOM, ['composerCancelButtonPoint', '', composerToken]);
+              if (point === null || typeof point === 'object') return point as { x: number; y: number } | null;
+              throw new Error('Cannot inspect cancel button');
+            },
+            cardExactTextCount: async text => {
+              const count = await execInTab(tabId, docsCommentDOM, ['cardExactTextCount', text]);
+              if (!Number.isSafeInteger(count) || count < 0) throw new Error('Cannot inspect comment card');
+              return count;
+            },
+          });
+        return { stepId: step.stepId, action: a, status: 'ok', result, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'drag_select') {
+        await dragSelection(step.start, step.end, {
+          attach: async () => {
+            await ensureInputDebugger(tabId, () => !!abortFlags.get(run.runId) || run.status === 'aborted');
+          },
+          platform: async () => (await chrome.runtime.getPlatformInfo()).os,
+          send: (method, event) => chrome.debugger.sendCommand({ tabId }, method, event),
+          cancelled: () => !!abortFlags.get(run.runId) || run.status === 'aborted',
+        });
+        return { stepId: step.stepId, action: a, status: 'ok', durationMs: Date.now() - t0 };
+      }
+
       if (a === 'key') {
         const spec = step.key || step.value || '';
         const specs: string[] = Array.isArray(step.keys) ? step.keys
           : (spec.includes(' ') ? spec.split(/\s+/).filter(Boolean) : [spec]);
         if (!specs.length || !specs[0]) throw new Error('key action requires key or value');
-        await ensureDebugger(tabId);
-        for (const s of specs) {
-          await dispatchKeyChordCDP(tabId, s);
-          if (specs.length > 1) await new Promise(r => setTimeout(r, 60));
-        }
+        const repeat = keyRepeatCount(
+          step.repeat === undefined ? 1 : interpolate(String(step.repeat), { ...params, ...buffer }),
+          step.repeatText === undefined ? undefined : interpolate(step.repeatText, { ...params, ...buffer }),
+        );
+        await repeatedKeys(specs, repeat, {
+          attach: async () => {
+            await ensureInputDebugger(tabId, () => !!abortFlags.get(run.runId) || run.status === 'aborted');
+          },
+          platform: async () => (await chrome.runtime.getPlatformInfo()).os,
+          send: (method, event) => chrome.debugger.sendCommand({ tabId }, method, event),
+          cancelled: () => !!abortFlags.get(run.runId) || run.status === 'aborted',
+        });
         return { stepId: step.stepId, action: a, status: 'ok', value: spec, keys: specs, durationMs: Date.now() - t0 };
       }
 
@@ -2456,7 +2882,8 @@ export default defineBackground(() => {
       return { stepId: step.stepId, action: a, status: 'unsupported', durationMs: Date.now() - t0 };
 
     } catch (err: any) {
-      const message = err.message;
+      const message = err?.message || String(err);
+      const postedStatus = typeof err?.postedStatus === 'string' ? err.postedStatus : undefined;
       let surpriseEvidence: any[] | undefined;
       if (message.includes('Cannot resolve') || message.includes('No selector for') || message.includes('Row not found') || message.includes('Text not found') || message.includes('Not found:')) {
         surpriseEvidence = [createSurpriseEvidence('target_not_found', {
@@ -2483,7 +2910,7 @@ export default defineBackground(() => {
           details: message,
         })];
       }
-      return { stepId: step.stepId, action: a, status: 'error', error: message, surpriseEvidence, durationMs: Date.now() - t0 };
+      return { stepId: step.stepId, action: a, status: 'error', error: message, postedStatus, surpriseEvidence, durationMs: Date.now() - t0 };
     }
   }
 
@@ -2677,26 +3104,53 @@ export default defineBackground(() => {
 
   // ── Chain runner ──────────────────────────────────────────────────────────────
   async function startRun(runId: string, payload: any, params: Record<string, any>, tabId: number) {
-    // Auto-discover active tab if none provided
+    // Auto-discover the target tab if none provided.
+    // Prefer a tab whose host matches params.base_url over the arbitrary active tab.
+    // The active tab of the last-focused window is very often NOT the site the recipe
+    // targets — grabbing it silently ran the whole chain against the wrong page (the
+    // 2026-07 chatgpt.com silent-failure class). We only fall back to the active tab
+    // when base_url isn't set or no matching tab exists.
     if (!tabId) {
-      const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-      if (tabs[0]?.id) {
-        tabId = tabs[0].id;
-        console.log('[Yeshie] Auto-discovered active tab:', tabId, tabs[0].url);
+      const baseUrl = params?.base_url;
+      // Normalize: chrome.tabs.query match patterns need `https://host/*` — a
+      // trailing slash on base_url (e.g. "https://chatgpt.com/") would produce
+      // an invalid "https://chatgpt.com//*" that matches nothing.
+      const baseUrlForMatch = baseUrl ? String(baseUrl).replace(/\/+$/, '') : baseUrl;
+      let baseHost: string | null = null;
+      try { if (baseUrl) baseHost = new URL(baseUrl).hostname; } catch { /* malformed */ }
+      const hostMatches = (u?: string) => {
+        if (!u || !baseHost) return false;
+        let h: string;
+        try { h = new URL(u).hostname; } catch { return false; }
+        if (h === baseHost) return true;
+        // github.com recipes also run on subdomains (gist.github.com, etc.)
+        if ((baseHost === 'github.com' || baseHost.endsWith('.github.com')) && (h === 'github.com' || h.endsWith('.github.com'))) return true;
+        return false;
+      };
+
+      const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+
+      if (baseHost && !hostMatches(activeTab?.url)) {
+        // Active tab is on the wrong site (or there's none) — look for a base_url-host tab.
+        const queryUrl = (baseHost === 'github.com' || baseHost.endsWith('.github.com')) ? 'https://*.github.com/*' : `${baseUrlForMatch}/*`;
+        const matching = await chrome.tabs.query({ url: queryUrl });
+        // Prefer an active/focused matching tab, else the first matching tab.
+        const chosen = matching.find(t => t.active) || matching[0];
+        if (chosen?.id) {
+          tabId = chosen.id;
+          console.log('[Yeshie] Selected base_url-matching tab over active tab:', tabId, chosen.url);
+        } else if (activeTab?.id) {
+          tabId = activeTab.id;
+          console.warn('[Yeshie] No tab on base_url host', baseHost, '— falling back to active tab:', tabId, activeTab.url);
+        } else {
+          throw new Error('No active tab found. Open a browser tab first.');
+        }
+      } else if (activeTab?.id) {
+        tabId = activeTab.id;
+        console.log('[Yeshie] Auto-discovered active tab:', tabId, activeTab.url);
       } else {
-        // Fallback: find any tab with the base_url or any http tab
-        const baseUrl = params?.base_url;
-        // For github.com: also search subdomains (gist.github.com, etc.)
-        let tabQueryUrl = baseUrl ? `${baseUrl}/*` : 'https://*/*';
-        try {
-          if (baseUrl) {
-            const bHost = new URL(baseUrl).hostname;
-            if (bHost === 'github.com' || bHost.endsWith('.github.com')) {
-              tabQueryUrl = 'https://*.github.com/*';
-            }
-          }
-        } catch { /* ignore malformed URL */ }
-        const allTabs = await chrome.tabs.query({ url: tabQueryUrl });
+        // No active tab at all — last resort: any http tab (or base_url host tab).
+        const allTabs = await chrome.tabs.query({ url: baseUrlForMatch ? `${baseUrlForMatch}/*` : 'https://*/*' });
         if (allTabs[0]?.id) {
           tabId = allTabs[0].id;
           console.log('[Yeshie] Found matching tab:', tabId, allTabs[0].url);
@@ -2904,6 +3358,13 @@ export default defineBackground(() => {
           run.resolvedTargets.push({ abstractName: step.target, selector: res.selector, confidence: res.confidence || 0, resolvedVia: res.resolvedVia, resolvedAt: new Date().toISOString() });
         }
 
+        if (step.action === 'assess_state' && res.matched && step.onMatch === 'exit_success') {
+          run.status = 'complete';
+          run.result = buildChainResult(run, t0, true);
+          await chrome.storage.session.set({ [runId]: run.result });
+          return;
+        }
+
         if (step.action === 'assess_state' && !res.matched && step.onMismatch) {
           const branchName = step.onMismatch.replace('branch:', '');
           const branchSteps = payload.branches?.[branchName]?.steps || payload.branches?.[branchName] || [];
@@ -2920,10 +3381,19 @@ export default defineBackground(() => {
         }
 
         if (res.status === 'error') {
-          run.status = 'failed';
-          run.result = buildChainResult(run, t0, false, res.error);
-          await chrome.storage.session.set({ [runId]: run.result });
-          return;
+          if (step.optional) {
+            // Optional step: log the failure into the result but don't halt the
+            // chain. Previously `optional: true` was declared on several payload
+            // steps (e.g. yeshid 01-user-add s7b/s8c) but never actually honored
+            // here — any error on those steps still hard-failed the whole run.
+            res.status = 'skipped_error';
+            res.optionalFailure = true;
+          } else {
+            run.status = 'failed';
+            run.result = buildChainResult(run, t0, false, res.error);
+            await chrome.storage.session.set({ [runId]: run.result });
+            return;
+          }
         }
       }
 
@@ -3046,82 +3516,9 @@ export default defineBackground(() => {
       return true;
     }
     if (msg.type === 'teach_start' || msg.type === 'teach_goto' || msg.type === 'teach_end') {
-      // Forward teach messages to the correct tab.
-      // Preference order: (1) targetTabId from side panel (originating tab's conversation),
-      // (2) currently active real tab, (3) YeshID tab, (4) any https tab.
-      (async () => {
-        // Find best tab
-        let targetTabId: number | undefined;
-        // If the side panel specified a tab (from the conversation that triggered this), use it
-        if (msg.targetTabId) {
-          targetTabId = msg.targetTabId;
-        } else {
-          const focused = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-          const realTab = focused.find(t => t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('chrome-extension://'));
-          if (realTab?.id) {
-            targetTabId = realTab.id;
-          } else {
-            const yeshidTabs = await chrome.tabs.query({ url: 'https://app.yeshid.com/*' });
-            if (yeshidTabs[0]?.id) targetTabId = yeshidTabs[0].id;
-            else {
-              const allTabs = await chrome.tabs.query({ url: 'https://*/*' });
-              if (allTabs[0]?.id) targetTabId = allTabs[0].id;
-            }
-          }
-        }
-
-        if (!targetTabId) {
-          sendResponse({ ok: false, error: 'No suitable tab found. Open the YeshID page first.' });
-          return;
-        }
-
-        const teachMsg: any = { type: msg.type };
-        if (msg.type === 'teach_start') teachMsg.steps = msg.steps;
-        if (msg.type === 'teach_goto') teachMsg.stepIndex = msg.stepIndex;
-
-        // Attempt to send; if content script not loaded, inject it and retry once
-        const trySend = async (): Promise<{ ok: boolean; error?: string }> => {
-          try {
-            await chrome.tabs.sendMessage(targetTabId!, teachMsg);
-            return { ok: true };
-          } catch (_) {
-            return { ok: false };
-          }
-        };
-
-        let result = await trySend();
-        if (!result.ok) {
-          // Content overlay not injected — inject it now (happens after hot-reload)
-          console.log('[Yeshie] Content overlay not loaded in tab', targetTabId, '— injecting');
-          try {
-            await chrome.scripting.executeScript({
-              target: { tabId: targetTabId! },
-              files: ['content-overlay.js']
-            });
-            // Poll for readiness: up to 5 × 200ms = 1s instead of a fixed 300ms delay
-            for (let i = 0; i < 5 && !result.ok; i++) {
-              await new Promise(r => setTimeout(r, 200));
-              result = await trySend();
-            }
-          } catch (injectErr: any) {
-            console.warn('[Yeshie] Failed to inject content overlay:', injectErr.message);
-            sendResponse({ ok: false, error: `Could not inject overlay into tab ${targetTabId}: ${injectErr.message}` });
-            return;
-          }
-        }
-
-        if (!result.ok) {
-          sendResponse({ ok: false, error: 'Content overlay loaded but message delivery still failed. Try navigating the YeshID tab.' });
-        } else {
-          // Track teach session so we can restore it after SPA navigation
-          if (msg.type === 'teach_start') {
-            teachSessions.set(targetTabId, { steps: msg.steps, currentStepIndex: 0 });
-          } else if (msg.type === 'teach_end') {
-            teachSessions.delete(targetTabId);
-          }
-          sendResponse({ ok: true, tabId: targetTabId });
-        }
-      })();
+      handleTeachMessage(msg)
+        .then(sendResponse)
+        .catch((err: any) => sendResponse({ ok: false, error: err.message }));
       return true;
     }
     // Teach progress tracking — sent by content script, used to maintain restore point

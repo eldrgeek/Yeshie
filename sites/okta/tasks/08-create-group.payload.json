@@ -9,7 +9,7 @@
     "author": "session-2026-04-14",
     "auth": {
       "type": "manual_required",
-      "note": "Okta OAuth PKCE — session must already be active at trial-8689388-admin.okta.com"
+      "note": "Okta OAuth PKCE \u2014 session must already be active at trial-8689388-admin.okta.com"
     },
     "params": {
       "group_name": {
@@ -28,9 +28,9 @@
       }
     },
     "anomalies": [
-      "perceive required instead of read — Okta SPA",
+      "perceive required instead of read \u2014 Okta SPA",
       "Add group link seen in 05-list-groups abstractTargets as href='#' text='Add group'",
-      "After save, Okta may navigate to the new group's detail page — perceive to confirm"
+      "After save, Okta may navigate to the new group's detail page \u2014 perceive to confirm"
     ]
   },
   "params": {
@@ -47,9 +47,11 @@
     },
     {
       "stepId": "s2",
-      "action": "delay",
-      "ms": 3000,
-      "note": "Wait for MUI table to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s3",
@@ -65,9 +67,11 @@
     },
     {
       "stepId": "s5",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for dialog to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s6",
@@ -80,31 +84,38 @@
       "action": "type",
       "selector": "input[name='profile.name']",
       "value": "{{group_name}}",
-      "note": "Type group name — Okta uses profile.name not name"
+      "note": "Type group name \u2014 Okta uses profile.name not name"
     },
     {
       "stepId": "s8",
       "action": "type",
       "selector": "input[name='profile.description']",
       "value": "{{group_description}}",
-      "note": "Type group description — Okta uses profile.description"
+      "note": "Type group description \u2014 Okta uses profile.description"
     },
     {
       "stepId": "s9",
-      "action": "delay",
-      "ms": 500
+      "action": "wait_for",
+      "selector": "input[type='submit']",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for input[type='submit'] before next step (was delay 500ms)"
     },
     {
       "stepId": "s10",
       "action": "click",
       "selector": "input[type='submit']",
-      "note": "Submit the form — Okta uses input[type=submit] not a Save button"
+      "note": "Submit the form \u2014 Okta uses input[type=submit] not a Save button"
     },
     {
       "stepId": "s11",
-      "action": "delay",
-      "ms": 2500,
-      "note": "Wait for navigation after save"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s12",

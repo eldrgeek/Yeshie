@@ -32,8 +32,8 @@
       },
       "email_prefix": {
         "required": true,
-        "description": "Email prefix (part before @). The domain is selected in the UI — defaults to @mike-wolf.com.",
-        "hint": "e.g. 'john.smith' — do NOT include the @ or domain"
+        "description": "Email prefix (part before @). The domain is selected in the UI \u2014 defaults to @mike-wolf.com.",
+        "hint": "e.g. 'john.smith' \u2014 do NOT include the @ or domain"
       },
       "recovery_email": {
         "required": false,
@@ -56,7 +56,9 @@
       "primaryVerification": "url_contains '/organization/people' AND new_person_in_table contains first_name and last_name"
     },
     "id": "onboard-person",
-    "title": "Onboard New Person"
+    "title": "Onboard New Person",
+    "deprecated": true,
+    "deprecatedNote": "SUPERSEDED 2026-07-10 \u2014 duplicate of sites/yeshid/tasks/01-user-add.payload.json for the same site (app.yeshid.com), never actually run (runCount 0 at time of dedupe check) and drifted from the real form contract (uses email_prefix/recovery_email/start_date/template params against a '/organization/people/onboard' route + 'onboard person' button text, none of which match the live form live-verified this session: route is /organization/people/create reached via 'Create person' button, params are first_name/last_name/company_email/backup_email/start_date_preset). Do not run this file \u2014 use sites/yeshid/tasks/01-user-add.payload.json instead. Kept on disk (not deleted) only because it's the only onboard-person recipe under sites/app.yeshid.com/, which otherwise holds 13 other unique, non-duplicated tasks (import-users, offboard-person, audit-campaign, etc.) not touched in this pass \u2014 reconciling those two parallel site directories for the same domain is a bigger reorg than this fix, flagged as a follow-up, not done here."
   },
   "runId": "yeshid-onboard-person-{{timestamp}}",
   "mode": "learning",
@@ -178,7 +180,7 @@
       "action": "wait_for",
       "selector": "[data-cy=\"username\"]",
       "timeout": 5000,
-      "note": "Confirm authenticated — username widget must be visible."
+      "note": "Confirm authenticated \u2014 username widget must be visible."
     },
     {
       "stepId": "s1",
@@ -232,7 +234,7 @@
     {
       "stepId": "s7",
       "action": "click_text",
-      "note": "Click 'Create and onboard person' button to submit. Using click_text — cachedSelector was :has-text() (invalid CSS). [was: click submit-button]",
+      "note": "Click 'Create and onboard person' button to submit. Using click_text \u2014 cachedSelector was :has-text() (invalid CSS). [was: click submit-button]",
       "responseSignature": [
         {
           "any_of": [

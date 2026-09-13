@@ -5,10 +5,14 @@
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { appendFileSync, mkdirSync, existsSync, readFileSync, readdirSync, writeFileSync, statSync } from 'fs';
+import { buildRunRequestedConversationEntry } from './run-attribution.js';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { execFile, spawn } from 'child_process';
 import { homedir } from 'os';
+import { YSocketIO } from 'y-socket.io/dist/server';
+import { parsePulseVoiceTurn, pulseVoiceTeammates } from './pulse-voice.js';
+import { maybeAutoHeal } from '../../improve.js';
 
 // ====================== dispatch_input config ======================
 // See ~/Projects/SOMA/specs/heartbeat-pattern-v1.md
@@ -22,6 +26,77 @@ const DEE_REPLIES_PATH = join(DISPATCH_DIR, 'dee_replies.jsonl');
 
 // Cost-ledger path: ~/Projects/SOMA/services/cost-ledger/<date>.jsonl
 const COST_LEDGER_DIR = join(homedir(), 'Projects', 'SOMA', 'services', 'cost-ledger');
+
+// ====================== SOMA error telemetry ======================
+// Forward Yeshie recipe failures to the shared SOMA error-intake service
+// (soma-errors, POST /api/errors). System errors become WORKQUEUE tickets;
+// user/auth conditions are logged for usability review. This is the relay-side
+// half of the SOMA error-pipeline standard (client reference:
+// playmaker/src/lib/errorReport.ts). The relay — not the ephemeral MV3 service
+// worker — is the reporter: it's a persistent Node process with network access
+// that already sees every chain outcome. This code must NEVER throw: a broken
+// reporter must not break the relay it's instrumenting.
+const SOMA_ERROR_SERVICE_URL = (process.env.SOMA_ERROR_SERVICE_URL || 'http://localhost:4300').replace(/\/+$/, '');
+const YESHIE_BUILD_SHA = process.env.YESHIE_BUILD_SHA || null;
+// Light throttle: skip re-POSTing an identical (route+message) within this
+// window. soma-errors already dedups by fingerprint into one ticket, so this
+// only spares the service from retry-loop spam; correctness doesn't depend on it.
+const _errorReportThrottle = new Map(); // key -> last ts (ms)
+const ERROR_REPORT_THROTTLE_MS = 15_000;
+
+async function reportErrorToSoma({ message, kind, route, action, extra }) {
+  try {
+    if (!message || typeof message !== 'string') return;
+    const key = `${route || ''}|${message}`;
+    const now = Date.now();
+    const last = _errorReportThrottle.get(key);
+    if (last && now - last < ERROR_REPORT_THROTTLE_MS) return;
+    _errorReportThrottle.set(key, now);
+    const body = { app: 'yeshie', message: message.slice(0, 2000), kind };
+    if (route) body.route = route;
+    if (action) body.action = action;
+    if (YESHIE_BUILD_SHA) body.buildSha = YESHIE_BUILD_SHA;
+    if (extra) body.extra = extra;
+    const resp = await fetch(`${SOMA_ERROR_SERVICE_URL}/api/errors`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    if (!resp.ok) { console.error(`[relay] soma-errors responded ${resp.status}`); return; }
+    const j = await resp.json().catch(() => ({}));
+    if (j.ticketId) console.log(`[relay] reported yeshie ${kind} error -> ticket ${j.ticketId} (${route || 'no-route'})`);
+  } catch (e) {
+    console.error('[relay] soma-errors report failed:', e.message);
+  }
+}
+
+// Map a (failed) ChainResult to an error report. No-op on success.
+function reportChainOutcome(result, fallbackError) {
+  try {
+    if ((!result || result.success !== false) && !fallbackError) return;
+    const stepResults = (result && result.stepResults) || [];
+    const failing = stepResults.find((s) => s && (s.status === 'error' || s.status === 'auth_required'));
+    const site = result && result.site;
+    const name = result && (result.payloadName || result?.payload?._meta?.task);
+    const route = [site, name].filter(Boolean).join('/') || site || undefined;
+    const action = failing ? `${failing.stepId}:${failing.action}` : undefined;
+    const message = (result && result.error) || fallbackError || 'recipe failed';
+    // auth/login conditions are environmental, not engineering bugs -> 'user'.
+    const isAuth = (failing && failing.status === 'auth_required')
+      || /\bauth\b|login|not authenticated|did not complete login/i.test(message);
+    const kind = isAuth ? 'user' : 'system';
+    reportErrorToSoma({
+      message, kind, route, action,
+      extra: {
+        failingStep: failing
+          ? { stepId: failing.stepId, action: failing.action, selector: failing.selector, resolvedVia: failing.resolvedVia }
+          : null,
+        surprise: result?.surpriseEvidence ? result.surpriseEvidence.slice(0, 3) : undefined,
+        buildVersion: result?.buildVersion,
+      },
+    });
+  } catch (e) {
+    console.error('[relay] reportChainOutcome failed:', e.message);
+  }
+}
 
 // Gemini Flash compression helper.
 // Returns {compressed_text, asks, dropped, input_tokens, output_tokens, usd} or throws.
@@ -130,10 +205,103 @@ function isAllowedClientIp(ip) {
   return false;
 }
 
+const TEACH_START_KEYS = new Set(['steps', 'tabId']);
+const TEACH_STEP_KEYS = new Set([
+  'stepIndex',
+  'totalSteps',
+  'instruction',
+  'targetSelector',
+  'highlightTarget',
+  'waitForAction',
+  'position',
+]);
+const TEACH_POSITIONS = new Set(['top', 'bottom', 'left', 'right', 'auto']);
+const TEACH_WAIT_ACTIONS = new Set(['click', 'type', 'navigate']);
+
+function validateTeachStartPayload(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return 'body must be an object';
+  }
+  const unknownTopLevel = Object.keys(body).filter(key => !TEACH_START_KEYS.has(key));
+  if (unknownTopLevel.length > 0) {
+    return `unknown field${unknownTopLevel.length === 1 ? '' : 's'}: ${unknownTopLevel.join(', ')}`;
+  }
+  if (!Array.isArray(body.steps) || body.steps.length === 0) {
+    return 'steps must be a non-empty array';
+  }
+  if (body.steps.length > 25) {
+    return 'steps must contain at most 25 items';
+  }
+  if (body.tabId !== undefined && (!Number.isInteger(body.tabId) || body.tabId <= 0)) {
+    return 'tabId must be a positive integer';
+  }
+
+  for (let i = 0; i < body.steps.length; i++) {
+    const step = body.steps[i];
+    const prefix = `steps[${i}]`;
+    if (!step || typeof step !== 'object' || Array.isArray(step)) {
+      return `${prefix} must be an object`;
+    }
+    const unknownStepFields = Object.keys(step).filter(key => !TEACH_STEP_KEYS.has(key));
+    if (unknownStepFields.length > 0) {
+      return `${prefix} has unknown field${unknownStepFields.length === 1 ? '' : 's'}: ${unknownStepFields.join(', ')}`;
+    }
+    if (!Number.isInteger(step.stepIndex) || step.stepIndex !== i) {
+      return `${prefix}.stepIndex must equal ${i}`;
+    }
+    if (!Number.isInteger(step.totalSteps) || step.totalSteps !== body.steps.length) {
+      return `${prefix}.totalSteps must equal ${body.steps.length}`;
+    }
+    if (typeof step.instruction !== 'string' || !step.instruction.trim() || step.instruction.length > 500) {
+      return `${prefix}.instruction must be a non-empty string of at most 500 characters`;
+    }
+    // The existing tooltip renders instruction text as HTML. Keep this HTTP
+    // control plane text-only so a caller cannot inject markup into a page.
+    if (/[<>]/.test(step.instruction)) {
+      return `${prefix}.instruction must be plain text`;
+    }
+    if (typeof step.targetSelector !== 'string' || !step.targetSelector.trim() || step.targetSelector.length > 1000) {
+      return `${prefix}.targetSelector must be a non-empty string of at most 1000 characters`;
+    }
+    if (typeof step.highlightTarget !== 'boolean') {
+      return `${prefix}.highlightTarget must be a boolean`;
+    }
+    if (!TEACH_POSITIONS.has(step.position)) {
+      return `${prefix}.position must be one of: ${[...TEACH_POSITIONS].join(', ')}`;
+    }
+    if (
+      step.waitForAction !== undefined
+      && step.waitForAction !== null
+      && !TEACH_WAIT_ACTIONS.has(step.waitForAction)
+    ) {
+      return `${prefix}.waitForAction must be click, type, navigate, or null`;
+    }
+  }
+  return null;
+}
+
 // ====================== Conversation Logger ======================
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = join(__dirname, '..', '..');
+const SITES_ROOT = join(REPO_ROOT, 'sites');
 const JOBS_STATE_FILE = join(__dirname, 'jobs-state.json');
+
+function attachAutoHeal(body, result) {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return result;
+  try {
+    const autoHeal = maybeAutoHeal({
+      payload: body?.payload,
+      payloadPath: body?.payloadPath || body?.payload_path,
+      chainResult: result,
+      sitesRoot: SITES_ROOT,
+    });
+    return { ...result, autoHeal };
+  } catch (e) {
+    console.warn('[relay] auto-heal skipped:', e.message);
+    return { ...result, autoHeal: { healed: false, reason: 'heal_error', error: e.message } };
+  }
+}
 const LOGS_DIR = join(__dirname, '..', '..', 'logs', 'conversations');
 
 function ensureLogsDir() {
@@ -213,6 +381,16 @@ export function createRelay(port = 3333) {
   // Pending calls: commandId → { resolve, reject, timer }
   const pending = new Map();
 
+  // Async (fire-and-forget) skill runs: id → { id, status, result, error, createdAt, updatedAt }
+  // A run submitted via POST /run/async registers a normal `pending` entry whose
+  // resolve/reject deposit the settled ChainResult here instead of replying to an
+  // HTTP request. That reuses every existing hook — chain_result, chain_error,
+  // status_update progress, and disconnect-rejection all already operate on
+  // `pending`. Caller polls GET /run/result/:id for the ChainResult. This is the
+  // escape hatch for recipes (e.g. chat.deepseek.com with DeepThink) whose run
+  // exceeds the ~60s synchronous MCP cap.
+  const asyncRuns = new Map();
+
   // HUD ask store
   const hudAsks = new Map();
 
@@ -222,9 +400,64 @@ export function createRelay(port = 3333) {
     fetch('http://localhost:3334/show', { method: 'POST' }).catch(() => {});
   }
 
-  // Track connected extensions — last registered is primary; others are fallbacks
+  // ── Collaborative editing (Phase 2): Yjs over the existing socket.io ─────────
+  // Each room is a base64url-encoded file path; the .md file is the persistent
+  // backing store. Load the file into the shared doc when the room opens; save
+  // (debounced) on every change; final save when the last client disconnects.
+  const COLLAB_TEXT = 'content';
+  const _collabSaveTimers = new Map();
+  const _collabDirty = new Set();        // rooms with unsaved edits
+  const _collabLastWrite = new Map();    // doc.name -> last content WE wrote to disk
+  function collabRoomToPath(name) {
+    try { const p = Buffer.from(name, 'base64url').toString('utf8'); return p.startsWith(homedir()) ? p : null; }
+    catch { return null; }
+  }
+  function collabSave(doc) {
+    const fp = collabRoomToPath(doc.name); if (!fp) return;
+    const content = doc.getText(COLLAB_TEXT).toString();
+    try {
+      // No-data-loss guard: if the file changed on disk since our last write
+      // (some other writer touched it), back that version up before we overwrite.
+      let disk = null; try { disk = readFileSync(fp, 'utf-8'); } catch {}
+      const last = _collabLastWrite.get(doc.name);
+      if (disk != null && disk !== last && disk !== content) {
+        const bak = fp + '.ext-' + Date.now() + '.bak';
+        try { writeFileSync(bak, disk, 'utf-8'); console.warn('[collab] external change backed up ->', bak); } catch {}
+      }
+      mkdirSync(dirname(fp), { recursive: true });
+      writeFileSync(fp, content, 'utf-8');
+      _collabLastWrite.set(doc.name, content);
+      _collabDirty.delete(doc.name);
+    } catch (e) { console.error('[collab] save failed', fp, e.message); }
+  }
+  function collabFlushAll() { for (const doc of collab.documents.values()) if (_collabDirty.has(doc.name)) collabSave(doc); }
+  const collab = new YSocketIO(io, { gcEnabled: true });
+  collab.initialize();
+  collab.on('document-loaded', (doc) => {
+    const fp = collabRoomToPath(doc.name);
+    console.log('[collab] room opened:', doc.name, '->', fp || '(rejected: not under home)');
+    if (!fp) return;
+    try { const txt = readFileSync(fp, 'utf-8'); const yt = doc.getText(COLLAB_TEXT); if (yt.length === 0) yt.insert(0, txt); _collabLastWrite.set(doc.name, txt); }
+    catch (e) { _collabLastWrite.set(doc.name, ''); }
+    doc.on('update', () => {
+      _collabDirty.add(doc.name);
+      clearTimeout(_collabSaveTimers.get(doc.name));
+      _collabSaveTimers.set(doc.name, setTimeout(() => collabSave(doc), 800));
+    });
+  });
+  collab.on('all-document-connections-closed', (doc) => { collabSave(doc); console.log('[collab] room closed + saved:', doc.name); });
+  // Durability: periodic backstop (crash safety) + flush-on-shutdown (relay restarts often).
+  const _collabFlush = setInterval(collabFlushAll, 20000); if (_collabFlush.unref) _collabFlush.unref();
+  for (const sig of ['SIGTERM', 'SIGINT']) {
+    process.on(sig, () => { try { for (const doc of collab.documents.values()) collabSave(doc); } catch (e) {} process.exit(0); });
+  }
+
+  // Single owner socket. A second extension connection replaces the first;
+  // we never keep a fallback. Dual-register + "fell back to previous
+  // extension socket" is the flap that makes agents abandon Yeshie.
   let extensionSocket = null;
-  const extensionSockets = new Set();
+  let lastDisconnectAt = null;
+  let extensionBuildVersion = null;
 
   // Chat state (per-instance)
   let chatQueue = [];
@@ -323,7 +556,8 @@ export function createRelay(port = 3333) {
   const notifyTimers = new Map();   // jobId → intervalId
   const COUNTDOWN_S  = 30;          // auto-fire after this many seconds
   const IDLE_FIRE_S  = 10;          // also auto-fire if user idle >= this long
-  const AX_INJECT    = '/Users/mikewolf/Projects/yeshie/scripts/yeshie-inject';
+  const AX_INJECT    = process.env.YESHIE_AX_INJECT
+    || join(homedir(), 'Projects', 'yeshie', 'scripts', 'yeshie-inject');
 
   function getIdleSecondsAsync() {
     return new Promise(resolve => {
@@ -469,22 +703,19 @@ export function createRelay(port = 3333) {
     console.log(`[relay] connected: ${who} (${socket.id})`);
 
     if (who === 'extension') {
-      extensionSockets.add(socket);
+      const incomingVersion = socket.handshake.auth?.buildVersion || socket.handshake.auth?.version || null;
+      const prev = (extensionSocket && extensionSocket.id !== socket.id) ? extensionSocket : null;
       extensionSocket = socket;
-      console.log('[relay] extension registered');
+      if (incomingVersion) extensionBuildVersion = incomingVersion;
+      console.log('[relay] extension registered', socket.id, extensionBuildVersion || '');
 
-      socket.on('disconnect', () => {
-        extensionSockets.delete(socket);
-        console.log('[relay] extension disconnected');
+      socket.on('disconnect', (reason) => {
+        lastDisconnectAt = new Date().toISOString();
+        console.log('[relay] extension disconnected', socket.id, reason || '');
         if (extensionSocket === socket) {
-          // Fall back to another connected extension socket if one exists
-          extensionSocket = extensionSockets.size > 0
-            ? [...extensionSockets][extensionSockets.size - 1]
-            : null;
-          if (extensionSocket) {
-            console.log('[relay] fell back to previous extension socket');
-          } else if (pending.size > 0) {
-            // No fallback — fail in-flight runs immediately
+          extensionSocket = null;
+          if (pending.size > 0) {
+            // No owner — fail in-flight runs immediately
             console.log(`[relay] rejecting ${pending.size} pending run(s) due to extension disconnect`);
             for (const [, p] of pending) {
               clearTimeout(p.timer);
@@ -496,6 +727,10 @@ export function createRelay(port = 3333) {
       });
 
       socket.on('chain_result', ({ commandId, result }) => {
+        // Report BEFORE the pending guard: a run whose HTTP /run already timed
+        // out has had its pending entry deleted, but the chain still settles
+        // here later — we still want the failure filed to soma-errors.
+        reportChainOutcome(result);
         const p = pending.get(commandId);
         if (!p) return;
         clearTimeout(p.timer);
@@ -504,6 +739,7 @@ export function createRelay(port = 3333) {
       });
 
       socket.on('chain_error', ({ commandId, error, result }) => {
+        reportChainOutcome(result, error);
         const p = pending.get(commandId);
         if (!p) return;
         clearTimeout(p.timer);
@@ -521,6 +757,11 @@ export function createRelay(port = 3333) {
       socket.on('notify', ({ message, title }) => {
         runOsascript(message || 'Done', title || 'Yeshie');
       });
+
+      if (prev) {
+        console.log('[relay] replacing previous extension socket (single owner)', prev.id, '->', socket.id);
+        try { prev.disconnect(true); } catch { /* ignore */ }
+      }
     }
 
     if (who === 'client') {
@@ -671,7 +912,14 @@ export function createRelay(port = 3333) {
     // --- Existing endpoints ---
 
     if (path === '/status' && req.method === 'GET') {
-      jsonReply(res, 200, { ok: true, extensionConnected: !!extensionSocket, pending: pending.size });
+      jsonReply(res, 200, {
+        ok: true,
+        extensionConnected: !!extensionSocket,
+        pending: pending.size,
+        asyncRuns: asyncRuns.size,
+        lastDisconnectAt,
+        buildVersion: extensionBuildVersion,
+      });
       return;
     }
 
@@ -1090,7 +1338,93 @@ export function createRelay(port = 3333) {
       return;
     }
 
-    // ── /dispatch/conversation: merged Pulse thread (Mike + Dee) ─────────────
+    // ── pulse/voice/turn: Meta glasses / phone voice turn routing ────────
+    if (path === '/pulse/voice/turn' && req.method === 'POST') {
+      const clientIp = extractClientIp(req);
+      if (!isAllowedClientIp(clientIp)) {
+        jsonReply(res, 403, { error: 'Forbidden: source IP not allowed', ip: clientIp });
+        return;
+      }
+
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const rawText = String(body?.text || '').trim();
+      if (!rawText) { jsonReply(res, 400, { error: 'text required' }); return; }
+      if (rawText.length > 4000) { jsonReply(res, 413, { error: 'text too large' }); return; }
+
+      let turn;
+      try { turn = parsePulseVoiceTurn(body); }
+      catch (e) { jsonReply(res, 400, { error: e.message, teammates: pulseVoiceTeammates }); return; }
+
+      const timestamp = new Date().toISOString();
+      const clientId = body?.client_id ? String(body.client_id).slice(0, 64) : undefined;
+      try { mkdirSync(DISPATCH_DIR, { recursive: true }); } catch {}
+
+      if (turn.mode === 'dispatch') {
+        const dispatchUrl = process.env.PULSE_DISPATCH_URL || 'http://127.0.0.1:3340/dispatch';
+        let response;
+        try {
+          response = await fetch(dispatchUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: turn.text,
+              target: turn.dispatchTarget,
+              source: 'pulse-glasses',
+            }),
+          });
+        } catch (e) {
+          jsonReply(res, 502, { error: `dispatcher unavailable: ${e.message}` });
+          return;
+        }
+        const dispatchResult = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          jsonReply(res, 502, { error: dispatchResult.error || `dispatcher returned ${response.status}` });
+          return;
+        }
+
+        const entry = {
+          body: rawText,
+          source: 'pulse-glasses',
+          recipient: 'dispatcher',
+          mode: 'dispatch',
+          handled_by: 'pulse-voice',
+          timestamp,
+          ...(clientId ? { client_id: clientId } : {}),
+        };
+        appendFileSync(INBOX_PATH, JSON.stringify(entry) + '\n');
+        const ack = {
+          source: 'dispatcher',
+          speaker: 'Dispatcher',
+          timestamp: new Date().toISOString(),
+          body: `Dispatched to ${dispatchResult.resolved_target || turn.dispatchTarget}. Job ${dispatchResult.id || 'queued'}.`,
+          in_reply_to: timestamp,
+        };
+        appendFileSync(DEE_REPLIES_PATH, JSON.stringify(ack) + '\n');
+        io.emit('message', { type: 'dee_reply', from: ack.source, speaker: ack.speaker, ts: ack.timestamp, body: ack.body, in_reply_to: timestamp });
+        jsonReply(res, 202, { ok: true, timestamp, mode: 'dispatch', recipient: 'dispatcher', dispatch: dispatchResult });
+        return;
+      }
+
+      const entry = {
+        body: turn.text,
+        source: 'pulse-glasses',
+        recipient: turn.recipient,
+        mode: turn.mode,
+        voice: true,
+        timestamp,
+        ...(clientId ? { client_id: clientId } : {}),
+      };
+      try {
+        appendFileSync(INBOX_PATH, JSON.stringify(entry) + '\n');
+        jsonReply(res, 200, { ok: true, timestamp, mode: turn.mode, recipient: turn.recipient });
+      } catch {
+        jsonReply(res, 500, { error: 'Failed to queue voice turn' });
+      }
+      return;
+    }
+
+    // ── /dispatch/conversation: merged Pulse thread (Mike + AI team) ─────────
     // Returns inbox.jsonl entries with source starting with "pulse" merged with
     // dee_replies.jsonl, sorted by timestamp ascending.
     // Query params: since=<ISO ts>, limit=<n> (default 200, max 500)
@@ -1119,11 +1453,17 @@ export function createRelay(port = 3333) {
           return m;
         });
 
-      const deeMessages = parseJsonlFile(DEE_REPLIES_PATH)
-        .filter(e => e.source === 'dee')
-        .map(e => ({ from: 'dee', ts: e.timestamp, body: e.body, in_reply_to: e.in_reply_to }));
+      const teamMessages = parseJsonlFile(DEE_REPLIES_PATH)
+        .filter(e => typeof e.source === 'string' && e.source.trim())
+        .map(e => ({
+          from: e.source,
+          speaker: e.speaker || e.source,
+          ts: e.timestamp,
+          body: e.body,
+          in_reply_to: e.in_reply_to,
+        }));
 
-      let messages = [...mikeMessages, ...deeMessages]
+      let messages = [...mikeMessages, ...teamMessages]
         .sort((a, b) => new Date(a.ts) - new Date(b.ts));
 
       if (sinceDate) {
@@ -1170,8 +1510,14 @@ export function createRelay(port = 3333) {
 
       if (source !== 'inbox') {
         parseJsonlLines(DEE_REPLIES_PATH)
-          .filter(e => e.source === 'dee')
-          .forEach(e => candidates.push({ from: 'dee', ts: e.timestamp, body: e.body || '', source: e.source }));
+          .filter(e => typeof e.source === 'string' && e.source.trim())
+          .forEach(e => candidates.push({
+            from: e.source,
+            speaker: e.speaker || e.source,
+            ts: e.timestamp,
+            body: e.body || '',
+            source: e.source,
+          }));
       }
 
       if (sinceDate) {
@@ -1415,6 +1761,58 @@ export function createRelay(port = 3333) {
       return;
     }
 
+    // ── Pulse human gate: show a teach overlay at the exact browser control ──
+    // This endpoint never clicks the target. It only asks the extension's
+    // existing teach_start handler to highlight it and waits for the extension
+    // to acknowledge the resolved HTTPS tab.
+    if (path === '/teach/start' && req.method === 'POST') {
+      const clientIp = extractClientIp(req);
+      if (!isAllowedClientIp(clientIp)) {
+        jsonReply(res, 403, { error: 'Forbidden: source IP not allowed', ip: clientIp });
+        return;
+      }
+      const secret = loadRelaySecret();
+      if (!secret) {
+        jsonReply(res, 503, { error: 'Relay secret not configured' });
+        return;
+      }
+      const provided = req.headers['x-dispatch-token'] || '';
+      if (provided !== secret) {
+        jsonReply(res, 401, { error: 'Bad token' });
+        return;
+      }
+
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const validationError = validateTeachStartPayload(body);
+      if (validationError) {
+        jsonReply(res, 400, { error: `Invalid teach-start payload: ${validationError}` });
+        return;
+      }
+      if (!extensionSocket) {
+        jsonReply(res, 503, { error: 'Extension not connected' });
+        return;
+      }
+
+      try {
+        const result = await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('Timeout waiting for teach_start acknowledgment')), 10_000);
+          extensionSocket.emit('teach_start', { steps: body.steps, tabId: body.tabId }, (ack) => {
+            clearTimeout(timer);
+            resolve(ack);
+          });
+        });
+        if (!result || result.ok !== true || !Number.isInteger(result.tabId)) {
+          jsonReply(res, 502, { error: result?.error || 'Extension returned an invalid teach_start acknowledgment' });
+          return;
+        }
+        jsonReply(res, 200, { ok: true, tabId: result.tabId });
+      } catch (err) {
+        jsonReply(res, 504, { error: err.message });
+      }
+      return;
+    }
+
     if (path === '/run' && req.method === 'POST') {
       let body;
       try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
@@ -1424,6 +1822,16 @@ export function createRelay(port = 3333) {
         return;
       }
       const commandId = Math.random().toString(36).slice(2) + Date.now();
+      // Attribution: which AI (W3C traceparent + agent headers) asked for this run.
+      // Param NAMES only are recorded, never values (run-attribution.js).
+      logConversation(buildRunRequestedConversationEntry({
+        headers: req.headers,
+        commandId,
+        route: path,
+        payload,
+        params,
+        tabId,
+      }));
       try {
         const result = await new Promise((resolve, reject) => {
           const timer = setTimeout(() => {
@@ -1434,10 +1842,70 @@ export function createRelay(port = 3333) {
           extensionSocket.emit('skill_run', { commandId, payload, params, tabId });
           console.log(`[relay] HTTP skill_run ${commandId}`);
         });
-        jsonReply(res, 200, result);
+        jsonReply(res, 200, attachAutoHeal(body, result));
       } catch (err) {
         jsonReply(res, 500, { error: err.message });
       }
+      return;
+    }
+
+    // --- Async (fire-and-forget) skill run ------------------------------------
+    // Submit a payload, get an id back immediately, poll GET /run/result/:id for
+    // the ChainResult. For recipes whose run exceeds the ~60s synchronous cap
+    // (e.g. chat.deepseek.com with DeepThink reasoning on).
+    if (path === '/run/async' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const { payload, params, tabId, timeoutMs = 300_000 } = body;
+      if (!extensionSocket) {
+        jsonReply(res, 503, { error: 'Extension not connected' });
+        return;
+      }
+      const commandId = Math.random().toString(36).slice(2) + Date.now();
+      logConversation(buildRunRequestedConversationEntry({
+        headers: req.headers,
+        commandId,
+        route: path,
+        payload,
+        params,
+        tabId,
+      }));
+      const now = Date.now();
+      asyncRuns.set(commandId, { id: commandId, status: 'running', result: null, error: null, createdAt: now, updatedAt: now });
+      const settle = (patch) => {
+        const cur = asyncRuns.get(commandId) || { id: commandId, createdAt: now };
+        asyncRuns.set(commandId, { ...cur, ...patch, updatedAt: Date.now() });
+      };
+      const timer = setTimeout(() => {
+        pending.delete(commandId);
+        settle({ status: 'error', error: `Timeout after ${timeoutMs}ms` });
+      }, timeoutMs);
+      pending.set(commandId, {
+        resolve: (result) => { clearTimeout(timer); settle({ status: 'done', result: attachAutoHeal(body, result) }); },
+        reject:  (err)    => { clearTimeout(timer); settle({ status: 'error', error: err.message }); },
+        timer,
+        lastStatus: null,
+      });
+      extensionSocket.emit('skill_run', { commandId, payload, params, tabId });
+      console.log(`[relay] HTTP async skill_run ${commandId}`);
+      jsonReply(res, 202, { ok: true, id: commandId, status: 'running' });
+      return;
+    }
+
+    // Poll an async run. Returns { id, status: running|done|error, result, error, progress }.
+    const asyncResultM = path.match(/^\/run\/result\/([^/]+)$/);
+    if (asyncResultM && req.method === 'GET') {
+      const id = decodeURIComponent(asyncResultM[1]);
+      // Expire settled runs older than the job TTL to bound memory.
+      const nowP = Date.now();
+      for (const [rid, run] of asyncRuns) {
+        if (run.status !== 'running' && nowP - run.updatedAt > JOB_TTL_MS) asyncRuns.delete(rid);
+      }
+      const run = asyncRuns.get(id);
+      if (!run) { jsonReply(res, 404, { error: 'run not found', id }); return; }
+      // While running, surface live step progress from the pending entry.
+      const progress = run.status === 'running' ? (pending.get(id)?.lastStatus || null) : null;
+      jsonReply(res, 200, { ...run, progress });
       return;
     }
 
@@ -1692,12 +2160,12 @@ export function createRelay(port = 3333) {
 :root{--hud-scale:1}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-size:calc(12px * var(--hud-scale));overflow:hidden;height:100vh;display:flex;flex-direction:column;transform-origin:top left;transform:scale(var(--hud-scale));width:calc(100% / var(--hud-scale));height:calc(100vh / var(--hud-scale))}
-#header{padding:8px 12px;background:#111;border-bottom:1px solid #333;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
-#header h1{font-size:13px;font-weight:600;color:#aaa;letter-spacing:.5px}
+#header{padding:5px 9px;background:#111;border-bottom:1px solid #333;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+#header h1{font-size:11px;font-weight:600;color:#aaa;letter-spacing:.5px}
 #header span{font-size:10px;color:#555}
-#jobs{flex:1;overflow-y:auto;padding:8px}
-.empty{color:#555;text-align:center;padding:40px;font-size:11px}
-.job{background:#242424;border-radius:6px;padding:8px 10px;margin-bottom:6px;border-left:3px solid #444;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start}
+#jobs{flex:1;overflow-y:auto;padding:6px}
+.empty{color:#555;text-align:center;padding:16px;font-size:11px}
+.job{background:#242424;border-radius:6px;padding:6px 8px;margin-bottom:4px;border-left:3px solid #444;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start}
 .job.running{border-color:#3b82f6}
 .job.done,.job.completed{border-color:#3fb950}
 .job.error,.job.failed{border-color:#f85149}
@@ -1737,14 +2205,15 @@ body{font-family:-apple-system,sans-serif;background:#1a1a1a;color:#e0e0e0;font-
 .countdown{font-size:10px;color:#7c3aed;font-variant-numeric:tabular-nums}
 
 /* HUD Ask overlay */
-#hud-ask-overlay{display:none;position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1a1a2e;border:1px solid #555;border-radius:12px;padding:18px 20px;min-width:300px;max-width:480px;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.6)}
-#hud-ask-message{color:#e0e0e0;font-size:13px;line-height:1.5;margin-bottom:14px}
-#hud-ask-btns{display:flex;gap:10px;justify-content:center}
-.hud-btn{padding:8px 18px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;transition:opacity .15s}
+#hud-ask-overlay{display:none;position:fixed;bottom:8px;left:8px;right:8px;background:#1a1a2e;border:1px solid #555;border-radius:10px;padding:10px 12px;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.6)}
+#hud-ask-message{color:#e0e0e0;font-size:11px;line-height:1.4;margin-bottom:8px}
+#hud-ask-btns{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+.hud-btn{padding:5px 10px;border-radius:6px;border:none;cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;transition:opacity .15s}
 .hud-btn:hover{opacity:.85}
 .hud-btn-confirm{background:#22c55e;color:#fff}
 .hud-btn-partial{background:#f59e0b;color:#fff}
 .hud-btn-failed{background:#ef4444;color:#fff}
+.hud-btn-open{background:#3b82f6;color:#fff}
 #btn-digest{padding:3px 9px;border-radius:4px;border:1px solid #444;cursor:pointer;font-size:10px;font-weight:600;font-family:inherit;background:#2a2a2a;color:#888}
 #btn-digest:hover{background:#333;color:#ccc}
 .job{cursor:pointer}.job:hover{background:#2a2a2a}
@@ -1959,13 +2428,34 @@ setInterval(render, 10000);
 setInterval(refreshAndRender, 30000);
 
 
-// HUD ask — human-in-the-loop confirm/partial/failed
+// HUD ask — human-in-the-loop. For "DONE: <task> — <path>" completion notices
+// we show a clean title + an Open-report button and hide partial/failed.
 let _askId = null;
+let _askPath = null;
 socket.on('hud:ask', ({id, message}) => {
   _askId = id;
-  document.getElementById('hud-ask-message').textContent = message;
+  var msg = String(message);
+  _askPath = null;
+  var toks = msg.split(' ');
+  for (var i=0;i<toks.length;i++){ var t=toks[i].trim(); if(t.charAt(0)==='/' && t.indexOf('.')>1){ _askPath=t; break; } }
+  var title = msg, isDone = false;
+  if (msg.indexOf('DONE:')===0){
+    isDone = true;
+    var cut = _askPath ? msg.indexOf(_askPath) : msg.length;
+    var head = msg.substring(5, cut);
+    while(head.length){ var c=head.charAt(head.length-1); if(c==='\u2014'||c==='-'||c===' '){head=head.substring(0,head.length-1);} else break; }
+    title = '\u2705 ' + head.trim();
+  }
+  var html = esc(title);
+  if (_askPath) html += '<div style="font-size:9px;color:#888;margin-top:3px;word-break:break-all">' + esc(_askPath.split('/').pop()) + '</div>';
+  document.getElementById('hud-ask-message').innerHTML = html;
+  document.getElementById('hud-ask-open').style.display = _askPath ? 'inline-block' : 'none';
+  document.getElementById('hud-ask-partial').style.display = isDone ? 'none' : 'inline-block';
+  document.getElementById('hud-ask-failed').style.display = isDone ? 'none' : 'inline-block';
+  document.getElementById('hud-ask-confirm').textContent = isDone ? '\u2713 Got it' : '\u2705 Confirm';
   document.getElementById('hud-ask-overlay').style.display = 'block';
 });
+function hudOpen(){ if(!_askPath) return; fetch('/open-path',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:_askPath})}).catch(function(){}); }
 function hudRespond(response) {
   if (!_askId) return;
   const id = _askId;
@@ -2071,9 +2561,10 @@ document.addEventListener('keydown', function(e) {
 <div id="hud-ask-overlay">
   <div id="hud-ask-message"></div>
   <div id="hud-ask-btns">
-    <button class="hud-btn hud-btn-confirm" onclick="hudRespond('confirm')">✅ Confirm</button>
-    <button class="hud-btn hud-btn-partial" onclick="hudRespond('partial')">⚠️ Partial</button>
-    <button class="hud-btn hud-btn-failed"  onclick="hudRespond('failed')">❌ Failed</button>
+    <button class="hud-btn hud-btn-open" id="hud-ask-open" onclick="hudOpen()" style="display:none">📄 Open report</button>
+    <button class="hud-btn hud-btn-confirm" id="hud-ask-confirm" onclick="hudRespond('confirm')">✅ Confirm</button>
+    <button class="hud-btn hud-btn-partial" id="hud-ask-partial" onclick="hudRespond('partial')">⚠️ Partial</button>
+    <button class="hud-btn hud-btn-failed"  id="hud-ask-failed" onclick="hudRespond('failed')">❌ Failed</button>
   </div>
 </div>
 <div id="detail-overlay" onclick="if(event.target===this)closeDetail()">
@@ -2564,13 +3055,13 @@ h2{color:#58a6ff}hr{border-color:#333}
         let last_log_lines = [];
         let process_state = null;
         try {
-          const logPath = join(process.env.HOME || '/Users/mikewolf', '.local', 'share', 'soma-supervisor.log');
+          const logPath = join(homedir(), '.local', 'share', 'soma-supervisor.log');
           const { readFileSync: rfs2 } = await import('fs');
           const lines = rfs2(logPath, 'utf8').split('\n');
           last_log_lines = lines.filter(l => l.includes('| ' + svcName + ' |')).slice(-10);
         } catch {}
         try {
-          const statePath = join(process.env.HOME || '/Users/mikewolf', '.local', 'share', 'soma-supervisor.state.json');
+          const statePath = join(homedir(), '.local', 'share', 'soma-supervisor.state.json');
           const { readFileSync: rfs3 } = await import('fs');
           const allState = JSON.parse(rfs3(statePath, 'utf8'));
           process_state = allState[svcName] || null;
@@ -2687,6 +3178,94 @@ h2{color:#58a6ff}hr{border-color:#333}
     }
 
     // ── Clipboard helper (pbcopy fallback for WKWebView) ─────────────────────
+    if (path === '/editor.bundle.js' && req.method === 'GET') {
+      try {
+        const js = readFileSync(join(__dirname, 'editor.bundle.js'), 'utf-8');
+        res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+        res.end(js);
+      } catch (e) { res.writeHead(404); res.end('bundle missing'); }
+      return;
+    }
+
+    if (path === '/edit' && req.method === 'GET') {
+      try {
+        const html = readFileSync(join(__dirname, 'editor.html'), 'utf-8');
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(html);
+      } catch (e) { res.writeHead(500); res.end('editor.html missing: ' + e.message); }
+      return;
+    }
+
+    if (path === '/file' && req.method === 'GET') {
+      try {
+        const u = new URL(req.url, 'http://localhost');
+        const fp = u.searchParams.get('path') || '';
+        if (!fp.startsWith(homedir())) { res.writeHead(400); res.end('path must be under home'); return; }
+        const txt = readFileSync(fp, 'utf-8');
+        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end(txt);
+      } catch (e) { res.writeHead(404); res.end('not found'); }
+      return;
+    }
+
+    if (path === '/save' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'bad json' }); return; }
+      try {
+        const fp = String(body.path || '');
+        if (!fp.startsWith(homedir())) { res.writeHead(400); res.end('path must be under home'); return; }
+        mkdirSync(dirname(fp), { recursive: true });
+        writeFileSync(fp, String(body.content ?? ''), 'utf-8');
+        res.writeHead(200); res.end('ok');
+      } catch (e) { res.writeHead(500); res.end('error: ' + e.message); }
+      return;
+    }
+
+    if (path === '/dispatch-revision' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'bad json' }); return; }
+      const fp = String(body.path || ''); const instruction = String(body.instruction || '');
+      if (!fp.startsWith(homedir()) || !instruction) { res.writeHead(400); res.end('need path under home + instruction'); return; }
+      const ccd = join(homedir(), '.local/bin/cc-dispatch');
+      const collab = join(__dirname, 'collab-edit.mjs');
+      const node = process.execPath;
+      const taskName = 'revise-' + (fp.split('/').pop() || 'report').replace(/[^a-zA-Z0-9]+/g, '-').slice(0, 40);
+      const prompt = [
+        'You are revising a SOMA report collaboratively with a human who is watching the LIVE document in an editor.',
+        'Report file: ' + fp,
+        'First read the current content:  ' + node + ' ' + collab + ' --path "' + fp + '" read',
+        'Revision request from the human: ' + instruction,
+        'Produce the revision, then APPEND your contribution to the live document (do NOT overwrite the existing text). Pipe your markdown to:',
+        '  ' + node + ' ' + collab + ' --path "' + fp + '" --user "agent:reviser" --color "#a855f7" append -',
+        'Start your appended block with a heading like "## Revision — <short title>". Append exactly once, keep it focused, then stop.'
+      ].join('\n');
+      // Homebrew-first PATH so cc-dispatch's `env python3` finds 3.10+ (not system 3.9).
+      const dispatchEnv = { ...process.env, PATH: '/opt/homebrew/bin:/usr/local/bin:' + (process.env.PATH || '') };
+      execFile(ccd, ['--notify', 'none', taskName, prompt], { timeout: 8000, env: dispatchEnv }, () => {});
+      res.writeHead(200); res.end('ok');
+      return;
+    }
+
+    if (path === '/open-path' && req.method === 'POST') {
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      try {
+        const target = String(body.path || '');
+        if (target && target.startsWith(homedir())) {
+          const isText = /\.(md|markdown|txt|log|json|csv|ya?ml)$/i.test(target);
+          if (isText) {
+            // Open in the HUD-owned native editor window; fall back to the browser if the HUD is down.
+            fetch('http://localhost:3334/open-editor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: target }) })
+              .catch(() => { execFile('open', ['http://localhost:3333/edit?path=' + encodeURIComponent(target)], { timeout: 5000 }, () => {}); });
+          } else {
+            execFile('open', [target], { timeout: 5000 }, () => {});
+          }
+          res.writeHead(200); res.end('ok');
+        } else { res.writeHead(400); res.end('path must be under home'); }
+      } catch(e) { res.writeHead(500); res.end('error'); }
+      return;
+    }
+
     if (path === '/clipboard' && req.method === 'POST') {
       let body;
       try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }

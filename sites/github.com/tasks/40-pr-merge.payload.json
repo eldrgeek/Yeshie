@@ -1,16 +1,32 @@
 {
   "_meta": {
     "task": "pr-merge",
-    "description": "Merge a pull request on GitHub. DESTRUCTIVE — merges code into the base branch and closes the PR. Requires write access.",
+    "description": "Merge a pull request on GitHub. DESTRUCTIVE \u2014 merges code into the base branch and closes the PR. Requires write access.",
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "github_session", "note": "Must have write access to merge PRs" },
+    "auth": {
+      "type": "github_session",
+      "note": "Must have write access to merge PRs"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" },
-      "number": { "required": true, "description": "PR number" },
-      "merge_method": { "required": false, "description": "'merge', 'squash', or 'rebase'", "default": "merge" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      },
+      "number": {
+        "required": true,
+        "description": "PR number"
+      },
+      "merge_method": {
+        "required": false,
+        "description": "'merge', 'squash', or 'rebase'",
+        "default": "merge"
+      }
     },
     "risk": "confirm",
     "needs_live_verification": true
@@ -25,12 +41,46 @@
     "merge_method": "{{merge_method}}"
   },
   "chain": [
-    { "stepId": "guard", "action": "assert", "condition": "false", "message": "DESTRUCTIVE: Merging a PR permanently integrates code into the base branch. Ensure CI is passing and review is approved. NEVER execute in testing." },
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/pull/{{number}}" },
-    { "stepId": "s2", "action": "wait_for", "selector": "button[data-details-container*='merge'], .merge-button, [aria-label*='Merge pull request']", "timeout": 10000 },
-    { "stepId": "s3", "action": "click", "selector": ".merge-button, button[aria-label*='Merge pull request']", "note": "Click the Merge button" },
-    { "stepId": "s4", "action": "wait_for", "selector": "button[type='submit'][data-disable-with*='Confirm merge']", "timeout": 5000 },
-    { "stepId": "s5", "action": "click", "selector": "button[type='submit'][data-disable-with*='Confirm merge']", "note": "Confirm merge" },
-    { "stepId": "s6", "action": "delay", "ms": 2000 }
+    {
+      "stepId": "guard",
+      "action": "assert",
+      "condition": "false",
+      "message": "DESTRUCTIVE: Merging a PR permanently integrates code into the base branch. Ensure CI is passing and review is approved. NEVER execute in testing."
+    },
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}/pull/{{number}}"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "button[data-details-container*='merge'], .merge-button, [aria-label*='Merge pull request']",
+      "timeout": 10000
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "selector": ".merge-button, button[aria-label*='Merge pull request']",
+      "note": "Click the Merge button"
+    },
+    {
+      "stepId": "s4",
+      "action": "wait_for",
+      "selector": "button[type='submit'][data-disable-with*='Confirm merge']",
+      "timeout": 5000
+    },
+    {
+      "stepId": "s5",
+      "action": "click",
+      "selector": "button[type='submit'][data-disable-with*='Confirm merge']",
+      "note": "Confirm merge"
+    },
+    {
+      "action": "wait_for",
+      "selector": "[role=\"alert\"], .flash, .js-flash-alert, [data-testid=\"toast\"]",
+      "timeout": 8000,
+      "stepId": "s6"
+    }
   ]
 }

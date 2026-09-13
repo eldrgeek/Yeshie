@@ -5,10 +5,20 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "none_public_repo", "note": "Public code search accessible without login" },
+    "auth": {
+      "type": "none_public_repo",
+      "note": "Public code search accessible without login"
+    },
     "params": {
-      "query": { "required": true, "description": "Code search query (GitHub search syntax supported, e.g. 'useEffect language:typescript repo:facebook/react')" },
-      "language": { "required": false, "description": "Filter by programming language", "default": "" }
+      "query": {
+        "required": true,
+        "description": "Code search query (GitHub search syntax supported, e.g. 'useEffect language:typescript repo:facebook/react')"
+      },
+      "language": {
+        "required": false,
+        "description": "Filter by programming language",
+        "default": ""
+      }
     },
     "risk": "safe",
     "needs_live_verification": false
@@ -21,8 +31,21 @@
     "language": "{{language}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/search?q={{query}}+language%3A{{language}}&type=code" },
-    { "stepId": "s2", "action": "delay", "ms": 2000 },
-    { "stepId": "s3", "action": "read", "store_as": "code_search_results" }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/search?q={{query}}+language%3A{{language}}&type=code"
+    },
+    {
+      "action": "wait_for",
+      "selector": ".application-main",
+      "timeout": 8000,
+      "stepId": "s2"
+    },
+    {
+      "stepId": "s3",
+      "action": "read",
+      "store_as": "code_search_results"
+    }
   ]
 }

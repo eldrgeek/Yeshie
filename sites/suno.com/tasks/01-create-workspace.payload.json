@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "task": "create-workspace",
+    "description": "Create a new Suno workspace with the given name. Suno creates an 'Untitled' workspace immediately and drops it into an inline rename field; this recipe types the name there and confirms.",
+    "auth": { "type": "suno_session", "note": "Requires being logged into suno.com" },
+    "params": {
+      "workspace_name": { "required": true, "description": "Name for the new workspace" }
+    },
+    "risk": "creates a workspace (reversible — can be archived/renamed)",
+    "verified": "2026-06-18 — flow confirmed live (created 'Yeshie Sandbox')",
+    "status": "BROKEN 2026-09-12 — FALSE GREEN. All 8 steps returned ok (s3 click_text matched a DIV 'Create new workspace'), but no workspace 'Thank Each Other' exists afterwards: 02-select-workspace can't find it. The DIV is probably a label, not the actionable control, or the inline rename field is no longer placeholder='Untitled'. Next fix: inspect the live Workspaces panel while it is the FOREGROUND tab (background tabs don't repaint, so screenshots go stale), anchor on the real button, and add a final assert that the new name appears in the list, so this can't go green again without a workspace."
+  },
+  "runId": "suno-create-workspace-{{timestamp}}",
+  "mode": "verification",
+  "site": "suno.com",
+  "params": { "workspace_name": "{{workspace_name}}" },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://suno.com/create" },
+    { "stepId": "s1b", "action": "key", "key": "Escape", "optional": true, "note": "dismiss promo modals" },
+    { "stepId": "s2", "action": "wait_for", "selector": "div[aria-label=\"Lyrics editor\"]", "timeout": 10000, "note": "create page ready (lyrics textarea became a contenteditable div in the 2026-07 redesign)" },
+    { "stepId": "s3", "action": "click_text", "text": "Create new workspace", "note": "creates an Untitled workspace + opens inline rename (label is lower-case 'new workspace' as of 2026-09)" },
+    { "stepId": "s4", "action": "wait_for", "selector": "input[placeholder=\"Untitled\"]", "timeout": 6000, "note": "inline rename field" },
+    { "stepId": "s5", "action": "type", "selector": "input[placeholder=\"Untitled\"]", "value": "{{workspace_name}}" },
+    { "stepId": "s6", "action": "key", "key": "Enter", "note": "confirm the name" },
+    { "stepId": "s7", "action": "read", "store_as": "workspaces", "note": "snapshot — new workspace should appear in the list" }
+  ]
+}

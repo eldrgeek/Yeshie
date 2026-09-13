@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "task": "inspect-key-row-menu",
+    "description": "Read-only reconnaissance: open the per-row 'Open menu' (kebab) control for one API key row to discover what actions exist (Rename? Delete? Regenerate?), read the menu labels, then close it WITHOUT selecting anything. No key is disabled, deleted, or created.",
+    "selfImproving": true,
+    "runCount": 1,
+    "lastSuccess": "2026-07-09",
+    "auth": { "type": "elevenlabs_session" },
+    "params": {},
+    "risk": "safe if the selector is right; see incident note below for what happens if it's wrong",
+    "needs_live_verification": false,
+    "menuContents": "DISCOVERED 2026-07-09 (row 1 = 'Claude MovieMaker' kebab): the menu items are exactly [ 'Edit', 'Copy Key ID', 'Delete' ]. There is NO 'Disable' and NO 'Regenerate' in the kebab — the only destructive action here is Delete (irreversible). The reversible Disable/Enable lives in the separate 'Enabled' column toggle, NOT this menu.",
+    "readActionGap": "CRITICAL 2026-07-09: the relay's generic 'read' action (step s5 below) does NOT capture the open menu — the ElevenLabs dropdown renders as a Radix portal of [role='menuitem'] DIVs, and the relay read only serializes buttons/links/inputs/tables/headings, so store_as='menu_state' comes back as the same page snapshot with zero menu items. The menu WAS open (click_text 'Open menu' succeeded, wait_for [role='menu'] matched) — it just isn't readable through this action. Menu contents above were enumerated via chrome-devtools CDP (evaluate_script over document.querySelectorAll('[role=menuitem]')). Until the relay read gains menuitem support, use CDP to read this menu — do NOT click blindly into it.",
+    "knownGap": "This recipe can only target the FIRST 'Open menu' kebab on the page — the relay's click_text implementation (src/step-executor.ts) does a plain Array.find() over all text matches, with no occurrence/nth or row-scoping parameter, and find_row (also in step-executor.ts) clicks a row's first <a> link, not an arbitrary button by text within that row. To target a SPECIFIC named key (e.g. 'the key actually used by soma-zoom-presence', which per providers/ELEVENLABS.md may not even be one of the dashboard-visible keys) needs either a new scoped-click capability in the relay, or a human clicking the right row directly. Don't invent a param the executor doesn't support — verified 2026-07-09 by reading src/step-executor.ts directly. NOTE: a full prune (disable/delete a specific key) was executed 2026-07-09 by targeting the key's row by masked suffix via chrome-devtools CDP, not via this recipe — see key-rotation/providers/ELEVENLABS.md 'Prune executed 2026-07-09'.",
+    "incidentNote": "2026-07-09: an earlier ad-hoc probe used the selector 'table tbody tr:first-child button' expecting the kebab menu, but that CSS matches the FIRST button in the row — which is actually the 'Enabled' column's toggle switch, one column to the LEFT of the kebab. That click opened a 'Disable API Key' confirmation dialog ('Are you sure you want to disable the API key \"Claude MovieMaker\"?'). It was dismissed with Escape before any confirm click — no key state changed — but it's why this recipe below targets the kebab by its TEXT ('Open menu') instead of positional CSS: text-matching correctly skips the icon-only toggle switch, which has no text content.",
+    "selectorNotes": "Table headers (verified 2026-07-09): Name | Key | Created | Enabled | (blank — kebab column). The 'Enabled' cell holds a toggle-switch button with NO text/aria-label captured by the relay's generic read (danger: looks identical to any other icon button positionally). The last cell's button has stable literal text 'Open menu' — use click_text scoped by row, not nth-child(1)."
+  },
+  "runId": "elevenlabs-inspect-menu-{{timestamp}}",
+  "mode": "verification",
+  "site": "elevenlabs.io",
+  "params": {},
+  "chain": [
+    { "stepId": "s1", "action": "open_tab", "url": "https://elevenlabs.io/app/settings/api-keys" },
+    { "stepId": "s2", "action": "wait_for", "selector": "table", "timeout": 15000 },
+    { "stepId": "s3", "action": "click_text", "text": "Open menu", "note": "click_text clicks the FIRST text match on the page (see knownGap) — this hits row 1's kebab only. NEVER a positional/nth-child CSS selector, which risks hitting the adjacent Enabled toggle instead (see incidentNote)." },
+    { "stepId": "s4", "action": "wait_for", "selector": "[role='menu']", "timeout": 4000, "onTimeout": "continue" },
+    { "stepId": "s5", "action": "read", "store_as": "menu_state", "note": "Read menu item labels ONLY. Do not click any item in the menu." },
+    { "stepId": "s6", "action": "key", "key": "Escape", "note": "Close without selecting. If Escape doesn't close a custom dropdown, click_text elsewhere on the page (e.g. the page heading) as a fallback dismiss — never click inside the open menu." }
+  ]
+}

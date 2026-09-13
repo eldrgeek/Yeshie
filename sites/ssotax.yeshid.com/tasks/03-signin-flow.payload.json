@@ -2,7 +2,7 @@
   "_meta": {
     "name": "ssotax-signin-flow",
     "site": "ssotax.yeshid.com",
-    "description": "Navigate to the Sign in flow from ssotax.yeshid.com. Captures the auth entry point — whether it redirects to YeshID login or has its own auth.",
+    "description": "Navigate to the Sign in flow from ssotax.yeshid.com. Captures the auth entry point \u2014 whether it redirects to YeshID login or has its own auth.",
     "version": "1.0.0",
     "verified": false,
     "verifiedDate": null,
@@ -24,8 +24,11 @@
     },
     {
       "stepId": "s2",
-      "action": "delay",
-      "ms": 2000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s3",
@@ -35,14 +38,17 @@
     },
     {
       "stepId": "s4",
-      "action": "delay",
-      "ms": 2000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s5",
       "action": "perceive",
       "store_as": "signin_snap",
-      "note": "Capture signin page — does it redirect to app.yeshid.com/login or have separate auth?"
+      "note": "Capture signin page \u2014 does it redirect to app.yeshid.com/login or have separate auth?"
     }
   ]
 }

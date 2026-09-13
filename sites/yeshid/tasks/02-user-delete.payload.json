@@ -150,9 +150,11 @@
     },
     {
       "stepId": "s2b",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for Vue search debounce to filter the table."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s3",
@@ -214,9 +216,11 @@
     },
     {
       "stepId": "s11",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for offboard API call to complete."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s12",
@@ -240,9 +244,11 @@
     },
     {
       "stepId": "s13b",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for Vue search debounce."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s14",

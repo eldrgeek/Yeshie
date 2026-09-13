@@ -1,0 +1,90 @@
+{
+  "_meta": {
+    "task": "copy-api-key",
+    "description": "Click the 'Copy API key' button for a key row in Google AI Studio. The full key value is written to the OS clipboard — readable via pbpaste or the relay /clipboard endpoint. NEVER write the key value to any file or log.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "google_session",
+      "account": "u/1",
+      "email": "mw.personalmail@gmail.com",
+      "note": "Must be signed in as /u/1/."
+    },
+    "params": {
+      "project": {
+        "required": false,
+        "description": "GCP project ID to scope the key list",
+        "default": "gen-lang-client-0695633629"
+      }
+    },
+    "risk": "safe",
+    "needs_live_verification": false,
+    "keyHandling": "The API key lands on the OS clipboard IF the click is a trusted user gesture. NEVER store the key in a file, log, buffer, or this recipe output.",
+    "clipboardLimitation": {
+      "status": "VERIFIED: button resolves and is clicked correctly (step s3 ok, resolvedVia: cached). Clipboard write does NOT complete from programmatic click.",
+      "cause": "Chrome's clipboard security model requires a trusted user gesture (real input event) for navigator.clipboard.writeText(). Programmatic el.click() via chrome.scripting.executeScript is not trusted.",
+      "workarounds": [
+        "Add 'clipboardWrite' to extension manifest permissions and rebuild — extension clipboard writes are trusted",
+        "Use a future mouse_click action type (calls trustedMouseClick via CDP Input.dispatchMouseEvent which IS trusted)",
+        "User manually clicks 'Copy API key' after recipe navigates to the correct page"
+      ]
+    },
+    "selectorNotes": "The copy button has stable aria-label 'Copy API key' and class xap-copy-to-clipboard. Multiple copy buttons exist if multiple keys are listed — this recipe clicks the first one (top of table = most recently created key). To copy a specific key, a key_suffix param and JS-based row filtering would be needed (not yet implemented)."
+  },
+  "runId": "aistudio-copy-api-key-{{timestamp}}",
+  "mode": "action",
+  "site": "aistudio.google.com",
+  "params": {
+    "project": "{{project}}"
+  },
+  "abstractTargets": {
+    "copy-api-key-btn": {
+      "match": {
+        "name_contains": ["Copy API key"]
+      },
+      "anchors": {
+        "ariaLabel": "Copy API key"
+      },
+      "cachedSelector": "button[aria-label=\"Copy API key\"]",
+      "cachedConfidence": 0.97,
+      "resolvedOn": "2026-06-19T00:00:00Z",
+      "description": "Per-row copy button. aria-label 'Copy API key' is stable. Class xap-copy-to-clipboard is also stable. The first match in DOM order is the first key row."
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://aistudio.google.com/app/u/1/api-keys?project={{project}}"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "button[aria-label=\"Copy API key\"]",
+      "timeout": 15000
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "target": "copy-api-key-btn",
+      "note": "Click 'Copy API key' on the first key row. aria-label='Copy API key' is stable. The key value is now on the OS clipboard."
+    },
+    {
+      "stepId": "s4",
+      "action": "read",
+      "store_as": "copy_confirmation",
+      "note": "Read page state to confirm copy button was clicked (look for toast/snackbar confirmation). Key value is on clipboard — do NOT store it here."
+    }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "api-keys-list": {
+        "signals": [
+          { "type": "url_matches", "pattern": "/api-keys" },
+          { "type": "element_present", "selector": "ms-api-keys-overview" }
+        ]
+      }
+    }
+  }
+}

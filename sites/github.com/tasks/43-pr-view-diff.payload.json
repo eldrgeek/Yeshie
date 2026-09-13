@@ -5,11 +5,23 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "none_public_repo", "note": "Public repos accessible without login" },
+    "auth": {
+      "type": "none_public_repo",
+      "note": "Public repos accessible without login"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" },
-      "number": { "required": true, "description": "PR number" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      },
+      "number": {
+        "required": true,
+        "description": "PR number"
+      }
     },
     "risk": "safe",
     "needs_live_verification": false
@@ -23,8 +35,22 @@
     "number": "{{number}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/pull/{{number}}/files" },
-    { "stepId": "s2", "action": "delay", "ms": 2000 },
-    { "stepId": "s3", "action": "read", "store_as": "pr_diff", "note": "Read diff view — shows changed files and line diffs" }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}/pull/{{number}}/files"
+    },
+    {
+      "action": "wait_for",
+      "selector": ".application-main",
+      "timeout": 8000,
+      "stepId": "s2"
+    },
+    {
+      "stepId": "s3",
+      "action": "read",
+      "store_as": "pr_diff",
+      "note": "Read diff view \u2014 shows changed files and line diffs"
+    }
   ]
 }

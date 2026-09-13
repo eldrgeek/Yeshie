@@ -3,12 +3,32 @@
     "task": "integration-setup",
     "description": "Set up a SCIM integration for an application in YeshID. Creates the app first if needed, then configures SCIM with Bearer auth.",
     "params": {
-      "app_name": {"required": true, "description": "Name of the application to integrate"},
-      "technical_owner": {"required": true, "description": "Email of the technical owner"},
-      "technical_owner_name": {"required": false, "default": "Mike Wolf", "description": "Display name of technical owner"},
-      "api_base_url": {"required": true, "description": "SCIM base URL (e.g. https://api.example.com/scim/v2)"},
-      "bearer_token": {"required": true, "description": "Bearer token for SCIM auth"},
-      "auth_type": {"required": false, "default": "Bearer", "description": "Auth type: Bearer, OAuth2, Basic, Custom API key, None"}
+      "app_name": {
+        "required": true,
+        "description": "Name of the application to integrate"
+      },
+      "technical_owner": {
+        "required": true,
+        "description": "Email of the technical owner"
+      },
+      "technical_owner_name": {
+        "required": false,
+        "default": "Mike Wolf",
+        "description": "Display name of technical owner"
+      },
+      "api_base_url": {
+        "required": true,
+        "description": "SCIM base URL (e.g. https://api.example.com/scim/v2)"
+      },
+      "bearer_token": {
+        "required": true,
+        "description": "Bearer token for SCIM auth"
+      },
+      "auth_type": {
+        "required": false,
+        "default": "Bearer",
+        "description": "Auth type: Bearer, OAuth2, Basic, Custom API key, None"
+      }
     },
     "selfImproving": true,
     "runCount": 0,
@@ -33,7 +53,9 @@
     {
       "stepId": "s1",
       "action": "assess_state",
-      "expect": {"state": "authenticated"},
+      "expect": {
+        "state": "authenticated"
+      },
       "onMismatch": "exit_with_error:not-authenticated"
     },
     {
@@ -44,8 +66,11 @@
     },
     {
       "stepId": "s3",
-      "action": "delay",
-      "ms": 2000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s4",
@@ -55,8 +80,13 @@
     },
     {
       "stepId": "s5",
-      "action": "delay",
-      "ms": 1500
+      "action": "wait_for",
+      "selector": "input[placeholder='Type application name']",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for input[placeholder='Type application name'] before next step (was delay 1500ms)"
     },
     {
       "stepId": "s6",
@@ -66,8 +96,13 @@
     },
     {
       "stepId": "s7",
-      "action": "delay",
-      "ms": 500
+      "action": "wait_for",
+      "selector": "input[placeholder='Select technical owners']",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for input[placeholder='Select technical owners'] before next step (was delay 500ms)"
     },
     {
       "stepId": "s8",
@@ -80,8 +115,11 @@
     },
     {
       "stepId": "s9",
-      "action": "delay",
-      "ms": 1000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s10",
@@ -92,9 +130,11 @@
     },
     {
       "stepId": "s11",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for app creation and redirect to app detail"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s12",
@@ -104,8 +144,11 @@
     },
     {
       "stepId": "s13",
-      "action": "delay",
-      "ms": 2000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s14",
@@ -116,8 +159,11 @@
     },
     {
       "stepId": "s15",
-      "action": "delay",
-      "ms": 2000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s16",
@@ -127,8 +173,11 @@
     },
     {
       "stepId": "s17",
-      "action": "delay",
-      "ms": 1500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s18",
@@ -138,8 +187,11 @@
     },
     {
       "stepId": "s19",
-      "action": "delay",
-      "ms": 500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s20",
@@ -149,8 +201,13 @@
     },
     {
       "stepId": "s21",
-      "action": "delay",
-      "ms": 500
+      "action": "wait_for",
+      "selector": "input[placeholder='https://']",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for input[placeholder='https://'] before next step (was delay 500ms)"
     },
     {
       "stepId": "s22",
@@ -168,8 +225,11 @@
     },
     {
       "stepId": "s24",
-      "action": "delay",
-      "ms": 500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s25",

@@ -1,0 +1,125 @@
+{
+  "_meta": {
+    "name": "advderm-tebra-export-records",
+    "site": "portal.practicemailer.com",
+    "description": "Navigate Advanced Dermatology & Cosmetic Surgery (Leavitt Management Group) patient portal on Tebra (formerly Kareo) platform, export visit notes, billing statements, and health records.",
+    "version": "1.0.0",
+    "verified": false,
+    "verifiedDate": null,
+    "platform": "Tebra (formerly Kareo) patient portal — NOT MyChart",
+    "myChart": false,
+    "provider": "Advanced Dermatology & Cosmetic Surgery — Leavitt Management Group",
+    "authStrategy": "Email + password. Account email: Mw@mike-wolf.com (note capital M). Portal welcome email Jan 2025 from welcome@practicemailer.com. Activate via Google Chrome (per setup instructions).",
+    "exportFormats": ["Visit notes PDF", "Billing statements PDF", "Records download (Tebra supports CCDA)"],
+    "localCachePath": "~/Documents/MedicalRecords/adv-dermatology/{YYYY-MM}/",
+    "anomalies": [
+      "Tebra (Kareo) portals are web-only — no mobile app",
+      "Portal URL may be a subdomain of practicemailer.com or a custom domain — activate link from welcome email has the real URL",
+      "Portal update Feb 2025 confirms account is active",
+      "Dermatology practice — primary records: visit notes, photos (if digitized), biopsy results, billing"
+    ]
+  },
+  "params": {
+    "base_url": "https://portal.practicemailer.com",
+    "save_path": "~/Documents/MedicalRecords/adv-dermatology",
+    "account_email": "Mw@mike-wolf.com",
+    "note": "If portal.practicemailer.com does not resolve, retrieve actual portal URL from the Jan 2025 welcome email (subject: 'Welcome to Your Advanced Dermatology & Cosmetic Surgery (Leavitt Management Group) Patient Portal' from welcome@practicemailer.com)"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://portal.practicemailer.com",
+      "note": "Tebra patient portal. The exact subdomain/URL may differ — retrieve from the welcome email if this redirects unexpectedly."
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for_auth",
+      "authSentinelPattern": "/home|/dashboard|/records|/appointments",
+      "loginUrl": "https://portal.practicemailer.com",
+      "note": "Halt if login form appears. Mike authenticates manually. Account email: Mw@mike-wolf.com."
+    },
+    {
+      "stepId": "s3",
+      "action": "perceive",
+      "store_as": "portal_home",
+      "note": "Capture Tebra portal navigation. Expect: Appointments, Health Records, Billing, Messages."
+    },
+    {
+      "stepId": "s4",
+      "action": "click_text_or_navigate",
+      "candidates": [
+        "text:Health Records",
+        "text:Records",
+        "a[href*='health-record']",
+        "a[href*='records']"
+      ],
+      "note": "Navigate to health records."
+    },
+    {
+      "stepId": "s5",
+      "action": "perceive",
+      "store_as": "health_records",
+      "note": "Capture records: visit summaries, diagnoses, procedures (dermatology: lesion removals, biopsies, cosmetic procedures), medications, allergies."
+    },
+    {
+      "stepId": "s6",
+      "action": "click_first_match",
+      "candidates": [
+        "text:Download Health Records",
+        "text:Export",
+        "text:Download",
+        "a[href*='download']",
+        "a[href*='ccda']",
+        "button:has-text('Download')"
+      ],
+      "note": "Trigger records download / CCDA export if available.",
+      "optional": true
+    },
+    {
+      "stepId": "s7",
+      "action": "click_text_or_navigate",
+      "candidates": [
+        "text:Billing",
+        "text:Statements",
+        "a[href*='billing']",
+        "a[href*='statements']"
+      ],
+      "note": "Navigate to billing / statements section."
+    },
+    {
+      "stepId": "s8",
+      "action": "perceive",
+      "store_as": "billing_statements",
+      "note": "Capture billing statements. Portal update Feb 2025 was likely a new statement notification."
+    },
+    {
+      "stepId": "s9",
+      "action": "click_text_or_navigate",
+      "candidates": [
+        "text:Appointments",
+        "a[href*='appointment']"
+      ],
+      "note": "Navigate to appointment history."
+    },
+    {
+      "stepId": "s10",
+      "action": "perceive",
+      "store_as": "appointments",
+      "note": "Capture appointment history with dates, provider, visit type."
+    }
+  ],
+  "abstractTargets": {
+    "auth-sentinel": {
+      "description": "Post-login element in Tebra portal",
+      "cachedSelector": ".patient-header, #patient-name, [class*='welcome'], .portal-nav",
+      "cachedConfidence": 0.5,
+      "note": "Tebra is server-rendered — selectors should be more stable than SPA portals."
+    },
+    "records-download": {
+      "description": "Health records download button",
+      "cachedSelector": "a.download-records, button.export-records, [href*='download-record']",
+      "cachedConfidence": 0.4
+    }
+  }
+}

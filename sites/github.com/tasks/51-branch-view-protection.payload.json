@@ -5,10 +5,19 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "github_session", "note": "Requires admin access to view branch protection settings" },
+    "auth": {
+      "type": "github_session",
+      "note": "Requires admin access to view branch protection settings"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      }
     },
     "risk": "safe",
     "needs_live_verification": true
@@ -21,8 +30,21 @@
     "repo": "{{repo}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/settings/branches" },
-    { "stepId": "s2", "action": "delay", "ms": 1500 },
-    { "stepId": "s3", "action": "read", "store_as": "branch_protection_rules" }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}/settings/branches"
+    },
+    {
+      "action": "wait_for",
+      "selector": ".application-main",
+      "timeout": 8000,
+      "stepId": "s2"
+    },
+    {
+      "stepId": "s3",
+      "action": "read",
+      "store_as": "branch_protection_rules"
+    }
   ]
 }

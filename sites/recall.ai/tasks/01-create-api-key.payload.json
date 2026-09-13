@@ -1,0 +1,32 @@
+{
+  "_meta": {
+    "task": "create-api-key",
+    "description": "Open Recall.ai's API keys dashboard (region-specific!) and design a 'create new key' flow, stopping before any final create/confirm submit. Design-only recipe — NOT yet run against a live authenticated session.",
+    "selfImproving": true,
+    "runCount": 0,
+    "lastSuccess": null,
+    "auth": {
+      "type": "recall_dashboard_session",
+      "region": "us-west-2",
+      "note": "CRITICAL: this account's Recall region is us-west-2, NOT us-east-1 (the default guess). Confirmed via ~/Projects/soma-zoom-presence/spike-recall/launch-bot.js (RECALL_REGION hardcoded default) and RUNBOOK.md §7: 'us-east-1 and ap-northeast-1 return 401 (wrong region, not auth failure — same key); eu-west-1 didn't even resolve.' A 2026-07-09 discovery probe against the WRONG region (us-east-1.recall.ai/dashboard/developers/api-keys) hit a Django login form (not logged in there) and Mike had to manually authenticate — do not repeat that mistake. Always use https://us-west-2.recall.ai/dashboard/developers/api-keys. If that session isn't already authenticated when this recipe runs, STOP and report; do not prompt Mike through login, especially mid-class."
+    },
+    "params": {
+      "key_name": { "required": false, "description": "Some dashboards let you label a key; Recall's public docs don't confirm this field exists — treat as optional/best-effort." }
+    },
+    "risk": "safe up to the stop point",
+    "needs_live_verification": true,
+    "selectorNotes": "ENTIRELY UNVERIFIED. The only live signal obtained was the (wrong-region) Django login form: input#id_username (placeholder 'Email'), input#id_password (placeholder 'Password'), a submit input, and a link 'Choose a different region' -> https://recall.ai/login. No keys-page DOM has been observed for this account. Recall's own docs confirm key management is dashboard-only (no REST endpoint) and that rotation = 'explicitly disable an existing key, then create a new one' — there is no in-place regenerate. See ~/Projects/key-rotation/providers/RECALL.md."
+  },
+  "runId": "recall-create-api-key-{{timestamp}}",
+  "mode": "action",
+  "site": "recall.ai",
+  "params": { "key_name": "{{key_name}}" },
+  "chain": [
+    { "stepId": "s1", "action": "open_tab", "url": "https://us-west-2.recall.ai/dashboard/developers/api-keys", "note": "us-west-2 ONLY — see auth.region. New tab, never the active tab." },
+    { "stepId": "s2", "action": "wait_for", "selector": "table, [role='table'], main", "timeout": 15000, "onTimeout": "continue" },
+    { "stepId": "s3", "action": "read", "store_as": "keys_page", "note": "STOP-AND-CHECK point (not modeled as a hard gate below — do this manually): if pageUrl contains '/auth/login', the session isn't authenticated. Do not proceed; report back instead of prompting for credentials." },
+    { "stepId": "s4", "action": "click_text", "text": "Create", "note": "GUESSED — label unconfirmed (could be 'Create API Key', 'New Key', '+', etc). Re-anchor against the live DOM." },
+    { "stepId": "s5", "action": "wait_for", "selector": "[role='dialog'], form", "timeout": 8000, "note": "GUESSED." },
+    { "stepId": "s6", "action": "read", "store_as": "dialog_state", "note": "STOP HERE. Human completes and confirms the create flow, and captures the new key (Recall shows it once, like most providers). Do not automate the confirm click." }
+  ]
+}

@@ -2,15 +2,19 @@
   "_meta": {
     "task": "probe-frontier-model-ui",
     "description": "Generic DOM probe for any frontier model chat UI. Discovers input area, send button, response containers, and auth wall indicators.",
-    "params": ["base_url"],
+    "params": [
+      "base_url"
+    ],
     "selfImproving": false
   },
   "chain": [
     {
       "stepId": "s1",
-      "action": "delay",
-      "ms": 800,
-      "note": "Let page settle"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 800ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s2",

@@ -5,13 +5,32 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "github_session", "note": "Must be logged in to GitHub" },
+    "auth": {
+      "type": "github_session",
+      "note": "Must be logged in to GitHub"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" },
-      "pr_number": { "required": true, "description": "PR number" },
-      "issue_number": { "required": true, "description": "Issue number to link" },
-      "keyword": { "required": false, "description": "Closing keyword: 'Closes', 'Fixes', 'Resolves'", "default": "Closes" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      },
+      "pr_number": {
+        "required": true,
+        "description": "PR number"
+      },
+      "issue_number": {
+        "required": true,
+        "description": "Issue number to link"
+      },
+      "keyword": {
+        "required": false,
+        "description": "Closing keyword: 'Closes', 'Fixes', 'Resolves'",
+        "default": "Closes"
+      }
     },
     "risk": "safe",
     "needs_live_verification": true
@@ -27,10 +46,34 @@
     "keyword": "{{keyword}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/pull/{{pr_number}}" },
-    { "stepId": "s2", "action": "wait_for", "selector": "textarea[name='comment[body]'], #new_comment_field", "timeout": 8000 },
-    { "stepId": "s3", "action": "type", "selector": "textarea[name='comment[body]'], #new_comment_field", "value": "{{keyword}} #{{issue_number}}" },
-    { "stepId": "s4", "action": "click", "selector": "button[type='submit'][data-disable-with*='Comment']", "note": "Post the linking comment" },
-    { "stepId": "s5", "action": "delay", "ms": 1500 }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}/pull/{{pr_number}}"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "textarea[name='comment[body]'], #new_comment_field",
+      "timeout": 8000
+    },
+    {
+      "stepId": "s3",
+      "action": "type",
+      "selector": "textarea[name='comment[body]'], #new_comment_field",
+      "value": "{{keyword}} #{{issue_number}}"
+    },
+    {
+      "stepId": "s4",
+      "action": "click",
+      "selector": "button[type='submit'][data-disable-with*='Comment']",
+      "note": "Post the linking comment"
+    },
+    {
+      "action": "wait_for",
+      "selector": "[role=\"alert\"], .flash, .js-flash-alert, [data-testid=\"toast\"]",
+      "timeout": 8000,
+      "stepId": "s5"
+    }
   ]
 }

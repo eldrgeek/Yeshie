@@ -1,0 +1,148 @@
+{
+  "_meta": {
+    "name": "patientfusion-yafa-export-records",
+    "site": "portal.patientfusion.com",
+    "description": "Navigate PatientFusion patient portal (used by Yafa Health LLC), export appointments, visit notes, prescriptions, and CCDA health summary.",
+    "version": "1.0.0",
+    "verified": false,
+    "verifiedDate": null,
+    "platform": "PatientFusion (Veradigm) — NOT MyChart",
+    "myChart": false,
+    "provider": "Haitham Serhan, PMHNP, AGNP — Yafa Health LLC, Ipswich MA",
+    "authStrategy": "Email + password. Account email: mw@mike-wolf.com. Created Aug 2025 via noreply@patientfusion.com welcome email.",
+    "exportFormats": ["CCDA (Continuity of Care Document) XML", "PDF visit summaries", "Appointment history"],
+    "localCachePath": "~/Documents/MedicalRecords/yafa-health/{YYYY-MM}/",
+    "anomalies": [
+      "PatientFusion is a legacy Allscripts product (now Veradigm) — UI is older, not a SPA",
+      "Portal may have limited export options compared to modern MyChart",
+      "Multiple reminder systems layered (Office Ally, Updox) — those are NOT portals, just appointment reminder services",
+      "Doxy.me links for video visits are one-time URLs, not stored in portal"
+    ]
+  },
+  "params": {
+    "base_url": "https://portal.patientfusion.com",
+    "save_path": "~/Documents/MedicalRecords/yafa-health"
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://portal.patientfusion.com",
+      "note": "PatientFusion main portal landing. May redirect to login page."
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for_auth",
+      "authSentinelPattern": "/home|/dashboard|/summary",
+      "loginUrl": "https://portal.patientfusion.com",
+      "note": "Check for login form. If present, halt and prompt Mike to authenticate. Resume at s3."
+    },
+    {
+      "stepId": "s3",
+      "action": "perceive",
+      "store_as": "portal_home",
+      "note": "Capture portal navigation: expect sections like Summary, Health Record, Appointments, Messages, Test Results."
+    },
+    {
+      "stepId": "s4",
+      "action": "click_text_or_navigate",
+      "candidates": [
+        "text:Health Record",
+        "text:My Health",
+        "a[href*='health-record']",
+        "a[href*='summary']"
+      ],
+      "note": "Navigate to health record / summary section."
+    },
+    {
+      "stepId": "s5",
+      "action": "perceive",
+      "store_as": "health_record",
+      "note": "Capture available health record sections: Problems, Medications, Allergies, Immunizations, Vitals."
+    },
+    {
+      "stepId": "s6",
+      "action": "click_first_match",
+      "candidates": [
+        "text:Download",
+        "text:Export",
+        "text:Download Health Record",
+        "text:CCDA",
+        "a[href*='ccda']",
+        "a[href*='download']",
+        "button:has-text('Download')"
+      ],
+      "note": "Trigger CCDA or health record download. PatientFusion supports CCDA export from the health record section.",
+      "optional": true
+    },
+    {
+      "stepId": "s7",
+      "action": "click_text_or_navigate",
+      "candidates": [
+        "text:Appointments",
+        "a[href*='appointment']"
+      ],
+      "note": "Navigate to appointments section."
+    },
+    {
+      "stepId": "s8",
+      "action": "perceive",
+      "store_as": "appointments",
+      "note": "Capture past and upcoming appointments: date, provider, type. Expected: ~quarterly appointments with Haitham Serhan."
+    },
+    {
+      "stepId": "s9",
+      "action": "click_text_or_navigate",
+      "candidates": [
+        "text:Test Results",
+        "text:Lab Results",
+        "a[href*='results']",
+        "a[href*='lab']"
+      ],
+      "note": "Navigate to test results if available."
+    },
+    {
+      "stepId": "s10",
+      "action": "perceive",
+      "store_as": "test_results",
+      "note": "Capture any lab or test results. Yafa Health is psychiatry — may be limited.",
+      "optional": true
+    },
+    {
+      "stepId": "s11",
+      "action": "click_text_or_navigate",
+      "candidates": [
+        "text:Messages",
+        "a[href*='message']",
+        "a[href*='inbox']"
+      ],
+      "note": "Navigate to secure messages — clinical notes and care team communications are often here."
+    },
+    {
+      "stepId": "s12",
+      "action": "perceive",
+      "store_as": "messages",
+      "note": "Capture message threads. These contain medication instructions, follow-up notes from Haitham Serhan."
+    }
+  ],
+  "abstractTargets": {
+    "auth-sentinel": {
+      "description": "Element indicating authenticated session",
+      "cachedSelector": "#patient-name, .patient-header, .nav-username, header .welcome",
+      "cachedConfidence": 0.5,
+      "note": "PatientFusion is older HTML — IDs and class names are more stable than SPA. Perceive on first run to confirm."
+    },
+    "ccda-download-link": {
+      "description": "CCDA / health record download trigger",
+      "cachedSelector": "a[href*='ccda'], a[href*='download-health'], button.download-record",
+      "cachedConfidence": 0.4,
+      "note": "Location varies by PatientFusion version. Also look for 'Download' text in health record section."
+    },
+    "appointment-row": {
+      "description": "Row in appointment history table",
+      "cachedSelector": ".appointment-row, tr.appointment, [class*='appt']",
+      "cachedConfidence": 0.4,
+      "note": "Unverified. Use perceive appointments and inspect structure."
+    }
+  }
+}

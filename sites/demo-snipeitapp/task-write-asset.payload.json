@@ -1,7 +1,7 @@
 {
   "_meta": {
     "task": "create-asset-falsifier-test-2026-06-12",
-    "description": "Create a new asset named 'Falsifier Test 2026-06-12' — uses Select2 click-search-select pattern",
+    "description": "Create a new asset named 'Falsifier Test 2026-06-12' \u2014 uses Select2 click-search-select pattern",
     "mode": "exploratory"
   },
   "chain": [
@@ -12,8 +12,13 @@
     },
     {
       "stepId": "s2",
-      "action": "delay",
-      "ms": 3000
+      "action": "wait_for",
+      "selector": "span[aria-labelledby=\"select2-status_select_id-container\"],#select2-status_select_id-container",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for span[aria-labelledby=\"select2-status_select_id-container\"],#select2-status_select_id-container before next step (was delay 3000ms)"
     },
     {
       "stepId": "s3",
@@ -22,8 +27,13 @@
     },
     {
       "stepId": "s4",
-      "action": "delay",
-      "ms": 400
+      "action": "wait_for",
+      "selector": "input.select2-search__field",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for input.select2-search__field before next step (was delay 400ms)"
     },
     {
       "stepId": "s5",
@@ -33,8 +43,13 @@
     },
     {
       "stepId": "s6",
-      "action": "delay",
-      "ms": 600
+      "action": "wait_for",
+      "selector": ".select2-results__option",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for .select2-results__option before next step (was delay 600ms)"
     },
     {
       "stepId": "s7",
@@ -43,8 +58,13 @@
     },
     {
       "stepId": "s8",
-      "action": "delay",
-      "ms": 400
+      "action": "wait_for",
+      "selector": "#select2-model_select_id-container",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for #select2-model_select_id-container before next step (was delay 400ms)"
     },
     {
       "stepId": "s9",
@@ -53,8 +73,13 @@
     },
     {
       "stepId": "s10",
-      "action": "delay",
-      "ms": 400
+      "action": "wait_for",
+      "selector": "input.select2-search__field",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for input.select2-search__field before next step (was delay 400ms)"
     },
     {
       "stepId": "s11",
@@ -64,8 +89,13 @@
     },
     {
       "stepId": "s12",
-      "action": "delay",
-      "ms": 800
+      "action": "wait_for",
+      "selector": ".select2-results__option",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for .select2-results__option before next step (was delay 800ms)"
     },
     {
       "stepId": "s13",
@@ -74,8 +104,13 @@
     },
     {
       "stepId": "s14",
-      "action": "delay",
-      "ms": 400
+      "action": "wait_for",
+      "selector": "input[name=\"name\"]",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for input[name=\"name\"] before next step (was delay 400ms)"
     },
     {
       "stepId": "s15",
@@ -91,8 +126,11 @@
     },
     {
       "stepId": "s17",
-      "action": "delay",
-      "ms": 3500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s18",

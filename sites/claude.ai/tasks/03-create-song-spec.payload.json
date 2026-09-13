@@ -1,0 +1,26 @@
+{
+  "_meta": {
+    "task": "create-song-spec",
+    "description": "Start a conversation in the CURRENTLY OPEN project and ask Claude to write a song from a description, formatted for extraction (TITLE/STYLE/LYRICS). Waits until the turn is fully complete. Run after open-project or create-project (no navigate — operates on the active project page).",
+    "auth": { "type": "claude_session" },
+    "params": { "content": { "required": true, "description": "Description of the song and/or style, e.g. 'a hopeful synthwave anthem about shipping code at dawn'" } },
+    "notes": {
+      "completion": "Completion is detected via the response container's data-is-streaming attribute flipping to 'false' (Stop button also disappears). This is reliable for a fresh one-shot conversation.",
+      "send": "Submit is a click on button[aria-label='Send message'] — pressing Enter via automation does NOT submit the ProseMirror input."
+    },
+    "risk": "starts a chat + uses model usage",
+    "verified": "2026-06-18 — full flow verified on the relay path"
+  },
+  "runId": "claude-create-song-spec-{{timestamp}}",
+  "mode": "verification",
+  "site": "claude.ai",
+  "params": { "content": "{{content}}" },
+  "chain": [
+    { "stepId": "s1", "action": "wait_for", "selector": "[aria-label=\"Write your prompt to Claude\"]", "timeout": 10000 },
+    { "stepId": "s2", "action": "type", "selector": "[aria-label=\"Write your prompt to Claude\"]", "value": "Write an original song based on this description: {{content}}. Format your entire reply EXACTLY as three parts and nothing else: a line 'TITLE: <a short song title>', then a line 'STYLE: <comma-separated style/genre tags suitable for a music generator>', then a line 'LYRICS:' followed by the full lyrics using [Verse] and [Chorus] section tags." },
+    { "stepId": "s3", "action": "wait_for", "selector": "button[aria-label=\"Send message\"]", "timeout": 6000 },
+    { "stepId": "s4", "action": "click", "selector": "button[aria-label=\"Send message\"]" },
+    { "stepId": "s5", "action": "wait_for", "selector": "[data-is-streaming=\"false\"]", "timeout": 90000, "note": "turn complete" },
+    { "stepId": "s6", "action": "read", "candidates": [".standard-markdown"], "store_as": "song_spec", "note": "the formatted TITLE/STYLE/LYRICS reply" }
+  ]
+}

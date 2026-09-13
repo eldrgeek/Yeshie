@@ -5,10 +5,19 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "github_session", "note": "Must be logged in to subscribe to notifications" },
+    "auth": {
+      "type": "github_session",
+      "note": "Must be logged in to subscribe to notifications"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      }
     },
     "risk": "safe",
     "needs_live_verification": true
@@ -21,11 +30,40 @@
     "repo": "{{repo}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}" },
-    { "stepId": "s2", "action": "wait_for", "selector": "[aria-label*='Watch'], .watch-button", "timeout": 8000 },
-    { "stepId": "s3", "action": "click", "selector": "[aria-label*='Watch'], .watch-button", "note": "Open watch dropdown" },
-    { "stepId": "s4", "action": "delay", "ms": 500 },
-    { "stepId": "s5", "action": "click", "selector": "[aria-label*='Watching'], input[value='watching'] ~ label", "note": "Select 'Watching' for all notifications" },
-    { "stepId": "s6", "action": "delay", "ms": 1000 }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "[aria-label*='Watch'], .watch-button",
+      "timeout": 8000
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "selector": "[aria-label*='Watch'], .watch-button",
+      "note": "Open watch dropdown"
+    },
+    {
+      "action": "wait_for",
+      "selector": "[role=\"menu\"], [role=\"dialog\"], [role=\"listbox\"], .Overlay",
+      "timeout": 6000,
+      "stepId": "s4"
+    },
+    {
+      "stepId": "s5",
+      "action": "click",
+      "selector": "[aria-label*='Watching'], input[value='watching'] ~ label",
+      "note": "Select 'Watching' for all notifications"
+    },
+    {
+      "action": "wait_for",
+      "selector": "[role=\"alert\"], .flash, .js-flash-alert, [data-testid=\"toast\"]",
+      "timeout": 8000,
+      "stepId": "s6"
+    }
   ]
 }

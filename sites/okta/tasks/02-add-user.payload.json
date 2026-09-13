@@ -85,9 +85,11 @@
     },
     {
       "stepId": "s2",
-      "action": "delay",
-      "ms": 2500,
-      "note": "Wait for MUI table to load"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s3",
@@ -103,9 +105,13 @@
     },
     {
       "stepId": "s5",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for the Add Person dialog/form to render"
+      "action": "wait_for",
+      "target": "okta-first-name",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for okta-first-name before next step (was delay 2000ms)"
     },
     {
       "stepId": "s6",
@@ -137,9 +143,13 @@
     },
     {
       "stepId": "s10",
-      "action": "delay",
-      "ms": 500,
-      "note": "Brief pause before submitting"
+      "action": "wait_for",
+      "target": "okta-save-button",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for okta-save-button before next step (was delay 500ms)"
     },
     {
       "stepId": "s11",
@@ -176,9 +186,11 @@
     },
     {
       "stepId": "s12",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for navigation after save"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s13",

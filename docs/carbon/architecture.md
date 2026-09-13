@@ -1,9 +1,10 @@
 ---
 audience: carbon
 document: architecture
-sync_version: 1
-last_updated: 2026-04-04
+sync_version: 2
+last_updated: 2026-07-27
 repo: yeshie
+authorship_update: "Mike Wolf (human-gate doctrine), OpenAI Codex (2026-07-27 Pulse action bridge)"
 ---
 
 # How Yeshie Works
@@ -27,6 +28,20 @@ Claude
 ```
 
 Each arrow is a deliberate architectural choice. Let's walk through why.
+
+---
+
+## Human Approval: Navigate and Point, Never Click
+
+Pulse Zero can ask the relay to present one irreducible browser approval
+through authenticated `POST /teach/start`. The relay accepts only a narrowly
+validated TeachStep, sends it to the extension, and waits for the extension to
+identify the HTTPS tab. The extension injects its normal teaching overlay,
+highlights the exact control, and observes the requested action.
+
+This path deliberately has no auto-click field or behavior. Automation gets
+the human to the right place; the human supplies consent. The workflow that
+requested the gate must then verify the result before it can report success.
 
 ---
 

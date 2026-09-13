@@ -71,9 +71,11 @@
     },
     {
       "stepId": "s4b",
-      "action": "delay",
-      "ms": 1000,
-      "note": "Wait for search debounce."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s5",
@@ -111,9 +113,11 @@
     },
     {
       "stepId": "s10",
-      "action": "delay",
-      "ms": 1000,
-      "note": "Brief wait to detect if a confirmation dialog appears."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s11",
@@ -137,9 +141,11 @@
     },
     {
       "stepId": "s13",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for removal to complete."
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s14",

@@ -1,6 +1,6 @@
 # Yeshie — Working Memory
 
-Chrome extension + local relay server: Claude sends payload JSON → extension executes autonomously across page navigations → returns ChainResult.
+Chrome MV3 extension + local relay `http://127.0.0.1:3333`: Claude sends payload JSON (`sites/<domain>/tasks/*.payload.json`) → extension executes autonomously across page navigations → returns ChainResult. This is the **only** web-automation path. CIC is discovery-only. `PLAN.md` (CDP/Puppeteer) is historical/superseded.
 
 ## References
 
@@ -15,38 +15,154 @@ Chrome extension + local relay server: Claude sends payload JSON → extension e
 | Site payloads | `~/Projects/yeshie/sites/` |
 | Full spec | `~/Projects/yeshie/SPECIFICATION.md` |
 
+## Recipe count (2026-08-26; prior sweep 2026-07-04 WQ-122/WQ-124)
+
+A "recipe" is a `sites/<domain>/tasks/*.payload.json` file (that's what the per-site
+`README.md` files, e.g. `sites/github.com/README.md`, call them). The top-level
+`recipes/` directory is a one-off (`auth-flow-handler` only, added whole 2026-05-05,
+no history since) — not the repo's actual recipe home; don't count only that dir.
+
+Current corpus: **35 site dirs / ~220 recipes**. `github.com` is the largest set
+(100 recipes, of which 38 public ones were "live verified," per its own README —
+the rest need an authenticated session to verify). `google-admin` and `okta`
+already have payloads. This git branch may lag the operator laptop (e.g. Rocket
+Money live-verified there, not landed here). Full per-site breakdown:
+`find sites -name "*.payload.json" | sed 's#/tasks/.*##' | sort | uniq -c | sort -rn`.
+
+2026-07-04 WQ-124 snapshot (historical): 188 git-tracked / 208 on disk across 30
+site dirs. Count went 6 (Mar 30) → 24 (Apr 10) → 28 (Apr 12) → 84 (Jun 12) → 184
+(Jun 13) → 188 (Jun 19) → 208 (Jul 4) → ~220 (Aug 26). It was never 46 at any
+commit. No recipes were lost — only a handful of superseded `sites/okta/tasks/*`
+files were deleted/renamed as that set matured; corpus size only ever grew.
+
+## VPS relay — SSH bridge for authorized externals (added 2026-08-12/13, DISABLED)
+
+The Yeshie/Pulse dispatch relay (Mac `:3333` standby, VPS primary at
+`wss://vpsmikewolf.duckdns.org:3443`, described above and in
+`second-brain/Resources/vps-config.md`) is one thing; this is a **separate,
+sibling capability** built alongside it, not a change to `packages/relay/index.js`
+or the live `yeshie-relay` pm2 process.
+
+A websocket-to-`sshd(:22)` bridge lets authorized external people (Mark
+Inarai, James Crook) reach an SSH shell on the VPS through the relay's public
+TLS endpoint, without ever opening public `:22` (which stays firewalled by
+design). Source: `~/Projects/_estate/relay-ssh/`. Deployed read-only to
+VPS `~/relay-ssh-bridge/` — a sibling directory, does not touch
+`~/yeshie-relay/`.
+
+**Current state: DISABLED.** Not started, not in pm2/systemd, no nginx route
+exists yet. End-to-end tested via an SSH tunnel (not the public path) —
+proof at `_estate/relay-ssh/proof/`. Full design + threat model:
+`_estate/relay-ssh/SECURITY-NOTES.md`. Enablement checklist (Locke security
+review → Mike's nod → mint tokens → start service → route via nginx):
+`_estate/relay-ssh/STATUS.md`.
+
+## Runtime policy — Yeshie-first (Mike, 2026-07-08)
+
+Browser automation runs on **Yeshie recipes via the relay**, not Claude-in-Chrome
+(CIC/computer-use). CIC burns inference budget; the Yeshie relay does not. Standing
+order for any browser task:
+
+1. **Look for a Yeshie recipe first** (`sites/<domain>/tasks/*.payload.json`). If one
+   exists, run it via `yeshie_run`.
+2. **If the recipe is stale** (a step times out on a `wait_for`, selector drift): fix
+   the recipe — inspect the live DOM for the new stable hook (prefer `data-testid`,
+   then `aria-label`, then a scoped wrapper), update the payload, re-verify through the
+   relay. Don't abandon the recipe and finish the flow by hand in CIC.
+3. **If no recipe is defined:** either have Yeshie build it, or use CIC only to *figure
+   out* the flow/selectors — then **capture that as a new recipe** so the next run is
+   relay-native. CIC is discovery scaffolding, not the runtime.
+
+Case study: `sites/suno.com/tasks/03-create-song.payload.json` — Suno's 2026-07
+redesign swapped the lyrics `<textarea>` for a contenteditable `<div>` and reshuffled
+the form; the recipe was healed and re-verified live (all 7 fill steps `ok`) rather
+than completed in CIC.
+
 ## Key Patterns
 
 | Pattern | Rule |
 |---------|------|
-| MCP timeout | ~60s hard cap — use `nohup bash runner.sh &` fire-and-forget for long tasks |
+| MCP timeout | `yeshie_run` MCP tool ~60s hard cap. For long recipes (e.g. DeepSeek+DeepThink) submit async: `POST /run/async` → id, poll `GET /run/result/:id`, or use `node scripts/run-async.mjs <recipe>` (see Async runner below) |
+| Health check | `curl -s http://127.0.0.1:3333/status` — expect `{"ok":true,"extensionConnected":true}` |
+| extract_text | First-class action: `selector` + `store_as`. Exists in `step-executor.ts` / `background.ts`. |
+| wait_for / state.stable | First-class (#55): selector, text, or content fingerprint quiet for `quietMs` (default 800ms). Prefer over `delay`. |
+| Auto-heal | `#55`: `improve.js` runs after `POST /run` and `/run/async` when `success && goalReached` and `_meta.selfImproving === true`. Not a pending item. |
 | Claude CLI flags | `--output-format stream-json` requires `--verbose` with `-p`; omit `--input-format` for plain prompt strings |
 | Outer loop | Edits to `background.ts` / `target-resolver.ts`. Inner loop = model JSON only. |
-| Health check | `curl -s http://localhost:3333/status` — expect `{"ok":true,"extensionConnected":true}` |
-| Chrome debug | `chrome-debug-restart` — **preferred for surveys**: kills Chrome, relaunches with main Default profile + port 9222. No login needed — YeshID session carries over. `chrome-debug` — separate ChromeDebug profile alongside existing Chrome (needs one-time login). |
+| Chrome debug | `chrome-debug` / `chrome-debug-restart` — both aliases launch the canonical `ChromeMain` user-data-dir on port 9222. No login needed because `ChromeMain` was copied from the old default Chrome dir. |
+
+## Async recipe runner — beat the ~60s MCP cap (added 2026-07-10)
+
+The synchronous `POST /run` (what `yeshie_run` wraps) blocks the caller and the MCP
+tool tops out at ~60s. Recipes whose page runs longer — e.g.
+`chat.deepseek.com/tasks/01-submit-prompt` with **DeepThink** reasoning on
+(30–60s of chain-of-thought) — can't be verified through it. Use the async path:
+
+- **`POST /run/async`** — body `{payload, params?, tabId?, timeoutMs?}` (default
+  `timeoutMs` 300000). Returns `202 {ok:true, id, status:"running"}` **immediately**;
+  the caller is never blocked. Internally it's a normal `skill_run` whose settled
+  ChainResult is stashed instead of HTTP-replied — so every existing hook
+  (`chain_result`, `chain_error`, `status_update` progress, disconnect-rejection)
+  still applies.
+- **`GET /run/result/:id`** — poll. Returns `{id, status: running|done|error,
+  result, error, progress}`. `result` is the full ChainResult once `done`. Settled
+  runs expire after the 30-min job TTL. `GET /status` now also reports `asyncRuns`.
+- **`node scripts/run-async.mjs <recipe-path> [--param k=v] [--submit-only]
+  [--poll <id>] [--json]`** — ergonomic wrapper: resolves `{{params}}` client-side
+  (payload's own `params` block supplies defaults, `--param` overrides), submits,
+  and polls to completion (or `--submit-only` for true fire-and-forget + later
+  `--poll <id>`). Path is relative to `sites/` or absolute. Exit 0 = green
+  (`goalReached && success`).
+
+Verified green 2026-07-10: DeepSeek submit-prompt, DeepThink ON, all 9 steps `ok`,
+correct answer, through `run-async.mjs`.
+
+**Streaming UIs:** `wait_for` now includes `state.stable` (content fingerprint
+quiet for `quietMs`, default 800ms) — landed in
+[#55](https://github.com/eldrgeek/Yeshie/pull/55). DeepSeek's `.ds-loading`
+spinner (`s5a`/`s5b`) is still empirically unreliable as a DOM completion
+selector; recipes should wait on `state.stable` (or visible answer text) rather
+than that spinner. Do not list `state.stable` as future work.
 
 ## Chrome DevTools (for site surveys)
 
-The `chrome-devtools-mcp` connects to Chrome on **port 9222**. Normal Chrome does not expose this port.
+The `chrome-devtools-mcp` connects to Chrome on **port 9222**. The canonical launch path is `ChromeMain`, not the macOS default Chrome user-data-dir.
 
-**Preferred workflow (no login prompt):**
+**Preferred workflow:**
 ```bash
-chrome-debug-restart  # kills Chrome, relaunches with ~/Library/.../Google/Chrome Default profile
-                      # your mw@mike-wolf.com YeshID session is already active
-                      # Chrome will offer to restore previous tabs on next normal launch
+chrome-debug          # launches/consolidates ChromeMain on port 9222
+chrome-debug-restart  # same launcher; kept for muscle memory
 ```
 
-**Alternative (keep normal Chrome open, needs one-time login):**
-```bash
-chrome-debug          # starts separate ChromeDebug profile on port 9222
-                      # ~/Library/.../Google/ChromeDebug/Default — requires manual sign-in once
-```
-
-**Profile for both aliases:** `~/Library/Application Support/Google/ChromeDebug` / `Default`
-— `ChromeDebug/Default` is a **symlink** to the main Chrome `Default` profile, so all sessions
-(`mw@mike-wolf.com`, YeshID, etc.) are already active. The main Chrome user data dir does NOT
-expose the debug port; only ChromeDebug does. Do not change the user-data-dir to the main Chrome dir.
+**Profile for both aliases:** `~/Library/Application Support/Google/ChromeMain` / `Default`.
+Chrome 136+ silently drops `--remote-debugging-port` for the default user-data-dir
+(`~/Library/Application Support/Google/Chrome`), so do not point launchers back there.
+`ChromeDebug` is retired legacy state; do not recreate the old symlinked-profile trick.
+(Verified 2026-07-04, WQ-124 sweep: `~/Library/Application Support/Google/ChromeDebug`
+still exists on disk — retired from use, not deleted; safe to remove but not required.)
 
 **Session check:** `curl -s http://localhost:9222/json/version | python3 -m json.tool`
 
 **Auth state check (app.yeshid.com):** Navigate to `https://app.yeshid.com/` — if redirected to `/login`, session expired. Use `chrome-debug-restart` to get a fresh session.
+
+## Yeshie HUD — retired 2026-07-01 (Mike's call)
+
+Mike: "it's just a box that pops up and shows no information." Confirmed and retired.
+
+**What it was:** `com.yeshie.hud` launchd job running `scripts/hud.py` (native macOS panel app, `:3334` control port). It polls the relay for active jobs and force-shows a native panel (`orderFrontRegardless`) whenever it thinks a job is running; the panel content is a WKWebView pointed at `localhost:3333/hud`. At retirement time the WKWebView had never successfully loaded (`GET :3334/wv-status` → `{"loaded": false}`), so the panel popped with nothing rendered inside it — hence the empty box. Root cause was investigated 2026-04-30 (see `HUD-INVESTIGATION-RESULTS.md`, `HUD-FINDINGS-*.md`) — leading hypotheses were a WKWebView load/cache failure and a `jobMap`/`hud_update` vs `jobs`/`job_update` bookkeeping split between job writers and the HUD's event subscription — but it was never fixed. A prior note (in `mac-controller/KNOWLEDGE.md`) claimed this was already retired 2026-06-10; it wasn't — the plist was still `RunAtLoad`/`KeepAlive=true` and the process was live (PID 777) until this pass.
+
+**What was disabled:**
+```bash
+launchctl bootout gui/$(id -u)/com.yeshie.hud
+mv ~/Library/LaunchAgents/com.yeshie.hud.plist ~/Library/LaunchAgents/com.yeshie.hud.plist.disabled
+# backup also kept at ~/Library/LaunchAgents/com.yeshie.hud.plist.bak
+```
+
+**To re-enable:**
+```bash
+mv ~/Library/LaunchAgents/com.yeshie.hud.plist.disabled ~/Library/LaunchAgents/com.yeshie.hud.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.yeshie.hud.plist
+```
+Fix the WKWebView load failure (or the job-bookkeeping split) first, or it'll just be an empty box again.
+
+**Confirmed unaffected by the retirement:** `com.yeshie.relay` (`:3333/status`), the Pulse asks path (`:3333/hud/asks`, `cc hud-ask`), `com.yeshie.listener`, `com.yeshie.watcher`, and the ⌃⌥R recording toggle (`do-it-once`, dio-phase-a) — none of these depend on the `com.yeshie.hud` process.

@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "title": "SubstackDrafterInput",
+  "description": "Input schema for the substack-drafter Yeshie skill",
+  "type": "object",
+  "required": ["storyPath"],
+  "properties": {
+    "storyPath": {
+      "type": "string",
+      "description": "Absolute path to the staged markdown story file"
+    },
+    "substackEmail": {
+      "type": "string",
+      "format": "email",
+      "description": "Substack account email. If omitted, reads from SUBSTACK_EMAIL env or ~/.config/substack-drafter/creds.json"
+    },
+    "substackPassword": {
+      "type": "string",
+      "description": "Substack account password. If omitted, reads from SUBSTACK_PASSWORD env or ~/.config/substack-drafter/creds.json"
+    },
+    "draftOnly": {
+      "type": "boolean",
+      "default": true,
+      "description": "Must be true. Publish is not supported."
+    },
+    "publication": {
+      "type": "string",
+      "default": "wolfinpc",
+      "description": "Substack publication subdomain (without .substack.com)"
+    }
+  },
+  "additionalProperties": false,
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "success": { "type": "boolean" },
+      "draftUrl": { "type": "string", "format": "uri" },
+      "draftId": { "type": "string" },
+      "title": { "type": "string" },
+      "error": { "type": "string" },
+      "escalate": { "type": "boolean" }
+    }
+  }
+}

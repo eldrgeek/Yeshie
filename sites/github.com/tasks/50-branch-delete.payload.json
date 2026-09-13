@@ -1,15 +1,27 @@
 {
   "_meta": {
     "task": "branch-delete",
-    "description": "Delete a branch from a GitHub repository. DESTRUCTIVE — cannot delete the default branch. Requires write access.",
+    "description": "Delete a branch from a GitHub repository. DESTRUCTIVE \u2014 cannot delete the default branch. Requires write access.",
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "github_session", "note": "Must have write access to delete branches" },
+    "auth": {
+      "type": "github_session",
+      "note": "Must have write access to delete branches"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" },
-      "branch": { "required": true, "description": "Branch name to delete (cannot be the default branch)" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      },
+      "branch": {
+        "required": true,
+        "description": "Branch name to delete (cannot be the default branch)"
+      }
     },
     "risk": "confirm",
     "needs_live_verification": true
@@ -23,10 +35,34 @@
     "branch": "{{branch}}"
   },
   "chain": [
-    { "stepId": "guard", "action": "assert", "condition": "false", "message": "DESTRUCTIVE: Deleting a branch removes all unmerged commits on that branch from the remote. NEVER execute in testing." },
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/branches" },
-    { "stepId": "s2", "action": "wait_for", "selector": "button[aria-label*='Delete branch'], [data-branch*='{{branch}}']", "timeout": 8000 },
-    { "stepId": "s3", "action": "click", "selector": "[data-branch-name='{{branch}}'] button[type='submit'], [aria-label*='Delete {{branch}}']", "note": "Click delete button for the specific branch" },
-    { "stepId": "s4", "action": "delay", "ms": 1500 }
+    {
+      "stepId": "guard",
+      "action": "assert",
+      "condition": "false",
+      "message": "DESTRUCTIVE: Deleting a branch removes all unmerged commits on that branch from the remote. NEVER execute in testing."
+    },
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}/branches"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "button[aria-label*='Delete branch'], [data-branch*='{{branch}}']",
+      "timeout": 8000
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "selector": "[data-branch-name='{{branch}}'] button[type='submit'], [aria-label*='Delete {{branch}}']",
+      "note": "Click delete button for the specific branch"
+    },
+    {
+      "action": "wait_for",
+      "selector": "[role=\"alert\"], .flash, .js-flash-alert, [data-testid=\"toast\"]",
+      "timeout": 8000,
+      "stepId": "s4"
+    }
   ]
 }

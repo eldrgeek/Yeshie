@@ -1,0 +1,31 @@
+{
+  "title": "Demo: view repo & open Code menu",
+  "when": "2026-06-17T22:20:05.880Z",
+  "port": 9223,
+  "failures": [
+    {
+      "stepNo": 1,
+      "stepId": "s1",
+      "action": "navigate",
+      "selector": null,
+      "error": "Timeout after 120000ms",
+      "url": "about:blank"
+    },
+    {
+      "stepNo": 3,
+      "stepId": "s3",
+      "action": "click",
+      "selector": "button[aria-label*=\"Code\"], summary[aria-haspopup=\"menu\"]",
+      "error": "Timeout after 120000ms",
+      "url": "about:blank"
+    },
+    {
+      "stepNo": 5,
+      "stepId": "s5",
+      "action": "read",
+      "selector": null,
+      "error": "Timeout after 120000ms",
+      "url": "about:blank"
+    }
+  ]
+}

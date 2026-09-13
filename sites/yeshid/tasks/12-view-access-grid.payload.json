@@ -1,7 +1,7 @@
 {
   "_meta": {
     "task": "view-access-grid",
-    "description": "Navigate to the access grid and capture the people × applications matrix.",
+    "description": "Navigate to the access grid and capture the people \u00d7 applications matrix.",
     "params": [
       "base_url"
     ],
@@ -33,9 +33,11 @@
     },
     {
       "stepId": "s3",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Access grid loads slowly — extra wait"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s4",

@@ -5,11 +5,23 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "github_session", "note": "Must have write access to cancel workflows" },
+    "auth": {
+      "type": "github_session",
+      "note": "Must have write access to cancel workflows"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" },
-      "run_id": { "required": true, "description": "Workflow run ID to cancel (must be in progress)" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      },
+      "run_id": {
+        "required": true,
+        "description": "Workflow run ID to cancel (must be in progress)"
+      }
     },
     "risk": "confirm",
     "needs_live_verification": true
@@ -23,12 +35,46 @@
     "run_id": "{{run_id}}"
   },
   "chain": [
-    { "stepId": "guard", "action": "assert", "condition": "false", "message": "DESTRUCTIVE: Cancelling a workflow stops the current run. NEVER execute in testing." },
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/actions/runs/{{run_id}}" },
-    { "stepId": "s2", "action": "wait_for", "selector": "button[data-confirm*='cancel'], [aria-label*='Cancel'], button[aria-label*='cancel this workflow run']", "timeout": 8000 },
-    { "stepId": "s3", "action": "click", "selector": "button[aria-label*='Cancel workflow']", "note": "Click Cancel workflow button" },
-    { "stepId": "s4", "action": "wait_for", "selector": "button[type='submit'], dialog", "timeout": 5000 },
-    { "stepId": "s5", "action": "click", "selector": "button[type='submit']", "note": "Confirm cancellation" },
-    { "stepId": "s6", "action": "delay", "ms": 2000 }
+    {
+      "stepId": "guard",
+      "action": "assert",
+      "condition": "false",
+      "message": "DESTRUCTIVE: Cancelling a workflow stops the current run. NEVER execute in testing."
+    },
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}/actions/runs/{{run_id}}"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "button[data-confirm*='cancel'], [aria-label*='Cancel'], button[aria-label*='cancel this workflow run']",
+      "timeout": 8000
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "selector": "button[aria-label*='Cancel workflow']",
+      "note": "Click Cancel workflow button"
+    },
+    {
+      "stepId": "s4",
+      "action": "wait_for",
+      "selector": "button[type='submit'], dialog",
+      "timeout": 5000
+    },
+    {
+      "stepId": "s5",
+      "action": "click",
+      "selector": "button[type='submit']",
+      "note": "Confirm cancellation"
+    },
+    {
+      "action": "wait_for",
+      "selector": "[role=\"alert\"], .flash, .js-flash-alert, [data-testid=\"toast\"]",
+      "timeout": 8000,
+      "stepId": "s6"
+    }
   ]
 }

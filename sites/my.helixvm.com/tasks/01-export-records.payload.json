@@ -1,0 +1,149 @@
+{
+  "_meta": {
+    "name": "helixvm-export-records",
+    "site": "my.helixvm.com",
+    "description": "Navigate HelixVM telehealth patient portal, capture visit summaries, treatment plans, and billing statements. Note: Helix Medical also uses eClinicalWorks EHR with a Healow patient portal.",
+    "version": "1.0.0",
+    "verified": false,
+    "verifiedDate": null,
+    "platform": "HelixVM (telehealth) + eClinicalWorks EHR (in-person). Two separate portals.",
+    "myChart": false,
+    "provider": "Helix Medical (general medicine, FastTrack Rx telehealth)",
+    "authStrategy": "HelixVM: account at mw@mike-wolf.com. eClinicalWorks/Healow: separate account via healow.com — may use same email.",
+    "exportFormats": [
+      "HelixVM: treatment plan PDFs, visit summaries per-visit at mini patient portal URL",
+      "eClinicalWorks/Healow: CCDA export, visit summary PDFs, billing statements"
+    ],
+    "localCachePath": "~/Documents/MedicalRecords/helix-medical/{YYYY-MM}/",
+    "anomalies": [
+      "Two-portal architecture: HelixVM (telehealth) and eClinicalWorks/Healow (in-person EHR)",
+      "HelixVM mini patient portal URLs are per-visit (e.g. my.helixvm.com/mini-patient-portal/?srid=XXXXX) — not a persistent dashboard",
+      "HelixVM registration emails (Dec 2024) confirm Fasttrack Rx virtual visit platform",
+      "eClinicalWorks visit summary notification Dec 2024, billing statement Jan 2025",
+      "Healow app (eClinicalWorks patient portal) at healow.com — separate login from HelixVM"
+    ]
+  },
+  "params": {
+    "base_url_helixvm": "https://my.helixvm.com",
+    "base_url_healow": "https://healow.com",
+    "save_path": "~/Documents/MedicalRecords/helix-medical"
+  },
+  "chain": [
+    {
+      "stepId": "s1-helixvm",
+      "action": "navigate",
+      "url": "https://my.helixvm.com",
+      "note": "HelixVM portal. If no persistent dashboard exists (mini-portal is per-visit only), this may redirect to a login or info page."
+    },
+    {
+      "stepId": "s2-helixvm",
+      "action": "perceive",
+      "store_as": "helixvm_home",
+      "note": "Capture page state. HelixVM may only have a login + per-visit URL pattern, not a persistent health record dashboard."
+    },
+    {
+      "stepId": "s3-helixvm",
+      "action": "wait_for_auth",
+      "authSentinelPattern": "/dashboard|/history|/patient",
+      "loginUrl": "https://my.helixvm.com",
+      "note": "Halt if login required. Authenticate manually."
+    },
+    {
+      "stepId": "s4-helixvm",
+      "action": "click_text_or_navigate",
+      "candidates": [
+        "text:My Visits",
+        "text:Visit History",
+        "text:Health History",
+        "a[href*='history']",
+        "a[href*='visits']"
+      ],
+      "note": "Navigate to visit history if a persistent dashboard exists.",
+      "optional": true
+    },
+    {
+      "stepId": "s5-helixvm",
+      "action": "perceive",
+      "store_as": "helixvm_visits",
+      "note": "Capture visit list with dates, visit type, treatment plans.",
+      "optional": true
+    },
+    {
+      "stepId": "s1-healow",
+      "action": "navigate",
+      "url": "https://healow.com",
+      "note": "eClinicalWorks patient portal (Healow). Separate login from HelixVM. Account email: mw@mike-wolf.com."
+    },
+    {
+      "stepId": "s2-healow",
+      "action": "wait_for_auth",
+      "authSentinelPattern": "/home|/dashboard|/records",
+      "loginUrl": "https://healow.com",
+      "note": "Halt if login required. Authenticate manually. Provider: Helix Medical."
+    },
+    {
+      "stepId": "s3-healow",
+      "action": "perceive",
+      "store_as": "healow_home",
+      "note": "Capture navigation: Visit Summaries, Health Records, Medications, Test Results, Billing."
+    },
+    {
+      "stepId": "s4-healow",
+      "action": "click_text_or_navigate",
+      "candidates": [
+        "text:Visit Summary",
+        "text:Health Record",
+        "a[href*='visit-summary']",
+        "a[href*='health-record']"
+      ],
+      "note": "Navigate to visit summaries. Visit Summary Dec 2024 confirmed via email notification."
+    },
+    {
+      "stepId": "s5-healow",
+      "action": "perceive",
+      "store_as": "visit_summaries",
+      "note": "Capture visit summary list with dates and provider."
+    },
+    {
+      "stepId": "s6-healow",
+      "action": "click_first_match",
+      "candidates": [
+        "text:Download",
+        "text:Export Health Record",
+        "text:CCDA",
+        "a[href*='download']",
+        "a[href*='ccda']"
+      ],
+      "note": "eClinicalWorks supports CCDA export. Trigger download.",
+      "optional": true
+    },
+    {
+      "stepId": "s7-healow",
+      "action": "click_text_or_navigate",
+      "candidates": [
+        "text:Billing",
+        "text:Statements",
+        "a[href*='billing']"
+      ],
+      "note": "Navigate to billing / statements. Jan 2025 statement confirmed via email."
+    },
+    {
+      "stepId": "s8-healow",
+      "action": "perceive",
+      "store_as": "billing_statements",
+      "note": "Capture billing statement list."
+    }
+  ],
+  "abstractTargets": {
+    "healow-auth-sentinel": {
+      "description": "Post-login element on Healow",
+      "cachedSelector": ".patient-name, #welcomeMsg, .dashboard-header",
+      "cachedConfidence": 0.5
+    },
+    "healow-ccda-export": {
+      "description": "CCDA health record export button on Healow",
+      "cachedSelector": "a.download-ccda, [href*='ccda'], button:has-text('Export Health Record')",
+      "cachedConfidence": 0.4
+    }
+  }
+}

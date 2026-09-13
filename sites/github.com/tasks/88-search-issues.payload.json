@@ -5,9 +5,15 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "none", "note": "Public search accessible without login" },
+    "auth": {
+      "type": "none",
+      "note": "Public search accessible without login"
+    },
     "params": {
-      "query": { "required": true, "description": "Issue search query (e.g. 'is:issue is:open label:bug language:rust')" }
+      "query": {
+        "required": true,
+        "description": "Issue search query (e.g. 'is:issue is:open label:bug language:rust')"
+      }
     },
     "risk": "safe",
     "needs_live_verification": false
@@ -19,8 +25,21 @@
     "query": "{{query}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/search?q={{query}}&type=issues" },
-    { "stepId": "s2", "action": "delay", "ms": 2000 },
-    { "stepId": "s3", "action": "read", "store_as": "issue_search_results" }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/search?q={{query}}&type=issues"
+    },
+    {
+      "action": "wait_for",
+      "selector": ".application-main",
+      "timeout": 8000,
+      "stepId": "s2"
+    },
+    {
+      "stepId": "s3",
+      "action": "read",
+      "store_as": "issue_search_results"
+    }
   ]
 }

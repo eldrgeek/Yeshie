@@ -5,11 +5,23 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "none_public_repo", "note": "Public repos accessible without login" },
+    "auth": {
+      "type": "none_public_repo",
+      "note": "Public repos accessible without login"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" },
-      "assignee": { "required": true, "description": "GitHub username to filter by" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      },
+      "assignee": {
+        "required": true,
+        "description": "GitHub username to filter by"
+      }
     },
     "risk": "safe",
     "needs_live_verification": false
@@ -23,8 +35,21 @@
     "assignee": "{{assignee}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/issues?q=is%3Aissue+is%3Aopen+assignee%3A{{assignee}}" },
-    { "stepId": "s2", "action": "delay", "ms": 1500 },
-    { "stepId": "s3", "action": "read", "store_as": "filtered_issues" }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}/issues?q=is%3Aissue+is%3Aopen+assignee%3A{{assignee}}"
+    },
+    {
+      "action": "wait_for",
+      "selector": ".application-main",
+      "timeout": 8000,
+      "stepId": "s2"
+    },
+    {
+      "stepId": "s3",
+      "action": "read",
+      "store_as": "filtered_issues"
+    }
   ]
 }

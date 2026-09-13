@@ -1,0 +1,669 @@
+{
+  "_meta": {
+    "name": "gas-install-editor-addon",
+    "site": "script.google.com",
+    "description": "Install an Apps Script EDITOR ADD-ON into the signed-in Google account via Deploy > Test deployments, so its onOpen()/createAddonMenu() menu appears in a Google Doc under Extensions > <add-on name>. Parameterised by script_id, so it works for ANY editor add-on project, not just Playmaker. Asserts the ACTIVE Google account before touching anything. Idempotent: every state-changing click is gated on the control's own ARIA state, so a re-run neither un-selects the deployment type nor double-creates a test.",
+    "version": "0.9.0",
+    "verified": false,
+    "verifiedDate": null,
+    "author": "Yeshie session 2026-08-02",
+    "mode": "verification",
+    "auth": {
+      "type": "none"
+    },
+    "skipAuthCheck": true,
+    "prerequisite": [
+      "Relay up + extension connected: curl -s http://localhost:3333/status -> {\"ok\":true,\"extensionConnected\":true}.",
+      "Chrome signed into the target Google account (this recipe never logs in and never types a credential).",
+      "HARD PREREQUISITE - FOREGROUND: the script.google.com tab MUST be the ACTIVE tab in a FOREGROUNDED Chrome window before the run. Do both: `open -a \"Google Chrome\"` then `POST http://localhost:3333/tabs/activate {\"tabId\": <id from GET /tabs/list>}`. See anomaly BACKGROUND-TAB-BREAKS-TRUSTED-CLICKS - the Drive picker step provably cannot work otherwise.",
+      "The document named by params.doc_title must already exist AND be old enough to appear in the Drive Picker's Recent list (see anomaly PICKER-INDEX-LAG). Create one with `navigate https://docs.google.com/document/create?title=<urlencoded title>` and give it several minutes."
+    ],
+    "whatThisFlowActuallyIs": "The task brief described this as 'Deploy > Test deployments > Install'. That is the GOOGLE WORKSPACE ADD-ON flow. For an EDITOR ADD-ON (a script whose onOpen() calls DocumentApp.getUi().createAddonMenu()) there is NO 'Install' button and NO 'Uninstall' button anywhere in the Test deployments dialog - observed live, full dialog textContent captured 2026-08-02. The editor-add-on equivalent is: select deployment type 'Editor Add-on' -> 'Create new test' -> choose a Version, a Config, and a REQUIRED Test document -> 'Save test'. The saved test is what makes the add-on menu appear. Anyone looking for an Install/Uninstall toggle here will not find one.",
+    "verificationByConsequence": "Open the chosen test document, click the Docs menubar item #docs-extensions-menu, then read '.goog-menu.goog-menu-vertical:not([style*=\"display: none\"])'. BEFORE (baseline captured live 2026-08-02 on a fresh doc): 'Add-ons►Apps Script(E)AI Video Generator - Text to Video by Veo 3►'. AFTER: that string must additionally contain the add-on's name (for the Playmaker project, 'Playmaker'), and its submenu must contain 'Open Playmaker assistant'. A closed dialog is NOT proof. The test row appearing in the Test deployments table is a necessary-but-not-sufficient intermediate signal.",
+    "humanGate": {
+      "step": "hg1",
+      "what": "Google OAuth consent for the add-on's scopes.",
+      "whenItFires": "NOT during this recipe as far as any run on 2026-08-02 observed - no consent screen appeared at any point through 'Save test'. It is expected the FIRST time the add-on actually RUNS in a document (Extensions > <add-on> > <menu item>), because that is when Apps Script needs the scopes.",
+      "whatItAsks": "For the Playmaker project the manifest at ~/Projects/playmaker/gdocs-addon/appsscript.json declares NO oauthScopes array, so Apps Script infers scopes statically from the code. The brief's four scopes (documents.currentonly, script.container.ui, script.external_request, drive.file) are NOT declared in the pushed manifest - flagged, not fixed (playmaker/ is read-only to this recipe).",
+      "rule": "YESHIE MUST NOT CLICK IT. Approving an OAuth scope grant is the user's decision. Navigate up to the consent screen, leave it on screen, and report which button the user must press ('Continue' / 'Allow' on accounts.google.com). Everything before and after that click is automatable."
+    },
+    "anomalies": [
+      "BACKGROUND-TAB-BREAKS-TRUSTED-CLICKS (the big one, generalises far beyond this site). When the target tab is not the ACTIVE tab of a FOREGROUNDED Chrome window, getBoundingClientRect() inside that tab returns a STALE layout, so trustedCoordClick computes stale coordinates and the click lands on nothing. Measured live and reproducibly: the SAME selector for the Test-document picker button resolved to x=1111,y=595 with the tab foregrounded (picker opened, 3/3) and to x=1046,y=564..592 with it backgrounded (picker never opened, 5/5). The step still reports status 'ok' with {ok:true,x,y} - a trusted click CANNOT tell you it missed. Only the response signature catches it. Fix: `open -a \"Google Chrome\"` + POST /tabs/activate before the run.",
+      "GOOGLE PICKER REQUIRES A REAL USER GESTURE. Non-trusted element.click() on the Test-document picker button returns ok and does nothing - no iframe, no overlay (verified: chain reached the click, then wait_for iframe[src*='picker'] timed out at 30s). Only trusted:true (CDP Input.dispatchMouseEvent) opens it, and only when foregrounded.",
+      "THE DEPLOY DROPDOWN IS A TRAP - SKIP IT. click_text 'Deploy' + click 'Test deployments' failed ~50% of runs ('Element not found for trusted click: Test deployments' even with a 20s retry window), because the Deploy button toggles and a mistimed click closes the menu. But [role='menuitem'][aria-label='Test deployments'] is present in the DOM from first paint with a ZERO rect, and a NON-trusted element.click() on it opens the Test deployments dialog directly, with the dropdown never opening. 4/4 successes. Prefer the hidden menuitem over the visible menu.",
+      "THE OLD 'CONFIRMED BLOCKER' IS RETIRED. deploy-apps-script.payload.json records the deployment-type [role='menuitemcheckbox'] as a CONFIRMED BLOCKER needing a new jsaction_trigger action. That is false on the 2026-08-02 runtime. [role='menuitemcheckbox'][aria-label='Editor Add-on'] flips aria-checked to 'true' with BOTH trusted:true (verified once) AND plain non-trusted element.click() (verified 4x). No new action type is needed. The likely original cause was target mis-resolution / a mistimed click, not jsaction. (The bonus re-test of the literal 'Web app' checkbox in the New deployment dialog was descoped after a watchdog stall; the Editor Add-on checkbox is the same control family in the same menu.)",
+      "DEPLOYMENT TYPE DOES NOT PERSIST ACROSS DIALOG OPENS. Reopening Test deployments always returns to 'Please select a deployment type' with aria-checked='false' (verified). So the type click is effectively fresh each run - but it is still gated on aria-checked here, because a blind click would UNCHECK it in any future build where it does persist.",
+      "aria-expanded ON THE GEAR IS THE ONLY RELIABLE OPEN/CLOSED SIGNAL for the deployment-type list. [aria-label='Enable deployment types'][aria-expanded='true'|'false']. The list has no display:none / aria-hidden marker on its [role='menu'] (probed: [role='menu'][style*='display: none']:has(...) and [role='menu'][aria-hidden='true']:has(...) both never match). Clicking the gear when the list is already open CLOSES it - hence the read-gate on aria-expanded='false'.",
+      "wait_for state.visible IS NOT A VISIBILITY CHECK. background.ts: `if (step.state.visible !== undefined) return { matched: step.state.visible ? !!el : !el }` - it is pure existence. Cost an hour here: [role='menuitemcheckbox'] 'passed' a visible:true wait while having a zero rect. To test real visibility, attempt a trusted click (trustedCoordClick filters zero-rect elements) or read the ARIA state.",
+      "onError:'continue' IS NOT A THING. The executor honours `optional: true` ONLY (background.ts ~line 3265). A step with onError:'continue' still hard-fails the whole chain. Several exploratory runs died on this.",
+      "wait_for WITH onTimeout:'continue' ALWAYS REPORTS status 'ok'. The real answer is the `timedOut: true` field on the step result. Any probe that ignores timedOut is reading noise - this silently invalidated a whole round of selector probing.",
+      "js STEPS IGNORE step.frame. `js` with frame:'picker' resolves the frameId but PRE_RUN_DOMQUERY still ran in the TOP document (pageScan() returned url=script.google.com while the picker iframe was open). click / click_text / type / read DO honour frame. Use `read` with frame for picker introspection, never `js`.",
+      "PICKER-INDEX-LAG. The Drive Picker's Recent list and its search index lag file creation by MINUTES. A Doc created at T did not appear in Recent, in My Drive, or in picker search at T+42min for one doc; a second doc appeared under 'Today.' in Recent at roughly T+10min. Meanwhile drive.google.com/drive/my-drive showed both immediately. The picker's My Drive list is also alphabetical AND virtualised (rendered A..S only, ~2.7KB of text), so a Y-named file is not reachable without scrolling. Recent (the default tab) is the workable surface - once the file has propagated.",
+      "PICKER SEARCH IS FUZZY AND UNTRUSTWORTHY. Searching 'AAAA' returned \"Copy of Zorina's Book\". Searching the exact full title returned 'No matching results' while the file was already listed under Recent. Do not gate on search.",
+      "SAVE TEST SILENTLY NO-OPS WITHOUT A TEST DOCUMENT. Clicking 'Save test' with the Test document field empty returns ok, shows no error text (dumpText('required') and dumpText('error') both empty), and creates nothing - the dialog is byte-identical before and after. The document is mandatory; the UI just will not say so.",
+      "THE TEST DOCUMENT INPUT IS DISABLED. input[aria-label='Test document'] exists but matches [role='dialog'] input[disabled] and not input[readonly]; typing a doc URL or ID into it changes nothing. The Drive picker is the only way to populate it.",
+      "COMMENT ENTRIES EXECUTE. {\"_\": \"PHASE ...\"} entries run as real steps and come back status 'unsupported' with a null stepId. Harmless for goalReached/success; just expect them in stepResults.",
+      "WATCHDOG STALL 2026-08-02: the exploratory session stalled long enough for a 600s stream watchdog to fire. Cause was the driver harness, not the payload: a shell poll loop (`until status != running`) wrapped around a ~4-minute chain, plus a `sleep`-based poller that the tool layer blocks, plus one Chrome/extension churn event that flipped /status extensionConnected to false mid-poll ('Frame with ID 0 was removed' on the next navigate). Drive long chains with POST /run/async and poll from a SEPARATE short-lived command; never block a single command for the whole chain.",
+      "SOLVED 2026-08-03 (was the recipe blocker): the Drive picker commits on DOUBLE-CLICK of the file row. A single click only highlights it — the Test document field stays \"No document selected\" and Save test stays disabled. There is NO \"Select\"/\"Open\"/confirm button in this picker variant, which is why click_text \"Select\" always returned Element not found. Two prior attempts were hunting for a control that does not exist. Verified end to end via CDP: double-click -> field reads the filename, Save test enables, picker closes, and Save created a real Saved Tests row.",
+      "SCOPE, confirmed 2026-08-03 against Google docs AND by direct experiment: an Editor Add-on test deployment applies ONLY to the single \"Test document\" chosen when creating the test. It does NOT install the add-on across the user's documents. With an \"Installed for current user\" test saved against document A, Extensions in document B has no entry. The Config values (Installed for current user / Enabled in current document / Installed and Enabled) select the AUTHORIZATION STATE to exercise, not the document scope. Reaching every document requires publishing (Marketplace listing, unlisted is fine). Do not use this recipe expecting fleet-wide install.",
+      "The Config combobox already DEFAULTS to \"Installed for current user\", so no interaction with it is needed for the common case.",
+      "The Test deployments dialog exposes its whole state as text, including the Saved Tests table (columns Version | Enabled | Document). Verify a save by reading a row out of that table; \"Enabled=False\" is correct and expected for an Installed-for-current-user test.",
+      "Plain element.click() opens the Deploy menu but does NOT activate the menu items inside it — the menu closes with no dialog. Real CDP input dispatch (Input.dispatchMouseEvent, i.e. an a11y-tree click) does activate them. This is the opposite of the deploy-type checkbox, where element.click() works fine, so neither approach is universally right on this page."
+    ],
+    "blockers": [],
+    "notForThisRecipe": [
+      "This recipe never grants an OAuth scope and never enters a credential. If an 'Authorization required' / 'Continue' / 'Allow' screen appears at any point, STOP and hand it to the human."
+    ],
+    "verificationRuns": [
+      {
+        "date": "2026-08-02",
+        "path": "dialog open via hidden menuitem",
+        "result": "PASS 4/4 - non-trusted click on [role='menuitem'][aria-label='Test deployments'] opened the dialog every time"
+      },
+      {
+        "date": "2026-08-02",
+        "path": "deployment type = Editor Add-on",
+        "result": "PASS - aria-expanded true, then aria-checked true; dialog then showed Head Deployment ID AKfycbzXUAEBzXC__ZXLIaDVrAQbBjNQU48RFTFNiXQsvEE + 'This project doesn't have any configured tests yet' + 'Create new test'"
+      },
+      {
+        "date": "2026-08-02",
+        "path": "Create new test form",
+        "result": "PASS - form rendered: Version=Latest Code, Config=Installed for current user (options: Enabled in current document / Installed and Enabled / Test in AuthMode.None), Test document (disabled input + picker button), Save test, Done"
+      },
+      {
+        "date": "2026-08-02",
+        "path": "Drive picker open",
+        "result": "PASS 3/3 foregrounded, FAIL 5/5 backgrounded"
+      },
+      {
+        "date": "2026-08-02",
+        "path": "picker -> populate Test document",
+        "result": "FAIL - see blockers. Doc row click succeeds, field stays empty, no confirm control found by the text 'Select'."
+      },
+      {
+        "date": "2026-08-02",
+        "path": "Save test",
+        "result": "FAIL (expected, downstream of the above) - no-op with an empty Test document; no test row created"
+      },
+      {
+        "date": "2026-08-02",
+        "path": "verification-by-consequence baseline",
+        "result": "CAPTURED - Extensions menu of a fresh Doc reads 'Add-ons►Apps Script(E)AI Video Generator - Text to Video by Veo 3►'. No 'Playmaker'."
+      }
+    ],
+    "verificationNotes": "Phases 1-4 live-confirmed. The picker blocker that stopped earlier runs is SOLVED (double-click, see anomalies) and the full sequence — Deploy > Test deployments > Editor Add-on > Add test > picker double-click > Save test — was driven successfully via CDP on 2026-08-03, creating a real Saved Tests row. Still verified:false because that run was done with chrome-devtools CDP, NOT by executing this payload through the Yeshie relay; the chain steps encoding it are therefore untested as written. Run it once through the relay to flip this."
+  },
+  "params": {
+    "base_url": "https://script.google.com",
+    "script_id": "13qj9zpOA0We9bQaRoWVFkzOPST1FbHaVfa1-Y3STeRUbyKJiyYczxOKd",
+    "account": "mw.personalmail@gmail.com",
+    "doc_title": "YESHIE-ADDON-TEST-DOC",
+    "addon_menu_name": "Playmaker"
+  },
+  "abstractTargets": {
+    "test_deployments_menuitem": {
+      "description": "The 'Test deployments' entry of the editor's Deploy dropdown. Present in the DOM from first paint with a ZERO rect; clicking it non-trusted opens the dialog without ever opening the dropdown.",
+      "cachedSelector": "[role='menuitem'][aria-label='Test deployments']",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-08-02T00:00:00.000Z",
+      "resolvedVia": "a11y_aria_label",
+      "anchors": {
+        "ariaLabel": "Test deployments"
+      },
+      "fallbackSelectors": [
+        "[aria-label='Test deployments']"
+      ],
+      "notes": "Do NOT click with trusted:true - it has no rect until the dropdown is open, which is the thing we are avoiding."
+    },
+    "deployment_type_gear": {
+      "description": "Gear next to 'Select type' in the Test deployments dialog. Toggles the deployment-type list.",
+      "cachedSelector": "[aria-label='Enable deployment types']",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-08-02T00:00:00.000Z",
+      "resolvedVia": "a11y_aria_label",
+      "match": {
+        "name_contains": [
+          "Enable deployment types"
+        ]
+      },
+      "notes": "State of record is aria-expanded on this element. Clicking while expanded COLLAPSES the list."
+    },
+    "editor_addon_type_checkbox": {
+      "description": "'Editor Add-on' entry in the deployment-type list. jsaction/jsshadow control; state in aria-checked.",
+      "cachedSelector": "[role='menuitemcheckbox'][aria-label='Editor Add-on']",
+      "cachedConfidence": 0.95,
+      "resolvedOn": "2026-08-02T00:00:00.000Z",
+      "resolvedVia": "a11y_aria_label",
+      "fallbackSelectors": [
+        "[role='menuitemcheckbox'][aria-label='Editor Add-on']",
+        "[aria-label='Editor Add-on'][role='menuitemcheckbox']"
+      ],
+      "notes": "Sibling entries: 'Web app', 'API Executable', 'Google Workspace Add-on'. NOT a blocker - element.click() flips it."
+    },
+    "test_document_picker_button": {
+      "description": "The Drive-picker launcher (material 'file_upload' icon) inside the Test document field of the Create-new-test form.",
+      "cachedSelector": "*:has(> input[aria-label='Test document']) [role='button']",
+      "cachedConfidence": 0.8,
+      "resolvedOn": "2026-08-02T00:00:00.000Z",
+      "resolvedVia": "css_structural",
+      "fallbackSelectors": [
+        "*:has(> input[aria-label='Test document']) [role='button']"
+      ],
+      "notes": "It is [role='button'], NOT <button> - `... button` never matches. The input's direct parent is not a <div>, so div:has(> input...) never matches either. REQUIRES trusted:true AND a foregrounded active tab."
+    }
+  },
+  "chain": [
+    {
+      "_": "PHASE 1 - Land in the editor and PROVE which Google account we are about to install into"
+    },
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://script.google.com/d/{{script_id}}/edit",
+      "note": "Redirects to /home/projects/{{script_id}}/edit. Both forms work."
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "target": "[aria-label*='{{account}}']",
+      "timeout": 30000,
+      "note": "HARD GATE - ACCOUNT ASSERTION on the Google bar avatar aria-label ('Google Account: <name> (<email>)'). Installing into the wrong Google account looks exactly like success. Uses 'target' because wait_for only interpolates target, never selector. Do not weaken to onTimeout:continue."
+    },
+    {
+      "stepId": "s3",
+      "action": "js",
+      "code": "dumpText('@')",
+      "store_as": "account_seen",
+      "note": "Evidence for the run record. On this page the only short text leaf containing '@' is the signed-in account email."
+    },
+    {
+      "stepId": "s4",
+      "action": "wait_for",
+      "target": "test_deployments_menuitem",
+      "timeout": 40000,
+      "note": "HARD GATE - editor toolbar hydrated. This menuitem exists (zero-rect) once the Deploy menu is wired."
+    },
+    {
+      "stepId": "s5",
+      "action": "wait_for",
+      "selector": ".monaco-editor",
+      "state": {
+        "stable": 1500
+      },
+      "timeout": 20000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (5000ms) on 2026-09-12. Monaco + toolbar settle: waits until the editor text has been quiet for 1.5s. Clicking earlier is what made the old Deploy-dropdown path flaky. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
+    },
+    {
+      "_": "PHASE 2 - Open Test deployments WITHOUT touching the Deploy dropdown"
+    },
+    {
+      "stepId": "s6",
+      "action": "click",
+      "target": "test_deployments_menuitem",
+      "timeout": 10000,
+      "note": "NON-trusted on purpose (element.click() needs no rect). 4/4 live successes vs ~50% for the visible-dropdown path.",
+      "responseSignature": [
+        {
+          "type": "element_visible",
+          "selector": "[aria-label='Enable deployment types']",
+          "timeout": 25000
+        }
+      ]
+    },
+    {
+      "stepId": "s7",
+      "action": "wait_for",
+      "target": "deployment_type_gear",
+      "timeout": 25000,
+      "note": "HARD GATE - Test deployments dialog is up."
+    },
+    {
+      "stepId": "s8",
+      "action": "wait_for",
+      "selector": "[role='dialog']",
+      "text": "Head Deployment ID",
+      "timeout": 15000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (4000ms) on 2026-09-12. The dialog width settles after the Head Deployment ID row loads, so this waits for that row's text. Later clicks: s10 is coordinate-free, and s13's trusted click re-measures its target until two reads agree within 2px. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
+    },
+    {
+      "_": "PHASE 3 - Select deployment type 'Editor Add-on' (idempotent, gated on ARIA state)"
+    },
+    {
+      "stepId": "s9",
+      "action": "read",
+      "selector": "[aria-label='Enable deployment types'][aria-expanded='false']",
+      "store_as": "gear_collapsed",
+      "note": "IDEMPOTENCY GATE. Matches only while the type list is COLLAPSED (its text is the 'settings' ligature plus the type labels, so non-empty). Already expanded -> no match -> read stores null -> interpolate renders '' -> s10 is skipped. Without this, a re-run would collapse the list."
+    },
+    {
+      "stepId": "s10",
+      "action": "click",
+      "target": "deployment_type_gear",
+      "condition": "{{gear_collapsed}}",
+      "timeout": 8000,
+      "optional": true,
+      "note": "Non-trusted first - it works and is coordinate-free."
+    },
+    {
+      "stepId": "s11",
+      "action": "wait_for",
+      "selector": "[aria-label='Enable deployment types'][aria-expanded='true']",
+      "timeout": 2000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (2000ms) on 2026-09-12. Waits for the effect of s10 (the type list expanding), capped at the old 2s. If s10 did not take, this times out, s12 reads the list still collapsed, and s13 retries with a trusted click. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
+    },
+    {
+      "stepId": "s12",
+      "action": "read",
+      "selector": "[aria-label='Enable deployment types'][aria-expanded='false']",
+      "store_as": "gear_still_collapsed",
+      "note": "Second gate: if s10 did not take, retry with a trusted click. Skipped when the list is already open."
+    },
+    {
+      "stepId": "s13",
+      "action": "click",
+      "target": "deployment_type_gear",
+      "trusted": true,
+      "condition": "{{gear_still_collapsed}}",
+      "timeout": 10000,
+      "optional": true,
+      "note": "Trusted fallback. Needs a foregrounded tab; harmless if it misses because s14 is the real gate."
+    },
+    {
+      "stepId": "s14",
+      "action": "wait_for",
+      "selector": "[aria-label='Enable deployment types'][aria-expanded='true']",
+      "timeout": 12000,
+      "note": "HARD GATE - type list open. Fail loudly here rather than clicking blind into a collapsed menu."
+    },
+    {
+      "stepId": "s15",
+      "action": "read",
+      "selector": "[role='menuitemcheckbox'][aria-label='Editor Add-on'][aria-checked='false']",
+      "store_as": "type_unchecked",
+      "note": "IDEMPOTENCY GATE - matches only while 'Editor Add-on' is NOT selected (text 'Editor Add-on'). Already selected -> null -> s16 skipped. Never let this become a constant or a re-run would DESELECT the type."
+    },
+    {
+      "stepId": "s16",
+      "action": "click",
+      "target": "editor_addon_type_checkbox",
+      "condition": "{{type_unchecked}}",
+      "timeout": 10000,
+      "optional": true,
+      "note": "This is the control deploy-apps-script.payload.json calls a CONFIRMED BLOCKER. It is not. Plain element.click() flips aria-checked (4/4).",
+      "responseSignature": [
+        {
+          "type": "attribute_change",
+          "selector": "[role='menuitemcheckbox'][aria-label='Editor Add-on']",
+          "attribute": "aria-checked",
+          "value": "true",
+          "timeout": 10000
+        }
+      ]
+    },
+    {
+      "stepId": "s17",
+      "action": "wait_for",
+      "selector": "[role='menuitemcheckbox'][aria-label='Editor Add-on'][aria-checked='true']",
+      "timeout": 2000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (2000ms) on 2026-09-12. Waits for the effect of s16 (aria-checked true), capped at the old 2s. If s16 did not take, s18 reads it still unchecked and s19 retries trusted. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
+    },
+    {
+      "stepId": "s18",
+      "action": "read",
+      "selector": "[role='menuitemcheckbox'][aria-label='Editor Add-on'][aria-checked='false']",
+      "store_as": "type_still_unchecked"
+    },
+    {
+      "stepId": "s19",
+      "action": "click",
+      "target": "editor_addon_type_checkbox",
+      "trusted": true,
+      "condition": "{{type_still_unchecked}}",
+      "timeout": 12000,
+      "optional": true,
+      "note": "Trusted retry. Verified to work on this control too."
+    },
+    {
+      "stepId": "s20",
+      "action": "wait_for",
+      "selector": "[role='menuitemcheckbox'][aria-label='Editor Add-on'][aria-checked='true']",
+      "timeout": 12000,
+      "note": "HARD GATE and the real proof of PHASE 3. aria-checked is authoritative; the visible label lags."
+    },
+    {
+      "stepId": "s21",
+      "action": "wait_for",
+      "selector": "[role='dialog']",
+      "text": "Create new test",
+      "timeout": 10000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (3000ms) on 2026-09-12. The dialog re-renders into the Editor Add-on configuration; 'Create new test' is the control s23 clicks next, so its text appearing is the readiness signal. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
+    },
+    {
+      "stepId": "s22",
+      "action": "read",
+      "selector": "[role='dialog']",
+      "store_as": "dialog_type_selected",
+      "note": "Expect: '...Editor Add-onConfiguration...Head Deployment ID<id>content_copyCopyEditor Add-onThis project doesn't have any configured tests yetCreate new testDone'. NOTE: no 'Install' and no 'Uninstall' - see _meta.whatThisFlowActuallyIs."
+    },
+    {
+      "_": "PHASE 4 - Create the test (this is the editor-add-on equivalent of 'Install')"
+    },
+    {
+      "stepId": "s23",
+      "action": "click_text",
+      "text": "Create new test",
+      "timeout": 20000,
+      "note": "NON-trusted (PRE_FIND_AND_CLICK_TEXT -> element.click()). Verified. The trusted variant is coordinate-sensitive and failed intermittently.",
+      "responseSignature": [
+        {
+          "type": "element_visible",
+          "selector": "input[aria-label='Test document']",
+          "timeout": 20000
+        }
+      ]
+    },
+    {
+      "stepId": "s24",
+      "action": "wait_for",
+      "selector": "input[aria-label='Test document']",
+      "timeout": 20000,
+      "note": "HARD GATE - create-test form rendered (Version / Config / Test document / Save test)."
+    },
+    {
+      "stepId": "s25",
+      "action": "wait_for",
+      "selector": "[role='dialog']",
+      "state": {
+        "stable": 3000
+      },
+      "timeout": 20000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (9000ms) on 2026-09-12. The dialog re-flows after the create-test form renders; a picker-button click measured earlier landed ~65px off. Waits until the dialog text has been quiet for 3s, and s26's trusted click then re-measures its target until two reads agree within 2px. HIGHEST-RISK conversion in this file: the old 9s was an empirical floor, and a text fingerprint cannot see a purely geometric re-flow. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
+    },
+    {
+      "_": "PHASE 5 - Choose the Test document via the Drive picker. UNVERIFIED PAST s28 - see _meta.blockers."
+    },
+    {
+      "stepId": "s26",
+      "action": "click",
+      "target": "test_document_picker_button",
+      "trusted": true,
+      "timeout": 15000,
+      "note": "MUST be trusted AND the tab must be foregrounded/active. Non-trusted returns ok and does nothing.",
+      "responseSignature": [
+        {
+          "type": "element_visible",
+          "selector": "iframe[src*='picker']",
+          "timeout": 30000
+        }
+      ]
+    },
+    {
+      "stepId": "s27",
+      "action": "wait_for",
+      "selector": "iframe[src*='picker']",
+      "timeout": 30000,
+      "note": "HARD GATE - Drive picker iframe present. If this times out, the tab was not foregrounded. Note the picker does NOT use the classic .picker-dialog / .picker-dialog-bg / iframe.picker-frame classes (all probed, none match)."
+    },
+    {
+      "stepId": "s28",
+      "action": "wait_for",
+      "selector": "body",
+      "frame": "picker",
+      "state": {
+        "stable": 1500
+      },
+      "timeout": 15000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (6000ms) on 2026-09-12. Drive picker content load (default tab 'Recent'): waits until the picker frame's text has been quiet for 1.5s. {{doc_title}} is not used as the wait text because wait_for does not interpolate it. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
+    },
+    {
+      "stepId": "s29",
+      "action": "read",
+      "selector": "body",
+      "frame": "picker",
+      "store_as": "picker_recent",
+      "note": "Evidence + gate material. Expect 'Today.' followed by {{doc_title}} if the file has propagated (see PICKER-INDEX-LAG)."
+    },
+    {
+      "stepId": "s30",
+      "action": "click_text",
+      "text": "{{doc_title}}",
+      "frame": "picker",
+      "trusted": true,
+      "timeout": 15000,
+      "note": "UNVERIFIED AS SUFFICIENT. The click succeeds, but on 2026-08-02 the Test document field remained empty afterwards - the picker still needs a confirm control that has not been identified. See _meta.blockers."
+    },
+    {
+      "stepId": "s31",
+      "action": "wait_for",
+      "selector": "body",
+      "frame": "picker",
+      "state": {
+        "stable": 1500
+      },
+      "timeout": 8000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (4000ms) on 2026-09-12. After the row click, waits until the picker text has been quiet for 1.5s so the s32 diagnostic read sees the post-selection state. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
+    },
+    {
+      "stepId": "s32",
+      "action": "read",
+      "selector": "body",
+      "frame": "picker",
+      "store_as": "picker_after_row_click",
+      "note": "Diff this against picker_recent to find the confirm control that appears/enables on selection. This is the diagnostic that unblocks the recipe."
+    },
+    {
+      "stepId": "s33",
+      "action": "click_text",
+      "text": "Select",
+      "frame": "picker",
+      "exact": true,
+      "trusted": true,
+      "timeout": 10000,
+      "optional": true,
+      "note": "SPECULATIVE. 'Select' (exact) was NOT found on 2026-08-02. Left optional so the chain still reaches the diagnostics below."
+    },
+    {
+      "stepId": "s34",
+      "action": "wait_for",
+      "selector": "[role='dialog']",
+      "state": {
+        "stable": 2000
+      },
+      "timeout": 15000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (7000ms) on 2026-09-12. After the picker confirm, waits until the dialog text has been quiet for 2s before the s35 evidence read. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
+    },
+    {
+      "stepId": "s35",
+      "action": "read",
+      "selector": "[role='dialog']",
+      "store_as": "dialog_after_pick",
+      "note": "HARD EVIDENCE. The Test document is populated only if this text changed from the pre-pick capture."
+    },
+    {
+      "_": "PHASE 6 - Save the test"
+    },
+    {
+      "stepId": "s36",
+      "action": "click_text",
+      "text": "Save test",
+      "timeout": 15000,
+      "note": "NO-OPS SILENTLY if the Test document is empty - it returns ok, shows no error, and creates nothing. Do not read 'ok' here as success."
+    },
+    {
+      "stepId": "s37",
+      "action": "wait_for",
+      "selector": "[role='dialog']",
+      "state": {
+        "stable": 2000
+      },
+      "timeout": 20000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (9000ms) on 2026-09-12. After Save test, waits until the dialog text has been quiet for 2s before s38 reads it. The real signal is still s38's content (a tests-table row), not this wait. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
+    },
+    {
+      "stepId": "s38",
+      "action": "read",
+      "selector": "[role='dialog']",
+      "store_as": "dialog_after_save",
+      "note": "REAL SIGNAL: the tests table must now list a row (Version 'Latest Code', Config 'Installed for current user', the document name) instead of 'This project doesn't have any configured tests yet'."
+    },
+    {
+      "stepId": "s39",
+      "action": "js",
+      "code": "pageScan()",
+      "store_as": "scan_after_save"
+    },
+    {
+      "_": "PHASE 7 - HUMAN GATE. Detect an OAuth consent screen; NEVER click it."
+    },
+    {
+      "stepId": "hg1",
+      "action": "read",
+      "selector": "body",
+      "store_as": "consent_probe",
+      "note": "HUMAN GATE PROBE ONLY. If this text (or the current URL) shows accounts.google.com / 'Authorization required' / 'Google hasn't verified this app' / 'wants access to your Google Account', STOP: report the exact scopes listed and tell the user which button to press (Continue / Allow / Advanced -> Go to <project> (unsafe)). Yeshie must not click any of them. No run on 2026-08-02 ever reached a consent screen through Save test - it is expected on first RUN of the add-on inside a document, not here."
+    },
+    {
+      "_": "PHASE 8 - VERIFY BY CONSEQUENCE, in the document. A closed dialog is not proof."
+    },
+    {
+      "stepId": "v1",
+      "action": "navigate",
+      "url": "https://docs.google.com/document/d/{{doc_id}}/edit",
+      "note": "Requires params.doc_id (the id of the document chosen as the Test document)."
+    },
+    {
+      "stepId": "v2",
+      "action": "wait_for",
+      "selector": "#docs-menubar",
+      "state": {
+        "stable": 3000
+      },
+      "timeout": 20000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (10000ms) on 2026-09-12. Docs wires its menubar slowly and add-on menus attach late: waits until the menubar text has been quiet for 3s. v3 remains the hard gate on #docs-extensions-menu. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
+    },
+    {
+      "stepId": "v3",
+      "action": "wait_for",
+      "selector": "#docs-extensions-menu",
+      "timeout": 25000,
+      "note": "HARD GATE - Docs menubar hydrated. Verified stable: #docs-extensions-menu exists; #docs-addons-menu and [aria-label='Extensions'] do NOT."
+    },
+    {
+      "stepId": "v4",
+      "action": "click",
+      "selector": "#docs-extensions-menu",
+      "trusted": true,
+      "timeout": 12000,
+      "note": "Docs menus open on real mouse input. Needs a foregrounded tab like everything else here."
+    },
+    {
+      "stepId": "v5",
+      "action": "wait_for",
+      "selector": ".goog-menu.goog-menu-vertical:not([style*='display: none'])",
+      "text": "Apps Script",
+      "state": {
+        "stable": 1000
+      },
+      "timeout": 8000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (3000ms) on 2026-09-12. Waits for the open Extensions menu (the baseline always contains 'Apps Script'), then 1s of quiet so a late-attaching add-on entry is included in v6's read. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
+    },
+    {
+      "stepId": "v6",
+      "action": "read",
+      "selector": ".goog-menu.goog-menu-vertical:not([style*='display: none'])",
+      "store_as": "extensions_menu_text",
+      "note": "THE PROOF. Baseline on a fresh doc (captured live 2026-08-02): 'Add-ons►Apps Script(E)AI Video Generator - Text to Video by Veo 3►'. PASS requires this to also contain {{addon_menu_name}}. dumpText() does NOT work here - Docs menu labels are not leaf nodes (dumpText('Add-ons') returned []); read the open .goog-menu instead."
+    },
+    {
+      "stepId": "v7",
+      "action": "click_text",
+      "text": "{{addon_menu_name}}",
+      "trusted": true,
+      "timeout": 10000,
+      "optional": true,
+      "note": "Opens the add-on submenu so its items can be read. Optional so a failure here does not mask the v6 evidence."
+    },
+    {
+      "stepId": "v8",
+      "action": "wait_for",
+      "selector": ".goog-menu.goog-menu-vertical:not([style*='display: none'])",
+      "state": {
+        "stable": 1000
+      },
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "Replaced a fixed delay (2500ms) on 2026-09-12. Waits until the open menu's text has been quiet for 1s before v9 reads the add-on submenu. Soft (onTimeout: continue) because this is a settle wait; hard gates follow. UNVERIFIED LIVE: this recipe is verified:false."
+    },
+    {
+      "stepId": "v9",
+      "action": "read",
+      "selector": ".goog-menu.goog-menu-vertical:not([style*='display: none'])",
+      "store_as": "addon_submenu_text",
+      "note": "Expect the add-on's menu items (for Playmaker: 'Open Playmaker assistant', 'Export stage-play PDF'). Do NOT click them - the first invocation is what raises the OAuth consent, which is the human's to approve."
+    }
+  ],
+  "stateGraph": {
+    "initial": "editor",
+    "states": {
+      "editor": {
+        "description": "Apps Script editor for the project. Deploy menu wired; [role='menuitem'][aria-label='Test deployments'] present with a zero rect.",
+        "transitions": {
+          "click hidden Test deployments menuitem": "test-deployments-notype"
+        }
+      },
+      "test-deployments-notype": {
+        "description": "Test deployments dialog, no type chosen. Text: 'Test deploymentsSelect typesettingsWeb appAPI ExecutableGoogle Workspace Add-onEditor Add-onConfigurationhelp_outlineLearn more about deploymentsPlease select a deployment typeDone'. No Install/Uninstall button exists.",
+        "transitions": {
+          "gear + Editor Add-on checkbox": "test-deployments-editoraddon"
+        }
+      },
+      "test-deployments-editoraddon": {
+        "description": "Type = Editor Add-on. Shows Head Deployment ID + Copy, and either 'This project doesn't have any configured tests yet' + 'Create new test', or a table of existing tests.",
+        "transitions": {
+          "click Create new test": "create-test-form"
+        }
+      },
+      "create-test-form": {
+        "description": "Version (Latest Code) / Config (Installed for current user | Enabled in current document | Installed and Enabled | Test in AuthMode.None) / Test document (disabled input + picker button) / Save test / Done.",
+        "transitions": {
+          "click picker button (trusted, foregrounded)": "drive-picker",
+          "click Save test with empty document": "create-test-form"
+        }
+      },
+      "drive-picker": {
+        "description": "Google Drive picker in iframe[src*='picker']. Tabs: Recent | My Drive | Shared with me | Starred | Computers. Header 'Select file for testing an add-on'.",
+        "transitions": {
+          "click doc row + (unknown confirm control)": "create-test-form-filled"
+        }
+      },
+      "create-test-form-filled": {
+        "description": "UNVERIFIED. Test document populated.",
+        "transitions": {
+          "click Save test": "test-saved"
+        }
+      },
+      "test-saved": {
+        "description": "UNVERIFIED. Tests table lists the new test; the add-on menu should now appear in the chosen document.",
+        "transitions": {
+          "open the document": "doc-with-addon-menu"
+        }
+      },
+      "doc-with-addon-menu": {
+        "description": "Google Doc whose Extensions menu contains the add-on name and its submenu items. First invocation raises the OAuth consent - HUMAN GATE.",
+        "transitions": {}
+      }
+    }
+  }
+}

@@ -167,12 +167,26 @@ Each step in `chain` is an object with an `action` field:
 ```json
 {
   "action": "wait_for",
-  "condition": "url_contains",
-  "value": "/people",
+  "url_pattern": "/people",
   "timeout": 5000,
   "stepId": "wait-for-nav"
 }
 ```
+
+```json
+{
+  "action": "wait_for",
+  "selector": "[data-testid='save-button']",
+  "state": { "visible": true },
+  "timeout": 8000,
+  "stepId": "wait-for-save"
+}
+```
+
+wait_for modes: `url_pattern` (regex against the URL), or `selector`/`target`
+with `state` — `{ "visible": true|false }`, `{ "enabled": true|false }`, or
+`{ "attribute": { "aria-expanded": "true" } }`. It resolves the instant the
+condition holds and throws only on timeout.
 
 ```json
 {
@@ -199,7 +213,41 @@ Each step in `chain` is an object with an `action` field:
 }
 ```
 
-**All action types:** `navigate`, `type`, `click`, `wait_for`, `read`, `assess_state`, `js`, `find_row`, `click_text`, `hover`, `scroll`, `select`, `click_preset`, `probe_affordances`, `delay`
+**All action types:** `navigate`, `type`, `click`, `wait_for`, `read`, `assess_state`, `js`, `find_row`, `click_text`, `hover`, `scroll`, `select`, `click_preset`, `probe_affordances`, `delay` (⚠️ avoid — see the waiting rule below)
+
+---
+
+## Waiting: use `wait_for`, NEVER a fixed `delay`
+
+**Do not use `delay` to wait for the page.** A fixed sleep is fragile (too short →
+the next step acts before the content exists; too long → every run pays the
+worst case) and slow. Guard the next action with `wait_for` the thing it needs —
+`wait_for` resolves the instant its target is present+visible (MutationObserver-
+driven) and only times out on a genuinely stuck page: faster AND more robust.
+
+Convert by the delay's context (prev action → delay → next action):
+
+- **Before interacting** (`… → delay → click/type/click_text "X"`): wait for the
+  element the next step uses. Prefer the next step's own `target`/`selector`:
+  ```json
+  { "action": "wait_for", "target": "submit-button", "state": { "visible": true }, "timeout": 8000 }
+  ```
+- **Menu/overlay opening** (`click → delay → click_text`): wait for the menu:
+  `{ "action": "wait_for", "selector": "[role=menu],[role=dialog],[role=listbox]", "timeout": 6000 }`
+- **Settle before a whole-page `read`/`perceive`** (`navigate → delay → read`):
+  wait for the site's stable content wrapper (find it per-site: e.g. GitHub
+  `.application-main`, Vuetify apps `.v-main`/`.v-data-table`, generic
+  `main,[role=main]`). If you can't name a reliable wrapper, wait for the first
+  element the read actually depends on.
+- **Waiting on an async result** (submit → generation/save/report): wait for the
+  DONE signal, not a sleep — e.g. a confirmation flash
+  (`[role=alert],.flash`), the disappearance of a spinner/stop-button, or the
+  appearance of the result (see the chatgpt recipe's copy-turn-action-button
+  completion wait). NEVER a fixed multi-second sleep for an LLM response.
+
+Guard against regressions: `tests/unit/no-fixed-delay.test.ts` fails if a recipe
+(re)introduces a `delay`. Convert existing github recipes with
+`scripts/convert-delays-to-waitfor.py`.
 
 ---
 

@@ -8,17 +8,17 @@
     "verifiedDate": "2026-04-13",
     "verificationNotes": "Dialog opens confirmed (click_text 'Add new user' -> ok). Form fields confirmed via perceive (ariaLabel-based). Type steps not yet run end-to-end.",
     "anomalies": [
-      "Form fields use ariaLabel not name attribute — CSS selectors must use input[aria-label='...'] pattern",
-      "Dialog H1 is 'User Information' not 'Add user' — perceive headings show [DIV:'Add new user', H1:'User Information']",
+      "Form fields use ariaLabel not name attribute \u2014 CSS selectors must use input[aria-label='...'] pattern",
+      "Dialog H1 is 'User Information' not 'Add user' \u2014 perceive headings show [DIV:'Add new user', H1:'User Information']",
       "abstractTargets MUST include cachedConfidence>=0.85 and resolvedOn or the extension ignores the selector",
-      "Primary email field sets both username and @domain — domain is auto-appended from org config",
+      "Primary email field sets both username and @domain \u2014 domain is auto-appended from org config",
       "Google Admin uses /ac/ prefix for all paths"
     ]
   },
   "params": {
     "first_name": "REQUIRED",
     "last_name": "REQUIRED",
-    "primary_email": "REQUIRED — username only (without @domain), or full email if domain differs"
+    "primary_email": "REQUIRED \u2014 username only (without @domain), or full email if domain differs"
   },
   "chain": [
     {
@@ -29,8 +29,11 @@
     },
     {
       "stepId": "s2",
-      "action": "delay",
-      "ms": 3000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s3",
@@ -40,9 +43,13 @@
     },
     {
       "stepId": "s4",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for dialog animation and field render."
+      "action": "wait_for",
+      "target": "gadmin-first-name",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for gadmin-first-name before next step (was delay 2000ms)"
     },
     {
       "stepId": "s5",
@@ -64,19 +71,25 @@
     },
     {
       "stepId": "s8",
-      "action": "delay",
-      "ms": 500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s9",
       "action": "click_text",
       "text": "Add new user",
-      "note": "Click the submit button inside the dialog. WARNING: Same text as the trigger button — may need 'exact' matching or a click on 'target' if click_text picks the wrong one. Monitor behavior."
+      "note": "Click the submit button inside the dialog. WARNING: Same text as the trigger button \u2014 may need 'exact' matching or a click on 'target' if click_text picks the wrong one. Monitor behavior."
     },
     {
       "stepId": "s10",
-      "action": "delay",
-      "ms": 3000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s11",
@@ -91,7 +104,9 @@
       "cachedSelector": "input[aria-label='First name *']",
       "cachedConfidence": 0.92,
       "resolvedOn": "2026-04-13T00:00:00.000Z",
-      "semanticKeys": ["First name"],
+      "semanticKeys": [
+        "First name"
+      ],
       "resolveHint": "ariaLabel field confirmed via perceive: {'ariaLabel': 'First name *', 'tag': 'INPUT', 'type': 'text'}"
     },
     "gadmin-last-name": {
@@ -99,7 +114,9 @@
       "cachedSelector": "input[aria-label='Last name *']",
       "cachedConfidence": 0.92,
       "resolvedOn": "2026-04-13T00:00:00.000Z",
-      "semanticKeys": ["Last name"],
+      "semanticKeys": [
+        "Last name"
+      ],
       "resolveHint": "ariaLabel field confirmed via perceive: {'ariaLabel': 'Last name *', 'tag': 'INPUT', 'type': 'text'}"
     },
     "gadmin-primary-email": {
@@ -107,7 +124,9 @@
       "cachedSelector": "input[aria-label='Primary email *']",
       "cachedConfidence": 0.92,
       "resolvedOn": "2026-04-13T00:00:00.000Z",
-      "semanticKeys": ["Primary email"],
+      "semanticKeys": [
+        "Primary email"
+      ],
       "resolveHint": "ariaLabel field confirmed via perceive: {'ariaLabel': 'Primary email *', 'tag': 'INPUT', 'type': 'text'}"
     }
   },
@@ -115,11 +134,15 @@
     "initial": "users-list",
     "states": {
       "users-list": {
-        "transitions": {"click Add new user": "add-user-dialog"}
+        "transitions": {
+          "click Add new user": "add-user-dialog"
+        }
       },
       "add-user-dialog": {
         "description": "Slide-out panel open. H1: 'User Information'.",
-        "transitions": {"submit form": "user-created-or-error"}
+        "transitions": {
+          "submit form": "user-created-or-error"
+        }
       },
       "user-created-or-error": {
         "description": "Either success toast shown, or validation error displayed"

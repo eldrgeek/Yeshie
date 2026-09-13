@@ -1,0 +1,41 @@
+{
+  "_meta": {
+    "task": "list-api-keys",
+    "description": "Navigate to ElevenLabs API keys settings and read the keys table: name, masked key suffix, created date, enabled state.",
+    "selfImproving": true,
+    "runCount": 1,
+    "lastSuccess": "2026-07-09",
+    "auth": {
+      "type": "elevenlabs_session",
+      "note": "Requires an active elevenlabs.io login session in the connected Chrome (ChromeMain debug profile). Uses open_tab so it never hijacks the active tab."
+    },
+    "params": {},
+    "risk": "safe",
+    "needs_live_verification": false,
+    "selectorNotes": "Next.js app. Keys table lives at /app/developers/api-keys, headers: Name | Key | Created | Enabled | (blank, kebab menu column). Key values are always masked in the DOM (bullet chars + last 4 chars) — the relay's generic 'read' action never sees a live secret here, which is why this recipe is safe to run unattended. 'Create Key' button text is stable. Each row's LAST column holds a button whose accessible text is literally 'Open menu' (a kebab/more-actions control) — do NOT confuse it with the 'Enabled' column's toggle switch, which is a separate button one column to the left with no text content (see 02-create-api-key.payload.json and the site README for the incident that taught us this)."
+  },
+  "runId": "elevenlabs-list-api-keys-{{timestamp}}",
+  "mode": "verification",
+  "site": "elevenlabs.io",
+  "params": {},
+  "chain": [
+    { "stepId": "s1", "action": "open_tab", "url": "https://elevenlabs.io/app/settings/api-keys", "note": "New tab, read-only. NEVER navigate the active tab." },
+    { "stepId": "s2", "action": "wait_for", "selector": "table, [role='table'], main, [data-testid], h1, h2", "timeout": 15000, "onTimeout": "continue" },
+    { "stepId": "s3", "action": "read", "store_as": "keys_page", "note": "Read the keys table (name/masked-suffix/created/enabled) and button labels. IMPORTANT: never log or report a full key value — ElevenLabs always masks it in this table, but if a future redesign ever shows one in the clear, stop and do not print it." }
+  ],
+  "stateGraph": {
+    "nodes": {
+      "api-keys-list": {
+        "signals": [
+          { "type": "url_matches", "pattern": "/app/developers/api-keys" },
+          { "type": "element_present", "selector": "table" }
+        ]
+      },
+      "not-signed-in": {
+        "signals": [
+          { "type": "url_matches", "pattern": "/sign-in|/login" }
+        ]
+      }
+    }
+  }
+}

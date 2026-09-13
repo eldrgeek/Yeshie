@@ -1,0 +1,318 @@
+{
+  "_meta": {
+    "task": "oauth-auth-flow-handler",
+    "version": "0.1",
+    "description": "Universal OAuth/account-chooser handler for Yeshie. Detects OAuth surface type (same-page nav, iframe, separate window) and coordinates multi-window account selection and consent flows.",
+    "author": "Yeshie architecture research",
+    "params": {
+      "oauth_email": {
+        "required": false,
+        "default": "mw@mike-wolf.com",
+        "description": "Email to select in account chooser (Google, Microsoft, etc.)"
+      },
+      "oauth_app_name": {
+        "required": false,
+        "description": "App name for consent screen (e.g., 'gmail-bridge' for 'Sign in to gmail-bridge')"
+      },
+      "parent_tab_id": {
+        "required": false,
+        "description": "MCP-tagged tab ID of initiating app (if known). Used to route window.open() popups back to tab registry."
+      },
+      "base_url": {
+        "required": false,
+        "description": "Base URL of OAuth initiation site (fallback navigation if needed)"
+      },
+      "timeout_ms": {
+        "required": false,
+        "default": 120000,
+        "description": "Max time to wait for account selection and consent completion"
+      }
+    },
+    "selfImproving": false,
+    "notes": [
+      "This is a PROTOTYPE — not yet tested against real OAuth flows.",
+      "Three OAuth surface types are documented but only window.open() case (surface 3) is architecturally problematic.",
+      "Surface 1 & 2 (same-page nav, iframe): current Yeshie can already handle via content-script injection.",
+      "Surface 3 (window.open popup in different Chrome window): requires extension to adopt popup via chrome.tabs.query + new MCP tool.",
+      "See DESIGN NOTES section below for detailed surface analysis and what extension changes are needed."
+    ]
+  },
+  "mode": "verification",
+  "chain": [
+    {
+      "stepId": "pre-detect",
+      "action": "assess_state",
+      "expect": {
+        "state": "oauth_initiating"
+      },
+      "onMismatch": "escalate",
+      "note": "Pre-chain: verify we're on an OAuth initiation page (SSO button visible or consent flow starting)."
+    },
+    {
+      "stepId": "s1-detect-surface",
+      "action": "js",
+      "code": "({surfaceType: window.__yeshieOAuthSurface || 'same_page_nav'})",
+      "note": "Detect OAuth surface type. Initially: same-page nav (account chooser appears in current page). Set window.__yeshieOAuthSurface = 'same_page_nav' | 'iframe' | 'window_open'."
+    },
+    {
+      "stepId": "s2-same-page-nav",
+      "action": "assess_state",
+      "expect": {
+        "state": "account_chooser_same_page"
+      },
+      "onMatch": "jump_to:s3-select-account",
+      "note": "If surface = same-page nav: account chooser appears below SSO button. Jump to account selection."
+    },
+    {
+      "stepId": "s2b-iframe-surface",
+      "action": "assess_state",
+      "expect": {
+        "state": "account_chooser_iframe"
+      },
+      "onMatch": "jump_to:s3-select-account",
+      "note": "If surface = iframe: OAuth provider redirects into an iframe. Same selection logic applies, but content script must find selector within iframe."
+    },
+    {
+      "stepId": "s2c-window-open-surface",
+      "action": "assess_state",
+      "expect": {
+        "state": "popup_opened_separate_window"
+      },
+      "onMatch": "jump_to:s4-adopt-popup-window",
+      "note": "If surface = window.open: OAuth redirects to separate Chrome window outside MCP tab group. Requires popup adoption via chrome.tabs.query."
+    },
+    {
+      "stepId": "s3-select-account",
+      "action": "click",
+      "target": {
+        "name": "account_chooser_option",
+        "description": "Account option matching oauth_email in chooser (data-email, data-identifier, or text match)",
+        "fallbackSelectors": [
+          "[data-email=\"{{oauth_email}}\"]",
+          "[data-identifier=\"{{oauth_email}}\"]",
+          "li:has-text('{{oauth_email}}')",
+          ".v-list-item:has-text('{{oauth_email}}')"
+        ]
+      },
+      "responseSignature": {
+        "type": "url_change",
+        "matches": "consent|permissions|authorize",
+        "timeout": 5000
+      },
+      "note": "Click the account matching oauth_email. Expected response: navigation to consent screen (URL contains 'consent', 'permissions', or 'authorize')."
+    },
+    {
+      "stepId": "s4-adopt-popup-window",
+      "action": "js",
+      "code": "({msg: 'WINDOW_OPEN_DETECTED: Use chrome.tabs.query + MCP tool to find and focus popup tab. See DESIGN NOTES.'})",
+      "note": "ESCALATION POINT: If window.open() popup detected (separate Chrome window), extension cannot reach it via content script. Requires new MCP tool: yeshie_query_tabs() + yeshie_adopt_popup(popup_tab_id)."
+    },
+    {
+      "stepId": "s5-wait-consent-screen",
+      "action": "wait_for",
+      "target": {
+        "name": "consent_screen_button",
+        "description": "Consent button on OAuth provider consent screen ('Continue', 'Allow', 'Authorize')"
+      },
+      "state": {
+        "visible": true
+      },
+      "timeout": 10000,
+      "note": "Wait for consent screen to load. Button text varies: 'Continue', 'Allow', 'Authorize', 'Grant access'."
+    },
+    {
+      "stepId": "s6-click-consent",
+      "action": "click_text",
+      "text": "Continue",
+      "note": "Click consent button. Fallback text patterns: 'Allow', 'Authorize', 'Grant', 'Approve'."
+    },
+    {
+      "stepId": "s7-wait-redirect",
+      "action": "wait_for",
+      "url_pattern": "(?!accounts\\.google\\.com|login\\.live\\.com|login\\.microsoftonline\\.com|consent|permissions|authorize)",
+      "timeout": 30000,
+      "note": "Wait for final redirect back to the application. URL should no longer be on the OAuth provider domain."
+    },
+    {
+      "stepId": "s8-verify-completion",
+      "action": "assess_state",
+      "expect": {
+        "state": "oauth_complete"
+      },
+      "onMismatch": "escalate",
+      "note": "Verify OAuth flow completed: popup closed, parent tab shows authenticated state (nav drawer present, session cookie set)."
+    }
+  ],
+  "stateGraph": {
+    "notes": "Three-state model: before OAuth, during account selection, after consent.",
+    "nodes": {
+      "oauth_initiating": {
+        "description": "On SSO button or OAuth initiation page",
+        "signals": [
+          {
+            "type": "element_visible",
+            "selector": "button:has-text('Sign in with Google'), button:has-text('Sign in with Microsoft'), [role='button']:has-text('Continue with')"
+          }
+        ]
+      },
+      "account_chooser_same_page": {
+        "description": "Account chooser inline on current page (no navigation or iframe)",
+        "signals": [
+          {
+            "type": "element_visible",
+            "selector": "[data-email], li[data-email], .account-option"
+          },
+          {
+            "type": "url_not_matches",
+            "pattern": "accounts\\.google\\.com|login\\.live\\.com"
+          }
+        ]
+      },
+      "account_chooser_iframe": {
+        "description": "Account chooser inside an iframe on current page",
+        "signals": [
+          {
+            "type": "element_visible",
+            "selector": "iframe[src*='accounts'], iframe[src*='login']"
+          }
+        ]
+      },
+      "popup_opened_separate_window": {
+        "description": "OAuth opened a separate browser window (window.open). Current tab is waiting for popup to complete.",
+        "signals": [
+          {
+            "type": "element_visible",
+            "selector": "iframe[name*='oauth'], iframe[src*='oauth']"
+          }
+        ]
+      },
+      "consent_screen": {
+        "description": "Consent/permission screen shown to user",
+        "signals": [
+          {
+            "type": "element_visible",
+            "selector": "button:has-text('Continue'), button:has-text('Allow'), button:has-text('Authorize')"
+          },
+          {
+            "type": "url_matches",
+            "pattern": "consent|permissions|authorize|scope"
+          }
+        ]
+      },
+      "oauth_complete": {
+        "description": "OAuth flow finished, back to app with valid session",
+        "signals": [
+          {
+            "type": "url_not_matches",
+            "pattern": "accounts\\.google\\.com|login\\.live\\.com|login\\.microsoftonline\\.com|consent|authorize|oauth"
+          },
+          {
+            "type": "element_visible",
+            "selector": ".v-navigation-drawer, [role='navigation'], .app-nav, header"
+          }
+        ]
+      }
+    }
+  },
+  "DESIGN_NOTES": {
+    "title": "Yeshie OAuth Architecture Analysis",
+    "summary": "Three OAuth surface types exist. Yeshie currently handles surfaces 1 & 2. Surface 3 (window.open popup) breaks because the popup lands in a separate Chrome window outside our MCP tab group.",
+    "surfaces": [
+      {
+        "type": 1,
+        "name": "Same-page navigation",
+        "description": "OAuth provider redirects in the same tab. Account chooser and consent screens appear inline or in a modal overlay.",
+        "example": "Clicking 'Sign in with Google' navigates to accounts.google.com in the current tab. Chooser appears as a list item list. No new windows.",
+        "yeshie_capability": "FULLY SUPPORTED",
+        "reason": "Content script is already injected. Can query selectors, click, wait for redirects.",
+        "breaking_case": "None known."
+      },
+      {
+        "type": 2,
+        "name": "OAuth in iframe",
+        "description": "OAuth provider content (chooser, consent) is embedded in an <iframe> on the current page.",
+        "example": "Current tab shows an iframe with src='https://accounts.google.com/...'. Chooser and consent live inside the iframe.",
+        "yeshie_capability": "PARTIALLY SUPPORTED",
+        "reason": "Content script can detect iframe presence and wait for redirect out. But querying/clicking inside iframe requires cross-origin iframe access, which may be blocked by X-Frame-Options.",
+        "breaking_case": "If iframe is cross-origin and doesn't allow CDP/extension access, content script cannot reach selectors inside. Workaround: wait for iframe to redirect the parent tab (most OAuth flows eventually pop out of iframe)."
+      },
+      {
+        "type": 3,
+        "name": "Separate Chrome window (window.open)",
+        "description": "OAuth provider opens a new popup window via window.open() or Chrome's native popup mechanism. Account chooser and consent appear in this new window, which may be in a different Chrome tab group.",
+        "example": "Apps Script 'Review permissions' opens a popup for 'Sign in to gmail-bridge'. The popup is a full Chrome window, not in our MCP tab group.",
+        "yeshie_capability": "BROKEN",
+        "reason": "Content script cannot reach a window that is outside the MCP tab group. chrome.tabs.query can find it, but only the background worker has access to chrome.tabs. No MCP tool currently exposes cross-window tab queries or popup adoption.",
+        "breaking_case": "Apps Script oauth flow, Google Drive permission requests, any OAuth using native Chrome popup. THIS IS THE IMMEDIATE BLOCKER.",
+        "solution": "See 'MINIMUM EXTENSION WORK' below."
+      }
+    ],
+    "minimum_extension_work": {
+      "title": "What's blocking surface 3 (popup window)?",
+      "problem": "When OAuth opens window.open(), the popup tab is outside our MCP-tagged tab group. Content script can't reach it. Background worker can query it with chrome.tabs.query, but there's no MCP tool to ask the background worker for this info.",
+      "solution_steps": [
+        {
+          "step": 1,
+          "title": "Add MCP tool: yeshie_query_tabs()",
+          "description": "Background worker exposes a new MCP tool that returns all open tabs matching a pattern (URL, windowId, title). Caller can find popups.",
+          "pseudocode": "yeshie_query_tabs({ urlPattern: 'accounts.google.com', windowId: <any>, title: <any> }) → [{tabId, url, title, windowId}, ...]",
+          "location": "~/Projects/cc-bridge-mcp/server.js (add MCP tool that calls background worker's chrome.tabs.query)"
+        },
+        {
+          "step": 2,
+          "title": "Add socket.io listener: query_tabs",
+          "description": "Background worker listens for socket.io 'query_tabs' message from relay, responds with filtered tab list.",
+          "pseudocode": "socket.on('query_tabs', ({pattern, windowId}, ack) => { chrome.tabs.query({...}, ack); })",
+          "location": "~/Projects/yeshie/packages/extension/src/entrypoints/background.ts (add listener in relay socket section)"
+        },
+        {
+          "step": 3,
+          "title": "Add step action: focus_tab",
+          "description": "New payload action to focus/activate a specific tab by tabId. Payload can then send subsequent steps to the popup tab.",
+          "pseudocode": "{action: 'focus_tab', tabId: 1234}",
+          "location": "~/Projects/yeshie/packages/extension/src/entrypoints/background.ts + models/runtime.model.json"
+        },
+        {
+          "step": 4,
+          "title": "Add step action: switch_tab with tabId",
+          "description": "Payload can route subsequent steps to popup tab. Like existing 'switch_tab' but targets tabId instead of URL pattern.",
+          "pseudocode": "{action: 'switch_tab', tabId: 1234} — routes all following steps to that tab until switch back",
+          "location": "Extend existing switch_tab action in background.ts"
+        },
+        {
+          "step": 5,
+          "title": "Update payload schema",
+          "description": "Runtime model gains 'focus_tab' and updated 'switch_tab' definitions.",
+          "location": "~/Projects/yeshie/models/runtime.model.json"
+        }
+      ],
+      "effort": "2–3 hours. Mostly socket.io listener + background worker chrome.tabs.query + one payload action. No CSP bypass needed.",
+      "risk": "Low. Follows existing patterns (list_tabs already exists in background). No new extension APIs or user prompts."
+    },
+    "alternative_approaches": [
+      {
+        "approach": "Use chrome.debugger for popup",
+        "status": "Not viable",
+        "reason": "chrome.debugger requires the user to grant permission per-popup, and popups don't typically have debugger access for security reasons."
+      },
+      {
+        "approach": "Inject content script into popup after window.open()",
+        "status": "Partially viable but complex",
+        "reason": "Can inject, but popup may be cross-origin and CSP-hostile. Also, popup is transient — once user closes it, session is lost. Better to control it via background worker."
+      },
+      {
+        "approach": "Use MCP tool to drive popup via system automation (osascript, etc.)",
+        "status": "Last resort",
+        "reason": "Defeats the purpose of browser automation. Also fragile across OS and browser versions."
+      }
+    ],
+    "account_chooser_default_strategy": {
+      "title": "Selecting mw@mike-wolf.com when multiple accounts shown",
+      "implementation": "Payload step 'select account' uses fallbackSelectors cascade: [data-email] → [data-identifier] → text match → escalate.",
+      "google_accounts_page": "Google's accounts.google.com shows accounts as list items with [data-email='...'] attributes. Clicking [data-email='mw@mike-wolf.com'] selects that account.",
+      "yeshid_pattern": "YeshID login page shows account options as list items, each with data-email or text content.",
+      "current_implementation": "PRE_CLICK_GOOGLE_ACCOUNT(email) in background.ts already handles this for in-tab account chooser. Works for surfaces 1 & 2.",
+      "note": "For surface 3 (popup), the same PRE_CLICK_GOOGLE_ACCOUNT function needs to run inside the popup tab. Once 'switch_tab' is implemented, payload can call PRE_CLICK_GOOGLE_ACCOUNT in the popup context."
+    }
+  }
+}

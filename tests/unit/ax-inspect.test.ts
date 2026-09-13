@@ -163,6 +163,7 @@ describe('ax-inspect.py', () => {
     expect(output.composer).toEqual({
       has_text_area: true,
       draft_text: 'draft text',
+      placeholder: 'Reply to Claude',
       send_action: 'Queue message',
       active_web_title: null,
     });

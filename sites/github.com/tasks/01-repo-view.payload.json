@@ -5,10 +5,21 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "none_public_repo", "note": "Public repos accessible without login" },
+    "auth": {
+      "type": "none_public_repo",
+      "note": "Public repos accessible without login"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)", "pattern": "^[a-zA-Z0-9_.-]+$" },
-      "repo": { "required": true, "description": "Repo name", "pattern": "^[a-zA-Z0-9_.-]+$" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)",
+        "pattern": "^[a-zA-Z0-9_.-]+$"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name",
+        "pattern": "^[a-zA-Z0-9_.-]+$"
+      }
     },
     "risk": "safe",
     "needs_live_verification": false
@@ -22,14 +33,42 @@
     "base_url": "https://github.com"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}" },
-    { "stepId": "s2", "action": "delay", "ms": 1500 },
-    { "stepId": "s3", "action": "read", "store_as": "repo_content", "note": "Read repo homepage — description, star count, fork count, topics, README" }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}"
+    },
+    {
+      "action": "wait_for",
+      "selector": ".application-main",
+      "timeout": 8000,
+      "stepId": "s2"
+    },
+    {
+      "stepId": "s3",
+      "action": "read",
+      "store_as": "repo_content",
+      "note": "Read repo homepage \u2014 description, star count, fork count, topics, README"
+    }
   ],
   "stateGraph": {
     "nodes": {
-      "repo-home": { "signals": [{ "type": "url_matches", "pattern": "/[^/]+/[^/]+$" }] },
-      "not-found": { "signals": [{ "type": "text_present", "text": "This is not the web page you are looking for" }] }
+      "repo-home": {
+        "signals": [
+          {
+            "type": "url_matches",
+            "pattern": "/[^/]+/[^/]+$"
+          }
+        ]
+      },
+      "not-found": {
+        "signals": [
+          {
+            "type": "text_present",
+            "text": "This is not the web page you are looking for"
+          }
+        ]
+      }
     }
   }
 }

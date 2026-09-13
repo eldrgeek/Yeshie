@@ -40,8 +40,11 @@
     },
     {
       "stepId": "s2",
-      "action": "delay",
-      "ms": 3000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s3",
@@ -58,9 +61,11 @@
     },
     {
       "stepId": "s5-deactivate",
-      "action": "delay",
-      "ms": 700,
-      "disabled": true
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 700ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s6-deactivate",
@@ -71,9 +76,11 @@
     },
     {
       "stepId": "s7-deactivate",
-      "action": "delay",
-      "ms": 1500,
-      "disabled": true
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s8-deactivate",
@@ -84,9 +91,11 @@
     },
     {
       "stepId": "s9-verify",
-      "action": "delay",
-      "ms": 2000,
-      "disabled": true
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s10-verify",

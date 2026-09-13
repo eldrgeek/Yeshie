@@ -9,7 +9,7 @@
       "takeout_url": {
         "required": false,
         "default": "https://takeout.google.com/settings/takeout",
-        "description": "Google Takeout URL — must be logged in as the correct Google account"
+        "description": "Google Takeout URL \u2014 must be logged in as the correct Google account"
       }
     },
     "humanSteps": [
@@ -54,8 +54,14 @@
         "nodes": {
           "auth_required": {
             "signals": [
-              { "type": "url_matches", "pattern": "accounts\\.google\\.com/signin" },
-              { "type": "url_matches", "pattern": "accounts\\.google\\.com/o/oauth" }
+              {
+                "type": "url_matches",
+                "pattern": "accounts\\.google\\.com/signin"
+              },
+              {
+                "type": "url_matches",
+                "pattern": "accounts\\.google\\.com/o/oauth"
+              }
             ]
           }
         }
@@ -65,9 +71,11 @@
     },
     {
       "stepId": "s3",
-      "action": "delay",
-      "ms": 2500,
-      "note": "Takeout has a long load time with many products"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s4",
@@ -77,9 +85,11 @@
     },
     {
       "stepId": "s5",
-      "action": "delay",
-      "ms": 800,
-      "note": "Allow deselect to register"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 800ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s6",
@@ -90,9 +100,11 @@
     },
     {
       "stepId": "s7",
-      "action": "delay",
-      "ms": 1000,
-      "note": "Allow selection to register"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s8",
@@ -103,8 +115,11 @@
     },
     {
       "stepId": "s9",
-      "action": "delay",
-      "ms": 500
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s10",
@@ -114,9 +129,11 @@
     },
     {
       "stepId": "s11",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for delivery options page"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s12",
@@ -127,13 +144,15 @@
       "stepId": "s13",
       "action": "click_text",
       "text": "Create export",
-      "note": "Trigger the export — Google will email a download link"
+      "note": "Trigger the export \u2014 Google will email a download link"
     },
     {
       "stepId": "s14",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Allow submission to register"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s15",

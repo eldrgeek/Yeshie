@@ -5,12 +5,28 @@
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "github_session", "note": "Must have write access to close PRs" },
+    "auth": {
+      "type": "github_session",
+      "note": "Must have write access to close PRs"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" },
-      "number": { "required": true, "description": "PR number" },
-      "comment": { "required": false, "description": "Optional comment before closing", "default": "" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      },
+      "number": {
+        "required": true,
+        "description": "PR number"
+      },
+      "comment": {
+        "required": false,
+        "description": "Optional comment before closing",
+        "default": ""
+      }
     },
     "risk": "safe",
     "needs_live_verification": true
@@ -25,10 +41,35 @@
     "comment": "{{comment}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/pull/{{number}}" },
-    { "stepId": "s2", "action": "wait_for", "selector": "button[name='comment_and_close'], [aria-label*='Close pull request']", "timeout": 8000 },
-    { "stepId": "s3", "action": "type", "selector": "textarea[name='comment[body]'], #new_comment_field", "value": "{{comment}}", "note": "Add optional comment before closing" },
-    { "stepId": "s4", "action": "click", "selector": "button[name='comment_and_close'], button[aria-label*='Close pull request']", "note": "Close without merging" },
-    { "stepId": "s5", "action": "delay", "ms": 1500 }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}/pull/{{number}}"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "button[name='comment_and_close'], [aria-label*='Close pull request']",
+      "timeout": 8000
+    },
+    {
+      "stepId": "s3",
+      "action": "type",
+      "selector": "textarea[name='comment[body]'], #new_comment_field",
+      "value": "{{comment}}",
+      "note": "Add optional comment before closing"
+    },
+    {
+      "stepId": "s4",
+      "action": "click",
+      "selector": "button[name='comment_and_close'], button[aria-label*='Close pull request']",
+      "note": "Close without merging"
+    },
+    {
+      "action": "wait_for",
+      "selector": "[role=\"alert\"], .flash, .js-flash-alert, [data-testid=\"toast\"]",
+      "timeout": 8000,
+      "stepId": "s5"
+    }
   ]
 }

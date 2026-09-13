@@ -1,15 +1,27 @@
 {
   "_meta": {
     "task": "collaborator-remove",
-    "description": "Remove a collaborator from a GitHub repository. DESTRUCTIVE — revokes their access immediately. Requires admin access.",
+    "description": "Remove a collaborator from a GitHub repository. DESTRUCTIVE \u2014 revokes their access immediately. Requires admin access.",
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
-    "auth": { "type": "github_session", "note": "Must have admin access to remove collaborators" },
+    "auth": {
+      "type": "github_session",
+      "note": "Must have admin access to remove collaborators"
+    },
     "params": {
-      "owner": { "required": true, "description": "Repo owner (user or org)" },
-      "repo": { "required": true, "description": "Repo name" },
-      "username": { "required": true, "description": "GitHub username to remove" }
+      "owner": {
+        "required": true,
+        "description": "Repo owner (user or org)"
+      },
+      "repo": {
+        "required": true,
+        "description": "Repo name"
+      },
+      "username": {
+        "required": true,
+        "description": "GitHub username to remove"
+      }
     },
     "risk": "confirm",
     "needs_live_verification": true
@@ -23,12 +35,46 @@
     "username": "{{username}}"
   },
   "chain": [
-    { "stepId": "guard", "action": "assert", "condition": "false", "message": "DESTRUCTIVE: Removing a collaborator immediately revokes their repository access. NEVER execute in testing." },
-    { "stepId": "s1", "action": "navigate", "url": "https://github.com/{{owner}}/{{repo}}/settings/access" },
-    { "stepId": "s2", "action": "wait_for", "selector": "[data-login='{{username}}']", "timeout": 8000 },
-    { "stepId": "s3", "action": "click", "selector": "[data-login='{{username}}'] button[aria-label*='Remove'], [data-login='{{username}}'] [data-remove-collaborator]", "note": "Click remove button for the specific collaborator" },
-    { "stepId": "s4", "action": "wait_for", "selector": "dialog, button[type='submit']", "timeout": 5000 },
-    { "stepId": "s5", "action": "click", "selector": "button[type='submit'], button[data-disable-with*='Remove']", "note": "Confirm removal" },
-    { "stepId": "s6", "action": "delay", "ms": 1500 }
+    {
+      "stepId": "guard",
+      "action": "assert",
+      "condition": "false",
+      "message": "DESTRUCTIVE: Removing a collaborator immediately revokes their repository access. NEVER execute in testing."
+    },
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://github.com/{{owner}}/{{repo}}/settings/access"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "[data-login='{{username}}']",
+      "timeout": 8000
+    },
+    {
+      "stepId": "s3",
+      "action": "click",
+      "selector": "[data-login='{{username}}'] button[aria-label*='Remove'], [data-login='{{username}}'] [data-remove-collaborator]",
+      "note": "Click remove button for the specific collaborator"
+    },
+    {
+      "stepId": "s4",
+      "action": "wait_for",
+      "selector": "dialog, button[type='submit']",
+      "timeout": 5000
+    },
+    {
+      "stepId": "s5",
+      "action": "click",
+      "selector": "button[type='submit'], button[data-disable-with*='Remove']",
+      "note": "Confirm removal"
+    },
+    {
+      "action": "wait_for",
+      "selector": "[role=\"alert\"], .flash, .js-flash-alert, [data-testid=\"toast\"]",
+      "timeout": 8000,
+      "stepId": "s6"
+    }
   ]
 }

@@ -35,9 +35,11 @@
     },
     {
       "stepId": "s3",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for overview to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s4",
@@ -53,9 +55,11 @@
     },
     {
       "stepId": "s6",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for people-list to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s7",
@@ -71,9 +75,11 @@
     },
     {
       "stepId": "s9",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for onboard-form to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s10",
@@ -89,9 +95,11 @@
     },
     {
       "stepId": "s12",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for directories to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s13",
@@ -107,9 +115,11 @@
     },
     {
       "stepId": "s15",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for groups to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s16",
@@ -125,9 +135,11 @@
     },
     {
       "stepId": "s18",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for applications-list to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s19",
@@ -143,9 +155,11 @@
     },
     {
       "stepId": "s21",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for access-grid to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s22",
@@ -161,9 +175,11 @@
     },
     {
       "stepId": "s24",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for rbac to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s25",
@@ -179,9 +195,11 @@
     },
     {
       "stepId": "s27",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for access-requests to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s28",
@@ -197,9 +215,11 @@
     },
     {
       "stepId": "s30",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for audit-reports to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s31",
@@ -215,9 +235,11 @@
     },
     {
       "stepId": "s33",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for shadow-applications to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s34",
@@ -233,9 +255,11 @@
     },
     {
       "stepId": "s36",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for identities to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s37",
@@ -251,9 +275,11 @@
     },
     {
       "stepId": "s39",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for access-drift to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s40",
@@ -269,9 +295,11 @@
     },
     {
       "stepId": "s42",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for risk-assessment to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s43",
@@ -287,9 +315,11 @@
     },
     {
       "stepId": "s45",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for triggers to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s46",
@@ -305,9 +335,11 @@
     },
     {
       "stepId": "s48",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for workflow-templates to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s49",
@@ -323,9 +355,11 @@
     },
     {
       "stepId": "s51",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for policies to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s52",
@@ -341,9 +375,11 @@
     },
     {
       "stepId": "s54",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for events to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s55",
@@ -359,9 +395,11 @@
     },
     {
       "stepId": "s57",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for settings to render"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s58",

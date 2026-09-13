@@ -3,7 +3,7 @@
  */
 
 import { execFileSync } from 'child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join, resolve } from 'path';
 
@@ -51,7 +51,11 @@ def AXUIElementPerformAction(elem, action):
 
 def AXUIElementCreateApplication(pid):
     _record({'type': 'create_app', 'pid': pid})
-    return {'id': 'app', 'AXWindows': _state['windows']}
+    # Claude Desktop 1.3561+ exposes its web content through AXFocusedUIElement
+    # (an AXWebArea), not the native window. Share the window's children list so
+    # edits made through either root land in the same recorded state.
+    web_area = {'id': 'web-area', 'AXRole': 'AXWebArea', 'AXChildren': _state['windows'][0]['AXChildren']}
+    return {'id': 'app', 'AXWindows': _state['windows'], 'AXFocusedUIElement': web_area}
 `,
   );
 
@@ -61,7 +65,10 @@ def AXUIElementCreateApplication(pid):
 import json
 import os
 
+import ApplicationServices
+
 _apps = json.loads(os.environ['AX_TEST_APPS'])
+NSApplicationActivateIgnoringOtherApps = 2
 
 class RunningApp:
     def __init__(self, item):
@@ -72,6 +79,10 @@ class RunningApp:
 
     def processIdentifier(self):
         return self.item['pid']
+
+    def activateWithOptions_(self, options):
+        ApplicationServices._record({'type': 'activate', 'pid': self.item['pid'], 'options': options})
+        return True
 
 class Workspace:
     def runningApplications(self):
@@ -112,13 +123,21 @@ def CGEventPost(tap, event):
 function runAxInject(args: string[], state: any) {
   const stubDir = mkdtempSync(join(tmpdir(), 'ax-inject-stubs-'));
   const statePath = join(stubDir, 'ax-state.json');
+  const osascriptLog = join(stubDir, 'osascript.log');
   writeStubModules(stubDir);
   writeFileSync(statePath, JSON.stringify(state));
+  // The script shells out to osascript to activate Claude and to post a
+  // notification. A unit test must never reach the live Claude Desktop, so a
+  // fake osascript goes first on PATH and records its arguments instead.
+  writeFileSync(join(stubDir, 'osascript'), `#!/bin/sh\nprintf '%s\\n' "$*" >> "${osascriptLog}"\n`, { mode: 0o755 });
 
   try {
     const env = {
       ...process.env,
+      PATH: `${stubDir}:${process.env.PATH}`,
       PYTHONPATH: stubDir,
+      // Closed port: the relay /notify POST fails fast instead of hitting the live relay.
+      YESHIE_RELAY: 'http://127.0.0.1:9',
       AX_TEST_APPS: JSON.stringify([{ bundleIdentifier: 'com.anthropic.claudefordesktop', pid: 321 }]),
       AX_TEST_STATE_PATH: statePath,
       AX_TEST_QUARTZ_EVENTS: '[]',
@@ -131,7 +150,10 @@ function runAxInject(args: string[], state: any) {
     });
 
     const nextState = JSON.parse(readFileSync(statePath, 'utf8'));
-    return { stdout, state: nextState, events: nextState.events ?? [] };
+    const osascript = existsSync(osascriptLog)
+      ? readFileSync(osascriptLog, 'utf8').split('\n').filter(Boolean)
+      : [];
+    return { stdout, state: nextState, events: nextState.events ?? [], osascript };
   } finally {
     rmSync(stubDir, { recursive: true, force: true });
   }
@@ -195,10 +217,13 @@ describe('ax-inject.py', () => {
     expect(result.events).toEqual(
       expect.arrayContaining([
         { type: 'create_app', pid: 321 },
+        { type: 'activate', pid: 321, options: 2 },
         { type: 'set', id: 'text-area', attr: 'AXValue', value: 'hello from test' },
         { type: 'action', id: 'send-button', action: 'AXPress' },
       ]),
     );
+    // The activation fallback went to the fake osascript, not the real one.
+    expect(result.osascript.some((line: string) => line.includes('tell application "Claude" to activate'))).toBe(true);
   });
 
   test('switches sessions and restores prior draft when save-restore is requested', () => {

@@ -12,12 +12,19 @@
         "required": false,
         "description": "Action to perform: 'delete' or 'suspend'",
         "default": "suspend",
-        "options": ["suspend", "delete"],
-        "hint": "Default is 'suspend' (safer — reversible). Use 'delete' to permanently remove."
+        "options": [
+          "suspend",
+          "delete"
+        ],
+        "hint": "Default is 'suspend' (safer \u2014 reversible). Use 'delete' to permanently remove."
       }
     },
-    "requiredParams": ["user_identifier"],
-    "optionalParams": ["action"],
+    "requiredParams": [
+      "user_identifier"
+    ],
+    "optionalParams": [
+      "action"
+    ],
     "selfImproving": true,
     "runCount": 0,
     "lastSuccess": null,
@@ -25,7 +32,7 @@
       "type": "manual_required",
       "note": "Requires active admin session at admin.google.com."
     },
-    "warning": "Destructive action. 'delete' is irreversible — use 'suspend' unless permanent removal is intended."
+    "warning": "Destructive action. 'delete' is irreversible \u2014 use 'suspend' unless permanent removal is intended."
   },
   "runId": "google-admin-user-delete-{{timestamp}}",
   "mode": "verification",
@@ -39,7 +46,11 @@
     "search-input": {
       "match": {
         "role": "textbox",
-        "name_contains": ["Search", "Filter", "search users"]
+        "name_contains": [
+          "Search",
+          "Filter",
+          "search users"
+        ]
       },
       "cachedSelector": null,
       "cachedConfidence": 0,
@@ -53,7 +64,9 @@
     "user-row": {
       "match": {
         "role": "row",
-        "name_contains": ["{{user_identifier}}"]
+        "name_contains": [
+          "{{user_identifier}}"
+        ]
       },
       "cachedSelector": null,
       "cachedConfidence": 0,
@@ -63,7 +76,11 @@
     "more-options-button": {
       "match": {
         "role": "button",
-        "name_contains": ["More options", "More", "Actions"]
+        "name_contains": [
+          "More options",
+          "More",
+          "Actions"
+        ]
       },
       "cachedSelector": null,
       "cachedConfidence": 0,
@@ -77,7 +94,10 @@
     "suspend-menu-item": {
       "match": {
         "role": "menuitem",
-        "name_contains": ["Suspend user", "Suspend"]
+        "name_contains": [
+          "Suspend user",
+          "Suspend"
+        ]
       },
       "cachedSelector": null,
       "cachedConfidence": 0,
@@ -90,7 +110,10 @@
     "delete-menu-item": {
       "match": {
         "role": "menuitem",
-        "name_contains": ["Delete user", "Delete"]
+        "name_contains": [
+          "Delete user",
+          "Delete"
+        ]
       },
       "cachedSelector": null,
       "cachedConfidence": 0,
@@ -103,7 +126,13 @@
     "confirm-button": {
       "match": {
         "role": "button",
-        "name_contains": ["Suspend", "Delete", "Confirm", "OK", "Yes"]
+        "name_contains": [
+          "Suspend",
+          "Delete",
+          "Confirm",
+          "OK",
+          "Yes"
+        ]
       },
       "cachedSelector": null,
       "cachedConfidence": 0,
@@ -148,9 +177,11 @@
     },
     {
       "stepId": "s4",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for search results to filter"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s5",
@@ -173,9 +204,11 @@
     },
     {
       "stepId": "s8",
-      "action": "delay",
-      "ms": 500,
-      "note": "Wait for dropdown menu to open"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s9-suspend",
@@ -206,9 +239,11 @@
     },
     {
       "stepId": "s12",
-      "action": "delay",
-      "ms": 2000,
-      "note": "Wait for the action to complete"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s13",
@@ -244,9 +279,11 @@
     },
     {
       "stepId": "s17",
-      "action": "delay",
-      "ms": 1500,
-      "note": "Wait for filtered results"
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s18",
@@ -257,7 +294,7 @@
         "[role='main'] [role='row']"
       ],
       "store_as": "result_state",
-      "note": "Capture final table state — expect row showing 'Suspended' status or absent if deleted"
+      "note": "Capture final table state \u2014 expect row showing 'Suspended' status or absent if deleted"
     }
   ],
   "stateGraph": {

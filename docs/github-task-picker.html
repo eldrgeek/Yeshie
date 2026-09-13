@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Yeshie · GitHub tasks</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #fff; color: #1c2128;
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 18px 16px 60px; }
+  h1 { font-size: 20px; margin: 0 0 2px; }
+  .sub { color: #59636e; margin: 0 0 14px; font-size: 13px; }
+  .note { background: #ddf4ff; border: 1px solid #b6e3ff; color: #0a3069;
+    padding: 9px 12px; border-radius: 8px; font-size: 12.5px; margin-bottom: 14px; }
+  .bar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    background: #f6f8fa; border: 1px solid #eaeef2; border-radius: 9px; padding: 10px 12px; margin-bottom: 16px; }
+  .switch { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .switch input { width: 34px; height: 18px; appearance: none; background: #c8ccd1; border-radius: 999px; position: relative; cursor: pointer; transition: background .15s; }
+  .switch input:checked { background: #1f883d; }
+  .switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; background: #fff; border-radius: 50%; transition: left .15s; }
+  .switch input:checked::after { left: 18px; }
+  .bar .hint { color: #59636e; font-size: 12px; font-weight: 400; }
+  .bar a.link { font-size: 12.5px; color: #0969da; cursor: pointer; text-decoration: none; font-weight: 600; margin-left: auto; }
+  .bar a.link:hover { text-decoration: underline; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: #59636e;
+    margin: 22px 0 8px; border-bottom: 1px solid #eaeef2; padding-bottom: 5px; }
+  .card { display: flex; align-items: center; gap: 10px; padding: 9px 11px;
+    border: 1px solid #eaeef2; border-radius: 9px; margin-bottom: 7px; background: #fff; }
+  .card .meta { flex: 1; min-width: 0; }
+  .card .title { font-weight: 600; font-size: 13.5px; }
+  .card .num { color: #818b98; font-weight: 500; font-size: 12px; margin-right: 6px; }
+  .card .desc { color: #59636e; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .res { font-size: 11.5px; margin-top: 3px; }
+  .res.ok { color: #1a7f37; } .res.err { color: #cf222e; } .res.run { color: #9a6700; }
+  .links { display: flex; gap: 10px; align-items: center; }
+  a.mini { font-size: 11.5px; color: #0969da; cursor: pointer; text-decoration: none; white-space: nowrap; }
+  a.mini:hover { text-decoration: underline; }
+  a.mini.off { color: #afb8c1; cursor: default; pointer-events: none; }
+  button.run { border: 1px solid #1f883d; background: #1f883d; color: #fff; font-weight: 600;
+    border-radius: 7px; padding: 6px 14px; font-size: 12.5px; cursor: pointer; white-space: nowrap; min-width: 64px; }
+  button.run:hover { background: #1a7f37; }
+  button.run:disabled { background: #8c959f; border-color: #8c959f; cursor: default; }
+  button.run.snap { background: #8250df; border-color: #8250df; }
+  button.run.snap:hover { background: #6e40c9; }
+  details { margin-top: 18px; }
+  summary { cursor: pointer; font-size: 13px; color: #59636e; font-weight: 600; }
+  .catalog { columns: 2; column-gap: 22px; margin-top: 10px; font-size: 12px; color: #424a53; }
+  .catalog div { break-inside: avoid; padding: 2px 0; }
+  .spin { display: inline-block; width: 11px; height: 11px; border: 2px solid #d0d7de;
+    border-top-color: #9a6700; border-radius: 50%; animation: s .7s linear infinite; vertical-align: -1px; }
+  @keyframes s { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Yeshie · GitHub tasks</h1>
+  <p class="sub">Pick a task and watch Yeshie run it live in your Chrome.</p>
+  <div class="note">
+    <b>Watch your browser.</b> <b>Run</b> tells Yeshie (via the relay) to execute the task in the connected Chrome tab.
+    With <b>snapshots</b> on, the run is also captured into an annotated Markdown report you can open in the HUD editor.
+    Only safe, read-only tasks are one-click; state-changing/account tasks are catalog-only below.
+  </div>
+
+  <div class="bar">
+    <label class="switch"><input type="checkbox" id="snap" /> Run with snapshots</label>
+    <span class="hint" id="snaphint">off — live run only, no report</span>
+    <a class="link" id="engine">View injected content script ▸ editor</a>
+  </div>
+
+  <div id="list"></div>
+
+  <details>
+    <summary id="catsum">Catalog — tasks that change state or need account context (not one-click)</summary>
+    <div class="catalog" id="catalog"></div>
+  </details>
+</div>
+
+<script>
+const ROOT = "/Users/mikewolf/Projects/yeshie";
+// Canon: guard with wait_for, not a fixed delay. `.application-main` is GitHub's
+// stable content wrapper (present+visible on every page); it settles in ~ms.
+const nav = (url) => [
+  { stepId:"s1", action:"navigate", url },
+  { stepId:"s2", action:"wait_for", selector:".application-main", timeout:8000 },
+  { stepId:"s3", action:"read", store_as:"c" }
+];
+const GROUPS = [
+  { name:"Repository", tasks:[
+    { num:"01", title:"repo-view", desc:"Open a repository home page", chain: nav("https://github.com/microsoft/vscode") },
+    { num:"06", title:"repo-clone-url", desc:"Open the Code clone menu", highlight:'button[aria-label*="Code"], summary[aria-haspopup="menu"]', chain:[
+        {stepId:"s1",action:"navigate",url:"https://github.com/microsoft/vscode"},{stepId:"s2",action:"wait_for",selector:".application-main",timeout:8000},
+        {stepId:"s3",action:"click",selector:'button[aria-label*="Code"], summary[aria-haspopup="menu"]'},{stepId:"s4",action:"wait_for",selector:'[role="menu"], [role="dialog"], [role="listbox"]',timeout:6000},{stepId:"s5",action:"read",store_as:"c"} ] },
+    { num:"15", title:"repo-list-forks", desc:"List forks of a repo", chain: nav("https://github.com/microsoft/vscode/network/members") },
+  ]},
+  { name:"Issues", tasks:[
+    { num:"16", title:"issue-list", desc:"List open issues", chain: nav("https://github.com/microsoft/vscode/issues?q=is%3Aissue+is%3Aopen") },
+    { num:"18", title:"issue-view", desc:"Open a single issue", chain: nav("https://github.com/microsoft/vscode/issues/1") },
+    { num:"27", title:"issue-search", desc:"Search issues in a repo", chain: nav("https://github.com/microsoft/vscode/issues?q=bug") },
+    { num:"28", title:"issue-filter-by-label", desc:'Filter issues by label "bug"', chain: nav("https://github.com/microsoft/vscode/issues?q=is%3Aissue+is%3Aopen+label%3A%22bug%22") },
+  ]},
+  { name:"Pull Requests", tasks:[
+    { num:"31", title:"pr-list", desc:"List open pull requests", chain: nav("https://github.com/microsoft/vscode/pulls?q=is%3Apr+is%3Aopen") },
+    { num:"32", title:"pr-view", desc:"Open a single PR", chain: nav("https://github.com/microsoft/vscode/pull/200000") },
+    { num:"43", title:"pr-view-diff", desc:"View a PR's changed files", chain: nav("https://github.com/microsoft/vscode/pull/200000/files") },
+    { num:"45", title:"pr-filter-open", desc:"Filter to open PRs", chain: nav("https://github.com/microsoft/vscode/pulls?q=is%3Aopen+is%3Apr") },
+  ]},
+  { name:"Code & files", tasks:[
+    { num:"47", title:"branch-list", desc:"List branches", chain: nav("https://github.com/torvalds/linux/branches") },
+    { num:"52", title:"file-view", desc:"View a file", chain: nav("https://github.com/torvalds/linux/blob/master/README") },
+    { num:"57", title:"file-blame", desc:"View file blame", chain: nav("https://github.com/torvalds/linux/blame/master/README") },
+    { num:"58", title:"code-search", desc:'Search code for "console.log"', chain: nav("https://github.com/search?q=console.log&type=code") },
+    { num:"59", title:"file-history", desc:"View a file's commit history", chain: nav("https://github.com/torvalds/linux/commits/master/README") },
+  ]},
+  { name:"Releases, Actions & Gists", tasks:[
+    { num:"61", title:"release-list", desc:"List releases", chain: nav("https://github.com/microsoft/vscode/releases") },
+    { num:"66", title:"actions-list", desc:"List workflow runs", chain: nav("https://github.com/microsoft/vscode/actions") },
+    { num:"72", title:"gist-view", desc:"View a public gist", chain: nav("https://gist.github.com/torvalds/cc68ebc4b4d305e9dbb8") },
+  ]},
+  { name:"Search", tasks:[
+    { num:"86", title:"search-repos", desc:'Search repositories', chain: nav("https://github.com/search?q=linux+kernel&type=repositories") },
+    { num:"88", title:"search-issues", desc:"Search issues globally", chain: nav("https://github.com/search?q=is%3Aissue+label%3Abug&type=issues") },
+    { num:"89", title:"search-users", desc:"Search users", chain: nav("https://github.com/search?q=location%3ADenver+language%3Arust&type=users") },
+    { num:"91", title:"search-topics", desc:"Search topics", chain: nav("https://github.com/search?q=machine-learning&type=topics") },
+  ]},
+  { name:"Profiles, orgs & explore", tasks:[
+    { num:"92", title:"profile-view", desc:"View a user profile", chain: nav("https://github.com/torvalds") },
+    { num:"97", title:"org-view", desc:"View an organization", chain: nav("https://github.com/microsoft") },
+    { num:"98", title:"org-repos", desc:"List org repositories", chain: nav("https://github.com/orgs/microsoft/repositories?sort=updated") },
+    { num:"100", title:"explore", desc:"Trending repositories", chain: nav("https://github.com/trending?since=daily") },
+  ]},
+];
+const CATALOG = [
+  "02 repo-star","03 repo-unstar","04 repo-watch","05 repo-fork","07 repo-create","08 repo-rename",
+  "09 repo-archive","10 repo-change-visibility","11 repo-delete","12 repo-transfer","13 repo-topics-edit",
+  "14 repo-description-edit","17 issue-create","19 issue-comment","20 issue-close","21 issue-reopen",
+  "22 issue-label-apply","23 issue-assign","24 issue-milestone","25 issue-pin","26 issue-lock",
+  "30 issue-mark-duplicate","33 pr-create","34 pr-comment","35 pr-review-approve","36 pr-review-request-changes",
+  "37 pr-request-reviewer","38 pr-convert-to-draft","39 pr-mark-ready","40 pr-merge","41 pr-close","42 pr-link-issue",
+  "48 branch-create","49 branch-switch-default","50 branch-delete","53 file-create","54 file-edit","55 file-delete",
+  "56 file-upload","63 release-create","64 release-edit","65 release-delete","68 actions-rerun","69 actions-cancel",
+  "73 gist-create","74 gist-edit","75 gist-delete","77 collaborator-invite","78 collaborator-remove",
+  "79 collaborator-change-role","81 notifications-list","82 notifications-mark-read","83 notifications-subscribe",
+  "84 notifications-unsubscribe","93 profile-edit","94 settings-view","95 settings-emails","96 settings-security",
+  "99 org-members"
+];
+
+const sh = (command, timeout_seconds=20) => window.cowork.callMcpTool("mcp__cc-bridge-mcp__shell_exec", { command, timeout_seconds });
+
+// Open a file in the HUD editor (relay /open-path → HUD :3334/open-editor). Text files (.md/.json/...) only.
+async function openInHud(path) {
+  const cmd = `curl -s -X POST http://localhost:3333/open-path -H 'Content-Type: application/json' -d '{"path":"${path}"}'`;
+  try { await sh(cmd, 15); return true; } catch (e) { return false; }
+}
+
+const snap = document.getElementById("snap");
+snap.onchange = () => {
+  document.getElementById("snaphint").textContent = snap.checked
+    ? "on — captures an annotated report per run" : "off — live run only, no report";
+  document.querySelectorAll("button.run").forEach((b) => {
+    b.classList.toggle("snap", snap.checked);
+    b.textContent = snap.checked ? "Run + snap" : "Run";
+  });
+};
+
+document.getElementById("engine").onclick = () => {
+  // The injected engine is .js, which the HUD editor doesn't take; open it in the relay web editor.
+  const cs = ROOT + "/packages/extension/.output/chrome-mv3/content-scripts/content.js";
+  sh(`open 'http://localhost:3333/edit?path=${encodeURIComponent(cs)}'`, 10);
+};
+
+const list = document.getElementById("list");
+for (const g of GROUPS) {
+  const h = document.createElement("h2"); h.textContent = g.name; list.appendChild(h);
+  for (const t of g.tasks) {
+    const slug = t.num + "-" + t.title;
+    const payloadPath = `${ROOT}/sites/github.com/tasks/${slug}.payload.json`;
+    const reportPath = `${ROOT}/docs/runs/${slug}.md`;
+    const card = document.createElement("div"); card.className = "card";
+    card.innerHTML = `<div class="meta">
+        <div class="title"><span class="num">${t.num}</span>${t.title}</div>
+        <div class="desc">${t.desc}</div>
+        <div class="res"></div>
+      </div>
+      <div class="links">
+        <a class="mini code">code ▸</a>
+        <a class="mini report off">report ▸</a>
+      </div>`;
+    const btn = document.createElement("button"); btn.className = "run"; btn.textContent = "Run";
+    const res = card.querySelector(".res");
+    const reportLink = card.querySelector(".report");
+    card.querySelector(".code").onclick = () => openInHud(payloadPath);
+    reportLink.onclick = () => openInHud(reportPath);
+    btn.onclick = () => snap.checked ? runSnapshot(t, slug, reportPath, btn, res, reportLink) : runPlain(t, btn, res);
+    card.appendChild(btn);
+    list.appendChild(card);
+  }
+}
+const cat = document.getElementById("catalog");
+for (const c of CATALOG) { const d = document.createElement("div"); d.textContent = c; cat.appendChild(d); }
+document.getElementById("catsum").textContent = `Catalog — ${CATALOG.length} tasks that change state or need account context (not one-click)`;
+
+function parseMcp(r) { try { return r.structuredContent ?? JSON.parse(r.content[0].text); } catch (e) { return null; } }
+
+async function runPlain(t, btn, res) {
+  btn.disabled = true;
+  res.className = "res run"; res.innerHTML = `<span class="spin"></span> running — watch your browser…`;
+  const started = Date.now();
+  try {
+    const r = await window.cowork.callMcpTool("mcp__cc-bridge-mcp__yeshie_run",
+      { inline_payload: { chain: t.chain }, timeout_seconds: 90 });
+    const data = parseMcp(r);
+    if (r.isError || !data) { res.className = "res err"; res.textContent = "✗ " + (r?.content?.[0]?.text || "run failed").slice(0,140); }
+    else if (data.success && data.goalReached !== false) {
+      const url = (data.stepResults||[]).filter(s=>s.url).map(s=>s.url).pop() || (data.buffer && Object.values(data.buffer)[0]?.pageUrl) || "";
+      res.className = "res ok"; res.textContent = `✓ ran ${data.stepsExecuted} steps in ${((Date.now()-started)/1000).toFixed(1)}s → ${url}`;
+    } else { res.className = "res err"; res.textContent = "✗ " + (data.error || "did not complete"); }
+  } catch (e) { res.className = "res err"; res.textContent = "✗ " + (e.message || "error"); }
+  finally { btn.disabled = false; }
+}
+
+async function runSnapshot(t, slug, reportPath, btn, res, reportLink) {
+  btn.disabled = true;
+  res.className = "res run"; res.innerHTML = `<span class="spin"></span> running + capturing — watch your browser…`;
+  const payload = { payload: { title: t.title, site: "github.com", frames: [{ caption: t.desc, highlight: t.highlight, chain: t.chain }] } };
+  const b64 = btoa(JSON.stringify(payload));
+  const cmd = `cd ${ROOT} && printf '%s' '${b64}' | base64 -d > /tmp/yeshie-doc-${slug}.json && `
+    + `node scripts/document-run.mjs /tmp/yeshie-doc-${slug}.json --ports 9223,9222 --out docs/runs/${slug}.md --title '${t.title}' 2>&1 | tail -3`;
+  try {
+    const r = await sh(cmd, 160);
+    const out = (r?.content?.[0]?.text) || "";
+    const m = out.match(/Wrote .*\((\d+)\s*KB,\s*(\d+)\s*screenshots?,\s*(\d+)\s*failures?\)/);
+    if (m) {
+      const fails = Number(m[3]);
+      res.className = fails ? "res err" : "res ok";
+      res.textContent = `${fails ? "⚠" : "✓"} captured ${m[2]} screenshot(s), ${fails} failure(s) — ${m[1]} KB report`;
+      reportLink.classList.remove("off");
+      openInHud(reportPath); // auto-open the annotated report in the HUD editor
+    } else {
+      res.className = "res err"; res.textContent = "✗ " + (out.slice(-160) || "documenter did not report a result");
+    }
+  } catch (e) { res.className = "res err"; res.textContent = "✗ " + (e.message || "error"); }
+  finally { btn.disabled = false; }
+}
+</script>
+</body>
+</html>

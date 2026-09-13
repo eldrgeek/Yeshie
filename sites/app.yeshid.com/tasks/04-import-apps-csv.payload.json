@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "description": "Bulk import applications via CSV on /access/applications. Clicks 'Import application list' → CSV option → attaches inline CSV → uploads.",
+    "description": "Bulk import applications via CSV on /access/applications. Clicks 'Import application list' \u2192 CSV option \u2192 attaches inline CSV \u2192 uploads.",
     "requiresAuth": true,
     "baseUrl": "https://app.yeshid.com",
     "requiredParams": [
@@ -25,7 +25,7 @@
     "notes": [
       "URL is /access/applications (NOT /applications).",
       "Button is 'Import application list' (bulk), NOT 'Add application' (single).",
-      "csv_content is the RAW CSV string — no file path needed.",
+      "csv_content is the RAW CSV string \u2014 no file path needed.",
       "File input attached via DataTransfer+Blob using find(r =>) whitelisted pattern."
     ],
     "id": "import-apps-csv",
@@ -137,8 +137,11 @@
     },
     {
       "stepId": "s3b",
-      "action": "delay",
-      "ms": 800
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 800ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "p2",
@@ -154,8 +157,11 @@
     },
     {
       "stepId": "s4b",
-      "action": "delay",
-      "ms": 1000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 1000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "p3",
@@ -171,8 +177,13 @@
     },
     {
       "stepId": "s5b",
-      "action": "delay",
-      "ms": 1000
+      "action": "wait_for",
+      "target": "upload-confirm-button",
+      "state": {
+        "visible": true
+      },
+      "timeout": 8000,
+      "note": "wait for upload-confirm-button before next step (was delay 1000ms)"
     },
     {
       "stepId": "s6",

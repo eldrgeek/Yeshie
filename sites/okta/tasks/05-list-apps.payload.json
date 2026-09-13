@@ -7,9 +7,9 @@
     "verified": true,
     "verifiedDate": "2026-04-13",
     "anomalies": [
-      "perceive required instead of read — SPA issue",
-      "Table has empty headers [] — apps rendered as MUI cards not a standard <table>. perceive counts 5 'rows' but no column headers. Use mainActions to discover app instances (hrefs: /admin/app/{type}/instance/{id}/).",
-      "ACTIVE/INACTIVE counts shown as 'ACTIVE0', 'INACTIVE0' concatenated — badge text appended to label with no separator"
+      "perceive required instead of read \u2014 SPA issue",
+      "Table has empty headers [] \u2014 apps rendered as MUI cards not a standard <table>. perceive counts 5 'rows' but no column headers. Use mainActions to discover app instances (hrefs: /admin/app/{type}/instance/{id}/).",
+      "ACTIVE/INACTIVE counts shown as 'ACTIVE0', 'INACTIVE0' concatenated \u2014 badge text appended to label with no separator"
     ]
   },
   "params": {
@@ -24,8 +24,11 @@
     },
     {
       "stepId": "s2",
-      "action": "delay",
-      "ms": 3000
+      "action": "wait_for",
+      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
+      "timeout": 6000,
+      "onTimeout": "continue",
+      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
     },
     {
       "stepId": "s3",
@@ -36,7 +39,7 @@
   ],
   "abstractTargets": {
     "app-list-table": {
-      "description": "App card list — perceive sees it as a table with empty headers",
+      "description": "App card list \u2014 perceive sees it as a table with empty headers",
       "tableHeaders": [],
       "note": "App entries are in mainActions with href pattern /admin/app/{type}/instance/{id}/"
     },
@@ -56,11 +59,31 @@
     }
   },
   "knownApps": [
-    {"name": "Okta Admin Console", "type": "saasure", "instanceId": "0oa11lcq3hvMSM5Zi698"},
-    {"name": "Okta Browser Plugin", "type": "okta_browser_plugin", "instanceId": "0oa11lcq3kbpHYihz698"},
-    {"name": "Okta Dashboard", "type": "okta_enduser", "instanceId": "0oa11lcq3ipCPuWI9698"},
-    {"name": "Okta Workflows", "type": "okta_flow_sso", "instanceId": "0oa11ld7emwY2ZGnB698"},
-    {"name": "Okta Workflows OAuth", "type": "flow", "instanceId": "0oa11ld7enlSeDeYv698"}
+    {
+      "name": "Okta Admin Console",
+      "type": "saasure",
+      "instanceId": "0oa11lcq3hvMSM5Zi698"
+    },
+    {
+      "name": "Okta Browser Plugin",
+      "type": "okta_browser_plugin",
+      "instanceId": "0oa11lcq3kbpHYihz698"
+    },
+    {
+      "name": "Okta Dashboard",
+      "type": "okta_enduser",
+      "instanceId": "0oa11lcq3ipCPuWI9698"
+    },
+    {
+      "name": "Okta Workflows",
+      "type": "okta_flow_sso",
+      "instanceId": "0oa11ld7emwY2ZGnB698"
+    },
+    {
+      "name": "Okta Workflows OAuth",
+      "type": "flow",
+      "instanceId": "0oa11ld7enlSeDeYv698"
+    }
   ],
   "stateGraph": {
     "initial": "apps-list",
