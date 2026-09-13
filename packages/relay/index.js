@@ -374,6 +374,14 @@ let _lastError = null;
 
 export function createRelay(port = 3333) {
   const httpServer = createServer();
+  // Keep idle HTTP connections open longer than any poller's interval.
+  // Node's default is 5s. An async-run poller (scripts/run-async.mjs polls
+  // every 3s) reuses its keep-alive socket, and a reuse that lands as the
+  // server closes that socket fails with ECONNRESET (seen 2026-09-13, once
+  // per recipe run). With a 65s idle window the server never closes a socket
+  // a poller is about to reuse. headersTimeout must exceed keepAliveTimeout.
+  httpServer.keepAliveTimeout = 65_000;
+  httpServer.headersTimeout = 66_000;
   const io = new Server(httpServer, {
     cors: { origin: '*', methods: ['GET', 'POST'] }
   });

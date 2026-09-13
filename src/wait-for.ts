@@ -27,24 +27,57 @@ export type WaitStep = {
   text?: string;
   quietMs?: number;
   expect?: { state?: string };
-  state?: WaitState;
+  /** An object of conditions, or a string naming a state-graph node to wait for. */
+  state?: WaitState | string;
   stateGraph?: { nodes?: Record<string, unknown> };
   [key: string]: unknown;
 };
 
+/** `state` as an object of conditions. A string `state` names a graph node instead. */
+function stateObj(step: WaitStep): WaitState | undefined {
+  return step.state && typeof step.state === 'object' ? step.state : undefined;
+}
+
 export function wantsStable(step: WaitStep): boolean {
-  const s = step.state?.stable;
+  const s = stateObj(step)?.stable;
   return s === true || typeof s === 'number';
 }
 
 export function quietMsOf(step: WaitStep): number {
-  if (typeof step.state?.stable === 'number' && Number.isFinite(step.state.stable)) {
-    return Math.max(0, step.state.stable);
+  const stable = stateObj(step)?.stable;
+  if (typeof stable === 'number' && Number.isFinite(stable)) {
+    return Math.max(0, stable);
   }
   if (typeof step.quietMs === 'number' && Number.isFinite(step.quietMs)) {
     return Math.max(0, step.quietMs);
   }
   return DEFAULT_STABLE_QUIET_MS;
+}
+
+export type StateGraphLike = { nodes?: Record<string, unknown> };
+
+/** The graph node a wait_for waits for: `state: "name"`, `state.name`, or `expect.state`. */
+export function expectedWaitState(step: WaitStep): string | null {
+  if (typeof step.state === 'string') return step.state || null;
+  return stateObj(step)?.name || step.expect?.state || null;
+}
+
+/**
+ * The graph a state wait_for is judged against: the step's own graph, or else
+ * the payload's graph when the step names a state. Null means the step is not
+ * a state wait.
+ */
+export function waitStateGraph(step: WaitStep, payloadGraph?: StateGraphLike | null): StateGraphLike | null {
+  const inline = (stateObj(step)?.stateGraph || step.stateGraph) as StateGraphLike | undefined;
+  if (inline?.nodes) return inline;
+  if (expectedWaitState(step) && payloadGraph?.nodes) return payloadGraph;
+  return null;
+}
+
+/** True when the page's current state is the one this wait_for is waiting for. */
+export function stateWaitMatched(step: WaitStep, currentState: string): boolean {
+  const expected = expectedWaitState(step);
+  return expected ? currentState === expected : currentState !== 'unknown';
 }
 
 export function fingerprintContent(text: string | null | undefined): string {
@@ -97,6 +130,8 @@ export type WaitEvalContext = {
   doc: Document;
   interpolate?: (s: string) => string;
   assessState?: (graph: { nodes?: Record<string, unknown> }) => string;
+  /** The payload's state graph, used when the step names a state but carries no graph. */
+  stateGraph?: StateGraphLike | null;
 };
 
 export type WaitEvalResult = {
@@ -125,17 +160,14 @@ export function evaluateWaitFor(step: WaitStep, ctx: WaitEvalContext): WaitEvalR
     };
   }
 
-  const graph = (step.state?.stateGraph || step.stateGraph) as { nodes?: Record<string, unknown> } | undefined;
-  if (graph?.nodes && ctx.assessState) {
+  const graph = waitStateGraph(step, ctx.stateGraph);
+  if (graph && ctx.assessState) {
     const currentState = ctx.assessState(graph);
-    const expectedState = step.state?.name || step.expect?.state;
-    return {
-      matched: expectedState ? currentState === expectedState : currentState !== 'unknown',
-      contentHash: '',
-      pageText: '',
-      state: currentState,
-    };
+    return { matched: stateWaitMatched(step, currentState), contentHash: '', pageText: '', state: currentState };
   }
+  // A named state with no graph to judge it by can never be reached.
+  if (!graph && expectedWaitState(step)) return { matched: false, contentHash: '', pageText: '' };
+  const st = stateObj(step);
 
   let sel: string | null = step.selector ?? null;
   if (!sel && typeof step.target === 'string' && looksLikeSelector(step.target)) {
@@ -149,30 +181,30 @@ export function evaluateWaitFor(step: WaitStep, ctx: WaitEvalContext): WaitEvalR
   const contentHash = fingerprintContent(pageText);
   const empty: WaitEvalResult = { matched: false, contentHash, pageText };
 
-  const needleRaw = step.text ?? step.state?.text;
+  const needleRaw = step.text ?? st?.text;
   const needle = needleRaw !== undefined && needleRaw !== null && String(needleRaw).length > 0
     ? I(String(needleRaw))
     : '';
-  const hasStable = step.state?.stable === true || typeof step.state?.stable === 'number';
-  const hasCondition = !!(sel || needle || step.state);
+  const hasStable = st?.stable === true || typeof st?.stable === 'number';
+  const hasCondition = !!(sel || needle || st);
   if (!hasCondition) return empty;
 
   if (needle && !pageText.includes(needle)) return empty;
 
-  if (step.state) {
-    if (step.state.visible !== undefined) {
+  if (st) {
+    if (st.visible !== undefined) {
       const visible = !!el;
-      if (step.state.visible ? !visible : visible) return empty;
+      if (st.visible ? !visible : visible) return empty;
     }
-    if (step.state.enabled !== undefined) {
+    if (st.enabled !== undefined) {
       const enabled =
         !!el &&
         !(el as HTMLInputElement | HTMLButtonElement).disabled &&
         el.getAttribute('aria-disabled') !== 'true';
-      if (step.state.enabled ? !enabled : enabled) return empty;
+      if (st.enabled ? !enabled : enabled) return empty;
     }
-    if (step.state.attribute) {
-      const ok = Object.entries(step.state.attribute).every(
+    if (st.attribute) {
+      const ok = Object.entries(st.attribute).every(
         ([key, expected]) => el?.getAttribute(key) === String(expected)
       );
       if (!ok) return empty;
@@ -180,7 +212,7 @@ export function evaluateWaitFor(step: WaitStep, ctx: WaitEvalContext): WaitEvalR
   }
 
   // Selector waits require the element unless this is a body-level text/stable wait.
-  if (sel && !el && step.state?.visible !== false) return empty;
+  if (sel && !el && st?.visible !== false) return empty;
   if (!sel && !needle && !hasStable) return empty;
 
   return { matched: true, contentHash, pageText };
