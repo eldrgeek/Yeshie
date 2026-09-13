@@ -141,3 +141,16 @@ editor through paste/format steps — markdown just needs an HTML render first
 Mike's Google credentials (see `~/Projects/CLAUDE.md` → Google account topology:
 prefer `mw.personalmail@gmail.com`), then feed the resulting doc URL into
 recipe 01 to share it.
+
+## Recipe 04: anchor a comment on exact text (caller-verified), added 2026-09-12
+
+`tasks/04-anchor-comment-on-text.payload.json` takes three params:
+- `start_offset`: zero-based characters from the start of the body text, computed by the caller from the Docs API;
+- `target_phrase`: used only for its length;
+- `comment_text`.
+
+What it does: it focuses the body, moves to the document start with macOS `commands` key chords, moves right `start_offset` times, extends the selection by the phrase length, and posts the comment. No clipboard is used. Every browser step is bounded and cancellable. On any failure it collapses the selection and posts nothing. The result is always `verified: false`.
+
+**The caller verifies.** PlayMaker lists comments through the Drive API (`comments(id,quotedFileContent)`) and compares `quotedFileContent.value` exactly to the phrase. On a mismatch it deletes that comment (`comments.delete`).
+
+Status: UNVERIFIED LIVE until one relay run passes on a test document.
