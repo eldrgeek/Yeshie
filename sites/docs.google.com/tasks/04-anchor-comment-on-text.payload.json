@@ -1,0 +1,88 @@
+{
+  "_meta": {
+    "task": "anchor-comment-on-text",
+    "description": "Post a Google Docs comment anchored to a phrase via Docs Find on macOS; anchor remains UNVERIFIED.",
+    "validationStatus": "COS raw-CDP live proof 2026-09-13; extension path not yet live-verified",
+    "runCount": 1,
+    "lastSuccess": null,
+    "requiredParams": [
+      "target_phrase",
+      "comment_text"
+    ],
+    "params": {
+      "target_phrase": {
+        "required": true,
+        "description": "Exact phrase to locate with Docs Find; required length 1 to 500."
+      },
+      "occurrence": {
+        "required": false,
+        "default": 1,
+        "description": "1-based match index among Find results. Defaults to first match."
+      },
+      "comment_text": {
+        "required": true,
+        "description": "Nonempty comment to post."
+      }
+    },
+    "execution": [
+      "Fail early if a blocking modal is present (for example, 'File is in trash') before sending any input.",
+      "Click inside .kix-page-paginated with real CDP mouse events and verify the docs-texteventtarget-iframe has focus.",
+      "Open Docs Find with Cmd+F rawKeyDown/keyUp and require visible focused input [aria-label='Find in document'].",
+      "Type target_phrase with Input.insertText only while the Find input is visible and focused.",
+      "Read a stable Find counter k of N before pressing Enter. Fail phrase_not_found when N is 0, then press Enter only as needed to reach occurrence.",
+      "Fail occurrence_out_of_range when occurrence is greater than N; otherwise press Enter until k equals occurrence, bounded to N+1 presses.",
+      "Close Find with Escape, open composer via Cmd+Option+M, require visible focused composer, type comment_text, and require composer text match before posting.",
+      "Click the composer's visible Comment button with real CDP mouse events, then classify posting as verified (posted=true, verified=true), uncertain (posted='uncertain', verified=false), or clicked (error/cancel carries postedStatus='clicked'), with anchor UNVERIFIED."
+    ],
+    "callerVerification": "PlayMaker must identify the posted comment and call Drive API comments.list with fields including comments(id,quotedFileContent),nextPageToken. Compare quotedFileContent.value exactly to target_phrase. On mismatch delete that comment using comments.delete. Missing quoted content or API failure does not verify the anchor. Reconcile uncertain posting outcomes before retrying.",
+    "failureContract": "Every operation is bounded and cancellable. On any failure after Find open is attempted, Escape is sent before returning failure. On any failure after the composer becomes visible (before Comment click), Cancel is clicked so no draft is posted. Before click, the run records the exact-match card count for comment_text from comment-body nodes only; after click it polls for both composer closure and count +1. If either signal is missing it returns posted='uncertain', verified=false (never posted=false after click). If cancellation/error happens after click dispatch, the failure carries postedStatus='clicked' so callers reconcile before retrying. Posting is blocked unless the Find input and composer are both focused at their respective typing steps.",
+    "caveats": "UNVERIFIED LIVE: extension path for this flow has not yet been live-verified by COS. No clipboard access.",
+    "liveFinding": {
+      "date": "2026-09-13",
+      "method": "Raw CDP against live Google Docs in Chrome 153 on macOS",
+      "result": "comment posted anchored to exact selected phrase",
+      "eventProof": {
+        "focus": "Input.dispatchMouseEvent mousePressed+mouseReleased inside .kix-page-paginated; activeElement becomes docs-texteventtarget-iframe",
+        "find": "Cmd+F via rawKeyDown/keyUp key=f code=KeyF vk=70 modifiers=4, no commands",
+        "enter": "keyDown Enter code=Enter vk=13 text=\\r unmodifiedText=\\r, then keyUp",
+        "closeFind": "Escape rawKeyDown/keyUp key=Escape code=Escape vk=27",
+        "composer": "Cmd+Option+M via rawKeyDown/keyUp key=m code=KeyM vk=77 modifiers=5, no commands",
+        "post": "Comment button clicked via real CDP mouse events at element centre"
+      },
+      "notes": [
+        "If Find did not open focused, Enter inserts a newline in the document; never type or press Enter unless Find input is visible and focused.",
+        "Grammar chip can appear but does not block this flow.",
+        "Blocking modals (including 'File is in trash') must fail before typing."
+      ]
+    },
+    "supersededFindings": [
+      {
+        "date": "2026-09-12",
+        "note": "Superseded by 2026-09-13 raw-CDP Find flow proof.",
+        "start_offset": 25,
+        "target_phrase": "ready for a reading",
+        "error": "Cannot focus comment composer",
+        "posted": false,
+        "evidence": "sites/docs.google.com/evidence-y1-live-run1.png",
+        "observation": "Caret at readin|g; grammar suggestion for reading covered the composer area and took focus. Screenshot is after failure; cleanup collapses selection, so it cannot prove the extend loop failed.",
+        "round6": "Plain Escape and bounded chip polling; two Cmd+Option+M attempts without commands, then toolbar fallback; require visible writable textarea focus before typing. Candidate chip DOM selectors remain unverified: no DOM snapshot available and browser/network use prohibited.",
+        "selectionAudit": "No loop off-by-one: 25 ArrowRight and 19 Shift+ArrowRight chords after Cmd+Home/moveToBeginningOfDocument. With LF paragraph separators this sample phrase begins at zero-based offset 25. A lost/intercepted chord or Docs caret/API paragraph mapping could explain one-short positioning; the post-failure cleanup also collapses selection. Screenshot alone cannot establish which occurred. Actual Docs caret/API mapping remains unverified."
+      }
+    ]
+  },
+  "mode": "verification",
+  "site": "docs.google.com",
+  "preRunChecklist": [
+    "Open intended document in editing mode on macOS with Find and dialogs closed.",
+    "Caller must supply target_phrase and comment_text, may supply occurrence, and must verify the posted anchor through Drive API."
+  ],
+  "chain": [
+    {
+      "stepId": "anchor-comment",
+      "action": "anchor_comment",
+      "target_phrase": "{{target_phrase}}",
+      "occurrence": "{{occurrence}}",
+      "comment_text": "{{comment_text}}"
+    }
+  ]
+}
