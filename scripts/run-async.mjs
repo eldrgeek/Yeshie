@@ -30,6 +30,8 @@
  *   --poll-ms N        client poll interval (default 3000)
  *   --max-wait-ms N    client give-up wall clock (default 360000 = 6 min)
  *   --json             print only the final ChainResult as JSON (quiet progress)
+ *   --profile P        run in Chrome profile P (email or label); default = mw@ profile
+ *   --tab N | --site H | --instance ID | --target '<json>'   narrower routing target
  *
  * ENV:
  *   YESHIE_RELAY       relay base URL (default http://localhost:3333)
@@ -57,6 +59,15 @@ for (let i = 0; i < args.length; i++) {
     if (eq > 0) params[args[i + 1].slice(0, eq)] = args[i + 1].slice(eq + 1);
   }
 }
+// Routing target (docs/design/multi-connection-relay.md). Omitted = the default
+// profile (mw@). The relay refuses an ambiguous or missing target.
+//   --target '<json>'  full target object, or --profile <email|label>,
+//   --tab <tabId>, --site <host>, --instance <instanceId>
+const target = opt('target') ? JSON.parse(opt('target')) : {};
+if (opt('profile')) target.profile = opt('profile');
+if (opt('instance')) target.instanceId = opt('instance');
+if (opt('tab')) target.tabId = parseInt(opt('tab'), 10);
+if (opt('site')) target.site = opt('site');
 const quiet = flag('json');
 const log = (...a) => { if (!quiet) console.error(...a); };
 
@@ -90,7 +101,7 @@ async function submit(recipeArg) {
   const res = await fetch(`${RELAY}/run/async`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...buildAttributionHeaders() },
-    body: JSON.stringify({ payload, timeoutMs }),
+    body: JSON.stringify({ payload, timeoutMs, ...(Object.keys(target).length ? { target } : {}) }),
   });
   const data = await res.json();
   if (res.status !== 202 || !data.id) throw new Error(`submit failed (HTTP ${res.status}): ${JSON.stringify(data)}`);
