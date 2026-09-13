@@ -24,6 +24,7 @@
   "chain": [
     { "stepId": "s1", "action": "navigate", "url": "https://suno.com/create" },
     { "stepId": "s1b", "action": "key", "key": "Escape", "optional": true, "note": "dismiss promo modals (2026-09-12: a 'v6 — Promo Extended' dialog covered the form and hid the tabs from click_text)" },
+    { "stepId": "s1c", "action": "wait_for", "selector": "button[role=\"tab\"][aria-label=\"Advanced\"]", "timeout": 20000, "note": "navigate returns before the create form hydrates; clicking the tab too early fails with Not found (seen twice 2026-09-12)" },
     { "stepId": "s2", "action": "click", "selector": "button[role=\"tab\"][aria-label=\"Advanced\"]", "note": "ensure Advanced/Custom mode — anchored on role+aria-label, not visible text, so an overlay can't hide it" },
     { "stepId": "s2b", "action": "click", "selector": "button[aria-label=\"Clear all form inputs\"]", "optional": true, "note": "clear leftovers first — 'type' into the contenteditable lyrics editor APPENDS, so a form still holding the previous song's lyrics would produce a merged song (seen 2026-09-12). Optional because the button is disabled when the form is already empty." },
     { "stepId": "s3", "action": "wait_for", "selector": "div[aria-label=\"Lyrics editor\"]", "timeout": 10000 },
@@ -32,6 +33,6 @@
     { "stepId": "s6", "action": "type", "selector": "input[placeholder=\"Song Title (Optional)\"]", "value": "{{title}}" },
     { "stepId": "s7", "action": "wait_for", "selector": "button[aria-label=\"Create song\"]", "timeout": 6000, "note": "enabled once fields have content" },
     { "stepId": "s8", "action": "click", "selector": "button[aria-label=\"Create song\"]", "note": "GENERATES — consumes credits. Remove this step to fill-only." },
-    { "stepId": "s9", "action": "wait_for", "text": "{{title}}", "timeout": 20000, "note": "PROOF the song was created: its title must appear in the clip list. Added 2026-09-12 after a FALSE GREEN — 4 runs in a row clicked Create 'ok' but Suno made nothing (likely a concurrent-generation cap when runs are ~25s apart). Space runs until the previous clips finish." }
+    { "stepId": "s9", "action": "wait_for", "text": "{{title}}", "timeout": 90000, "note": "PROOF the song was created: its title must appear in the clip list. Timeout raised 20s -> 90s: in a BACKGROUND tab the clip list repaints late, and two real creates (Nemo, I'm Not Dead Yet) timed out at 20s and appeared in the feed ~1 min later — a false red. Authoritative fallback: GET studio-api.prod.suno.com/api/feed/v2 with the Clerk session token. Added 2026-09-12 after a FALSE GREEN — 4 runs in a row clicked Create 'ok' but Suno made nothing (likely a concurrent-generation cap when runs are ~25s apart). Space runs until the previous clips finish." }
   ]
 }
