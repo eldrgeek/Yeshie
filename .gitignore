@@ -39,3 +39,8 @@ packages/relay/jobs-state.json
 # Cleaned up 2026-07-11: 18 stale gitlink entries removed from tracking (dirs
 # left on disk, some with real uncommitted work — see git log for this commit).
 .claude/worktrees/
+
+# Dated run outputs saved beside recipes (scrape extracts, account data).
+# Yeshie is a PUBLIC repo: these must never be tracked. Added 2026-09-13
+# after Rocket Money net-worth and transaction extracts turned up here uncommitted.
+sites/*/tasks/20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*
