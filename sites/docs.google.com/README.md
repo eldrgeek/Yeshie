@@ -13,6 +13,8 @@ CIC was the discovery pass; this recipe makes the next run relay-native.
 | # | Task | Params | Risk | Verified |
 |---|------|--------|------|----------|
 | 01 | share-doc | `doc_url`, `emails`, `role`, `message?`, `verify_email?` | **sends notification email to recipients** | ✅ 2026-07-24 live relay run, all 29 steps green — access list showed "Claude AI claude@mike-wolf.com **Viewer**" against fresh server state; test share revoked after. New shares only (see caveats in `_meta.verified`). |
+| 02 | add-comment | `comment_text` | Posts a real, visible comment | ✅ 2026-09-12 live relay run — posts and anchors to the doc's CURRENT cursor position. **Does NOT let the caller choose which words the comment anchors to** — see "PlayMaker comment-sync probe" below. |
+| 03 | resolve-comment | (none — acts on whatever thread is currently open) | Low — reversible via the Comments panel | ✅ 2026-09-12 live relay run — resolves the open thread, confirmed via the Comments panel's "Resolved" section. |
 
 Run via the relay, e.g.:
 
@@ -142,15 +144,73 @@ Mike's Google credentials (see `~/Projects/CLAUDE.md` → Google account topolog
 prefer `mw.personalmail@gmail.com`), then feed the resulting doc URL into
 recipe 01 to share it.
 
+## PlayMaker comment-sync probe (2026-09-12, Mike Wolf + CCc)
+
+Feasibility probe for syncing PlayMaker marks with Google Docs comments
+in both directions (Mike's ruling, 2026-09-12). Ran against a scratch test
+doc, "PlayMaker Yeshie comment probe 2026-09-12"
+(`docs.google.com/document/d/1ihp7YQBpLYhUg6p-DpJz15TSKBpAkRxjXCtflx4iMHw`),
+signed in as `mw.personalmail@gmail.com` (Mike Wolf).
+
+**Comment CREATE + RESOLVE mechanics: fully verified working.** Both render
+as real DOM (not canvas) — `#insertCommentButton` → `textarea.docos-input` →
+`click_text "Comment"` to post; `[aria-label='Mark as resolved and hide
+discussion']` to resolve. See recipes 02/03 above.
+
+**Anchoring a comment to CALLER-CHOSEN text: does NOT work with the current
+action set.** Google Docs' body renders on `<canvas class=kix-canvas-tile-content>`
+— there is no per-word/per-phrase DOM element to select. Three independent
+selection strategies were tried and each failed for a different, confirmed
+reason:
+
+1. **CSS/DOM selector for the phrase** — none exists. Querying the live DOM
+   for text nodes containing the target phrase found only an unrelated,
+   near-zero-width accessibility shadow-paragraph layer, not addressable text.
+2. **In-doc Find (⌘F) match highlight** — cosmetic overlay only, not a real
+   editor selection. With "ready for a reading" highlighted green by Find,
+   clicking `#insertCommentButton` anchored the new comment to the actual
+   (unrelated) cursor position elsewhere in the doc — proven by the comment
+   landing on "laughing" instead.
+3. **Keyboard chords for cursor navigation** (`cmd+Home`, `shift+Right`,
+   `alt+Right`, `shift+alt+Right`) dispatched via CDP `Input.dispatchKeyEvent`
+   — silently not honored by Google Docs on this Mac/Chrome setup. Proven by
+   a type-after-key round-trip: after `cmd+Home` then typing "XX", the text
+   landed at the END of the document, not the start. Bare, unmodified keys
+   (`Enter`, `Backspace`) DO work, and `Input.insertText` always works — only
+   modifier+navigation CHORDS fail to register as editing commands.
+
+**Likely root cause:** macOS Chrome requires CDP key-dispatch to include an
+explicit `commands` array (e.g. `['moveToBeginningOfDocument:']`) to route a
+modified keydown to the NSResponder-style text-editing action.
+`dispatchKeyChordCDP` in `background.ts` does not send this field.
+
+**What would fix it (either is an Outer-loop engine change, neither done in
+this probe to avoid touching the shared, live extension mid-session):**
+- Add a `commands` field per Home/Arrow+modifier chord in
+  `dispatchKeyChordCDP`, or
+- Add a new trusted-mouse action that performs a real CDP
+  `mousePressed`→`mouseMoved`→`mouseReleased` DRAG between two explicit
+  `(x, y)` points, so a phrase's on-screen bounding box (readable via a
+  Find-match screenshot/pixel-color scan, as done in this probe — the green
+  highlight is real, just not a selection) can be converted into an actual
+  text-range selection.
+
+Until one of those lands, anchored-comment automation for Google Docs is
+possible only for the trivial case (comment at the current cursor), not for
+"comment on these exact words" — the latter needs either the engine fix
+above or a human/CIC-driven click-drag.
+
+
 ## Recipe 04: anchor a comment on exact text (caller-verified), added 2026-09-12
 
-`tasks/04-anchor-comment-on-text.payload.json` takes three params:
-- `start_offset`: zero-based characters from the start of the body text, computed by the caller from the Docs API;
-- `target_phrase`: used only for its length;
-- `comment_text`.
+✅ **LIVE VERIFIED 2026-09-13** on extension 0.1.528 (run yfevijaqte1789275748846): posted=true, verified=true on "I think the play" in the probe doc.
 
-What it does: it focuses the body, moves to the document start with macOS `commands` key chords, moves right `start_offset` times, extends the selection by the phrase length, and posts the comment. No clipboard is used. Every browser step is bounded and cancellable. On any failure it collapses the selection and posts nothing. The result is always `verified: false`.
+`tasks/04-anchor-comment-on-text.payload.json` uses Docs' Find + Composer:
+- **Params:** `target_phrase` (exact phrase to find), `occurrence` (1-based match index, default 1), `comment_text`.
+- **Flow:** Cmd+F → type phrase → read Find counter (k of N) → press Enter to reach requested occurrence → Escape → Cmd+Option+M → type comment → click Comment button.
+- **Selection:** Find highlights the phrase and selects it for the comment anchor. Composer is pinned per-run with a token to prevent wrong-draft mishaps.
+- **Bounded:** Every step is cancellable. On failure after Find opens, Escape is sent. On failure after composer opens, Cancel is clicked to prevent accidental posts.
 
-**The caller verifies.** PlayMaker lists comments through the Drive API (`comments(id,quotedFileContent)`) and compares `quotedFileContent.value` exactly to the phrase. On a mismatch it deletes that comment (`comments.delete`).
+**Caller verification:** PlayMaker lists comments via Drive API (`comments(id,quotedFileContent)`) and compares `quotedFileContent.value` exactly to `target_phrase`. On mismatch it deletes that comment (`comments.delete`). Missing `quotedFileContent` or API failure does not verify the anchor.
 
-Status: UNVERIFIED LIVE until one relay run passes on a test document.
+**Result:** `posted=true, verified=true` on success; on uncertain posting (e.g., composer closes before click confirms), `posted='uncertain', verified=false` and the comment is left for caller reconciliation.
