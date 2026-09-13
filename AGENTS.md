@@ -75,6 +75,9 @@ When adding a new document, add a row to the Documentation Map table above.
 
 ## Repository-Specific Notes for Agents
 
+### Git trunk: `master` (since 2026-09-13)
+`master` is the trunk and GitHub's default branch. Branch from `origin/master`, and open every PR against `master`. A PR merges only when the `unit` check (`.github/workflows/unit-tests.yml`) passes; the estate gate is `~/Projects/_estate/bin/pr-merge-green <n> --repo eldrgeek/Yeshie`. `fix/adddns-netlify-token-from-env` was the living line until 2026-09-13 and was merged into `master` with no file changes (merge `b2db8123`). It still exists for the worktrees based on it, but new PRs must not target it. `main` is an unrelated dead repository (separate root commit) and must never be merged. The everyday extension is built by `com.yeshie.watcher` from the main checkout's `packages/extension`, which stays on `master`. `CLAUDE.md` §Trunk has the full history.
+
 ### Services (via HTTP)
 Both services must be running for any payload execution:
 - **Health check:** `curl -s http://127.0.0.1:3333/status` — expect `{"ok":true,"extensionConnected":true,"pending":0}`
