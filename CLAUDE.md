@@ -2,6 +2,14 @@
 
 Chrome MV3 extension + local relay `http://127.0.0.1:3333`: Claude sends payload JSON (`sites/<domain>/tasks/*.payload.json`) → extension executes autonomously across page navigations → returns ChainResult. This is the **only** web-automation path. CIC is discovery-only. `PLAN.md` (CDP/Puppeteer) is historical/superseded.
 
+## Trunk: `master` (since 2026-09-13)
+
+`master` is the trunk and GitHub's default branch. Branch from `origin/master`, and open every PR against `master`. Merge only with `~/Projects/_estate/bin/pr-merge-green <n> --repo eldrgeek/Yeshie`, which refuses a PR unless the `unit` check (`.github/workflows/unit-tests.yml`) ran and passed.
+
+- **`fix/adddns-netlify-token-from-env`** was the living line from April to 2026-09-13, while `master` sat stale at 2026-06-13. Merge `b2db8123` joined the two without changing any file: it kept the living branch's tree and recorded `master` as a parent. The only master-only content it dropped was a hardcoded, dead Netlify PAT in `adddns.py`. The old branch still exists because several worktrees are based on it. Do not target new PRs at it.
+- **`main`** is a different, dead repository that shares this URL: a separate root commit, with its last commit on 2026-01-15. Never branch from it or merge it.
+- **The everyday extension** is built by launchd job `com.yeshie.watcher` from the working tree of the main checkout, `~/Projects/yeshie/packages/extension`. The relay's `GET /status` field `buildVersion` shows which build is loaded. Keep the main checkout on `master`.
+
 ## References
 
 | Resource | Path |
