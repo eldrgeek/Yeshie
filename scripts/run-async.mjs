@@ -102,8 +102,21 @@ async function poll(id) {
   const maxWaitMs = parseInt(opt('max-wait-ms', '360000'), 10);
   const start = Date.now();
   let lastStep = '';
+  let transportFailures = 0;
   for (;;) {
-    const res = await fetch(`${RELAY}/run/result/${encodeURIComponent(id)}`);
+    let res;
+    try {
+      res = await fetch(`${RELAY}/run/result/${encodeURIComponent(id)}`);
+      transportFailures = 0;
+    } catch (err) {
+      // GET /run/result is read-only, so a dropped connection (e.g. ECONNRESET
+      // on a reused keep-alive socket) is safe to retry. Five in a row means
+      // the relay is really gone.
+      if (++transportFailures > 5) throw err;
+      log(`poll transport error (${err.cause?.code || err.message}); retrying`);
+      await sleep(pollMs);
+      continue;
+    }
     if (res.status === 404) throw new Error(`run ${id} not found (expired or bad id)`);
     const run = await res.json();
     if (run.status === 'running') {

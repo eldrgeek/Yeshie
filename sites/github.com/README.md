@@ -165,7 +165,7 @@ reintroduces a `delay` step.
 
 ## Risk Gate Summary
 
-**28 destructive recipes (risk: confirm)** — all guarded with `assert false` as the first chain step to prevent accidental execution:
+**17 destructive recipes (risk: confirm)** — all guarded with `assert false` as the first chain step to prevent accidental execution. (This line said 28 until 2026-09-13; the table and the corpus have always had 17.) Since 2026-09-13 the runtime enforces the guard: the chain halts at the `guard` step with `Assert failed [guard]: <message>`. Before that, the `condition` gate skipped the guard and the chain ran on. To run one of these for real, a person must remove the guard deliberately.
 
 | # | Action | Why Destructive |
 |---|--------|----------------|
@@ -215,4 +215,4 @@ Two gotchas are recorded in the recipe's `_meta.anomalies`:
 - `data-testid='alert-checkbox'` is the **stop-usage** box, not the alerts box.
 - GitHub offers one alerts checkbox with fixed 75/90/100% thresholds and no recipient field.
 
-Note for this set: `assert` is not implemented in the compiled runtime. An unknown action returns status `unsupported`, which does not stop a chain, so the `assert false` guard described in the Risk Gate Summary does not actually block execution.
+Note for this set (corrected 2026-09-13): the `assert false` guard did not block execution before 2026-09-13. The cause was that executeStep's generic `condition` gate skipped any step whose condition is falsy, including `{action:"assert", condition:"false"}`, so the guard reported `skipped` and the chain ran on. The runtime now exempts `assert` from that gate and fails the step, which halts the chain (Yeshie `tests/unit/assert-chain.test.ts`).

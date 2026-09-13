@@ -3,7 +3,8 @@ import { anchorComment } from '../anchor-comment.js';
 import { keyRepeatCount, repeatedKeys, dragSelection } from '../../../../src/cdp-input.js';
 import { io } from 'socket.io-client';
 import { createResolvedTargetUpdate, createSurpriseEvidence } from '../../../../src/runtime-contract.js';
-import { ContentStabilityTracker, quietMsOf, wantsStable } from '../../../../src/wait-for.js';
+import { ContentStabilityTracker, expectedWaitState, quietMsOf, stateWaitMatched, waitStateGraph, wantsStable } from '../../../../src/wait-for.js';
+import { assertFailureMessage, assertNeedsPage, evaluateAssert } from '../../../../src/assert-step.js';
 
 export default defineBackground(() => {
   console.log('[Yeshie] Background worker started');
@@ -1060,6 +1061,18 @@ export default defineBackground(() => {
     return { clicked: false, available: items.map(el => el.textContent?.trim()).filter(Boolean).slice(0, 10) };
   }
 
+  // Page half of `assert`: the URL, and what the step's selector sees.
+  // Self-contained, because execInTab serialises only this function.
+  function PRE_ASSERT_SNAPSHOT(selector: string | null) {
+    const href = window.location.href;
+    if (!selector) return { href };
+    const el = document.querySelector(selector);
+    if (!el) return { href, elementFound: false, elementText: null };
+    const tag = el.tagName.toLowerCase();
+    const text = tag === 'input' || tag === 'textarea' ? (el as HTMLInputElement).value : el.textContent;
+    return { href, elementFound: true, elementText: text ?? null };
+  }
+
   function PRE_ASSESS_STATE(stateGraph: any) {
     function matchesSignal(sig: any) {
       if (sig.type === 'url_matches') return !!sig.pattern && new RegExp(sig.pattern).test(window.location.href);
@@ -1246,16 +1259,9 @@ export default defineBackground(() => {
       };
     }
 
-    if (step.stateGraph?.nodes || step.state?.stateGraph?.nodes || stateGraph?.nodes) {
-      const graph = step.state?.stateGraph || step.stateGraph || stateGraph;
-      const currentState = PRE_ASSESS_STATE(graph).state;
-      const expectedState = step.state?.name || step.expect?.state;
-      return {
-        matched: expectedState ? currentState === expectedState : currentState !== 'unknown',
-        state: currentState,
-        contentHash: '',
-      };
-    }
+    // State-graph waits are handled by the caller (see wait_for in
+    // executeStep). This function runs alone in the page, so it cannot call
+    // PRE_ASSESS_STATE.
 
     const el = selector ? document.querySelector(selector) as HTMLElement | null : null;
     const scope = (el || document.body) as Element | null;
@@ -2371,7 +2377,10 @@ export default defineBackground(() => {
     const { tabId, params, buffer, abstractTargets } = run;
     const a = step.action;
 
-    if (step.condition) {
+    // A falsy `condition` skips a step — except on `assert`, where the
+    // condition IS the assertion. Skipping it let every `assert false` guard
+    // pass silently and the chain run on into destructive steps.
+    if (step.condition && a !== 'assert') {
       const val = interpolate(step.condition, { ...params, ...buffer });
       if (!val || val === 'false' || val === '0' || val === 'undefined') {
         return { stepId: step.stepId, action: a, status: 'skipped', durationMs: 0 };
@@ -2580,6 +2589,29 @@ export default defineBackground(() => {
           throw new Error('wait_for url timeout: ' + pat);
         }
 
+        // State-graph mode: poll PRE_ASSESS_STATE on its own and compare here.
+        // It used to be called from inside PRE_MATCH_WAIT_FOR, but execInTab
+        // serialises a single function, so that nested call threw in the page
+        // and the loop swallowed the throw until the timeout.
+        const waitGraph = waitStateGraph(step, run.payload?.stateGraph || null);
+        const expectedState = expectedWaitState(step);
+        if (expectedState && !waitGraph) throw new Error(`wait_for state "${expectedState}": no stateGraph in the step or payload`);
+        if (waitGraph) {
+          let lastState = 'unknown';
+          while (Date.now() - start < timeout) {
+            try {
+              const r = await execInTab(tabId, PRE_ASSESS_STATE, [waitGraph]);
+              lastState = r?.state || 'unknown';
+              if (stateWaitMatched(step, lastState)) return { stepId: step.stepId, action: a, status: 'ok', state: lastState, durationMs: Date.now() - t0 };
+            } catch (_) {
+              // executeScript throws while the page is mid-navigation; retry until the deadline.
+            }
+            await new Promise(r => setTimeout(r, 300));
+          }
+          if (softTimeout) return { stepId: step.stepId, action: a, status: 'ok', state: lastState, timedOut: true, durationMs: Date.now() - t0 };
+          throw new Error(`wait_for timeout: state "${expectedState || '(any known state)'}" (last seen "${lastState}")`);
+        }
+
         // Element / text / state.stable mode
         // Frame-scoped waits re-resolve the frameId inside the poll loop —
         // the iframe this wait targets (e.g. a dialog) may not exist yet when
@@ -2630,6 +2662,17 @@ export default defineBackground(() => {
           ? `text "${interpolate(String(step.text || step.state?.text || ''), { ...params, ...buffer })}"`
           : (sel || (stable ? 'state.stable' : '[state]'));
         throw new Error('wait_for timeout: ' + label);
+      }
+
+      if (a === 'assert') {
+        // A guard: a failed assert throws, the step reports 'error', and the
+        // chain loop halts (unless the recipe marked the step optional).
+        const I = (s: string) => interpolate(s, { ...params, ...buffer });
+        const selector = step.selector ? I(step.selector) : null;
+        const snapshot = assertNeedsPage(step) ? await execInTab(tabId, PRE_ASSERT_SNAPSHOT, [selector], frameId) : {};
+        const outcome = evaluateAssert(step, snapshot || {}, I);
+        if (!outcome.ok) throw new Error(assertFailureMessage(step, outcome.reason));
+        return { stepId: step.stepId, action: a, status: 'ok', durationMs: Date.now() - t0 };
       }
 
       if (a === 'read') {

@@ -26,7 +26,7 @@
   "chain": [
     { "stepId": "s1", "action": "open_tab", "url": "https://console.anthropic.com/settings/keys", "note": "New tab, never the active tab. If this lands on /login instead of the keys table, STOP HERE — do not attempt to authenticate. Report back that a pre-authenticated session is required." },
     { "stepId": "s2", "action": "wait_for", "selector": "table, [role='table'], main", "timeout": 15000, "onTimeout": "continue" },
-    { "stepId": "s3", "action": "assert", "note": "UNVERIFIED gate — should confirm pageUrl does NOT contain '/login' before proceeding. If it does, treat as a hard stop (see auth.note)." },
+    { "stepId": "s3", "action": "assert", "url_pattern": "^(?!.*/login)", "message": "Not logged in to console.anthropic.com (page is /login). A pre-authenticated session is required; do not authenticate from this recipe (see auth.note).", "note": "Hard stop when the page is /login. Before 2026-09-13 this step declared no check and the runtime treated assert as a no-op, so it never stopped anything. It now checks the URL; not yet live-verified." },
     { "stepId": "s4", "action": "click_text", "text": "Create Key", "note": "GUESSED button label — Anthropic Console conventionally labels this 'Create Key'; confirm exact casing/wording live." },
     { "stepId": "s5", "action": "wait_for", "selector": "[role='dialog']", "timeout": 8000, "note": "GUESSED dialog selector." },
     { "stepId": "s6", "action": "type", "selector": "[role='dialog'] input[type='text'], [role='dialog'] input:not([type='password'])", "value": "{{key_name}}", "note": "GUESSED name-field selector — Anthropic Console may also require picking a Workspace before the name field appears; not modeled here." },

@@ -78,6 +78,7 @@ export interface StateGraph {
 
 import { TargetResolver, AbstractTarget } from './target-resolver.js';
 import { createSurpriseEvidence } from './runtime-contract.js';
+import { assertFailureMessage, evaluateAssert, snapshotForAssert } from './assert-step.js';
 import {
   ContentStabilityTracker,
   evaluateWaitFor,
@@ -398,12 +399,13 @@ export class StepExecutor {
     target.dispatchEvent(new KeyboardEvent('keyup', opts));
   }
 
-  private matchesWaitState(step: Step): boolean {
+  private matchesWaitState(step: Step, stateGraph?: StateGraph): boolean {
     const result = evaluateWaitFor(step, {
       href: window.location.href,
       doc: this.doc,
       interpolate: (s) => this.I(s),
       assessState: (graph) => this.assessState(graph as StateGraph),
+      stateGraph: stateGraph ?? null,
     });
     if (!result.matched) return false;
     if (wantsStable(step)) {
@@ -446,8 +448,8 @@ export class StepExecutor {
     const t0 = Date.now();
     const a = step.action;
 
-    // Condition gate
-    if (step.condition !== undefined) {
+    // Condition gate. Not for `assert`: there the condition is the assertion.
+    if (step.condition !== undefined && a !== 'assert') {
       const val = this.I(step.condition);
       if (!val || val === 'false' || val === '0' || val === 'undefined') {
         return { stepId: step.stepId, action: a, status: 'skipped', reason: 'condition falsy', durationMs: Date.now() - t0 };
@@ -564,12 +566,11 @@ export class StepExecutor {
       }
 
       if (a === 'assert') {
-        const sel = this.I(step.selector);
-        const expected = this.I(step.value);
-        const el = this.doc.querySelector(sel);
-        const actual = el?.textContent?.trim();
-        if (!actual?.includes(expected)) throw new Error(`Assert failed: expected "${expected}" in "${actual}"`);
-        return { stepId: step.stepId, action: a, status: 'ok', value: actual, durationMs: Date.now() - t0 };
+        const selector = step.selector ? this.I(step.selector) : null;
+        const snapshot = snapshotForAssert(this.doc, window.location.href, selector);
+        const outcome = evaluateAssert(step, snapshot, (s) => this.I(s));
+        if (!outcome.ok) throw new Error(assertFailureMessage(step, outcome.reason));
+        return { stepId: step.stepId, action: a, status: 'ok', value: snapshot.elementText?.trim(), durationMs: Date.now() - t0 };
       }
 
       if (a === 'js') {
@@ -580,7 +581,7 @@ export class StepExecutor {
       }
 
       if (a === 'wait_for') {
-        if (!this.matchesWaitState(step)) {
+        if (!this.matchesWaitState(step, stateGraph)) {
           if (step.onTimeout === 'continue') {
             return {
               stepId: step.stepId,
