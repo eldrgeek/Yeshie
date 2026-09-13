@@ -6,10 +6,10 @@ Hand-authored recipe set for GitHub.com browser automation via the Yeshie RSI sy
 
 | Metric | Count |
 |--------|-------|
-| Total recipes | 100 |
+| Total recipes | 101 |
 | Safe (read-only or reversible) | 72 |
-| Confirm (destructive / irreversible) | 28 |
-| Auth required (github_session) | 58 |
+| Confirm (destructive / irreversible) | 29 |
+| Auth required (github_session) | 59 |
 | No auth required (public) | 42 |
 | Live verified (port 9223) | 38 of 38 public recipes (2026-06-13) |
 
@@ -28,6 +28,7 @@ Hand-authored recipe set for GitHub.com browser automation via the Yeshie RSI sy
 - Search (86–91): 6 recipes
 - Profile & Settings (92–96): 5 recipes
 - Org Basics (97–100): 4 recipes
+- Billing (101): 1 recipe
 
 ---
 
@@ -158,6 +159,7 @@ reintroduces a `delay` step.
 | 98 | org-repos | List organization repositories | Orgs | safe | none | ✓ |
 | 99 | org-members | List organization members | Orgs | safe | none_public_repo | ✓ |
 | 100 | explore | GitHub Explore / trending repos | Explore | safe | none | ✓ |
+| 101 | budget-configure | Idempotently set one budget's "stop usage" and threshold alerts | Billing | **confirm** | github_session | ✓ partial (2026-09-13) |
 
 ---
 
@@ -184,6 +186,7 @@ reintroduces a `delay` step.
 | 77 | collaborator-invite | Grants repo access |
 | 78 | collaborator-remove | Revokes repo access |
 | 79 | collaborator-change-role | Changes access level |
+| 101 | budget-configure | Changes billing configuration. Guarded by budget_id + product + account + exact-amount gates, not an `assert false` step |
 
 Plus the entire repo destructive group (08-12) and PR merge (40).
 
@@ -199,3 +202,17 @@ All 38 public/no-auth recipes were run against the relay at http://localhost:333
 **Fix applied:** 06-repo-clone-url — GitHub 2025+ Primer React UI removed `aria-label` from the Code dropdown button, making the old selector `button[aria-label*="Code"]` fail. Payload updated to navigate to the repo page and read `page_state`, from which the HTTPS clone URL is always derivable as `https://github.com{page_state.pageUrl}.git`. Brittle click-to-open-dropdown removed.
 
 **Remaining payloads need an active GitHub session** to verify (58 recipes, marked `-`).
+
+### 101-budget-configure (live, 2026-09-13)
+
+Run through the relay (build 0.1.528) against the personal account's Actions budget (`eldrgeek`, $20):
+
+- **Idempotent path verified.** With the budget already at stop usage on and alerts on, two full runs passed every gate. Each run executed zero clicks and read the same saved state after a fresh reload.
+- **Mismatch routing verified, dry.** `stop_usage=off apply_mode=_dry` saw `stop_on` against a desired `stop_off`. It routed to the read-only `stop_to_off_dry` branch and executed zero clicks.
+- **Live toggle and save branches NOT yet exercised** (`stop_to_*` and `alerts_to_*`). The budget was already configured, and turning a setting off just to test was not authorized. Treat the first real apply as a verification run.
+
+Two gotchas are recorded in the recipe's `_meta.anomalies`:
+- `data-testid='alert-checkbox'` is the **stop-usage** box, not the alerts box.
+- GitHub offers one alerts checkbox with fixed 75/90/100% thresholds and no recipient field.
+
+Note for this set: `assert` is not implemented in the compiled runtime. An unknown action returns status `unsupported`, which does not stop a chain, so the `assert false` guard described in the Risk Gate Summary does not actually block execution.

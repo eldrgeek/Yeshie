@@ -152,6 +152,20 @@
       "account-settings": {
         "signals": [{ "type": "url_matches", "pattern": "/settings$" }],
         "description": "Account settings root (auth required)"
+      },
+      "billing_budgets_list": {
+        "signals": [
+          { "type": "url_matches", "pattern": "^https://github\\.com/settings/billing/budgets/?(\\?.*)?$" },
+          { "type": "element_visible", "selector": "tbody tr [class*='StopUsageCell']" }
+        ],
+        "description": "Budgets and alerts list (personal account): one row per budget with scope, Stop usage Yes/No, spent/budget. Verified live 2026-09-13."
+      },
+      "billing_budget_edit": {
+        "signals": [
+          { "type": "url_matches", "pattern": "^https://github\\.com/settings/billing/budgets/[0-9a-f-]{36}/edit" },
+          { "type": "element_visible", "selector": "form input[data-testid='budget-amount-input']" }
+        ],
+        "description": "Edit monthly budget form: amount, stop-usage checkbox, one threshold-alerts checkbox (fixed 75/90/100%), Update budget / Cancel. Verified live 2026-09-13."
       }
     }
   },
@@ -184,7 +198,9 @@
     { "id": "profile-settings", "pattern": "https://github.com/settings/profile", "description": "Profile settings" },
     { "id": "account-settings", "pattern": "https://github.com/settings", "description": "Account settings" },
     { "id": "gist-list", "pattern": "https://gist.github.com", "description": "Public gists" },
-    { "id": "gist-detail", "pattern": "https://gist.github.com/{username}/{gist_id}", "description": "Gist detail" }
+    { "id": "gist-detail", "pattern": "https://gist.github.com/{username}/{gist_id}", "description": "Gist detail" },
+    { "id": "billing-budgets", "pattern": "https://github.com/settings/billing/budgets", "description": "Budgets and alerts list (personal account)" },
+    { "id": "billing-budget-edit", "pattern": "https://github.com/settings/billing/budgets/{budget_id}/edit", "description": "Edit one budget; budget_id is a UUID, also in the row menu's data-testid='delete-budget-<id>'" }
   ],
   "targetRegistry": {
     "global": {
@@ -264,6 +280,18 @@
       "visibility_change_button": "button[aria-label*='Change visibility']",
       "archive_button": "button[aria-label*='Archive']",
       "default_branch_rename": "[aria-label*='Rename default branch']"
+    },
+    "billing": {
+      "budget_row": "tbody tr[class*='BudgetRow']",
+      "budget_row_scope_cell": "tbody tr [class*='PricingTypeCell']",
+      "budget_row_stop_usage_cell": "tbody tr [class*='StopUsageCell']",
+      "budget_row_actions_menu_button": "tbody tr button[name='action-icon'][aria-haspopup='true']",
+      "budget_row_menu_edit_item": "[role='menu'] li[role='menuitem'][aria-keyshortcuts='e']:not([data-variant='danger'])",
+      "budget_row_menu_delete_item_DANGER": "[role='menu'] li[role='menuitem'][data-testid^='delete-budget-']",
+      "budget_amount_input": "form input[data-testid='budget-amount-input']",
+      "budget_stop_usage_checkbox": "form input[data-testid='alert-checkbox']",
+      "budget_threshold_alerts_checkbox": "form input[type='checkbox'][name='alert-checkbox']:not([data-testid='alert-checkbox'])",
+      "_note": "Verified live 2026-09-13 (relay 0.1.528). data-testid='alert-checkbox' is the STOP USAGE box, not the alerts box (label[for] read on two page loads). aria-checked does not track :checked. The row menu holds Edit and Delete; select Edit by aria-keyshortcuts, never by position. Save button: exact text 'Update budget'."
     }
   }
 }

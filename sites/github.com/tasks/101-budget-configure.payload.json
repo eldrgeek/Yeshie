@@ -1,0 +1,558 @@
+{
+  "_meta": {
+    "task": "budget-configure",
+    "description": "Idempotently configure ONE existing GitHub personal-account budget on github.com/settings/billing/budgets: set 'Stop usage when budget limit is reached' and 'Receive budget threshold alerts' on or off. Hard-gates the budget's product, account, exact amount and GitHub's offered alert thresholds BEFORE touching anything. Never changes the amount or scope, never creates or deletes budgets. Probes current state, skips toggles already in the desired state, saves per toggle, and verifies from a fresh reload.",
+    "selfImproving": false,
+    "skipAuthCheck": true,
+    "runCount": 2,
+    "lastSuccess": "2026-09-13",
+    "verified": true,
+    "verifiedDate": "2026-09-13",
+    "verifiedScope": "Idempotent path (desired == live, no branch runs) and dry mismatch routing (apply_mode=_dry) were run live on eldrgeek's Actions budget, relay build 0.1.528. The LIVE toggle+save branches (stop_to_*, alerts_to_*) have NOT been exercised live, because the budget was already configured and flipping it off to test was not authorized. Treat the first real apply as a verification run.",
+    "author": "Yeshie (Claude Opus 5, CCc) for Mike Wolf, 2026-09-13",
+    "risk": "confirm",
+    "riskNote": "Changes billing configuration. The guard is the pre-change gate set (budget_id + product + account + exact amount + thresholds), not an 'assert false' first step. Note: 'assert' is not implemented in the compiled runtime (returns status 'unsupported', which does not stop a chain), so the README's assert-false guard pattern is a no-op.",
+    "auth": {
+      "type": "github_session",
+      "note": "Chrome profile that owns the relay must be signed in as {{account}}. If GitHub asks for sudo mode, 2FA or a passkey, the post-save url gate times out and the run stops. A human completes that step."
+    },
+    "params": {
+      "base_url": "https://github.com (also makes run-async's tab picker choose a github.com tab)",
+      "budget_id": "UUID of the budget. From the edit URL (/settings/billing/budgets/<id>/edit) or the row menu's data-testid='delete-budget-<id>'.",
+      "product": "Scope label shown on the edit form, e.g. 'Actions'. Hard gate.",
+      "account": "GitHub login that owns the budget. Hard gate.",
+      "amount": "Expected budget amount exactly as the input holds it, e.g. '20'. Hard gate. The recipe never types into this field.",
+      "thresholds": "Alert thresholds. GitHub fixes these at 75/90/100% for personal budgets and offers ONE checkbox, so this is asserted as the form text '75%, 90%, and 100%', not configured.",
+      "stop_usage": "'on' or 'off'",
+      "alerts": "'on' or 'off' (the single 'Receive budget threshold alerts' checkbox)",
+      "apply_mode": "'' for a live run, '_dry' to route mismatches to read-only branches and not fail the final check"
+    },
+    "anomalies": [
+      "MISLEADING TEST ID: data-testid='alert-checkbox' is the STOP USAGE box (label[for] = 'Stop usage when budget limit is reached'). The alerts box has no test ID. Both have name='alert-checkbox'. Verified by reading label[for=<id>] on two separate page loads, 2026-09-13.",
+      "aria-checked on these checkboxes does not track :checked (present but not 'true' while checked). Use :checked only.",
+      "wait_for with a state/stateGraph never matches in this runtime (PRE_MATCH_WAIT_FOR is called with stateGraph=null and PRE_ASSESS_STATE is not in scope in the MAIN world, so it throws and is retried to timeout). All state checks here use assess_state; all hard gates are plain selector waits.",
+      "Branch steps cannot nest (onMismatch is handled in the outer chain loop only), so each toggle branch does its own save + reload.",
+      "No recipient field exists on the personal-account budget form. Alerts go to the account's billing email; the form cannot show or change recipients.",
+      "Budget rows on the list page carry no product-specific attributes, and the runtime has no safe text-row selector (find_row clicks the matched row), so the budget is addressed by budget_id and the product is asserted on the edit form."
+    ],
+    "verificationByConsequence": "Re-read after a fresh navigate: the list row shows 'Stop usage Yes/No' and '$<amount> budget'; the edit form's :checked states match. A green toast is not proof."
+  },
+  "runId": "github-budget-configure-{{timestamp}}",
+  "mode": "verification",
+  "site": "github.com",
+  "params": {
+    "base_url": "https://github.com",
+    "budget_id": "b7794314-8aad-495c-a695-9abc3e57b6cb",
+    "product": "Actions",
+    "account": "eldrgeek",
+    "amount": "20",
+    "thresholds": "75%, 90%, and 100%",
+    "stop_usage": "on",
+    "alerts": "on",
+    "apply_mode": ""
+  },
+  "chain": [
+    {
+      "_": "PHASE 1 - Land on exactly one budget and prove it is the right one before touching anything"
+    },
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "{{base_url}}/settings/billing/budgets/{{budget_id}}/edit"
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "form input[data-testid='budget-amount-input']",
+      "timeout": 20000,
+      "note": "HARD GATE: edit form rendered. A login, sudo or 2FA page fails here and the chain stops."
+    },
+    {
+      "stepId": "s3",
+      "action": "wait_for",
+      "selector": "form",
+      "timeout": 5000,
+      "note": "HARD GATE: product scope.",
+      "text": "{{product}}"
+    },
+    {
+      "stepId": "s4",
+      "action": "wait_for",
+      "selector": "form",
+      "timeout": 5000,
+      "note": "HARD GATE: owning account.",
+      "text": "{{account}}"
+    },
+    {
+      "stepId": "s5",
+      "action": "wait_for",
+      "selector": "form input[data-testid='budget-amount-input'][value='{{amount}}']",
+      "timeout": 5000,
+      "note": "HARD GATE: exact amount. React keeps the value attribute in sync, so '20' cannot match '200'."
+    },
+    {
+      "stepId": "s6",
+      "action": "wait_for",
+      "selector": "form",
+      "timeout": 5000,
+      "note": "HARD GATE: GitHub still offers exactly these thresholds.",
+      "text": "{{thresholds}}"
+    },
+    {
+      "stepId": "s7",
+      "action": "wait_for",
+      "selector": "form",
+      "timeout": 5000,
+      "note": "HARD GATE: stop-usage label present (see anomalies: it belongs to data-testid='alert-checkbox').",
+      "text": "Stop usage when budget limit is reached"
+    },
+    {
+      "stepId": "s8",
+      "action": "wait_for",
+      "selector": "form",
+      "timeout": 5000,
+      "note": "HARD GATE: alerts label present.",
+      "text": "Receive budget threshold alerts"
+    },
+    {
+      "_": "PHASE 2 - Probe and fix each toggle only if it differs (this is what makes the recipe idempotent)"
+    },
+    {
+      "stepId": "s9",
+      "action": "read",
+      "selector": "form input[data-testid='budget-amount-input']",
+      "store_as": "amount_before"
+    },
+    {
+      "stepId": "s10",
+      "action": "assess_state",
+      "stateGraph": {
+        "nodes": {
+          "stop_on": {
+            "signals": [
+              {
+                "type": "element_visible",
+                "selector": "form input[data-testid='alert-checkbox']:checked"
+              }
+            ]
+          },
+          "stop_off": {
+            "signals": [
+              {
+                "type": "element_absent",
+                "selector": "form input[data-testid='alert-checkbox']:checked"
+              },
+              {
+                "type": "element_visible",
+                "selector": "form input[data-testid='alert-checkbox']"
+              }
+            ]
+          }
+        }
+      },
+      "expect": {
+        "state": "stop_{{stop_usage}}"
+      },
+      "onMismatch": "branch:stop_to_{{stop_usage}}{{apply_mode}}",
+      "note": "Matched = already in desired state = no branch, no click."
+    },
+    {
+      "stepId": "s11",
+      "action": "assess_state",
+      "stateGraph": {
+        "nodes": {
+          "alerts_on": {
+            "signals": [
+              {
+                "type": "element_visible",
+                "selector": "form input[type='checkbox'][name='alert-checkbox']:not([data-testid='alert-checkbox']):checked"
+              }
+            ]
+          },
+          "alerts_off": {
+            "signals": [
+              {
+                "type": "element_absent",
+                "selector": "form input[type='checkbox'][name='alert-checkbox']:not([data-testid='alert-checkbox']):checked"
+              },
+              {
+                "type": "element_visible",
+                "selector": "form input[type='checkbox'][name='alert-checkbox']:not([data-testid='alert-checkbox'])"
+              }
+            ]
+          }
+        }
+      },
+      "expect": {
+        "state": "alerts_{{alerts}}"
+      },
+      "onMismatch": "branch:alerts_to_{{alerts}}{{apply_mode}}"
+    },
+    {
+      "_": "PHASE 3 - Verify from a fresh reload, by state"
+    },
+    {
+      "stepId": "s12",
+      "action": "navigate",
+      "url": "{{base_url}}/settings/billing/budgets/{{budget_id}}/edit"
+    },
+    {
+      "stepId": "s13",
+      "action": "wait_for",
+      "selector": "form input[data-testid='budget-amount-input']",
+      "timeout": 20000,
+      "note": "Guard: form rendered after reload."
+    },
+    {
+      "stepId": "s14",
+      "action": "wait_for",
+      "selector": "form input[data-testid='budget-amount-input'][value='{{amount}}']",
+      "timeout": 5000,
+      "note": "HARD GATE: amount unchanged."
+    },
+    {
+      "stepId": "s15",
+      "action": "assess_state",
+      "stateGraph": {
+        "nodes": {
+          "stop_on__alerts_on": {
+            "signals": [
+              {
+                "type": "element_visible",
+                "selector": "form input[data-testid='alert-checkbox']:checked"
+              },
+              {
+                "type": "element_visible",
+                "selector": "form input[type='checkbox'][name='alert-checkbox']:not([data-testid='alert-checkbox']):checked"
+              },
+              {
+                "type": "element_visible",
+                "selector": "form input[data-testid='budget-amount-input']"
+              }
+            ]
+          },
+          "stop_on__alerts_off": {
+            "signals": [
+              {
+                "type": "element_visible",
+                "selector": "form input[data-testid='alert-checkbox']:checked"
+              },
+              {
+                "type": "element_absent",
+                "selector": "form input[type='checkbox'][name='alert-checkbox']:not([data-testid='alert-checkbox']):checked"
+              },
+              {
+                "type": "element_visible",
+                "selector": "form input[data-testid='budget-amount-input']"
+              }
+            ]
+          },
+          "stop_off__alerts_on": {
+            "signals": [
+              {
+                "type": "element_absent",
+                "selector": "form input[data-testid='alert-checkbox']:checked"
+              },
+              {
+                "type": "element_visible",
+                "selector": "form input[type='checkbox'][name='alert-checkbox']:not([data-testid='alert-checkbox']):checked"
+              },
+              {
+                "type": "element_visible",
+                "selector": "form input[data-testid='budget-amount-input']"
+              }
+            ]
+          },
+          "stop_off__alerts_off": {
+            "signals": [
+              {
+                "type": "element_absent",
+                "selector": "form input[data-testid='alert-checkbox']:checked"
+              },
+              {
+                "type": "element_absent",
+                "selector": "form input[type='checkbox'][name='alert-checkbox']:not([data-testid='alert-checkbox']):checked"
+              },
+              {
+                "type": "element_visible",
+                "selector": "form input[data-testid='budget-amount-input']"
+              }
+            ]
+          }
+        }
+      },
+      "expect": {
+        "state": "stop_{{stop_usage}}__alerts_{{alerts}}"
+      },
+      "onMismatch": "branch:verify_failed{{apply_mode}}",
+      "note": "The real proof. Mismatch on a live run routes to a branch that throws."
+    },
+    {
+      "stepId": "s16",
+      "action": "navigate",
+      "url": "{{base_url}}/settings/billing/budgets"
+    },
+    {
+      "stepId": "s17",
+      "action": "wait_for",
+      "selector": "tbody tr [class*='StopUsageCell']",
+      "timeout": 20000,
+      "note": "Guard: budgets list rendered."
+    },
+    {
+      "stepId": "s18",
+      "action": "read",
+      "selector": "tbody",
+      "store_as": "budgets_table_after",
+      "note": "Evidence: every budget row, including 'Stop usage Yes/No' and amount."
+    }
+  ],
+  "branches": {
+    "stop_to_on": {
+      "steps": [
+        {
+          "stepId": "bs_on1",
+          "action": "click",
+          "selector": "form input[data-testid='alert-checkbox']:not(:checked)",
+          "note": "Toggle. This branch runs ONLY when assess_state saw the live box in the other state, and the selector only matches in that state, so a stale branch can never flip it the wrong way."
+        },
+        {
+          "stepId": "bs_on2",
+          "action": "wait_for",
+          "selector": "form input[data-testid='alert-checkbox']:checked",
+          "timeout": 5000,
+          "note": "Guard: the box is now in the desired state in the form (not yet saved)."
+        },
+        {
+          "stepId": "bs_on3",
+          "action": "click_text",
+          "text": "Update budget",
+          "exact": true,
+          "timeout": 5000,
+          "note": "Save. Exact-text match, so it cannot hit 'Cancel' or anything else."
+        },
+        {
+          "stepId": "bs_on4",
+          "action": "wait_for",
+          "url_pattern": "/settings/billing/budgets/?(\\?.*)?$",
+          "timeout": 20000,
+          "note": "HARD GATE: GitHub returns to the budgets list after a successful save. If a sudo/2FA/passkey prompt appears instead, this times out and the chain STOPS: a human must do that step."
+        },
+        {
+          "stepId": "bs_on5",
+          "action": "navigate",
+          "url": "{{base_url}}/settings/billing/budgets/{{budget_id}}/edit",
+          "note": "Reload the edit form so the next assess_state reads SAVED state, not form state."
+        },
+        {
+          "stepId": "bs_on6",
+          "action": "wait_for",
+          "selector": "form input[data-testid='budget-amount-input']",
+          "timeout": 20000,
+          "note": "Guard: edit form rendered again."
+        }
+      ]
+    },
+    "stop_to_off": {
+      "steps": [
+        {
+          "stepId": "bs_off1",
+          "action": "click",
+          "selector": "form input[data-testid='alert-checkbox']:checked",
+          "note": "Toggle. This branch runs ONLY when assess_state saw the live box in the other state, and the selector only matches in that state, so a stale branch can never flip it the wrong way."
+        },
+        {
+          "stepId": "bs_off2",
+          "action": "wait_for",
+          "selector": "form input[data-testid='alert-checkbox']:not(:checked)",
+          "timeout": 5000,
+          "note": "Guard: the box is now in the desired state in the form (not yet saved)."
+        },
+        {
+          "stepId": "bs_off3",
+          "action": "click_text",
+          "text": "Update budget",
+          "exact": true,
+          "timeout": 5000,
+          "note": "Save. Exact-text match, so it cannot hit 'Cancel' or anything else."
+        },
+        {
+          "stepId": "bs_off4",
+          "action": "wait_for",
+          "url_pattern": "/settings/billing/budgets/?(\\?.*)?$",
+          "timeout": 20000,
+          "note": "HARD GATE: GitHub returns to the budgets list after a successful save. If a sudo/2FA/passkey prompt appears instead, this times out and the chain STOPS: a human must do that step."
+        },
+        {
+          "stepId": "bs_off5",
+          "action": "navigate",
+          "url": "{{base_url}}/settings/billing/budgets/{{budget_id}}/edit",
+          "note": "Reload the edit form so the next assess_state reads SAVED state, not form state."
+        },
+        {
+          "stepId": "bs_off6",
+          "action": "wait_for",
+          "selector": "form input[data-testid='budget-amount-input']",
+          "timeout": 20000,
+          "note": "Guard: edit form rendered again."
+        }
+      ]
+    },
+    "alerts_to_on": {
+      "steps": [
+        {
+          "stepId": "ba_on1",
+          "action": "click",
+          "selector": "form input[type='checkbox'][name='alert-checkbox']:not([data-testid='alert-checkbox']):not(:checked)",
+          "note": "Toggle. This branch runs ONLY when assess_state saw the live box in the other state, and the selector only matches in that state, so a stale branch can never flip it the wrong way."
+        },
+        {
+          "stepId": "ba_on2",
+          "action": "wait_for",
+          "selector": "form input[type='checkbox'][name='alert-checkbox']:not([data-testid='alert-checkbox']):checked",
+          "timeout": 5000,
+          "note": "Guard: the box is now in the desired state in the form (not yet saved)."
+        },
+        {
+          "stepId": "ba_on3",
+          "action": "click_text",
+          "text": "Update budget",
+          "exact": true,
+          "timeout": 5000,
+          "note": "Save. Exact-text match, so it cannot hit 'Cancel' or anything else."
+        },
+        {
+          "stepId": "ba_on4",
+          "action": "wait_for",
+          "url_pattern": "/settings/billing/budgets/?(\\?.*)?$",
+          "timeout": 20000,
+          "note": "HARD GATE: GitHub returns to the budgets list after a successful save. If a sudo/2FA/passkey prompt appears instead, this times out and the chain STOPS: a human must do that step."
+        },
+        {
+          "stepId": "ba_on5",
+          "action": "navigate",
+          "url": "{{base_url}}/settings/billing/budgets/{{budget_id}}/edit",
+          "note": "Reload the edit form so the next assess_state reads SAVED state, not form state."
+        },
+        {
+          "stepId": "ba_on6",
+          "action": "wait_for",
+          "selector": "form input[data-testid='budget-amount-input']",
+          "timeout": 20000,
+          "note": "Guard: edit form rendered again."
+        }
+      ]
+    },
+    "alerts_to_off": {
+      "steps": [
+        {
+          "stepId": "ba_off1",
+          "action": "click",
+          "selector": "form input[type='checkbox'][name='alert-checkbox']:not([data-testid='alert-checkbox']):checked",
+          "note": "Toggle. This branch runs ONLY when assess_state saw the live box in the other state, and the selector only matches in that state, so a stale branch can never flip it the wrong way."
+        },
+        {
+          "stepId": "ba_off2",
+          "action": "wait_for",
+          "selector": "form input[type='checkbox'][name='alert-checkbox']:not([data-testid='alert-checkbox']):not(:checked)",
+          "timeout": 5000,
+          "note": "Guard: the box is now in the desired state in the form (not yet saved)."
+        },
+        {
+          "stepId": "ba_off3",
+          "action": "click_text",
+          "text": "Update budget",
+          "exact": true,
+          "timeout": 5000,
+          "note": "Save. Exact-text match, so it cannot hit 'Cancel' or anything else."
+        },
+        {
+          "stepId": "ba_off4",
+          "action": "wait_for",
+          "url_pattern": "/settings/billing/budgets/?(\\?.*)?$",
+          "timeout": 20000,
+          "note": "HARD GATE: GitHub returns to the budgets list after a successful save. If a sudo/2FA/passkey prompt appears instead, this times out and the chain STOPS: a human must do that step."
+        },
+        {
+          "stepId": "ba_off5",
+          "action": "navigate",
+          "url": "{{base_url}}/settings/billing/budgets/{{budget_id}}/edit",
+          "note": "Reload the edit form so the next assess_state reads SAVED state, not form state."
+        },
+        {
+          "stepId": "ba_off6",
+          "action": "wait_for",
+          "selector": "form input[data-testid='budget-amount-input']",
+          "timeout": 20000,
+          "note": "Guard: edit form rendered again."
+        }
+      ]
+    },
+    "stop_to_on_dry": {
+      "steps": [
+        {
+          "stepId": "bs_on_dry1",
+          "action": "read",
+          "selector": "form input[data-testid='alert-checkbox']",
+          "store_as": "dry_would_toggle_stop",
+          "note": "DRY RUN: mismatch detected, so a live run would toggle this box. Nothing is clicked."
+        }
+      ]
+    },
+    "stop_to_off_dry": {
+      "steps": [
+        {
+          "stepId": "bs_off_dry1",
+          "action": "read",
+          "selector": "form input[data-testid='alert-checkbox']",
+          "store_as": "dry_would_toggle_stop",
+          "note": "DRY RUN: mismatch detected, so a live run would toggle this box. Nothing is clicked."
+        }
+      ]
+    },
+    "alerts_to_on_dry": {
+      "steps": [
+        {
+          "stepId": "ba_on_dry1",
+          "action": "read",
+          "selector": "form input[type='checkbox'][name='alert-checkbox']:not([data-testid='alert-checkbox'])",
+          "store_as": "dry_would_toggle_alerts",
+          "note": "DRY RUN: mismatch detected, so a live run would toggle this box. Nothing is clicked."
+        }
+      ]
+    },
+    "alerts_to_off_dry": {
+      "steps": [
+        {
+          "stepId": "ba_off_dry1",
+          "action": "read",
+          "selector": "form input[type='checkbox'][name='alert-checkbox']:not([data-testid='alert-checkbox'])",
+          "store_as": "dry_would_toggle_alerts",
+          "note": "DRY RUN: mismatch detected, so a live run would toggle this box. Nothing is clicked."
+        }
+      ]
+    },
+    "verify_failed": {
+      "steps": [
+        {
+          "stepId": "vf1",
+          "action": "wait_for",
+          "selector": "#yeshie-budget-verification-failed",
+          "timeout": 1000,
+          "note": "Deliberately unsatisfiable: turns a failed verification into a chain failure."
+        }
+      ]
+    },
+    "verify_failed_dry": {
+      "steps": [
+        {
+          "stepId": "vf_dry1",
+          "action": "read",
+          "selector": "form",
+          "store_as": "dry_final_state_differs",
+          "note": "DRY RUN: saved state differs from desired. Expected in a dry mismatch test."
+        }
+      ]
+    }
+  }
+}
