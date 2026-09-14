@@ -5,6 +5,8 @@ import { io } from 'socket.io-client';
 import { createResolvedTargetUpdate, createSurpriseEvidence } from '../../../../src/runtime-contract.js';
 import { ContentStabilityTracker, expectedWaitState, quietMsOf, stateWaitMatched, waitStateGraph, wantsStable } from '../../../../src/wait-for.js';
 import { assertFailureMessage, assertNeedsPage, evaluateAssert } from '../../../../src/assert-step.js';
+import { describeOptions, pickOptionIndex } from '../../../../src/select-option.js';
+import { pickRowIndex, rowNeedles } from '../../../../src/row-scope.js';
 import { loadInstanceIdentity, captureInstanceState, watchInstanceState } from '../instance-state';
 
 export default defineBackground(() => {
@@ -977,6 +979,62 @@ export default defineBackground(() => {
       return { text, selector: sel, found: true };
     }
     return { text: null, found: false };
+  }
+
+  // `select`: read the <select>'s options here; the worker picks one with
+  // src/select-option.ts and sets it with PRE_SET_SELECT_INDEX.
+  function PRE_SELECT_SNAPSHOT(selector: string) {
+    const el = document.querySelector(selector) as HTMLSelectElement | null;
+    if (!el) return { found: false };
+    const tag = el.tagName.toLowerCase();
+    if (tag !== 'select') return { found: true, tag };
+    return { found: true, tag, value: el.value, options: Array.from(el.options).map((o) => ({ value: o.value, text: o.text })) };
+  }
+
+  function PRE_SET_SELECT_INDEX(selector: string, index: number, expectedValue: string) {
+    const el = document.querySelector(selector) as HTMLSelectElement | null;
+    if (!el || el.tagName.toLowerCase() !== 'select') return { ok: false, error: 'select not found: ' + selector };
+    const opt = el.options[index];
+    if (!opt || opt.value !== expectedValue) return { ok: false, error: 'the options changed before the value was set' };
+    // React tracks a control's value: set it through the prototype setter and
+    // fire input + change so the framework's onChange runs (trustedType does
+    // the same for text inputs).
+    const prev = el.value;
+    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+    if (setter) setter.call(el, opt.value); else el.value = opt.value;
+    const tracker = (el as any)._valueTracker;
+    if (tracker) tracker.setValue(prev);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    return { ok: true };
+  }
+
+  // `click` + `within_row`: the row text around each match of the selector;
+  // the worker picks the single matching row with src/row-scope.ts.
+  function PRE_ROW_TEXTS(selector: string) {
+    return Array.from(document.querySelectorAll(selector)).map((el) => {
+      const row = el.closest('tr, [role="row"]') as HTMLElement | null;
+      return row ? String(row.innerText || row.textContent || '') : null;
+    });
+  }
+
+  function PRE_CLICK_NTH(selector: string, index: number, needles: string[]) {
+    const el = document.querySelectorAll(selector)[index] as HTMLElement | undefined;
+    const row = el ? (el.closest('tr, [role="row"]') as HTMLElement | null) : null;
+    const rowText = row ? String(row.innerText || row.textContent || '') : '';
+    // The table may have re-rendered since PRE_ROW_TEXTS ran; check the row again
+    // right before what is usually a destructive click.
+    if (!el || !needles.every((n) => rowText.includes(n))) return { ok: false, error: 'the row changed before the click' };
+    const rect = el.getBoundingClientRect();
+    const cx = rect.x + rect.width / 2;
+    const cy = rect.y + rect.height / 2;
+    const eventInit = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy, screenX: cx, screenY: cy };
+    el.dispatchEvent(new PointerEvent('pointerdown', { ...eventInit, pointerId: 1, pointerType: 'mouse' }));
+    el.dispatchEvent(new MouseEvent('mousedown', eventInit));
+    el.dispatchEvent(new PointerEvent('pointerup', { ...eventInit, pointerId: 1, pointerType: 'mouse' }));
+    el.dispatchEvent(new MouseEvent('mouseup', eventInit));
+    el.dispatchEvent(new MouseEvent('click', eventInit));
+    return { ok: true, tag: el.tagName, rowText: rowText.replace(/\s+/g, ' ').trim().slice(0, 200) };
   }
 
   function PRE_PAGE_SNAPSHOT() {
@@ -2583,9 +2641,21 @@ export default defineBackground(() => {
           resolvedVia = res.resolvedVia;
           buttonText = res.buttonText || null;
         }
-        const r = step.trusted
-          ? await trustedCoordClick(tabId, { selector: resolvedSelector, text: buttonText, frameId, framePattern: step.frame ? interpolate(step.frame, { ...params, ...buffer }) : null, timeoutMs: step.timeout || 5000 })
-          : await execInTab(tabId, PRE_GUARDED_CLICK, [resolvedSelector, buttonText], frameId);
+        let r: any;
+        if (step.within_row !== undefined) {
+          // Row-scoped click (src/row-scope.ts): the match must sit in exactly one
+          // row containing every within_row string, or nothing is clicked.
+          if (!resolvedSelector) throw new Error('within_row needs a selector or target');
+          if (step.trusted) throw new Error('within_row does not support trusted clicks');
+          const needles = rowNeedles(step.within_row, (s) => interpolate(s, { ...params, ...buffer }));
+          const pick = pickRowIndex((await execInTab(tabId, PRE_ROW_TEXTS, [resolvedSelector], frameId)) || [], needles);
+          if (!pick.ok) throw new Error('click within_row: ' + pick.reason);
+          r = await execInTab(tabId, PRE_CLICK_NTH, [resolvedSelector, pick.index, needles], frameId);
+        } else {
+          r = step.trusted
+            ? await trustedCoordClick(tabId, { selector: resolvedSelector, text: buttonText, frameId, framePattern: step.frame ? interpolate(step.frame, { ...params, ...buffer }) : null, timeoutMs: step.timeout || 5000 })
+            : await execInTab(tabId, PRE_GUARDED_CLICK, [resolvedSelector, buttonText], frameId);
+        }
         if (!r?.ok) throw new Error(r?.error || 'Click failed');
         const outcomeFields = await evaluateActionOutcome(tabId, step, initialUrl, failureBaseline, responseBaseline, run.payload?.stateGraph || null, frameId);
         if (outcomeFields.outcome === 'failure') {
@@ -2954,6 +3024,41 @@ export default defineBackground(() => {
         }, [sel]);
         if (step.store_as) buffer[step.store_as] = text;
         return { stepId: step.stepId, action: a, status: 'ok', text, selector: sel, storedAs: step.store_as, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'select') {
+        // Choose an option in a native <select>. src/select-option.ts decides
+        // which option `value` means; PRE_SET_SELECT_INDEX sets it.
+        const wanted = interpolate(String(step.value ?? ''), { ...params, ...buffer });
+        const tgt = step.target ? abstractTargets?.[step.target] : null;
+        let resolvedSelector = step.selector ? interpolate(step.selector, { ...params, ...buffer }) : null;
+        let resolvedVia = 'direct';
+        if (tgt) {
+          const res = await execInTab(tabId, PRE_RESOLVE_TARGET, [tgt], frameId);
+          if (!res?.found) throw new Error('Cannot resolve: ' + step.target);
+          resolvedSelector = res.selector;
+          resolvedVia = res.resolvedVia;
+        }
+        if (!resolvedSelector) throw new Error('No selector for: ' + (step.target || step.selector));
+        const snap = await execInTab(tabId, PRE_SELECT_SNAPSHOT, [resolvedSelector], frameId);
+        if (!snap?.found) throw new Error('Not found: ' + resolvedSelector);
+        if (!snap.options) throw new Error(`select: ${resolvedSelector} is a <${snap.tag}>, not a <select>`);
+        const index = pickOptionIndex(snap.options, wanted);
+        if (index < 0) throw new Error(`select: no option "${wanted}" in ${resolvedSelector} (options: ${describeOptions(snap.options)})`);
+        const chosen = snap.options[index];
+        const set = await execInTab(tabId, PRE_SET_SELECT_INDEX, [resolvedSelector, index, chosen.value], frameId);
+        if (!set?.ok) throw new Error('select: ' + (set?.error || 'could not set the value'));
+        // Frameworks may replace the <select> on change (GoDaddy re-renders the
+        // whole row), so confirm on whatever element the selector finds now.
+        const confirmBy = Date.now() + (step.timeout || 2000);
+        let now: string | null = null;
+        for (;;) {
+          now = (await execInTab(tabId, PRE_SELECT_SNAPSHOT, [resolvedSelector], frameId))?.value ?? null;
+          if (now === chosen.value || Date.now() > confirmBy) break;
+          await new Promise(r => setTimeout(r, 100));
+        }
+        if (now !== chosen.value) throw new Error(`select: ${resolvedSelector} reads "${now ?? ''}" after choosing "${chosen.value}"`);
+        return { stepId: step.stepId, action: a, status: 'ok', value: chosen.value, text: chosen.text, selector: resolvedSelector, resolvedVia, target: step.target, durationMs: Date.now() - t0 };
       }
 
       return { stepId: step.stepId, action: a, status: 'unsupported', durationMs: Date.now() - t0 };
