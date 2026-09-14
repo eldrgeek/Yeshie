@@ -164,5 +164,8 @@ async function poll(id) {
     console.log(JSON.stringify(run.result ?? { status: run.status, error: run.error }));
   }
   const green = run.status === 'done' && (run.result?.success !== false) && (run.result?.goalReached !== false);
-  process.exit(green ? 0 : 1);
+  // Exit only once stdout has drained. On a pipe Node writes stdout
+  // asynchronously, so exiting straight away cut a 120 KB --json ChainResult
+  // off at the 64 KB pipe buffer (seen 2026-09-14 by scripts/godaddy-dns.mjs).
+  process.stdout.write('', () => process.exit(green ? 0 : 1));
 })().catch((e) => { console.error('FATAL:', e.message); process.exit(2); });

@@ -1,0 +1,138 @@
+{
+  "_meta": {
+    "name": "godaddy-delete-dns-record",
+    "site": "dcc.godaddy.com",
+    "task": "delete-dns-record",
+    "description": "Delete one DNS record from a GoDaddy-hosted zone through the DNS Records page. The record is found by type (the table filter) plus name and value (the row text), and Delete is clicked only when exactly one row matches. Whether the record is really gone is checked by scripts/godaddy-dns.mjs against the authoritative nameservers; a page check cannot prove a row's absence, because wait_for only waits for text to appear.",
+    "version": "1.0.0",
+    "verified": true,
+    "verifiedDate": "2026-09-14",
+    "verificationNotes": "Live on mike-wolf.com, 2026-09-14, extension build 0.1.540, through scripts/godaddy-dns.mjs, deleting the _yeshie-test TXT record. This version: all 17 steps ok, twice, and each time ns57 and ns58.domaincontrol.com then answered NXDOMAIN with the aa flag. One earlier run stopped at s06 before deleting anything (a Filters click lost during a slow load in a hidden tab); s04a and s04b now wait for the table to settle and for Filters to be enabled. Run log: sites/dcc.godaddy.com/README.md.",
+    "requires": "Extension build 0.1.540 or later (`click` + `within_row`, Yeshie PR #66). DANGER on an older build: `click` ignores within_row, so s11 clicks the FIRST Delete button in the filtered table, s13 still passes (every delete dialog reads the same), and s14 deletes the wrong record. No step in this recipe can detect the build. scripts/godaddy-dns.mjs checks the relay's build version and refuses to run below 0.1.540; run this recipe through it, not directly.",
+    "authorship": "Mike Wolf (direction); Claude Opus 5 (CCc), 2026-09-14.",
+    "anomalies": [
+      "Each table row has its own Delete button (aria-label Delete, data-testid template-record-Delete-<uuid>). Only the row text says which record it belongs to, so s11 uses within_row [name, value]. It fails closed when zero or several rows match.",
+      "within_row matches substrings of the row text. A name that is a prefix of another (sala vs sala65) with the same value matches several rows, and the step then fails without deleting anything. Such a record needs an exact-cell match, which the runtime does not have yet.",
+      "Delete opens a modal (role=dialog, 'Confirm removal of your DNS records') with Yes, Confirm (#dnsDeleteRecordModalDelete) and Cancel (#dnsDeleteRecordModalCancel).",
+      "The table filter is by type only (checkbox named after the lowercase type). There is no name search.",
+      "Tab selection: s01 refuses to run anywhere but dcc.godaddy.com, so the relay's fall-back to the active tab can never navigate an unrelated tab away."
+    ]
+  },
+  "params": {
+    "base_url": "https://dcc.godaddy.com",
+    "domain": "mike-wolf.com",
+    "type": "REQUIRED — GoDaddy's lowercase option value: a, aaaa, cname, txt",
+    "name": "REQUIRED — the host label as the table shows it; @ for the apex",
+    "value": "REQUIRED — the record data as the table shows it"
+  },
+  "chain": [
+    {
+      "stepId": "s01",
+      "action": "assert",
+      "url_pattern": "^https://dcc\\.godaddy\\.com/",
+      "message": "This run landed on a tab that is not dcc.godaddy.com. Open a GoDaddy tab first (scripts/godaddy-dns.mjs does) and pass its tab id; refusing to navigate whatever tab is active."
+    },
+    {
+      "stepId": "s02",
+      "action": "navigate",
+      "url": "https://dcc.godaddy.com/control/portfolio/{{domain}}/settings?tab=dns"
+    },
+    {
+      "stepId": "s03",
+      "action": "wait_for",
+      "selector": "#dnsAddNewRecord",
+      "timeout": 20000,
+      "note": "The DNS Records table has loaded and the session is logged in."
+    },
+    {
+      "stepId": "s04",
+      "action": "assert",
+      "url_pattern": "/control/portfolio/{{domain}}/settings",
+      "message": "Not on the DNS page for {{domain}} (logged out, or GoDaddy redirected)."
+    },
+    {
+      "stepId": "s04a",
+      "action": "wait_for",
+      "selector": "table.ux-table tbody",
+      "state": { "stable": 1000 },
+      "timeout": 30000,
+      "note": "The records table has loaded and stopped changing. #dnsAddNewRecord appears well before the table data, and a Filters click during that load was lost twice on 2026-09-14."
+    },
+    {
+      "stepId": "s04b",
+      "action": "wait_for",
+      "selector": "#dnsTableFilterBtn",
+      "state": { "enabled": true },
+      "timeout": 10000
+    },
+    {
+      "stepId": "s05",
+      "action": "click",
+      "selector": "#dnsTableFilterBtn"
+    },
+    {
+      "stepId": "s06",
+      "action": "wait_for",
+      "selector": "input[type='checkbox'][name='{{type}}']",
+      "timeout": 5000
+    },
+    {
+      "stepId": "s07",
+      "action": "click",
+      "selector": "input[type='checkbox'][name='{{type}}']"
+    },
+    {
+      "stepId": "s08",
+      "action": "wait_for",
+      "selector": "input[type='checkbox'][name='{{type}}']:checked",
+      "timeout": 3000
+    },
+    {
+      "stepId": "s09",
+      "action": "click_text",
+      "text": "Apply",
+      "exact": true
+    },
+    {
+      "stepId": "s10",
+      "action": "wait_for",
+      "selector": "table.ux-table tbody",
+      "text": "{{name}}",
+      "timeout": 10000,
+      "note": "The record's name is in the type-filtered table."
+    },
+    {
+      "stepId": "s11",
+      "action": "click",
+      "selector": "table.ux-table button[aria-label='Delete']",
+      "within_row": ["{{name}}", "{{value}}"],
+      "note": "Clicks Delete only in the single row that holds both the name and the value; zero or several matching rows fail the step and nothing is clicked."
+    },
+    {
+      "stepId": "s12",
+      "action": "wait_for",
+      "selector": "#dnsDeleteRecordModalDelete",
+      "timeout": 5000
+    },
+    {
+      "stepId": "s13",
+      "action": "assert",
+      "selector": "[role='dialog']",
+      "value": "Confirm removal of your DNS records",
+      "message": "The dialog that opened is not GoDaddy's delete confirmation; not confirming."
+    },
+    {
+      "stepId": "s14",
+      "action": "click",
+      "selector": "#dnsDeleteRecordModalDelete"
+    },
+    {
+      "stepId": "s15",
+      "action": "wait_for",
+      "selector": "#dnsDeleteRecordModalDelete",
+      "state": { "visible": false },
+      "timeout": 15000,
+      "note": "The confirmation closes once GoDaddy has accepted the delete."
+    }
+  ]
+}
