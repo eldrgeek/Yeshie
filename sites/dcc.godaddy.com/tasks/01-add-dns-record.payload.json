@@ -1,0 +1,222 @@
+{
+  "_meta": {
+    "name": "godaddy-add-dns-record",
+    "site": "dcc.godaddy.com",
+    "task": "add-dns-record",
+    "description": "Add one DNS record to a GoDaddy-hosted zone through the DNS Records page. Every field is read back before Save; after Save the record is confirmed in the type-filtered table. The authoritative-nameserver check (dig +norec with the aa flag) lives in scripts/godaddy-dns.mjs, which wraps this recipe and is the one-call entry point.",
+    "version": "1.0.0",
+    "verified": true,
+    "verifiedDate": "2026-09-14",
+    "verificationNotes": "Live on mike-wolf.com, 2026-09-14, extension build 0.1.540, through scripts/godaddy-dns.mjs, adding the _yeshie-test TXT record. This version: all 30 steps ok, then ns57 and ns58.domaincontrol.com both answered with the record and the aa flag. Earlier versions lost the Filters click twice (straight after Save, and during a slow load in a hidden tab); s19a-s19d now reload the page and wait for the table to settle and for Filters to be enabled. Run log: sites/dcc.godaddy.com/README.md.",
+    "requires": "Extension build 0.1.540 or later (the `select` action, Yeshie PR #66). An older build returns 'unsupported' for select and runs on; s08 then stops the chain before anything is saved.",
+    "authorship": "Mike Wolf (direction); Claude Opus 5 (CCc), 2026-09-14 — built from the 2026-09-14 hand-driven session that added the sala* A records.",
+    "anomalies": [
+      "Record Type (#dnsRecordIdDropdown) and TTL (#ttl) are native React <select>s. Option values are lowercase (a, aaaa, cname, mx, txt, srv, caa, ns, https, svcb, tlsa); labels are uppercase. The `type` param is the lowercase value.",
+      "Choosing a Type re-renders the whole New Records row, including the <select> itself. Anything located before the type change is stale; every later step re-queries by selector.",
+      "The Value input's id is regenerated per render (undefined-data-<uuid>). Use input[data-testid='dataDnsFieldInput'].",
+      "Save (#bulk-dns-records-save-btn) stays disabled until Type, Name and Value are filled. A synthetic click on a disabled button does nothing, so s17 waits for it to enable.",
+      "Cancel with unsaved changes opens a 'You have unsaved changes' dialog (Yes, Cancel / No, Go Back).",
+      "Filters (#dnsTableFilterBtn) is disabled while a New Records row is open. It filters by record type only (checkboxes named after the lowercase type); there is no name search.",
+      "The table pages at 10 rows, so a new record is often not on page 1. Filtering by type is how s20-s25 find it.",
+      "Tab selection: autoDiscoverRunTab prefers a tab on base_url's host but falls back to the ACTIVE tab when none exists. s01 refuses to run anywhere but dcc.godaddy.com, so the fallback can never navigate an unrelated tab away."
+    ]
+  },
+  "params": {
+    "base_url": "https://dcc.godaddy.com",
+    "domain": "mike-wolf.com",
+    "type": "REQUIRED — GoDaddy's lowercase option value: a, aaaa, cname, mx, txt, srv, caa, ns, https, svcb, tlsa",
+    "name": "REQUIRED — the host label relative to the domain; @ for the apex",
+    "value": "REQUIRED — record data (an IPv4 address for A, the target host for CNAME, the text for TXT)",
+    "ttl": "1800"
+  },
+  "chain": [
+    {
+      "stepId": "s01",
+      "action": "assert",
+      "url_pattern": "^https://dcc\\.godaddy\\.com/",
+      "message": "This run landed on a tab that is not dcc.godaddy.com. Open a GoDaddy tab first (scripts/godaddy-dns.mjs does) and pass its tab id; refusing to navigate whatever tab is active."
+    },
+    {
+      "stepId": "s02",
+      "action": "navigate",
+      "url": "https://dcc.godaddy.com/control/portfolio/{{domain}}/settings?tab=dns"
+    },
+    {
+      "stepId": "s03",
+      "action": "wait_for",
+      "selector": "#dnsAddNewRecord",
+      "timeout": 20000,
+      "note": "The DNS Records table has loaded and the session is logged in."
+    },
+    {
+      "stepId": "s04",
+      "action": "assert",
+      "url_pattern": "/control/portfolio/{{domain}}/settings",
+      "message": "Not on the DNS page for {{domain}} (logged out, or GoDaddy redirected)."
+    },
+    {
+      "stepId": "s05",
+      "action": "click",
+      "selector": "#dnsAddNewRecord"
+    },
+    {
+      "stepId": "s06",
+      "action": "wait_for",
+      "selector": "#dnsRecordIdDropdown",
+      "timeout": 8000
+    },
+    {
+      "stepId": "s07",
+      "action": "select",
+      "selector": "#dnsRecordIdDropdown",
+      "value": "{{type}}"
+    },
+    {
+      "stepId": "s08",
+      "action": "assert",
+      "selector": "#dnsRecordIdDropdown option:checked[value='{{type}}']",
+      "message": "Record type is not '{{type}}'. If s07 reported 'unsupported', the loaded extension predates the select action."
+    },
+    {
+      "stepId": "s09",
+      "action": "wait_for",
+      "selector": "input[data-testid='dataDnsFieldInput']",
+      "timeout": 5000,
+      "note": "The row re-rendered for the chosen type; wait for the new Value input before typing."
+    },
+    {
+      "stepId": "s10",
+      "action": "type",
+      "selector": "#nameDnsFieldInput",
+      "value": "{{name}}"
+    },
+    {
+      "stepId": "s11",
+      "action": "type",
+      "selector": "input[data-testid='dataDnsFieldInput']",
+      "value": "{{value}}"
+    },
+    {
+      "stepId": "s12",
+      "action": "select",
+      "selector": "#ttl",
+      "value": "{{ttl}}"
+    },
+    {
+      "stepId": "s13",
+      "action": "assert",
+      "selector": "#dnsRecordIdDropdown option:checked[value='{{type}}']",
+      "message": "Read-back before Save: Type is not '{{type}}'."
+    },
+    {
+      "stepId": "s14",
+      "action": "assert",
+      "selector": "#nameDnsFieldInput",
+      "value": "{{name}}",
+      "message": "Read-back before Save: Name does not hold '{{name}}'."
+    },
+    {
+      "stepId": "s15",
+      "action": "assert",
+      "selector": "input[data-testid='dataDnsFieldInput']",
+      "value": "{{value}}",
+      "message": "Read-back before Save: Value does not hold '{{value}}'."
+    },
+    {
+      "stepId": "s16",
+      "action": "assert",
+      "selector": "#ttl option:checked[value='{{ttl}}']",
+      "message": "Read-back before Save: TTL is not '{{ttl}}'. Only GoDaddy's presets are supported: 1800, 3600, 43200, 86400, 604800."
+    },
+    {
+      "stepId": "s17",
+      "action": "wait_for",
+      "selector": "#bulk-dns-records-save-btn",
+      "state": { "enabled": true },
+      "timeout": 5000
+    },
+    {
+      "stepId": "s18",
+      "action": "click",
+      "selector": "#bulk-dns-records-save-btn"
+    },
+    {
+      "stepId": "s19",
+      "action": "wait_for",
+      "selector": "#dnsRecordIdDropdown",
+      "state": { "visible": false },
+      "timeout": 20000,
+      "note": "The New Records row closes once GoDaddy accepts the record. A validation error keeps it open and this step times out."
+    },
+    {
+      "stepId": "s19a",
+      "action": "navigate",
+      "url": "https://dcc.godaddy.com/control/portfolio/{{domain}}/settings?tab=dns",
+      "note": "Reload before verifying. After a save GoDaddy shows a Success toast and a 'Domain configuration changes underway' notice; a fresh page makes the check below start from the same state every time."
+    },
+    {
+      "stepId": "s19b",
+      "action": "wait_for",
+      "selector": "#dnsAddNewRecord",
+      "timeout": 20000
+    },
+    {
+      "stepId": "s19c",
+      "action": "wait_for",
+      "selector": "table.ux-table tbody",
+      "state": { "stable": 1000 },
+      "timeout": 30000,
+      "note": "The records table has loaded and stopped changing. #dnsAddNewRecord appears well before the table data, and a Filters click during that load was lost twice on 2026-09-14."
+    },
+    {
+      "stepId": "s19d",
+      "action": "wait_for",
+      "selector": "#dnsTableFilterBtn",
+      "state": { "enabled": true },
+      "timeout": 10000
+    },
+    {
+      "stepId": "s20",
+      "action": "click",
+      "selector": "#dnsTableFilterBtn"
+    },
+    {
+      "stepId": "s21",
+      "action": "wait_for",
+      "selector": "input[type='checkbox'][name='{{type}}']",
+      "timeout": 5000
+    },
+    {
+      "stepId": "s22",
+      "action": "click",
+      "selector": "input[type='checkbox'][name='{{type}}']"
+    },
+    {
+      "stepId": "s23",
+      "action": "wait_for",
+      "selector": "input[type='checkbox'][name='{{type}}']:checked",
+      "timeout": 3000
+    },
+    {
+      "stepId": "s24",
+      "action": "click_text",
+      "text": "Apply",
+      "exact": true
+    },
+    {
+      "stepId": "s25",
+      "action": "wait_for",
+      "selector": "table.ux-table tbody",
+      "text": "{{name}}",
+      "timeout": 10000,
+      "note": "The new record's name is in the type-filtered table."
+    },
+    {
+      "stepId": "s26",
+      "action": "assert",
+      "selector": "table.ux-table tbody",
+      "value": "{{value}}",
+      "message": "The filtered table does not show the value '{{value}}'."
+    }
+  ]
+}

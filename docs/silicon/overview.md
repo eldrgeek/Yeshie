@@ -72,6 +72,8 @@ A recipe is a `sites/<domain>/tasks/*.payload.json` file.
 
 `google-admin` and `okta` already have payloads — do not treat them as empty or as "extend to a second site." This branch may lag the operator laptop (e.g. Rocket Money live-verified there, not landed here). Do not author or rewrite site recipes in a docs-only change.
 
+**DNS at GoDaddy (`sites/dcc.godaddy.com`, 2026-09-14).** `01-add-dns-record` and `02-delete-dns-record` change records in a GoDaddy-hosted zone (`mike-wolf.com` since 2026-09-07) through the DNS Records page. Use the wrapper, not the recipes directly: `node scripts/godaddy-dns.mjs add|delete --type A|AAAA|CNAME|TXT --name <label> --value <data>`. It picks or opens a GoDaddy tab, runs the recipe, and exits 0 only after every authoritative nameserver answers (`dig +norec`, `aa` flag) with the change. Details and the page model: `sites/dcc.godaddy.com/README.md`.
+
 ## Validated YeshID Payloads
 
 | ID | File | Steps | Time | Status |
