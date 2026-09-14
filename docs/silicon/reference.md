@@ -98,6 +98,7 @@ StepResult {
 | `target.fallbackSelectors` | string[] | explicit CSS fallbacks |
 | `value` | string | input value or navigation URL |
 | `expected` | string | expected read/assess result |
+| `within_row` | string \| string[] | `click` only. Click the selector's match whose table row (closest `tr` or `[role="row"]`) contains every string. Exactly one row must match; zero or several fails the step and nothing is clicked. Rule: `src/row-scope.ts`. |
 
 ## Action Types
 
@@ -105,16 +106,16 @@ StepResult {
 |--------|-------------|
 | `navigate` | Navigate to URL (value = URL, supports `{{params.base_url}}`) |
 | `type` | Type value into target input |
-| `click` | Click target element |
+| `click` | Click target element. With `within_row`, click it only inside the one table row that contains those strings (see Step Schema). |
 | `wait_for` | Wait on selector, text, and/or `state.stable` (content fingerprint quiet for `quietMs`; default 800ms). `onTimeout: "continue"` honored. Prefer over `delay`. Landed in #55. |
 | `read` | Read text/value from target |
 | `assess_state` | Evaluate condition, return boolean |
-| `js` | Run pre-bundled DOM query (routed by PRE_RUN_DOMQUERY) |
+| `js` | Run pre-bundled DOM query (routed by PRE_RUN_DOMQUERY). Not arbitrary code: the string is matched against keywords, and code containing `find(r =>` or `button` is routed to a row-click or button-click helper. |
 | `find_row` | Find table row matching identifier, click it |
 | `click_text` | Click first element matching text |
 | `hover` | Hover over target |
 | `scroll` | Scroll target into view |
-| `select` | Select dropdown option |
+| `select` | Choose an option in a native `<select>` (`selector` or `target`, plus `value`). `value` matches an option's value or visible label, exact first, then ignoring case (`src/select-option.ts`). The value is set the React-safe way (prototype setter, then input and change events). The element is then re-read, and the step fails if the page did not keep the value. In the live runtime since 2026-09-14; before that the step returned `unsupported` and the chain ran on. |
 | `click_preset` | Click a preset/chip element |
 | `probe_affordances` | Discover interactive elements on page |
 | `delay` | Wait N milliseconds. **Discouraged in recipes** — fixed delays are fragile and slow; prefer `wait_for` (guard the next action on the element it needs; for whole-page reads, `wait_for` `.application-main`). Enforced by `tests/unit/no-fixed-delay.test.ts`. |

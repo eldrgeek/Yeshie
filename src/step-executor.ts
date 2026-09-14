@@ -79,6 +79,7 @@ export interface StateGraph {
 import { TargetResolver, AbstractTarget } from './target-resolver.js';
 import { createSurpriseEvidence } from './runtime-contract.js';
 import { assertFailureMessage, evaluateAssert, snapshotForAssert } from './assert-step.js';
+import { describeOptions, pickOptionIndex } from './select-option.js';
 import {
   ContentStabilityTracker,
   evaluateWaitFor,
@@ -636,10 +637,11 @@ export class StepExecutor {
         const el = res.element as HTMLSelectElement | HTMLInputElement;
         const value = this.I(step.value ?? '');
         if ('options' in el) {
-          // <select> element — match by text or value
-          const opts = Array.from((el as HTMLSelectElement).options);
-          const opt = opts.find(o => o.value === value || o.text === value);
-          if (opt) (el as HTMLSelectElement).value = opt.value;
+          // <select> element — the live runtime's matching rule (src/select-option.ts)
+          const opts = Array.from((el as HTMLSelectElement).options).map(o => ({ value: o.value, text: o.text }));
+          const index = pickOptionIndex(opts, value);
+          if (index < 0) throw new Error(`select: no option "${value}" (options: ${describeOptions(opts)})`);
+          (el as HTMLSelectElement).value = opts[index].value;
         } else if (el.type === 'checkbox' || el.type === 'radio') {
           (el as HTMLInputElement).checked = value === 'true' || value === '1';
         } else {
