@@ -3,16 +3,16 @@
     "name": "godaddy-delete-dns-record",
     "site": "dcc.godaddy.com",
     "task": "delete-dns-record",
-    "description": "Delete one DNS record from a GoDaddy-hosted zone through the DNS Records page. The record is found by type (the table filter) plus name and value (the row text), and Delete is clicked only when exactly one row matches. Whether the record is really gone is checked by scripts/godaddy-dns.mjs against the authoritative nameservers; a page check cannot prove a row's absence, because wait_for only waits for text to appear.",
-    "version": "1.0.0",
-    "verified": true,
+    "description": "Delete one DNS record from a GoDaddy-hosted zone through the DNS Records page. The record is found by type (the table filter), then by its Name and Data cells, which must read exactly the name and the value. Delete is clicked only when exactly one row matches. Whether the record is really gone is checked by scripts/godaddy-dns.mjs against the authoritative nameservers; a page check cannot prove a row's absence, because wait_for only waits for text to appear.",
+    "version": "1.1.0",
+    "verified": false,
     "verifiedDate": "2026-09-14",
-    "verificationNotes": "Live on mike-wolf.com, 2026-09-14, extension build 0.1.540, through scripts/godaddy-dns.mjs, deleting the _yeshie-test TXT record. This version: all 17 steps ok, twice, and each time ns57 and ns58.domaincontrol.com then answered NXDOMAIN with the aa flag. One earlier run stopped at s06 before deleting anything (a Filters click lost during a slow load in a hidden tab); s04a and s04b now wait for the table to settle and for Filters to be enabled. Run log: sites/dcc.godaddy.com/README.md.",
-    "requires": "Extension build 0.1.540 or later (`click` + `within_row`, Yeshie PR #66). DANGER on an older build: `click` ignores within_row, so s11 clicks the FIRST Delete button in the filtered table, s13 still passes (every delete dialog reads the same), and s14 deletes the wrong record. No step in this recipe can detect the build. scripts/godaddy-dns.mjs checks the relay's build version and refuses to run below 0.1.540; run this recipe through it, not directly.",
-    "authorship": "Mike Wolf (direction); Claude Opus 5 (CCc), 2026-09-14.",
+    "verificationNotes": "Version 1.1.0 (2026-09-15) adds the s00 feature guard and switches s11 to the cells form of within_row. It is covered by unit tests and has not yet run live. Version 1.0.0 was verified live on mike-wolf.com, 2026-09-14, extension build 0.1.540, through scripts/godaddy-dns.mjs, deleting the _yeshie-test TXT record: all 17 steps ok, twice, and each time ns57 and ns58.domaincontrol.com then answered NXDOMAIN with the aa flag. Run log: sites/dcc.godaddy.com/README.md.",
+    "requires": "A runtime that lists the feature within_row.cells (src/runtime-features.ts); s00 checks it. Every build since 2026-09-13 stops at s00 unless it lists the feature. Without the check, a build that lacks within_row would ignore the field, s11 would click the FIRST Delete button in the filtered table, s13 would still pass (every delete dialog reads the same), and s14 would delete the wrong record. Builds from before 2026-09-13 do not stop on a failed assert, so scripts/godaddy-dns.mjs also refuses a relay build below 0.1.540. Run this recipe through the wrapper.",
+    "authorship": "Mike Wolf (direction); Claude Opus 5 (CCc), 2026-09-14. Exact-cell match and feature guard: Claude Opus 5 (CCc), 2026-09-15.",
     "anomalies": [
-      "Each table row has its own Delete button (aria-label Delete, data-testid template-record-Delete-<uuid>). Only the row text says which record it belongs to, so s11 uses within_row [name, value]. It fails closed when zero or several rows match.",
-      "within_row matches substrings of the row text. A name that is a prefix of another (sala vs sala65) with the same value matches several rows, and the step then fails without deleting anything. Such a record needs an exact-cell match, which the runtime does not have yet.",
+      "Each table row has its own Delete button (aria-label Delete, data-testid template-record-Delete-<uuid>). Only the row's cells say which record it belongs to, so s11 uses within_row { cells: [name, value] }. It fails closed when zero or several rows match.",
+      "Row cells, surveyed 2026-09-15: a checkbox column, then Type | Name | Data | TTL | Propagation | Copy | Delete | Edit. In the A rows, the Name cell reads exactly the host label (sala) and the Data cell exactly the address (217.77.6.197). So the cells form tells sala from sala65, which share 217.77.6.197; the text form matched six rows and could not delete sala.",
       "Delete opens a modal (role=dialog, 'Confirm removal of your DNS records') with Yes, Confirm (#dnsDeleteRecordModalDelete) and Cancel (#dnsDeleteRecordModalCancel).",
       "The table filter is by type only (checkbox named after the lowercase type). There is no name search.",
       "Tab selection: s01 refuses to run anywhere but dcc.godaddy.com, so the relay's fall-back to the active tab can never navigate an unrelated tab away."
@@ -22,10 +22,16 @@
     "base_url": "https://dcc.godaddy.com",
     "domain": "mike-wolf.com",
     "type": "REQUIRED — GoDaddy's lowercase option value: a, aaaa, cname, txt",
-    "name": "REQUIRED — the host label as the table shows it; @ for the apex",
-    "value": "REQUIRED — the record data as the table shows it"
+    "name": "REQUIRED — the host label exactly as the table's Name cell shows it; @ for the apex",
+    "value": "REQUIRED — the record data exactly as the table's Data cell shows it"
   },
   "chain": [
+    {
+      "stepId": "s00",
+      "action": "assert",
+      "requires": ["within_row.cells"],
+      "message": "This Yeshie build does not list within_row.cells, so s11 could not pick the record's row by its exact cells, and a build without within_row would click the first Delete button in the table. Load an extension built from current master. Nothing was changed."
+    },
     {
       "stepId": "s01",
       "action": "assert",
@@ -105,8 +111,8 @@
       "stepId": "s11",
       "action": "click",
       "selector": "table.ux-table button[aria-label='Delete']",
-      "within_row": ["{{name}}", "{{value}}"],
-      "note": "Clicks Delete only in the single row that holds both the name and the value; zero or several matching rows fail the step and nothing is clicked."
+      "within_row": { "cells": ["{{name}}", "{{value}}"] },
+      "note": "Clicks Delete only in the single row whose Name cell reads exactly the name and whose Data cell, later in the row, reads exactly the value. Zero or several such rows fail the step, and nothing is clicked."
     },
     {
       "stepId": "s12",

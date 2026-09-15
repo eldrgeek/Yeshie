@@ -14,11 +14,15 @@
  * 'unsupported' now halts the chain (unsupported-chain.test.ts), and
  * background-actions.test.ts checks background.ts. The GoDaddy DNS recipes
  * (sites/dcc.godaddy.com) need both actions.
+ *
+ * The cells form of within_row (2026-09-15) exists because the text form could
+ * not delete GoDaddy's `sala` A record: sala65 through sala105 hold the same
+ * address, so six rows contain both strings.
  */
 import { readFileSync } from 'fs';
 import ts from 'typescript';
 import { describeOptions, pickOptionIndex } from '../../src/select-option.js';
-import { pickRowIndex, rowNeedles } from '../../src/row-scope.js';
+import { pickRowIndex, rowMatches, rowScope } from '../../src/row-scope.js';
 import { createSurpriseEvidence } from '../../src/runtime-contract.js';
 
 const BACKGROUND = readFileSync(new URL('../../packages/extension/src/entrypoints/background.ts', import.meta.url), 'utf8');
@@ -34,22 +38,30 @@ function sliceFn(src: string, header: string): string {
   return src.slice(start, end + 4);
 }
 
+/** Runs after each page function. A test sets it to change the page between two page calls. */
+let afterPageCall: ((fn: (...a: any[]) => any) => void) | null = null;
+afterEach(() => { afterPageCall = null; });
+
 const RUNTIME = (() => {
   const fns = [
     '  function interpolate(',
     '  function PRE_GUARDED_CLICK(',
     '  function PRE_SELECT_SNAPSHOT(',
     '  function PRE_SET_SELECT_INDEX(',
-    '  function PRE_ROW_TEXTS(',
+    '  function PRE_ROW_SNAPSHOTS(',
     '  function PRE_CLICK_NTH(',
     '  async function executeStep(',
   ].map((h) => sliceFn(BACKGROUND, h)).join('\n');
   const js = ts.transpileModule(`${fns}\nreturn executeStep;`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   const deps: Record<string, unknown> = {
     // shared modules, exactly as background.ts imports them
-    describeOptions, pickOptionIndex, pickRowIndex, rowNeedles, createSurpriseEvidence,
+    describeOptions, pickOptionIndex, pickRowIndex, rowScope, createSurpriseEvidence,
     // Chrome/runtime stubs
-    execInTab: async (_tabId: number, fn: (...a: any[]) => any, args: any[] = []) => fn(...args),
+    execInTab: async (_tabId: number, fn: (...a: any[]) => any, args: any[] = []) => {
+      const out = await fn(...args);
+      afterPageCall?.(fn);
+      return out;
+    },
     resolveFrameId: async () => null,
     PRE_ARM_MUTATION_OBSERVER: () => {},
     PRE_CAPTURE_SIGNATURE_BASELINE: () => ({}),
@@ -156,26 +168,89 @@ describe('select (real background.ts executeStep)', () => {
 });
 
 describe('row-scope rule', () => {
-  it('normalizes within_row to its non-empty, interpolated strings', () => {
-    expect(rowNeedles('a')).toEqual(['a']);
-    expect(rowNeedles(['a', '', null, 'b'])).toEqual(['a', 'b']);
-    expect(rowNeedles(['{{n}}'], (s) => s.replace('{{n}}', 'x'))).toEqual(['x']);
+  const PARAMS: Record<string, string> = { name: 'sala', value: '217.77.6.197', empty: '' };
+  const fill = (s: string) => s.replace(/\{\{(\w+)\}\}/g, (_, k) => PARAMS[k] ?? '');
+
+  it('reads the text form: a string or a list, each filled in from params', () => {
+    expect(rowScope('a')).toEqual({ mode: 'text', needles: ['a'] });
+    expect(rowScope(['{{name}}', '{{value}}'], fill)).toEqual({ mode: 'text', needles: ['sala', '217.77.6.197'] });
   });
 
-  it('needs exactly one matching row', () => {
-    expect(pickRowIndex(['a b', 'a c', null], ['a', 'c'])).toEqual({ ok: true, index: 1 });
-    expect(pickRowIndex(['a b', 'a c'], ['a']).ok).toBe(false);
-    expect(pickRowIndex(['a b'], ['z']).ok).toBe(false);
-    expect(pickRowIndex(['a b'], []).ok).toBe(false);
+  it('reads the cells form, trimming and collapsing whitespace', () => {
+    expect(rowScope({ cells: [' {{name}} ', '217.77.6.197'] }, fill)).toEqual({ mode: 'cells', needles: ['sala', '217.77.6.197'] });
+    expect(rowScope({ cells: 'a \n b' })).toEqual({ mode: 'cells', needles: ['a b'] });
+  });
+
+  it('refuses a within_row that could match rows it does not name', () => {
+    expect(() => rowScope([])).toThrow(/no text to match/);
+    expect(() => rowScope({ cells: [] })).toThrow(/no text to match/);
+    expect(() => rowScope(['a', ''])).toThrow(/entry 1 \(""\) is empty/);
+    expect(() => rowScope({ cells: ['{{empty}}', 'x'] }, fill)).toThrow(/entry 0 \("\{\{empty\}\}"\) is empty once params are filled in/);
+    expect(() => rowScope({ cells: ['   '] })).toThrow(/is empty/);
+    expect(() => rowScope([null])).toThrow(/entry 0 is null/);
+    expect(() => rowScope({ cell: ['a'] })).toThrow(/exactly one key, "cells"/);
+    expect(() => rowScope({ cells: ['a'], text: ['b'] })).toThrow(/exactly one key, "cells"/);
+  });
+
+  it('text form: every string somewhere in the row text; exactly one row', () => {
+    const rows = [{ text: 'a b', cells: [] }, { text: 'a c', cells: [] }, null];
+    expect(pickRowIndex(rows, rowScope(['a', 'c']))).toEqual({ ok: true, index: 1 });
+    expect(pickRowIndex(rows, rowScope('a'))).toMatchObject({ ok: false, reason: expect.stringMatching(/^2 rows contain/) });
+    expect(pickRowIndex(rows, rowScope('z'))).toMatchObject({ ok: false, reason: expect.stringMatching(/^no row contains/) });
+  });
+
+  it('cells form: whole cells, in the listed order, one cell per string, case-sensitive', () => {
+    const row = { text: '', cells: ['', 'A', ' sala\n', '217.77.6.197', '600 seconds'] };
+    expect(rowMatches(row, rowScope({ cells: ['sala', '217.77.6.197'] }))).toBe(true);
+    expect(rowMatches(row, rowScope({ cells: ['A', '217.77.6.197'] }))).toBe(true);
+    expect(rowMatches(row, rowScope({ cells: ['217.77.6.197', 'sala'] }))).toBe(false);
+    expect(rowMatches(row, rowScope({ cells: ['sal'] }))).toBe(false);
+    expect(rowMatches(row, rowScope({ cells: ['Sala'] }))).toBe(false);
+    expect(rowMatches(row, rowScope({ cells: ['sala', 'sala'] }))).toBe(false);
+    expect(rowMatches(null, rowScope({ cells: ['sala'] }))).toBe(false);
+  });
+
+  it('cells form: a record with the name and value swapped does not stand in', () => {
+    // Deleting (name "@", value "x") must not reach the record (name "x", value "@").
+    const swapped = { text: 'CNAME x @', cells: ['CNAME', 'x', '@'] };
+    expect(rowMatches(swapped, rowScope({ cells: ['@', 'x'] }))).toBe(false);
+    expect(rowMatches(swapped, rowScope(['@', 'x']))).toBe(true);
+  });
+
+  it('cells form: a miss shows the cells of rows whose text holds every string', () => {
+    const rows = [{ text: 'A sala (primary) 217.77.6.197', cells: ['A', 'sala (primary)', '217.77.6.197'] }];
+    expect(pickRowIndex(rows, rowScope({ cells: ['sala', '217.77.6.197'] }))).toEqual({
+      ok: false,
+      reason: 'no row has cells ["sala","217.77.6.197"] in that order (1 candidates); rows whose text holds them have cells ["A","sala (primary)","217.77.6.197"]',
+    });
   });
 });
 
-// GoDaddy's DNS table shape: one Delete button per row, told apart only by the row's text.
-const DNS_TABLE = '<table class="ux-table"><tbody>'
-  + '<tr class="ux-tr"><td>TXT</td><td>@</td><td>v=spf1 include:_spf.google.com ~all</td><td><button aria-label="Delete" id="d1"></button></td></tr>'
-  + '<tr class="ux-tr"><td>TXT</td><td>_yeshie-test</td><td>ok-2026-09-14</td><td><button aria-label="Delete" id="d2"></button></td></tr>'
-  + '<tr class="ux-tr"><td>TXT</td><td>_yeshie-test2</td><td>ok-2026-09-13</td><td><button aria-label="Delete" id="d3"></button></td></tr>'
-  + '</tbody></table>';
+// GoDaddy's DNS table as surveyed live on mike-wolf.com, 2026-09-15: a checkbox
+// column, then Type | Name | Data | TTL | Propagation | Copy | Delete | Edit. In
+// the A rows, the Name cell reads exactly the host label and the Data cell
+// exactly the address.
+function dnsRow(type: string, name: string, data: string, deleteId: string): string {
+  return `<tr class="ux-tr"><td><input type="checkbox"></td><td>${type}</td><td>${name}</td><td>${data}</td><td>600 seconds</td><td></td>`
+    + `<td><button aria-label="Copy"></button></td><td><button aria-label="Delete" id="${deleteId}"></button></td>`
+    + '<td><button aria-label="Edit"></button></td></tr>';
+}
+const table = (rows: string[]) => `<table class="ux-table"><tbody>${rows.join('')}</tbody></table>`;
+
+const DNS_TABLE = table([
+  dnsRow('TXT', '@', 'v=spf1 include:_spf.google.com ~all', 'd1'),
+  dnsRow('TXT', '_yeshie-test', 'ok-2026-09-14', 'd2'),
+  dnsRow('TXT', '_yeshie-test2', 'ok-2026-09-13', 'd3'),
+]);
+
+// The A records the text form could not tell apart (mike-wolf.com, 2026-09-15), in the table's order.
+const SALA = ['sala', 'sala105', 'sala65', 'sala75', 'sala85', 'sala95'];
+const SALA_TABLE = table([
+  dnsRow('A', '@', '217.77.6.197', 'del-apex'),
+  dnsRow('A', 'playmaker', '217.77.6.197', 'del-playmaker'),
+  ...SALA.map((n) => dnsRow('A', n, '217.77.6.197', `del-${n}`)),
+  dnsRow('A', 'vps', '217.77.6.197', 'del-vps'),
+]);
 
 function clicksOn(host: HTMLElement): string[] {
   const hits: string[] = [];
@@ -183,7 +258,7 @@ function clicksOn(host: HTMLElement): string[] {
   return hits;
 }
 
-describe('click within_row (real background.ts executeStep)', () => {
+describe('click within_row, text form (real background.ts executeStep)', () => {
   const DELETE = "button[aria-label='Delete']";
 
   it('clicks the control in the one row containing every string', async () => {
@@ -217,10 +292,102 @@ describe('click within_row (real background.ts executeStep)', () => {
     expect(hits).toEqual([]);
   });
 
+  it('cannot pick sala: six rows contain both strings, so it fails closed', async () => {
+    const hits = clicksOn(mount(SALA_TABLE));
+    const r = await run({ stepId: 'del', action: 'click', selector: DELETE, within_row: ['sala', '217.77.6.197'] });
+    expect(r.status).toBe('error');
+    expect(r.error).toMatch(/click within_row: 6 rows contain \["sala","217\.77\.6\.197"\]/);
+    expect(hits).toEqual([]);
+  });
+
   it('leaves a plain click (no within_row) unchanged', async () => {
     const hits = clicksOn(mount(DNS_TABLE));
     const r = await run({ stepId: 'c', action: 'click', selector: '#d1' });
     expect(r.status).toBe('ok');
     expect(hits).toEqual(['d1']);
+  });
+});
+
+describe('click within_row, cells form (real background.ts executeStep)', () => {
+  const DELETE = "button[aria-label='Delete']";
+  const SALA_CELLS = { cells: ['sala', '217.77.6.197'] };
+
+  it('clicks Delete in the one row whose cells read exactly sala and 217.77.6.197', async () => {
+    const hits = clicksOn(mount(SALA_TABLE));
+    const r = await run({ stepId: 'del', action: 'click', selector: DELETE, within_row: SALA_CELLS });
+    expect(r.status).toBe('ok');
+    expect(hits).toEqual(['del-sala']);
+  });
+
+  it('fills the cells from params, as the delete recipe does, for each sala record', async () => {
+    for (const name of SALA) {
+      const hits = clicksOn(mount(SALA_TABLE));
+      const r = await run({ stepId: 'del', action: 'click', selector: DELETE, within_row: { cells: ['{{name}}', '{{value}}'] } },
+        { name, value: '217.77.6.197' });
+      expect({ name, status: r.status, hits }).toEqual({ name, status: 'ok', hits: [`del-${name}`] });
+    }
+  });
+
+  it('ignores whitespace around and inside a cell', async () => {
+    const hits = clicksOn(mount(table([dnsRow('A', '\n   sala  ', ' 217.77.6.197\n', 'del-sala'), dnsRow('A', 'sala65', '217.77.6.197', 'del-sala65')])));
+    const r = await run({ stepId: 'del', action: 'click', selector: DELETE, within_row: SALA_CELLS });
+    expect(r.status).toBe('ok');
+    expect(hits).toEqual(['del-sala']);
+  });
+
+  it('fails closed, clicking nothing, when two rows have the same cells', async () => {
+    const hits = clicksOn(mount(table([dnsRow('A', 'sala', '217.77.6.197', 'x1'), dnsRow('A', 'sala', '217.77.6.197', 'x2')])));
+    const r = await run({ stepId: 'del', action: 'click', selector: DELETE, within_row: SALA_CELLS });
+    expect(r.status).toBe('error');
+    expect(r.error).toMatch(/click within_row: 2 rows have cells/);
+    expect(hits).toEqual([]);
+  });
+
+  it('fails closed when a cell holds more than the name, and the error shows that cell', async () => {
+    const hits = clicksOn(mount(table([dnsRow('A', 'sala <span>primary</span>', '217.77.6.197', 'del-sala')])));
+    const r = await run({ stepId: 'del', action: 'click', selector: DELETE, within_row: SALA_CELLS });
+    expect(r.status).toBe('error');
+    expect(r.error).toMatch(/^click within_row: no row has cells/);
+    expect(r.error).toContain('"sala primary"');
+    expect(hits).toEqual([]);
+  });
+
+  it('fails closed, clicking nothing, when a param is empty', async () => {
+    const hits = clicksOn(mount(SALA_TABLE));
+    const r = await run({ stepId: 'del', action: 'click', selector: DELETE, within_row: { cells: ['{{name}}', '{{value}}'] } },
+      { name: '', value: '217.77.6.197' });
+    expect(r.status).toBe('error');
+    expect(r.error).toMatch(/is empty once params are filled in/);
+    expect(hits).toEqual([]);
+  });
+
+  it('fails closed, clicking nothing, on a malformed object', async () => {
+    const hits = clicksOn(mount(SALA_TABLE));
+    const r = await run({ stepId: 'del', action: 'click', selector: DELETE, within_row: { cell: ['sala'] } });
+    expect(r.status).toBe('error');
+    expect(r.error).toMatch(/exactly one key, "cells"/);
+    expect(hits).toEqual([]);
+  });
+
+  it('checks the row again at the click, and clicks nothing if it changed', async () => {
+    const host = mount(SALA_TABLE);
+    const hits = clicksOn(host);
+    afterPageCall = (fn) => {
+      if (fn.name !== 'PRE_ROW_SNAPSHOTS') return;
+      (host.querySelector('#del-sala')!.closest('tr') as HTMLTableRowElement).cells[2].textContent = 'sala-old';
+    };
+    const r = await run({ stepId: 'del', action: 'click', selector: DELETE, within_row: SALA_CELLS });
+    expect(r.status).toBe('error');
+    expect(r.error).toBe('the row changed before the click');
+    expect(hits).toEqual([]);
+  });
+
+  it('reads ARIA grid rows: role=row with role=cell children', async () => {
+    const ariaRow = (name: string, id: string) => `<div role="row"><div role="cell">A</div><div role="cell">${name}</div>`
+      + `<div role="cell">217.77.6.197</div><div role="cell"><button aria-label="Delete" id="${id}"></button></div></div>`;
+    const hits = clicksOn(mount(`<div role="grid">${ariaRow('sala65', 'g1')}${ariaRow('sala', 'g2')}</div>`));
+    const r = await run({ stepId: 'del', action: 'click', selector: DELETE, within_row: SALA_CELLS });
+    expect(r.status).toBe('ok');
+    expect(hits).toEqual(['g2']);
   });
 });

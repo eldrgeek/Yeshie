@@ -12,6 +12,7 @@ import ts from 'typescript';
 import { ContentStabilityTracker, expectedWaitState, quietMsOf, stateWaitMatched, waitStateGraph, wantsStable } from '../../src/wait-for.js';
 import { assertFailureMessage, assertNeedsPage, evaluateAssert } from '../../src/assert-step.js';
 import { createSurpriseEvidence } from '../../src/runtime-contract.js';
+import { RUNTIME_FEATURES } from '../../src/runtime-features.js';
 
 export const BACKGROUND = readFileSync(new URL('../../packages/extension/src/entrypoints/background.ts', import.meta.url), 'utf8');
 
@@ -69,7 +70,7 @@ export function chainHarness(source = BACKGROUND): Harness {
   const deps: Record<string, unknown> = {
     // shared modules, exactly as background.ts imports them
     ContentStabilityTracker, expectedWaitState, quietMsOf, stateWaitMatched, waitStateGraph, wantsStable,
-    assertFailureMessage, assertNeedsPage, evaluateAssert, createSurpriseEvidence,
+    assertFailureMessage, assertNeedsPage, evaluateAssert, createSurpriseEvidence, RUNTIME_FEATURES,
     // Chrome/runtime stubs
     execInTab: async (_tabId: number, fn: (...a: any[]) => any, args: any[] = []) => fn(...args),
     resolveFrameId: async () => null,

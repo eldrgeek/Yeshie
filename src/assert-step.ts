@@ -13,9 +13,19 @@
  *   - `url_pattern` — a regex the current page URL must match.
  *   - `selector`    — an element that must exist; with `value` (or `text`),
  *                     its text must also contain that string.
+ *   - `requires`    — a feature name, or a list of them, that the runtime must
+ *                     list (src/runtime-features.ts). A recipe puts this guard
+ *                     before the first step that needs a feature which older
+ *                     builds lack.
  *
  * An assert that declares none of these fails. A guard nobody wrote a check
  * for must not pass silently: it stops the chain until someone writes one.
+ *
+ * `requires` must be the only check in its assert. A build that predates
+ * `requires` ignores the field. When the field stands alone, that build finds
+ * nothing it can check, so it fails the step and stops; every build since
+ * 2026-09-13 does this. If a `url_pattern` sat beside it, that build would
+ * check the URL, pass, and run on into the step the guard exists to block.
  *
  * Note on `condition`: on every other action, a falsy `condition` means "skip
  * this step". On `assert` it is the assertion itself, so the runtime must not
@@ -31,6 +41,7 @@ export type AssertStep = {
   selector?: string;
   value?: unknown;
   text?: unknown;
+  requires?: unknown;
   message?: string;
   [key: string]: unknown;
 };
@@ -41,6 +52,13 @@ export type AssertSnapshot = {
   elementFound?: boolean;
   elementText?: string | null;
 };
+
+/**
+ * What the runtime says about itself. The live runtime passes RUNTIME_FEATURES.
+ * The StepExecutor mirror passes nothing, so a `requires` guard always stops it;
+ * the mirror has no within_row either.
+ */
+export type AssertRuntime = { features?: readonly string[] };
 
 /** `reason` says why the assert failed; it is empty when `ok` is true. */
 export type AssertOutcome = { ok: boolean; reason: string };
@@ -65,15 +83,40 @@ function expectedText(step: AssertStep, I: (s: string) => string): string | null
   return s.length > 0 ? s : null;
 }
 
+function checkRequires(raw: unknown, features: readonly string[] | undefined): AssertOutcome {
+  const list = Array.isArray(raw) ? raw : [raw];
+  if (list.length === 0 || !list.every((f) => typeof f === 'string' && f.trim().length > 0)) {
+    return { ok: false, reason: `requires must name one or more features (got ${JSON.stringify(raw)})` };
+  }
+  const wanted = (list as string[]).map((f) => f.trim());
+  if (!features) {
+    return { ok: false, reason: `this runtime does not list its features, so it cannot show that it has ${wanted.join(', ')}` };
+  }
+  const missing = wanted.filter((f) => !features.includes(f));
+  if (missing.length > 0) {
+    return { ok: false, reason: `this build lacks ${missing.join(', ')} (it has ${features.join(', ') || 'no listed features'})` };
+  }
+  return { ok: true, reason: '' };
+}
+
 export function evaluateAssert(
   step: AssertStep,
   snapshot: AssertSnapshot,
   interpolate: (s: string) => string = (s) => s,
+  runtime: AssertRuntime = {},
 ): AssertOutcome {
   const I = interpolate;
   const hasCondition = Object.prototype.hasOwnProperty.call(step, 'condition');
-  if (!hasCondition && !step.url_pattern && !step.selector) {
-    return { ok: false, reason: 'assert declares nothing to check (needs condition, url_pattern or selector)' };
+  const hasRequires = Object.prototype.hasOwnProperty.call(step, 'requires');
+  if (!hasCondition && !step.url_pattern && !step.selector && !hasRequires) {
+    return { ok: false, reason: 'assert declares nothing to check (needs condition, url_pattern, selector or requires)' };
+  }
+
+  if (hasRequires) {
+    if (hasCondition || step.url_pattern || step.selector) {
+      return { ok: false, reason: 'requires must be the only check in its assert, because a build that predates requires would skip it and pass on the other checks' };
+    }
+    return checkRequires(step.requires, runtime.features);
   }
 
   if (hasCondition) {

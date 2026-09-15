@@ -164,9 +164,12 @@ function runRecipe(tabId) {
     return;
   }
 
-  // The recipes need the runtime `select` action and `click` + `within_row`
-  // (Yeshie #66, extension build 0.1.540). On an older build the delete recipe
-  // ignores within_row and clicks the first Delete button in the table.
+  // Each recipe starts with s00, an assert that requires the runtime features
+  // it uses (src/runtime-features.ts): select for add, within_row.cells for
+  // delete. Every build since 2026-09-13 stops at s00 unless it lists them.
+  // Builds from before 2026-09-13 do not stop on a failed assert, and on those
+  // the delete recipe would click the first Delete button in the table. This
+  // check keeps them out: Yeshie #66 (select, within_row) loaded as 0.1.540.
   const MIN_BUILD = '0.1.540';
   const status = await fetch(`${RELAY}/status`).then((r) => r.json()).catch((e) => die(`relay unreachable at ${RELAY}: ${e.message}`));
   const instance = (status.instances || []).find((i) => i.isDefault);

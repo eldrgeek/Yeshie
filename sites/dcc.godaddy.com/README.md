@@ -6,7 +6,9 @@ served by GoDaddy (`ns57`/`ns58.domaincontrol.com`) since 2026-09-07. There are
 no GoDaddy API credentials on the Mac, so the web page is the only write path.
 
 Authored 2026-09-14 by Claude Opus 5 (CCc) for Mike Wolf, from the
-hand-driven session that added the `sala*` A records the same day.
+hand-driven session that added the `sala*` A records the same day. Updated
+2026-09-15 by Claude Opus 5 (CCc): the delete recipe picks the row by exact
+cells, and both recipes check the runtime's features before they act.
 
 ## One call
 
@@ -19,7 +21,8 @@ node scripts/godaddy-dns.mjs delete --type TXT --name _yeshie-test --value ok-20
 
 1. asks each of the zone's nameservers directly (`dig +norec`, `aa` flag
    required) whether the change is already in place, and stops early if so;
-2. checks that the Yeshie extension is connected at build 0.1.540 or later;
+2. checks that the Yeshie extension is connected at build 0.1.540 or later
+   (see [Build guard](#build-guard));
 3. reuses a `dcc.godaddy.com` tab, or opens one through the relay, and brings
    that tab to the front for the run. It never runs on whatever tab happens to
    be active. In a hidden, unfocused tab Chrome throttles the page; GoDaddy's
@@ -47,34 +50,62 @@ must be one of GoDaddy's presets: 1800 (the default), 3600, 43200, 86400 or
 
 | # | Task | Params | Risk | Verified |
 |---|------|--------|------|----------|
-| 01 | add-dns-record | `domain`, `type`, `name`, `value`, `ttl` | adds a live DNS record | live 2026-09-14: 30/30 steps ok, record on ns57 + ns58 (`aa`) |
-| 02 | delete-dns-record | `domain`, `type`, `name`, `value` | **deletes a live DNS record** | live 2026-09-14: 17/17 steps ok twice, NXDOMAIN on ns57 + ns58 (`aa`) |
+| 01 | add-dns-record | `domain`, `type`, `name`, `value`, `ttl` | adds a live DNS record | 1.0.0 live 2026-09-14: 30/30 steps ok, record on ns57 + ns58 (`aa`). 1.1.0 adds the s00 guard; its live run is pending. |
+| 02 | delete-dns-record | `domain`, `type`, `name`, `value` | **deletes a live DNS record** | 1.0.0 live 2026-09-14: 17/17 steps ok twice, NXDOMAIN on ns57 + ns58 (`aa`). 1.1.0 adds the s00 guard and the exact-cell match; its live run is pending. |
 
 `type` is GoDaddy's lowercase option value (`a`, `aaaa`, `cname`, `txt`). The
-wrapper lowercases whatever you pass.
+wrapper lowercases whatever you pass. For a delete, `name` and `value` must be
+exactly what the table's Name and Data cells show.
 
-Both recipes need extension build 0.1.540 or later, which has the `select`
-action and `click` + `within_row`
-([Yeshie #66](https://github.com/eldrgeek/Yeshie/pull/66)). Run them through the
-wrapper, which checks the build. On an older build the delete recipe would
-ignore `within_row` and click the first Delete button in the table.
-
-Both recipes start with an assert that the run's tab is on `dcc.godaddy.com`.
+Both recipes also assert, at s01, that the run's tab is on `dcc.godaddy.com`.
 The relay picks a tab on `base_url`'s host when one is open, but it falls back
-to the active tab when none is, and that first assert stops the run before it
-can navigate an unrelated tab.
+to the active tab when none is, and that assert stops the run before it can
+navigate an unrelated tab.
+
+## Build guard
+
+The delete recipe is dangerous on the wrong build. A build without
+`within_row` ignores the field, so s11 would click the first Delete button in
+the filtered table. The confirmation dialog never names the record, so s13
+would pass and s14 would delete the wrong record.
+
+Each recipe therefore starts with s00, an assert that requires the runtime
+features it uses: `select` for add, `within_row.cells` for delete. The runtime
+lists its features in `src/runtime-features.ts`, and the assert fails unless
+every named feature is on the list. Builds react to s00 in three ways:
+
+| Build | At s00 |
+|-------|--------|
+| Has `requires` (this change onward) | passes when the build lists the features |
+| Has the 2026-09-13 assert rule, but not `requires` | fails and stops: `requires` is the step's only check, and such a build finds nothing it can check |
+| From before 2026-09-13, with no `assert` action | returns `unsupported`, which does not stop the chain |
+
+The last row is why the wrapper still refuses a relay build below 0.1.540;
+Yeshie [#66](https://github.com/eldrgeek/Yeshie/pull/66) (`select` and
+`within_row`) loaded as build 0.1.540. Builds from 0.1.540 until this change
+are safe twice over. They stop at s00, and their `within_row` reads the
+`{ "cells": [...] }` object as the text "[object Object]", which no row
+contains.
+
+The guard names features rather than a build number. The build number is a
+counter that `com.yeshie.watcher` bumps on every build of the main checkout,
+whatever code that checkout holds, so nobody can know in advance which number
+first carries a feature.
 
 ## Limits
 
-- `within_row` matches substrings of the row text. A name that is a prefix of
-  another with the same value (`sala` and `sala65`, both `217.77.6.197`)
-  matches several rows, so the delete step fails without deleting anything.
-  Deleting such a record needs an exact-cell match, which the runtime does not
-  have yet.
+- The delete recipe picks the row by exact cells: the Name cell must read
+  exactly `name`, and the Data cell, later in the row, exactly `value`. If the
+  table shows the value differently from what you pass, no row matches and
+  the step fails without deleting anything. The error lists the cells of the
+  rows whose text holds both strings, so the difference is visible.
+- The table shows 10 rows per page, and the type filter is the only way to
+  narrow it. A record that is not on the first page of its type is not found,
+  and the delete recipe stops at s10 or s11 without deleting anything.
 - The recipes change one record per run. "Add More Records" (several rows, one
   "Save All Records") is not used.
 
-## Page model (surveyed live 2026-09-14)
+## Page model (surveyed live 2026-09-14, table cells 2026-09-15)
 
 - **DNS page:** `https://dcc.godaddy.com/control/portfolio/<domain>/settings?tab=dns`.
   `#dnsAddNewRecord` on the page means it loaded and the session is logged in.
@@ -98,12 +129,16 @@ can navigate an unrelated tab.
   "You have unsaved changes" dialog (Yes, Cancel / No, Go Back).
 - **Add More Records:** `#dnsAddMoreRecord` adds another row; the save button
   then reads "Save All Records".
-- **Table:** `table.ux-table`, rows `tr.ux-tr`, columns Type | Name | Data | TTL |
-  Propagation | Copy | Delete | Edit. Each row's buttons carry `aria-label`
-  Copy / Delete / Edit and `data-testid="template-record-<Action>-<uuid>"`. No
-  cell carries the record's name as an attribute; only the row text does, which
-  is why the delete recipe uses `within_row`. The table shows 10 rows per page,
-  and TTL shows as a label ("1/2 Hour").
+- **Table:** `table.ux-table`, rows `tr.ux-tr`. Each row has a checkbox cell,
+  then Type | Name | Data | TTL | Propagation | Copy | Delete | Edit. In the A
+  rows read on 2026-09-15, the Name cell's visible text is exactly the host
+  label (`sala`) and the Data cell's is exactly the address (`217.77.6.197`).
+  A cell's `textContent` holds more than its visible text, so the runtime reads
+  `innerText`. Each row's buttons carry `aria-label` Copy / Delete / Edit and
+  `data-testid="template-record-<Action>-<uuid>"`. No cell carries the record's
+  name as an attribute; only the cell text does, which is why the delete
+  recipe uses `within_row`. The table shows 10 rows per page, and TTL shows as
+  a label ("1/2 Hour", "600 seconds").
 - **Filters:** `#dnsTableFilterBtn` is disabled while a New Records row is open.
   It opens one checkbox per record type (`input[name="<type>"]`) and an Apply
   button. There is no name search. `#dnsAddNewRecord` appears well before the
