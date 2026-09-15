@@ -153,20 +153,18 @@ actual filename (Chrome may have renamed it with a counter suffix like `(1)`).
 
 ### Step 4 — Create Substack draft
 
-```python
-yeshie_run(
-    payload_path="~/Projects/yeshie/sites/substack.com/tasks/02-create-draft.payload.json",
-    params={
-        "publication_subdomain": "markinpc",
-        "title": "Cattle Baron",           # use the docx title stem, cleaned up
-        "body": story_text,               # extracted text from Step 3
-        "subtitle": ""
-    }
-)
+Since 2026-09-15 the recipe (v2) takes the body as HTML (`body_html`), plus `proof_text`
+(a few plain words from the story) and `title_json`, and it no longer accepts plain `body`.
+Use the wrapper, which converts Markdown, fills those params, and reports the draft id:
+
+```bash
+# story.md: front matter "title: Cattle Baron" and "proof: <a few plain words from the story>", then the text
+node ~/Projects/yeshie/scripts/substack.mjs draft --pub <subdomain> --file story.md --audience everyone
 ```
 
-Capture the draft URL from the ChainResult's `draft_url` field (or from the browser URL bar
-after the run). Log it in the table above.
+Check the subdomain first. On 2026-09-15 the account @rsilt administered a publication
+`wolfinpc` ("Mark's Substack"); `markinpc` is the name this skill was written for.
+The wrapper prints the draft id and its secret preview link. Log it in the table above.
 
 ---
 
@@ -201,18 +199,11 @@ Yeshie runs will reuse the session until it expires.
 
 ## Substack Editor Notes
 
-The Substack editor uses ProseMirror (`div.ProseMirror[contenteditable='true']`).
-Long `type` actions with large bodies may be slow — the extension types character by character.
-If body text is very long (>5000 chars), consider using the `/*cdp*/` JavaScript injection
-approach instead:
-
-```json
-{
-  "action": "/*cdp*/",
-  "script": "document.querySelector('div.ProseMirror[contenteditable=\"true\"]').focus(); document.execCommand('insertText', false, `{{body}}`);",
-  "note": "Faster text insertion for long bodies"
-}
-```
+The Substack editor is TipTap/ProseMirror (`[data-testid='editor']`). Since 2026-09-15 the
+create-draft recipe fills it with the `paste_html` action, which hands the editor a paste
+event carrying HTML. Paragraphs, headings, italics, links, quotes and lists all survive.
+`type` delivered plain text only, so it lost every paragraph break. Do not use the old
+`/*cdp*/` injection; this skill's own notes found it breaks the chain on substack.com.
 
 ---
 

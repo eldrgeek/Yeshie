@@ -1,0 +1,59 @@
+{
+  "name": "substack-publish-no-email",
+  "site": "substack.com",
+  "task": "publish-no-email",
+  "description": "Publish an existing Substack draft to the web WITHOUT emailing subscribers. The recipe turns off 'Send via email and the Substack app' only if it is on, and it refuses to click unless the final button reads 'Publish now'. With email on, the button reads 'Send to ... now', so a failure to turn email off stops the run before anything is sent. The proof is the draft's own JSON: is_published true, should_send_email false, email_sent_at null.",
+  "version": "1.0.0",
+  "verified": false,
+  "dryRunUntil": "s09",
+  "requires": "Run from scripts/substack.mjs, which opens a Substack tab and supplies draft_id (a number from /api/v1/drafts).",
+  "authorship": "Mike Wolf (direction); Claude Opus 5 (CCc), 2026-09-15, from that day's survey of a draft on aiwtf.substack.com (the panel was opened and cancelled; nothing was published).",
+  "anomalies": [
+    "Continue ([data-testid='publish-button']) opens the Publish panel. Its Delivery section has a switch, 'Send via email and the Substack app', that is ON by default (the publication's default_post_publish_send_email is true).",
+    "The panel's final button says 'Send to paid subscribers now' or 'Send to everyone now' while email is on, and 'Publish now' when it is off. The recipe treats 'Publish now' as the only safe state.",
+    "The switch is a <button> inside a <label> that also holds a hidden checkbox; it has no test id. The recipe clicks the label's text.",
+    "Audience is read from the drawer's radios (input[name='audience']); the publish panel repeats them. 02-create-draft sets it."
+  ],
+  "params": {
+    "publication_subdomain": "aiwtf",
+    "draft_id": "",
+    "audience": "everyone",
+    "title_json": ""
+  },
+  "chain": [
+    { "stepId": "s01", "action": "assert", "url_pattern": "^https://([a-z0-9-]+\\.)?substack\\.com/", "message": "This run landed on a tab that is not on substack.com. Open a Substack tab first (scripts/substack.mjs does) and pass its tab id; refusing to navigate whatever tab is active." },
+    { "stepId": "s02", "action": "assert", "condition": "{{draft_id}}", "message": "draft_id is required (a number from /api/v1/drafts)." },
+    { "stepId": "s03", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/api/v1/drafts/{{draft_id}}" },
+    { "stepId": "s04", "action": "assert", "selector": "body", "value": "\"is_published\":false", "message": "Draft {{draft_id}} is already published (or does not exist). This recipe publishes a draft once." },
+    { "stepId": "s05", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/publish/post/{{draft_id}}" },
+    { "stepId": "s06", "action": "wait_for", "selector": "[data-testid='publish-button']", "timeout": 20000 },
+    { "stepId": "s07", "action": "click", "selector": "[data-testid='publish-button']" },
+    { "stepId": "s08", "action": "wait_for", "selector": "body", "text": "Send via email and the Substack app", "timeout": 10000 },
+    { "stepId": "s09", "action": "assert", "selector": "input[name='audience'][value='{{audience}}']:checked", "message": "The audience is not '{{audience}}'. Set it in the draft (02-create-draft) before publishing. A dry run stops after this check: nothing has been changed." },
+    {
+      "stepId": "s10",
+      "action": "assess_state",
+      "stateGraph": { "nodes": { "email_off": { "signals": [ { "type": "element_text", "selector": "body", "text": "Publish now" } ] } } },
+      "expect": { "state": "email_off" },
+      "onMismatch": "branch:turn_email_off",
+      "note": "Idempotent: the switch is clicked only while email is on (final button not 'Publish now')."
+    },
+    { "stepId": "s11", "action": "wait_for", "selector": "body", "text": "Publish now", "timeout": 5000, "note": "The only safe state. With email still on this times out and nothing is published." },
+    { "stepId": "s12", "action": "click_text", "text": "Publish now", "exact": true },
+    { "stepId": "s13", "action": "wait_for", "selector": "body", "state": { "stable": 2000 }, "timeout": 20000, "note": "Publishing finishes; Substack may open a share dialog." },
+    { "stepId": "s14", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/api/v1/drafts/{{draft_id}}" },
+    { "stepId": "s15", "action": "assert", "selector": "body", "value": "\"is_published\":true", "message": "Draft {{draft_id}} is not published." },
+    { "stepId": "s16", "action": "assert", "selector": "body", "value": "\"should_send_email\":false", "message": "Draft {{draft_id}} still has should_send_email true." },
+    { "stepId": "s17", "action": "assert", "selector": "body", "value": "\"email_sent_at\":null", "message": "Draft {{draft_id}} has an email_sent_at: an email went out." },
+    { "stepId": "s18", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/api/v1/archive?sort=new&limit=12" },
+    { "stepId": "s19", "action": "assert", "selector": "body", "value": "{{title_json}}", "message": "The public archive does not list the post." }
+  ],
+  "branches": {
+    "turn_email_off": {
+      "steps": [
+        { "stepId": "b1", "action": "click_text", "text": "Send via email and the Substack app" },
+        { "stepId": "b2", "action": "wait_for", "selector": "body", "text": "Publish now", "timeout": 5000 }
+      ]
+    }
+  }
+}

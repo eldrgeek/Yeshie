@@ -1,182 +1,53 @@
 {
-  "_meta": {
-    "task": "login",
-    "site": "substack.com",
-    "description": "Ensure the user is authenticated on Substack as a writer. If already logged in (dashboard visible), exits immediately. Substack uses magic-link email auth by default; if a session cookie already exists in Chrome this exits immediately. If auth is required, triggers the magic-link flow and pauses \u2014 Mike must click the link in his email.",
-    "params": {
-      "email": {
-        "required": false,
-        "default": "mw@mike-wolf.com",
-        "description": "Email address associated with the Substack writer account"
-      },
-      "publication_url": {
-        "required": false,
-        "default": "https://substack.com/publish/home",
-        "description": "Substack writer dashboard URL"
-      }
-    },
-    "auth": {
-      "type": "magic_link_email",
-      "note": "Substack auth is magic-link only. If Chrome already has a valid session cookie, this exits immediately. Otherwise Mike must click the link that arrives at mw@mike-wolf.com."
-    },
-    "selfImproving": true,
-    "runCount": 0,
-    "lastSuccess": null
-  },
+  "name": "substack-login",
   "site": "substack.com",
-  "mode": "verification",
+  "task": "login",
+  "description": "Make sure Chrome is signed in to Substack as Mike's writer account, @rsilt: the account that owns aiwtf.substack.com and his other publications. If it already is, the run exits at s03. Otherwise the sign_in branch asks Substack to email a sign-in link to {{email}}, opens the newest Substack email in Gmail (Mike's signed-in Google account) and clicks its sign-in button. On either path, the proof is Substack's own profile JSON naming the handle rsilt.",
+  "version": "2.0.0",
+  "verified": false,
+  "requires": "Run from scripts/substack.mjs, which opens a Substack tab. No password is typed at any point.",
+  "authorship": "v1 2026-09-13 (fleet recipe set). v2: Mike Wolf (direction); Claude Opus 5 (CCc), 2026-09-15.",
+  "anomalies": [
+    "v1 went green at its assess_state step whether or not the session was signed in. An assess_state step with no `expect` always counts as matched, so its onMatch exit_success always fired. v2 sets expect.",
+    "v1 took any page under substack.com/publish as proof of sign-in, whichever account was signed in. @rsilt administers 11 publications (2026-09-15). v2 checks the handle in https://substack.com/api/v1/user/profile/self.",
+    "assess_state does not interpolate {{params}}, so s03 carries the handle rsilt literally.",
+    "Substack's web sign-in takes an email address and sends a one-time sign-in link; it also offers 'Sign in with password'. This recipe never uses a password. The link arrives in Mike's Google mailbox, which is the Google half of the flow.",
+    "The sign_in branch was written on 2026-09-15 without being exercised: while signed in, substack.com/sign-in redirects to the home feed, so the signed-out page could not be inspected. Heal the b-steps on the first signed-out run."
+  ],
   "params": {
     "email": "mw@mike-wolf.com",
-    "publication_url": "https://substack.com/publish/home"
+    "gmail_account_index": "0"
   },
   "chain": [
+    { "stepId": "s01", "action": "assert", "url_pattern": "^https://([a-z0-9-]+\\.)?substack\\.com/", "message": "This run landed on a tab that is not on substack.com. Open a Substack tab first (scripts/substack.mjs does) and pass its tab id; refusing to navigate whatever tab is active." },
+    { "stepId": "s02", "action": "navigate", "url": "https://substack.com/api/v1/user/profile/self" },
     {
-      "stepId": "s1",
-      "action": "navigate",
-      "url": "{{publication_url}}",
-      "note": "Navigate to writer dashboard. If session cookie exists, lands here authenticated."
-    },
-    {
-      "stepId": "s2",
-      "action": "wait_for",
-      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
-      "timeout": 6000,
-      "onTimeout": "continue",
-      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
-    },
-    {
-      "stepId": "s3",
+      "stepId": "s03",
       "action": "assess_state",
-      "stateGraph": {
-        "nodes": {
-          "authenticated": {
-            "signals": [
-              {
-                "type": "url_matches",
-                "pattern": "substack\\.com/publish"
-              }
-            ]
-          },
-          "unauthenticated": {
-            "signals": [
-              {
-                "type": "url_matches",
-                "pattern": "substack\\.com/sign-in|substack\\.com/account/login"
-              }
-            ]
-          }
-        }
-      },
+      "stateGraph": { "nodes": { "signed_in_as_rsilt": { "signals": [ { "type": "element_text", "selector": "body", "text": "\"handle\":\"rsilt\"" } ] } } },
+      "expect": { "state": "signed_in_as_rsilt" },
       "onMatch": "exit_success",
-      "onMismatch": "continue",
-      "note": "Already logged in? Exit success. Otherwise continue to trigger magic link."
+      "onMismatch": "branch:sign_in",
+      "note": "Signed in as @rsilt: done, and this match is the proof. Otherwise run the sign_in branch, then the proof below."
     },
-    {
-      "stepId": "s4",
-      "action": "navigate",
-      "url": "https://substack.com/sign-in",
-      "note": "Navigate to sign-in page"
-    },
-    {
-      "stepId": "s5",
-      "action": "wait_for",
-      "target": "email_input",
-      "state": {
-        "visible": true
-      },
-      "timeout": 8000,
-      "note": "wait for email_input before next step (was delay 1500ms)"
-    },
-    {
-      "stepId": "s6",
-      "action": "type",
-      "target": "email_input",
-      "value": "{{email}}",
-      "note": "Enter email address"
-    },
-    {
-      "stepId": "s7",
-      "action": "click",
-      "target": "submit_button",
-      "note": "Submit email to trigger magic link"
-    },
-    {
-      "stepId": "s8",
-      "action": "wait_for",
-      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
-      "timeout": 6000,
-      "onTimeout": "continue",
-      "note": "settle (was delay 2000ms); resolves on content root, proceeds on timeout"
-    },
-    {
-      "stepId": "s9",
-      "action": "read",
-      "candidates": [
-        "body",
-        "main",
-        "[class*='container']"
-      ],
-      "store_as": "page_content",
-      "note": "Capture page state \u2014 should confirm magic link was sent"
-    }
+    { "stepId": "s04", "action": "navigate", "url": "https://substack.com/api/v1/user/profile/self" },
+    { "stepId": "s05", "action": "assert", "selector": "body", "value": "\"handle\":\"rsilt\"", "message": "Still not signed in as @rsilt after the sign-in branch." }
   ],
-  "abstractTargets": {
-    "email_input": {
-      "description": "Email address input field on Substack sign-in page",
-      "anchors": {
-        "type": "email",
-        "placeholder": "Enter your email"
-      },
-      "fallbackSelectors": [
-        "input[type='email']",
-        "input[name='email']",
-        "input[placeholder*='email' i]",
-        "input[placeholder*='Email' i]"
+  "branches": {
+    "sign_in": {
+      "steps": [
+        { "stepId": "b1", "action": "navigate", "url": "https://substack.com/sign-in" },
+        { "stepId": "b2", "action": "wait_for", "selector": "input[type='email']", "timeout": 15000, "note": "If this times out while a different account is signed in, sign that account out first." },
+        { "stepId": "b3", "action": "type", "selector": "input[type='email']", "value": "{{email}}" },
+        { "stepId": "b4", "action": "key", "key": "Enter" },
+        { "stepId": "b5", "action": "wait_for", "selector": "body", "text": "Check your email", "timeout": 15000, "note": "Substack says it sent the sign-in link (v1's state graph recorded this text)." },
+        { "stepId": "b6", "action": "navigate", "url": "https://mail.google.com/mail/u/{{gmail_account_index}}/#search/from%3Asubstack.com+newer_than%3A1h" },
+        { "stepId": "b7", "action": "wait_for", "selector": "tr.zA", "timeout": 60000, "note": "The newest Substack email; Gmail's search updates as mail arrives." },
+        { "stepId": "b8", "action": "click", "selector": "tr.zA" },
+        { "stepId": "b9", "action": "wait_for", "selector": "div.a3s", "text": "Sign in", "timeout": 15000 },
+        { "stepId": "b10", "action": "click_text", "text": "Sign in", "trusted": true, "note": "A real click. Gmail opens the link in a new tab, and the sign-in cookie it sets is shared by every tab." },
+        { "stepId": "b11", "action": "wait_for", "selector": "body", "state": { "stable": 3000 }, "timeout": 20000 }
       ]
-    },
-    "submit_button": {
-      "description": "Continue / Sign in button on Substack sign-in page",
-      "anchors": {
-        "type": "submit"
-      },
-      "fallbackSelectors": [
-        "button[type='submit']",
-        "button:contains('Continue')",
-        "button:contains('Sign in')",
-        "button:contains('Send')"
-      ]
-    }
-  },
-  "stateGraph": {
-    "nodes": {
-      "authenticated": {
-        "signals": [
-          {
-            "type": "url_matches",
-            "pattern": "substack\\.com/publish"
-          }
-        ]
-      },
-      "magic_link_sent": {
-        "signals": [
-          {
-            "type": "text_contains",
-            "text": "Check your email"
-          },
-          {
-            "type": "text_contains",
-            "text": "We sent"
-          }
-        ]
-      },
-      "unauthenticated": {
-        "signals": [
-          {
-            "type": "url_matches",
-            "pattern": "substack\\.com/sign-in|substack\\.com/account/login"
-          }
-        ]
-      }
     }
   }
 }

@@ -1,0 +1,35 @@
+{
+  "name": "substack-invite-team-member",
+  "site": "substack.com",
+  "task": "invite-team-member",
+  "description": "Invite one email address to a Substack publication's team (Settings > Team > Invite). Substack emails the invitation; the invitee accepts it, and only then can their role and byline visibility be set. The address is read back before Send, and the proof is the address listed on the Team settings after a reload.",
+  "version": "1.0.0",
+  "verified": false,
+  "dryRunUntil": "s07",
+  "requires": "Run from scripts/substack.mjs, which opens a Substack tab.",
+  "authorship": "Mike Wolf (direction); Claude Opus 5 (CCc), 2026-09-15, from that day's survey of aiwtf.substack.com settings.",
+  "anomalies": [
+    "The Invite dialog has one field, input[name='email'] (placeholder email@example.com), and one button, 'Send invite'. Its text: 'You can edit their role and visibility after they accept.'",
+    "Sending an invite emails a third party. Run it only after the person or address has been approved.",
+    "Accepting an invite creates or signs into a Substack account for that address. That step is the invitee's (for an AI author's address, a human's), never the recipe's."
+  ],
+  "params": {
+    "publication_subdomain": "aiwtf",
+    "email": ""
+  },
+  "chain": [
+    { "stepId": "s01", "action": "assert", "url_pattern": "^https://([a-z0-9-]+\\.)?substack\\.com/", "message": "This run landed on a tab that is not on substack.com. Open a Substack tab first (scripts/substack.mjs does) and pass its tab id; refusing to navigate whatever tab is active." },
+    { "stepId": "s02", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/publish/settings#team-settings" },
+    { "stepId": "s03", "action": "wait_for", "selector": "#team-settings", "timeout": 20000 },
+    { "stepId": "s04", "action": "wait_for", "selector": "body", "text": "Publication team", "timeout": 10000 },
+    { "stepId": "s05", "action": "click_text", "text": "Invite", "exact": true },
+    { "stepId": "s06", "action": "wait_for", "selector": "input[name='email'][type='email']", "timeout": 8000 },
+    { "stepId": "s07", "action": "wait_for", "selector": "body", "text": "Invite a team member", "timeout": 5000, "note": "The Invite dialog is open. A dry run stops here: nothing has been typed." },
+    { "stepId": "s08", "action": "type", "selector": "input[name='email'][type='email']", "value": "{{email}}" },
+    { "stepId": "s09", "action": "assert", "selector": "input[name='email'][type='email']", "value": "{{email}}", "message": "Read-back before Send: the address is not '{{email}}'." },
+    { "stepId": "s10", "action": "click_text", "text": "Send invite", "exact": true },
+    { "stepId": "s11", "action": "wait_for", "selector": "input[name='email'][type='email']", "state": { "visible": false }, "timeout": 10000, "note": "The dialog closes once Substack accepts the invite; an error keeps it open and this step times out." },
+    { "stepId": "s12", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/publish/settings#team-settings" },
+    { "stepId": "s13", "action": "wait_for", "selector": "#team-settings", "text": "{{email}}", "timeout": 20000, "note": "Proof: after a reload, the Team settings list the invited address." }
+  ]
+}

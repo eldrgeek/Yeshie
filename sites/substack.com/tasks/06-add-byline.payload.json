@@ -1,0 +1,40 @@
+{
+  "name": "substack-add-byline",
+  "site": "substack.com",
+  "task": "add-byline",
+  "description": "Add one author to a Substack draft's byline. Type a name or email into the byline search, then pick the matching person (a team member or other Substack user). The proof is the draft's own JSON, whose postBylines must list the author's name.",
+  "version": "1.0.0",
+  "verified": false,
+  "dryRunUntil": "s08",
+  "requires": "Run from scripts/substack.mjs, which opens a Substack tab and supplies draft_id.",
+  "authorship": "Mike Wolf (direction); Claude Opus 5 (CCc), 2026-09-15, from that day's survey of a draft on aiwtf.substack.com.",
+  "anomalies": [
+    "The title and subtitle textareas share one <div>. The byline row is that div's next sibling: author chips, then a '+' button (svg.lucide-plus) with no text, aria-label or test id. Hence div:has(> textarea.subtitle) ~ div button:has(svg.lucide-plus). The first guess, textarea.subtitle ~ div, found nothing (dry run, 2026-09-15).",
+    "'+' opens an 'Add byline' dialog (role=dialog) with one search input, placeholder 'Add a name or email'. The dialog says: 'We will notify them via email.'",
+    "An address with no Substack match shows only an 'Invite' button. Pressing it emails a third party, so this recipe never presses it; invite people with 05-invite-team-member once they are approved.",
+    "Not yet observed (2026-09-15): the suggestion row for a person Substack does know. pick_text is clicked inside the dialog's listbox; heal s09 on the first live run if the row is shaped differently."
+  ],
+  "params": {
+    "publication_subdomain": "aiwtf",
+    "draft_id": "",
+    "query": "",
+    "pick_text": "",
+    "name_json": ""
+  },
+  "chain": [
+    { "stepId": "s01", "action": "assert", "url_pattern": "^https://([a-z0-9-]+\\.)?substack\\.com/", "message": "This run landed on a tab that is not on substack.com. Open a Substack tab first (scripts/substack.mjs does) and pass its tab id; refusing to navigate whatever tab is active." },
+    { "stepId": "s02", "action": "assert", "condition": "{{draft_id}}", "message": "draft_id is required (a number from /api/v1/drafts)." },
+    { "stepId": "s03", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/publish/post/{{draft_id}}" },
+    { "stepId": "s04", "action": "wait_for", "selector": "div:has(> textarea.subtitle) ~ div button:has(svg.lucide-plus)", "timeout": 20000 },
+    { "stepId": "s05", "action": "click", "selector": "div:has(> textarea.subtitle) ~ div button:has(svg.lucide-plus)" },
+    { "stepId": "s06", "action": "wait_for", "selector": "[role='dialog'] input[placeholder='Add a name or email']", "timeout": 8000 },
+    { "stepId": "s07", "action": "type", "selector": "[role='dialog'] input[placeholder='Add a name or email']", "value": "{{query}}" },
+    { "stepId": "s08", "action": "wait_for", "selector": "[role='listbox']", "text": "{{pick_text}}", "timeout": 10000, "note": "Substack found the person. A dry run stops here: the search box is typed in, nobody is added. An address Substack does not know shows only 'Invite' and this step times out." },
+    { "stepId": "s09", "action": "click_text", "text": "{{pick_text}}" },
+    { "stepId": "s10", "action": "wait_for", "selector": "div:has(> textarea.subtitle) ~ div", "text": "{{pick_text}}", "timeout": 8000, "note": "The new chip is in the byline row." },
+    { "stepId": "s11", "action": "key", "key": "Escape" },
+    { "stepId": "s12", "action": "wait_for", "selector": "body", "state": { "stable": 1500 }, "timeout": 15000, "note": "Let the draft autosave." },
+    { "stepId": "s13", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/api/v1/drafts/{{draft_id}}" },
+    { "stepId": "s14", "action": "assert", "selector": "body", "value": "\"name\":\"{{name_json}}\"", "message": "The draft's postBylines do not list '{{pick_text}}'." }
+  ]
+}

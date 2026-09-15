@@ -1009,6 +1009,51 @@ export default defineBackground(() => {
     return { ok: true };
   }
 
+  // `paste_html`: hand rich text to an editor the way a user's paste does. The
+  // element receives a paste event whose clipboardData carries text/html and
+  // text/plain, so ProseMirror/TipTap editors (Substack's, for one) build
+  // headings, bold, italics, links, quotes and lists through their own paste
+  // rules. `type` cannot: Input.insertText delivers plain text only.
+  // With `replace`, the element's whole content is selected first, so the
+  // paste replaces it instead of adding to it.
+  async function PRE_PASTE_HTML(selector: string, html: string, text: string, replace: boolean) {
+    const el = document.querySelector(selector) as HTMLElement | null;
+    if (!el) return { ok: false, error: 'paste_html: not found: ' + selector };
+    el.focus();
+    if (replace) {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+      // Editors copy the DOM selection into their own state on selectionchange,
+      // which fires asynchronously. Let it land before the paste reads it.
+      await new Promise((r) => setTimeout(r, 60));
+    }
+    let data: any;
+    try {
+      data = new DataTransfer();
+      data.setData('text/html', html);
+      data.setData('text/plain', text);
+    } catch (_) {
+      // No DataTransfer constructor (jsdom). Editors only call getData.
+      const store: Record<string, string> = { 'text/html': html, 'text/plain': text };
+      data = { types: Object.keys(store), getData: (t: string) => store[t] ?? '', setData: (t: string, v: string) => { store[t] = v; } };
+    }
+    let ev: Event;
+    try {
+      ev = new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true });
+      if (!(ev as ClipboardEvent).clipboardData) throw new Error('no clipboardData');
+    } catch (_) {
+      ev = new Event('paste', { bubbles: true, cancelable: true });
+      Object.defineProperty(ev, 'clipboardData', { value: data });
+    }
+    // An editor that handles the paste cancels the event. If nothing cancels
+    // it, nothing was inserted: a plain contenteditable ignores synthetic paste.
+    const handled = !el.dispatchEvent(ev);
+    return { ok: true, handled, textLength: (el.textContent || '').length };
+  }
+
   // `click` + `within_row`: the row text around each match of the selector;
   // the worker picks the single matching row with src/row-scope.ts.
   function PRE_ROW_TEXTS(selector: string) {
@@ -3096,6 +3141,37 @@ export default defineBackground(() => {
         }
         if (now !== chosen.value) throw new Error(`select: ${resolvedSelector} reads "${now ?? ''}" after choosing "${chosen.value}"`);
         return { stepId: step.stepId, action: a, status: 'ok', value: chosen.value, text: chosen.text, selector: resolvedSelector, resolvedVia, target: step.target, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'paste_html') {
+        // Paste rich text into an editor (PRE_PASTE_HTML). `html` (or `value`)
+        // takes {{param}} interpolation. `text` is the text/plain flavor; it
+        // defaults to the html with its tags stripped. `replace` defaults to
+        // true, so a re-run replaces the body instead of adding a second copy.
+        // The step fails unless the page handled the paste, because an element
+        // with no editor behind it ignores a synthetic paste and keeps nothing.
+        const I = (s: string) => interpolate(s, { ...params, ...buffer });
+        const html = I(String(step.html ?? step.value ?? ''));
+        if (!html) throw new Error('paste_html step needs html');
+        const text = step.text !== undefined
+          ? I(String(step.text))
+          : html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        const tgt = step.target ? abstractTargets?.[step.target] : null;
+        let resolvedSelector = step.selector ? I(step.selector) : null;
+        let resolvedVia = 'direct';
+        if (tgt) {
+          const res = await execInTab(tabId, PRE_RESOLVE_TARGET, [tgt], frameId);
+          if (!res?.found) throw new Error('Cannot resolve: ' + step.target);
+          resolvedSelector = res.selector;
+          resolvedVia = res.resolvedVia;
+        }
+        if (!resolvedSelector) throw new Error('No selector for: ' + (step.target || step.selector));
+        const r = await execInTab(tabId, PRE_PASTE_HTML, [resolvedSelector, html, text, step.replace !== false], frameId);
+        if (!r?.ok) throw new Error(r?.error || 'paste_html failed');
+        if (!r.handled && step.requireHandled !== false) {
+          throw new Error(`paste_html: ${resolvedSelector} did not handle the paste (no rich-text editor listening), so nothing was inserted`);
+        }
+        return { stepId: step.stepId, action: a, status: 'ok', selector: resolvedSelector, resolvedVia, target: step.target, handled: r.handled, textLength: r.textLength, durationMs: Date.now() - t0 };
       }
 
       return { stepId: step.stepId, action: a, status: 'unsupported', durationMs: Date.now() - t0 };
