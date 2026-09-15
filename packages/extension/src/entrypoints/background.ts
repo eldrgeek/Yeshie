@@ -6,7 +6,8 @@ import { createResolvedTargetUpdate, createSurpriseEvidence } from '../../../../
 import { ContentStabilityTracker, expectedWaitState, quietMsOf, stateWaitMatched, waitStateGraph, wantsStable } from '../../../../src/wait-for.js';
 import { assertFailureMessage, assertNeedsPage, evaluateAssert } from '../../../../src/assert-step.js';
 import { describeOptions, pickOptionIndex } from '../../../../src/select-option.js';
-import { pickRowIndex, rowNeedles } from '../../../../src/row-scope.js';
+import { pickRowIndex, rowScope } from '../../../../src/row-scope.js';
+import { RUNTIME_FEATURES } from '../../../../src/runtime-features.js';
 import { loadInstanceIdentity, captureInstanceState, watchInstanceState } from '../instance-state';
 
 export default defineBackground(() => {
@@ -1074,22 +1075,41 @@ export default defineBackground(() => {
     return { ok: true, handled, selectedBy, textLength: (el.textContent || '').length };
   }
 
-  // `click` + `within_row`: the row text around each match of the selector;
-  // the worker picks the single matching row with src/row-scope.ts.
-  function PRE_ROW_TEXTS(selector: string) {
+  // `click` + `within_row`: the row around each match of the selector, as its
+  // text and its cells' texts (null when the match is not in a row). The worker
+  // picks the single matching row with src/row-scope.ts. innerText is the text
+  // a person sees. textContent also holds hidden labels, so it is only the
+  // fallback for a DOM without layout (jsdom in the unit tests).
+  function PRE_ROW_SNAPSHOTS(selector: string) {
+    const read = (n: Element) => String(typeof (n as HTMLElement).innerText === 'string' ? (n as HTMLElement).innerText : n.textContent || '');
     return Array.from(document.querySelectorAll(selector)).map((el) => {
       const row = el.closest('tr, [role="row"]') as HTMLElement | null;
-      return row ? String(row.innerText || row.textContent || '') : null;
+      if (!row) return null;
+      const cells = row instanceof HTMLTableRowElement
+        ? Array.from(row.cells)
+        : Array.from(row.querySelectorAll('[role="cell"], [role="gridcell"], [role="rowheader"]'));
+      return { text: read(row), cells: cells.map(read) };
     });
   }
 
-  function PRE_CLICK_NTH(selector: string, index: number, needles: string[]) {
+  function PRE_CLICK_NTH(selector: string, index: number, scope: { mode: string; needles: string[] }) {
+    const read = (n: Element) => String(typeof (n as HTMLElement).innerText === 'string' ? (n as HTMLElement).innerText : n.textContent || '');
     const el = document.querySelectorAll(selector)[index] as HTMLElement | undefined;
     const row = el ? (el.closest('tr, [role="row"]') as HTMLElement | null) : null;
-    const rowText = row ? String(row.innerText || row.textContent || '') : '';
-    // The table may have re-rendered since PRE_ROW_TEXTS ran; check the row again
-    // right before what is usually a destructive click.
-    if (!el || !needles.every((n) => rowText.includes(n))) return { ok: false, error: 'the row changed before the click' };
+    const rowText = row ? read(row) : '';
+    const cells = !row ? [] : (row instanceof HTMLTableRowElement
+      ? Array.from(row.cells)
+      : Array.from(row.querySelectorAll('[role="cell"], [role="gridcell"], [role="rowheader"]'))
+    ).map((c) => read(c).replace(/\s+/g, ' ').trim());
+    // The table may have re-rendered since PRE_ROW_SNAPSHOTS ran, so check the
+    // row again right before what is usually a destructive click. This is
+    // rowMatches from src/row-scope.ts, repeated because a page function cannot
+    // import it.
+    let from = 0;
+    const still = scope.mode === 'cells'
+      ? scope.needles.every((n) => { const at = cells.indexOf(n, from); from = at + 1; return at >= 0; })
+      : scope.needles.every((n) => rowText.includes(n));
+    if (!el || !row || !still) return { ok: false, error: 'the row changed before the click' };
     const rect = el.getBoundingClientRect();
     const cx = rect.x + rect.width / 2;
     const cy = rect.y + rect.height / 2;
@@ -2735,13 +2755,13 @@ export default defineBackground(() => {
         let r: any;
         if (step.within_row !== undefined) {
           // Row-scoped click (src/row-scope.ts): the match must sit in exactly one
-          // row containing every within_row string, or nothing is clicked.
+          // row that within_row names, by text or by exact cells, or nothing is clicked.
           if (!resolvedSelector) throw new Error('within_row needs a selector or target');
           if (step.trusted) throw new Error('within_row does not support trusted clicks');
-          const needles = rowNeedles(step.within_row, (s) => interpolate(s, { ...params, ...buffer }));
-          const pick = pickRowIndex((await execInTab(tabId, PRE_ROW_TEXTS, [resolvedSelector], frameId)) || [], needles);
+          const scope = rowScope(step.within_row, (s) => interpolate(s, { ...params, ...buffer }));
+          const pick = pickRowIndex((await execInTab(tabId, PRE_ROW_SNAPSHOTS, [resolvedSelector], frameId)) || [], scope);
           if (!pick.ok) throw new Error('click within_row: ' + pick.reason);
-          r = await execInTab(tabId, PRE_CLICK_NTH, [resolvedSelector, pick.index, needles], frameId);
+          r = await execInTab(tabId, PRE_CLICK_NTH, [resolvedSelector, pick.index, scope], frameId);
         } else {
           r = step.trusted
             ? await trustedCoordClick(tabId, { selector: resolvedSelector, text: buttonText, frameId, framePattern: step.frame ? interpolate(step.frame, { ...params, ...buffer }) : null, timeoutMs: step.timeout || 5000 })
@@ -2876,7 +2896,7 @@ export default defineBackground(() => {
         const I = (s: string) => interpolate(s, { ...params, ...buffer });
         const selector = step.selector ? I(step.selector) : null;
         const snapshot = assertNeedsPage(step) ? await execInTab(tabId, PRE_ASSERT_SNAPSHOT, [selector], frameId) : {};
-        const outcome = evaluateAssert(step, snapshot || {}, I);
+        const outcome = evaluateAssert(step, snapshot || {}, I, { features: RUNTIME_FEATURES });
         if (!outcome.ok) throw new Error(assertFailureMessage(step, outcome.reason));
         return { stepId: step.stepId, action: a, status: 'ok', durationMs: Date.now() - t0 };
       }

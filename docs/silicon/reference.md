@@ -98,7 +98,8 @@ StepResult {
 | `target.fallbackSelectors` | string[] | explicit CSS fallbacks |
 | `value` | string | input value or navigation URL |
 | `expected` | string | expected read/assess result |
-| `within_row` | string \| string[] | `click` only. Click the selector's match whose table row (closest `tr` or `[role="row"]`) contains every string. Exactly one row must match; zero or several fails the step and nothing is clicked. Rule: `src/row-scope.ts`. |
+| `within_row` | string \| string[] \| `{ "cells": string[] }` | `click` only. Clicks the selector's match that sits in the one table row (closest `tr` or `[role="row"]`) this names. **Text form** (a string or a list): every string appears somewhere in the row's text. **Cells form** (`{ "cells": [...] }`, added 2026-09-15): every string is the whole text of one of the row's cells (`td`/`th`, or role `cell`/`gridcell`/`rowheader`), in the order listed, after trimming and collapsing whitespace; case matters. Use the cells form when one value can start another: GoDaddy's `sala` and `sala65` share an address, so the text form matches both rows. Exactly one row must match. Zero or several rows fail the step and nothing is clicked, and so does an entry that is empty once params are filled in. Rule: `src/row-scope.ts`. A recipe must put an `assert` with `requires: ["within_row"]` (text form) or `["within_row.cells"]` (cells form) before the click; `tests/unit/runtime-features.test.ts` checks this. |
+| `requires` | string \| string[] | `assert` only, and the only check in that assert. The step fails unless the runtime lists every named feature in `src/runtime-features.ts` (today `select`, `within_row`, `within_row.cells`). A build that predates `requires` ignores the field; alone, the step then declares nothing that build can check, so every build since 2026-09-13 fails it and stops. Added 2026-09-15. |
 
 ## Action Types
 
@@ -107,7 +108,8 @@ StepResult {
 | `navigate` | Navigate to URL (value = URL, supports `{{params.base_url}}`) |
 | `activate_tab` | Bring the run's tab to the front and focus its window, then wait until the page reports `document.visibilityState === "visible"` (`timeout`, default 5000 ms). The step fails if the tab is still hidden. Chrome does not render a hidden tab, so a lazily rendered list (for example Suno's clip list) stays empty in a background tab. The step raises Chrome over other apps. Added 2026-09-15. |
 | `type` | Type value into target input |
-| `click` | Click target element. With `within_row`, click it only inside the one table row that contains those strings (see Step Schema). |
+| `click` | Click target element. With `within_row`, click it only inside the one table row that `within_row` names, by text or by exact cells (see Step Schema). |
+| `assert` | Guard step: the chain stops unless every check the step declares holds. The checks are `condition` (falsy values fail), `url_pattern` (a regex on the page URL), `selector` (the element exists; with `value` or `text`, its text contains that string) and `requires` (runtime features; see Step Schema). An assert that declares no check fails. The recipe's `message` leads the error. Rule: `src/assert-step.ts`. |
 | `wait_for` | Wait on selector, text, and/or `state.stable` (content fingerprint quiet for `quietMs`; default 800ms). `onTimeout: "continue"` honored. Prefer over `delay`. Landed in #55. |
 | `read` | Read text/value from target |
 | `assess_state` | Evaluate condition, return boolean |
