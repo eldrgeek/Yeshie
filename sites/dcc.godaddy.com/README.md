@@ -50,8 +50,8 @@ must be one of GoDaddy's presets: 1800 (the default), 3600, 43200, 86400 or
 
 | # | Task | Params | Risk | Verified |
 |---|------|--------|------|----------|
-| 01 | add-dns-record | `domain`, `type`, `name`, `value`, `ttl` | adds a live DNS record | 1.0.0 live 2026-09-14: 30/30 steps ok, record on ns57 + ns58 (`aa`). 1.1.0 adds the s00 guard; its live run is pending. |
-| 02 | delete-dns-record | `domain`, `type`, `name`, `value` | **deletes a live DNS record** | 1.0.0 live 2026-09-14: 17/17 steps ok twice, NXDOMAIN on ns57 + ns58 (`aa`). 1.1.0 adds the s00 guard and the exact-cell match; its live run is pending. |
+| 01 | add-dns-record | `domain`, `type`, `name`, `value`, `ttl` | adds a live DNS record | 1.1.0 live 2026-09-15 on build 0.1.552: 31/31 steps ok, twice; the record on ns57 + ns58 (`aa`). |
+| 02 | delete-dns-record | `domain`, `type`, `name`, `value` | **deletes a live DNS record** | 1.1.0 live 2026-09-15 on build 0.1.552: 18/18 steps ok, twice. It deleted a record whose name is a prefix of another's and left the other in place; NXDOMAIN on ns57 + ns58 (`aa`). |
 
 `type` is GoDaddy's lowercase option value (`a`, `aaaa`, `cname`, `txt`). The
 wrapper lowercases whatever you pass. For a delete, `name` and `value` must be
@@ -76,14 +76,14 @@ every named feature is on the list. Builds react to s00 in three ways:
 
 | Build | At s00 |
 |-------|--------|
-| Has `requires` (this change onward) | passes when the build lists the features |
+| Has `requires` (Yeshie [#75](https://github.com/eldrgeek/Yeshie/pull/75); on this Mac, build 0.1.552 onward) | passes when the build lists the features |
 | Has the 2026-09-13 assert rule, but not `requires` | fails and stops: `requires` is the step's only check, and such a build finds nothing it can check |
 | From before 2026-09-13, with no `assert` action | returns `unsupported`, which does not stop the chain |
 
 The last row is why the wrapper still refuses a relay build below 0.1.540;
 Yeshie [#66](https://github.com/eldrgeek/Yeshie/pull/66) (`select` and
-`within_row`) loaded as build 0.1.540. Builds from 0.1.540 until this change
-are safe twice over. They stop at s00, and their `within_row` reads the
+`within_row`) loaded as build 0.1.540. Builds from 0.1.540 until #75 are safe
+twice over. They stop at s00, and their `within_row` reads the
 `{ "cells": [...] }` object as the text "[object Object]", which no row
 contains.
 
@@ -133,8 +133,10 @@ first carries a feature.
   then Type | Name | Data | TTL | Propagation | Copy | Delete | Edit. In the A
   rows read on 2026-09-15, the Name cell's visible text is exactly the host
   label (`sala`) and the Data cell's is exactly the address (`217.77.6.197`).
-  A cell's `textContent` holds more than its visible text, so the runtime reads
-  `innerText`. Each row's buttons carry `aria-label` Copy / Delete / Edit and
+  A TXT row's Data cell shows the value without quotes: the cells form matched
+  `ok-2026-09-15` in run 5 below. A cell's `textContent` holds more than its
+  visible text, so the runtime reads `innerText`. Each row's buttons carry
+  `aria-label` Copy / Delete / Edit and
   `data-testid="template-record-<Action>-<uuid>"`. No cell carries the record's
   name as an attribute; only the cell text does, which is why the delete
   recipe uses `within_row`. The table shows 10 rows per page, and TTL shows as
@@ -149,6 +151,28 @@ first carries a feature.
   removal of your DNS records") with Yes, Confirm (`#dnsDeleteRecordModalDelete`)
   and Cancel (`#dnsDeleteRecordModalCancel`). The dialog does not name the
   record, which is why the row must be chosen exactly before Delete is clicked.
+
+## Verification (2026-09-15): exact cells and the feature guard
+
+Every run used build 0.1.552, the first build on this Mac with `requires` and
+the cells form. Every result was checked on both nameservers with
+`dig +norec` and the `aa` flag. The runs used two throwaway TXT records,
+`_yeshie-test` and `_yeshie-test2`, which both held `ok-2026-09-15`. The first
+name is a prefix of the second, as `sala` is of `sala65`. Both records were
+deleted again, so the zone ended as it started.
+
+| # | Run | Result |
+|---|-----|--------|
+| 1 | guard, negative control | An assert that required `no.such.feature` stopped the chain: "this build lacks no.such.feature (it has select, within_row, within_row.cells)". The step after it never ran. |
+| 2 | add `_yeshie-test` | 31/31 steps ok, s00 included; the record on ns57 and ns58. |
+| 3 | add `_yeshie-test2` | 31/31 steps ok; the record on ns57 and ns58. |
+| 4 | delete `_yeshie-test`, text form (control) | Failed closed at s11: `2 rows contain ["_yeshie-test","ok-2026-09-15"]`. Nothing was clicked, and both records stayed on both nameservers. This is the gap the cells form closes. |
+| 5 | delete `_yeshie-test`, cells form | 18/18 steps ok; NXDOMAIN on ns57 and ns58. `_yeshie-test2` still answered on both. |
+| 6 | delete `_yeshie-test2`, cells form | 18/18 steps ok; NXDOMAIN on ns57 and ns58. |
+
+Runs 1 and 4 used scratch payloads through `scripts/run-async.mjs`. Run 4 was
+the delete recipe with s11 put back to the text form. Runs 2, 3, 5 and 6 went
+through `scripts/godaddy-dns.mjs`.
 
 ## Verification (2026-09-14)
 
