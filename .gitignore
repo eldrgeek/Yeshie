@@ -2,7 +2,10 @@
 logs/
 chain-result.json
 
-# Local dependency installs
+# Local dependency installs. Git tracked the root node_modules/ and
+# packages/extension/node_modules/ from 2026-03-30 (they were committed before
+# these rules existed) until 2026-09-15, when they were untracked. Install them
+# with npm ci; never force-add them.
 node_modules/
 packages/relay/node_modules/
 packages/extension/node_modules/
