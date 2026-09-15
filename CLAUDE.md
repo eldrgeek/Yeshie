@@ -81,10 +81,29 @@ order for any browser task:
    out* the flow/selectors — then **capture that as a new recipe** so the next run is
    relay-native. CIC is discovery scaffolding, not the runtime.
 
-Case study: `sites/suno.com/tasks/03-create-song.payload.json` — Suno's 2026-07
-redesign swapped the lyrics `<textarea>` for a contenteditable `<div>` and reshuffled
-the form; the recipe was healed and re-verified live (all 7 fill steps `ok`) rather
-than completed in CIC.
+Case study: `sites/suno.com/tasks/03-create-song.payload.json`. Its healing history:
+
+- **2026-07:** Suno's redesign swapped the lyrics `<textarea>` for a contenteditable
+  `<div>` and reshuffled the form. The recipe was healed and re-verified live (all 7
+  fill steps `ok`) rather than completed in CIC.
+- **2026-09-12:** a promo modal covered the form, so an optional Escape was added.
+  The form hydrated after `navigate` returned, so a `wait_for` on the Advanced tab
+  was added. Four runs in a row clicked Create `ok` while Suno made nothing (a false
+  green), so a proof step, s9, was added: the title had to appear in the clip list.
+- **2026-09-15:** s9 itself went red on real creates (Nemo and I'm Not Dead Yet on
+  09-12, I Choose You on 09-14). That was a false red, with three causes. First,
+  while a take is freshly generating, Suno draws a skeleton where the title goes,
+  so the title text is not on the page. Second, Chrome does not render a hidden tab,
+  and Suno's clip list stayed empty in one for 60 s. Third, the live `wait_for` did
+  not interpolate `{{title}}`, so runs sent through `yeshie_run` or `POST /run`
+  searched for the literal string. The fix has four parts. s9 now waits for a clip
+  row whose `aria-label` is the title and whose `data-clip-status` is not `complete`
+  or `error`. A new `activate_tab` action raises the tab before the list is read.
+  `wait_for` now interpolates `selector` and `text`. A guard step, s1e, stops the run
+  if an earlier take with the same title is still generating, because s9 could not
+  tell that take from a new one.
+- **Lesson:** test a proof step against the state it exists to detect (here, a song
+  that is still generating), not only against finished data.
 
 ## Key Patterns
 

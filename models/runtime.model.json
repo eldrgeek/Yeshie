@@ -46,8 +46,13 @@
     },
     {
       "name": "wait_for",
-      "description": "Wait until a condition holds: element selector, visible text, URL pattern, or state.stable (content fingerprint unchanged for quietMs). Resolves as soon as the condition is true; times out otherwise. Do not use a fixed delay.",
+      "description": "Wait until a condition holds: element selector, visible text, URL pattern, or state.stable (content fingerprint unchanged for quietMs). Resolves as soon as the condition is true; times out otherwise. selector and text take {{param}} interpolation. Do not use a fixed delay.",
       "fields": ["target", "selector", "text", "state", "state.stable", "quietMs", "url_pattern", "timeout"]
+    },
+    {
+      "name": "activate_tab",
+      "description": "Bring the run's tab to the front, focus its window, and wait until document.visibilityState is 'visible'. Chrome does not render a hidden tab, so a lazily rendered list stays empty in the background; use this before a step that reads one. Raises Chrome over other apps. Fails if the tab is still hidden after timeout (default 5000 ms).",
+      "fields": ["timeout"]
     },
     {
       "name": "read",
