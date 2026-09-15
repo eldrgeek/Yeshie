@@ -7,10 +7,12 @@
  * APIs stubbed. execInTab runs page functions directly against jsdom.
  *
  * Why: until 2026-09-14 the live runtime had no `select` handler. The step fell
- * through to status 'unsupported', which does not halt a chain, so a recipe
+ * through to status 'unsupported', which did not halt a chain then, so a recipe
  * that chose a dropdown value ran on with the dropdown unset. The StepExecutor
  * mirror (src/step-executor.ts) did have `select`, and background-actions.test.ts
- * checks the mirror, so CI never saw the gap. The GoDaddy DNS recipes
+ * checked the mirror, so CI never saw the gap. Both changed on 2026-09-15:
+ * 'unsupported' now halts the chain (unsupported-chain.test.ts), and
+ * background-actions.test.ts checks background.ts. The GoDaddy DNS recipes
  * (sites/dcc.godaddy.com) need both actions.
  *
  * The cells form of within_row (2026-09-15) exists because the text form could

@@ -568,6 +568,21 @@ export default defineBackground(() => {
     return str.replace(/\{\{(\w+)\}\}/g, (_, k) => params[k] ?? '');
   }
 
+  // What a step result does to the chain. 'error' halts it, and so does
+  // 'unsupported' (this runtime has no handler for the step's action), unless
+  // the recipe marked the step `optional: true`. An optional failure stays in
+  // the result as 'skipped_error' and the chain goes on. Before 2026-09-15
+  // only 'error' halted, so an unsupported step was skipped silently: until
+  // #66 `select` did nothing and recipes ran on with the dropdown unset.
+  function haltsChain(step: any, res: any): boolean {
+    if (res.status !== 'error' && res.status !== 'unsupported') return false;
+    if (!step.optional) return true;
+    res.failedStatus = res.status;
+    res.status = 'skipped_error';
+    res.optionalFailure = true;
+    return false;
+  }
+
   // ── Pre-bundled functions ────────────────────────────────────────────────────
   // Self-contained — passed as func to executeScript (MAIN world, no imports)
 
@@ -1008,6 +1023,41 @@ export default defineBackground(() => {
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
     return { ok: true };
+  }
+
+  // `clear`: empty a text <input> or <textarea> the way trustedType fills one,
+  // through the prototype value setter and then input + change events, so
+  // React and Vue see the edit.
+  function PRE_CLEAR_FIELD(selector: string) {
+    const el = document.querySelector(selector) as HTMLInputElement | HTMLTextAreaElement | null;
+    if (!el) return { found: false };
+    const tag = el.tagName.toLowerCase();
+    if (tag !== 'input' && tag !== 'textarea') return { found: true, tag };
+    if (tag === 'input' && /^(checkbox|radio)$/i.test((el as HTMLInputElement).type)) return { found: true, tag: `input type=${(el as HTMLInputElement).type}` };
+    const prev = el.value;
+    const proto = tag === 'textarea' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+    el.focus();
+    if (setter) setter.call(el, ''); else el.value = '';
+    const tracker = (el as any)._valueTracker;
+    if (tracker) tracker.setValue(prev);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    return { found: true, tag, ok: true, value: el.value, previousLength: prev.length };
+  }
+
+  // `scroll`: bring an element into view, or scroll the page by a distance.
+  function PRE_SCROLL(selector: string | null, direction: string, amount: number) {
+    if (selector) {
+      const el = document.querySelector(selector);
+      if (!el) return { found: false };
+      el.scrollIntoView({ block: 'center', inline: 'nearest' });
+    } else {
+      const dx = direction === 'right' ? amount : direction === 'left' ? -amount : 0;
+      const dy = direction === 'down' ? amount : direction === 'up' ? -amount : 0;
+      window.scrollBy(dx, dy);
+    }
+    return { found: true, scrollX: window.scrollX, scrollY: window.scrollY };
   }
 
   // `paste_html`: hand rich text to an editor the way a user's paste does. The
@@ -2554,6 +2604,13 @@ export default defineBackground(() => {
     const { tabId, params, buffer, abstractTargets } = run;
     const a = step.action;
 
+    // An item with no action whose keys all start with "_" is a comment that
+    // labels a section of the chain ({"_": "PHASE 2 — OAuth Consent Screen"}).
+    // It is not a step. Any other item without a handler is 'unsupported'.
+    if (a === undefined && Object.keys(step).every((k) => k.startsWith('_'))) {
+      return { stepId: step.stepId, action: a, status: 'skipped', comment: true, durationMs: 0 };
+    }
+
     // A falsy `condition` skips a step — except on `assert`, where the
     // condition IS the assertion. Skipping it let every `assert false` guard
     // pass silently and the chain run on into destructive steps.
@@ -3214,7 +3271,56 @@ export default defineBackground(() => {
         return { stepId: step.stepId, action: a, status: 'ok', selector: resolvedSelector, resolvedVia, target: step.target, handled: r.handled, selectedBy: r.selectedBy, textLength: r.textLength, durationMs: Date.now() - t0 };
       }
 
-      return { stepId: step.stepId, action: a, status: 'unsupported', durationMs: Date.now() - t0 };
+      if (a === 'clear') {
+        // Empty a text field (PRE_CLEAR_FIELD). The GitHub recipes clear a
+        // field right before they type into it. `type` replaces the whole
+        // value anyway, so there the step only makes the intent explicit.
+        const tgt = step.target ? abstractTargets?.[step.target] : null;
+        let resolvedSelector = step.selector ? interpolate(step.selector, { ...params, ...buffer }) : null;
+        let resolvedVia = 'direct';
+        if (tgt) {
+          const res = await execInTab(tabId, PRE_RESOLVE_TARGET, [tgt], frameId);
+          if (!res?.found) throw new Error('Cannot resolve: ' + step.target);
+          resolvedSelector = res.selector;
+          resolvedVia = res.resolvedVia;
+        }
+        if (!resolvedSelector) throw new Error('No selector for: ' + (step.target || step.selector));
+        const r = await execInTab(tabId, PRE_CLEAR_FIELD, [resolvedSelector], frameId);
+        if (!r?.found) throw new Error('Not found: ' + resolvedSelector);
+        if (!r.ok) throw new Error(`clear: ${resolvedSelector} is a <${r.tag}>; clear empties a text <input> or a <textarea>`);
+        if (r.value !== '') throw new Error(`clear: ${resolvedSelector} still reads "${r.value}"`);
+        return { stepId: step.stepId, action: a, status: 'ok', selector: resolvedSelector, resolvedVia, target: step.target, previousLength: r.previousLength, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'scroll') {
+        // With `target` or `selector`, scroll that element into view. With
+        // neither, scroll the page `amount` px (default 600) in `direction`
+        // (default down; up, left and right also work). PRE_SCROLL does it.
+        let resolvedSelector: string | null = null;
+        if (step.target || step.selector) {
+          const tgt = step.target ? abstractTargets?.[step.target] : null;
+          resolvedSelector = step.selector ? interpolate(step.selector, { ...params, ...buffer }) : null;
+          if (tgt) {
+            const res = await execInTab(tabId, PRE_RESOLVE_TARGET, [tgt], frameId);
+            if (!res?.found) throw new Error('Cannot resolve: ' + step.target);
+            resolvedSelector = res.selector;
+          }
+          if (!resolvedSelector) throw new Error('No selector for: ' + (step.target || step.selector));
+        }
+        const direction = String(step.direction || 'down');
+        if (!['up', 'down', 'left', 'right'].includes(direction)) throw new Error(`scroll: direction "${direction}" is not up, down, left or right`);
+        const amount = Number(step.amount ?? 600);
+        if (!Number.isFinite(amount)) throw new Error(`scroll: amount "${step.amount}" is not a number`);
+        const r = await execInTab(tabId, PRE_SCROLL, [resolvedSelector, direction, amount], frameId);
+        if (!r?.found) throw new Error('Not found: ' + resolvedSelector);
+        return { stepId: step.stepId, action: a, status: 'ok', selector: resolvedSelector, direction: resolvedSelector ? null : direction, amount: resolvedSelector ? null : amount, scrollX: r.scrollX, scrollY: r.scrollY, durationMs: Date.now() - t0 };
+      }
+
+      // No handler for this action here. The chain loop halts on 'unsupported'
+      // unless the step is optional (haltsChain), so a step that did nothing
+      // cannot pass as done. tests/unit/background-actions.test.ts fails when
+      // a recipe uses an action that has no handler in this file.
+      return { stepId: step.stepId, action: a, status: 'unsupported', error: `Unsupported action [${step.stepId}]: "${a}" has no handler in the extension runtime`, durationMs: Date.now() - t0 };
 
     } catch (err: any) {
       const message = err?.message || String(err);
@@ -3710,7 +3816,7 @@ export default defineBackground(() => {
           for (const bStep of branchSteps) {
             const bRes = await executeStep(bStep, run);
             run.stepResults.push(bRes);
-            if (bRes.status === 'error') {
+            if (haltsChain(bStep, bRes)) {
               run.status = 'failed';
               run.result = buildChainResult(run, t0, false, bRes.error);
               await chrome.storage.session.set({ [runId]: run.result });
@@ -3719,20 +3825,11 @@ export default defineBackground(() => {
           }
         }
 
-        if (res.status === 'error') {
-          if (step.optional) {
-            // Optional step: log the failure into the result but don't halt the
-            // chain. Previously `optional: true` was declared on several payload
-            // steps (e.g. yeshid 01-user-add s7b/s8c) but never actually honored
-            // here — any error on those steps still hard-failed the whole run.
-            res.status = 'skipped_error';
-            res.optionalFailure = true;
-          } else {
-            run.status = 'failed';
-            run.result = buildChainResult(run, t0, false, res.error);
-            await chrome.storage.session.set({ [runId]: run.result });
-            return;
-          }
+        if (haltsChain(step, res)) {
+          run.status = 'failed';
+          run.result = buildChainResult(run, t0, false, res.error);
+          await chrome.storage.session.set({ [runId]: run.result });
+          return;
         }
       }
 

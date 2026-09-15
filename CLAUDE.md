@@ -102,7 +102,12 @@ Case study: `sites/suno.com/tasks/03-create-song.payload.json`. Its healing hist
   or `error`. A new `activate_tab` action raises the tab before the list is read.
   `wait_for` now interpolates `selector` and `text`. A guard step, s1e, stops the run
   if an earlier take with the same title is still generating, because s9 could not
-  tell that take from a new one.
+  tell that take from a new one. Verification: 18 unit tests run the real runtime
+  and the recipe's own selectors, and a free live check from a hidden tab passed.
+  The one paid run was cut off when the Yeshie worker froze, because a
+  `chrome-devtools-mcp` without its no-pause wrapper had attached to Chrome (the
+  failure behind [#65](https://github.com/eldrgeek/Yeshie/pull/65)). It made no
+  takes, so a live Create with the new proof is still owed.
 - **Lesson:** test a proof step against the state it exists to detect (here, a song
   that is still generating), not only against finished data.
 
@@ -113,6 +118,9 @@ Case study: `sites/suno.com/tasks/03-create-song.payload.json`. Its healing hist
 | MCP timeout | `yeshie_run` MCP tool ~60s hard cap. For long recipes (e.g. DeepSeek+DeepThink) submit async: `POST /run/async` → id, poll `GET /run/result/:id`, or use `node scripts/run-async.mjs <recipe>` (see Async runner below) |
 | Health check | `curl -s http://127.0.0.1:3333/status` — expect `{"ok":true,"extensionConnected":true}` |
 | extract_text | First-class action: `selector` + `store_as`. Exists in `step-executor.ts` / `background.ts`. |
+| Unsupported action | A step whose `action` has no handler in `background.ts` halts the chain with status `unsupported`, unless the step has `optional: true`. Items such as `{"_": "PHASE 2 …"}` are section comments, and the runtime skips them. This rule dates from 2026-09-15; before that, an unsupported step was skipped silently. `tests/unit/background-actions.test.ts` lists the recipes that still use an unhandled action (`KNOWN_GAPS`). |
+| Run one test file | `node --experimental-vm-modules node_modules/.bin/jest tests/unit/<file>.test.ts`. Do not use `npm test -- <path>`: the script's `--testPathIgnorePatterns` takes an array, so the path becomes an ignore pattern and every other suite runs instead. |
+| `M wxt.config.ts` in the main checkout | `com.yeshie.watcher` bumps `version` in `packages/extension/wxt.config.ts` on every build, so the file always shows as modified in `~/Projects/yeshie`. It is not anyone's work in progress, and a merge that does not touch it still fast-forwards. |
 | wait_for / state.stable | First-class (#55): selector, text, or content fingerprint quiet for `quietMs` (default 800ms). Prefer over `delay`. |
 | Auto-heal | `#55`: `improve.js` runs after `POST /run` and `/run/async` when `success && goalReached` and `_meta.selfImproving === true`. Not a pending item. |
 | Claude CLI flags | `--output-format stream-json` requires `--verbose` with `-p`; omit `--input-format` for plain prompt strings |
