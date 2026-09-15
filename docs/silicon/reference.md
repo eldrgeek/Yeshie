@@ -99,6 +99,7 @@ StepResult {
 | `value` | string | input value or navigation URL |
 | `expected` | string | expected read/assess result |
 | `within_row` | string \| string[] | `click` only. Click the selector's match whose table row (closest `tr` or `[role="row"]`) contains every string. Exactly one row must match; zero or several fails the step and nothing is clicked. Rule: `src/row-scope.ts`. |
+| `optional` | boolean | When the step fails (an error, or an action with no handler), record the failure and let the chain go on. See Unsupported actions, optional steps, and comments. |
 
 ## Action Types
 
@@ -106,7 +107,8 @@ StepResult {
 |--------|-------------|
 | `navigate` | Navigate to URL (value = URL, supports `{{params.base_url}}`) |
 | `activate_tab` | Bring the run's tab to the front and focus its window, then wait until the page reports `document.visibilityState === "visible"` (`timeout`, default 5000 ms). The step fails if the tab is still hidden. Chrome does not render a hidden tab, so a lazily rendered list (for example Suno's clip list) stays empty in a background tab. The step raises Chrome over other apps. Added 2026-09-15. |
-| `type` | Type value into target input |
+| `type` | Type value into target input. It replaces the field's whole value. |
+| `clear` | Empty a text `<input>` or `<textarea>` (`selector` or `target`). The value is cleared the React-safe way (prototype setter, then input and change events), and the step fails if the field does not read empty afterwards. A checkbox, a radio button, or any other element fails the step. `type` already replaces a field's whole value, so a recipe needs `clear` only to leave a field empty. Added 2026-09-15. |
 | `click` | Click target element. With `within_row`, click it only inside the one table row that contains those strings (see Step Schema). |
 | `wait_for` | Wait on selector, text, and/or `state.stable` (content fingerprint quiet for `quietMs`; default 800ms). `onTimeout: "continue"` honored. Prefer over `delay`. Landed in #55. |
 | `read` | Read text/value from target |
@@ -114,16 +116,26 @@ StepResult {
 | `js` | Run pre-bundled DOM query (routed by PRE_RUN_DOMQUERY). Not arbitrary code: the string is matched against keywords, and code containing `find(r =>` or `button` is routed to a row-click or button-click helper. |
 | `find_row` | Find table row matching identifier, click it |
 | `click_text` | Click first element matching text |
-| `hover` | Hover over target |
-| `scroll` | Scroll target into view |
+| `hover` | Not in the live runtime; only the `src/step-executor.ts` mirror has it. A recipe step that uses it halts the chain as `unsupported`. |
+| `scroll` | With `target` or `selector`, scroll that element into view. With neither, scroll the page `amount` pixels (default 600) in `direction` (`down` by default; also `up`, `left`, `right`). Added to the live runtime 2026-09-15; before that the step returned `unsupported` and the chain ran on. |
 | `select` | Choose an option in a native `<select>` (`selector` or `target`, plus `value`). `value` matches an option's value or visible label, exact first, then ignoring case (`src/select-option.ts`). The value is set the React-safe way (prototype setter, then input and change events). The element is then re-read, and the step fails if the page did not keep the value. In the live runtime since 2026-09-14; before that the step returned `unsupported` and the chain ran on. |
 | `paste_html` | Paste rich text into an editor (`selector` or `target`, plus `html`). The element receives a paste event whose clipboardData carries `text/html` and `text/plain`, so ProseMirror/TipTap editors (Substack's post, About-page and welcome-email editors) keep headings, bold, italics, links, quotes and lists. `type` cannot do this, because `Input.insertText` delivers plain text. `html` takes `{{param}}` interpolation. `text` sets the plain flavor (default: `html` with tags stripped). `replace` (default `true`) selects the whole content first, so a re-run replaces the body instead of adding a second copy. It selects with Cmd-A (Ctrl-A off the Mac), which a ProseMirror editor answers with an AllSelection, and marks the HTML as a closed slice (`data-pm-slice="0 0 []"`), so the pasted blocks go in whole. When no editor answers the key, it selects the contents through the DOM. A DOM selection alone let the first pasted paragraph merge into the old first block: on 2026-09-15 a credit line became a heading. The step fails unless the page handles the paste, since a plain contenteditable ignores a synthetic paste and keeps nothing; set `requireHandled: false` to allow that. Added 2026-09-15. |
 | `click_preset` | Click a preset/chip element |
-| `probe_affordances` | Discover interactive elements on page |
+| `probe_affordances` | Not in the live runtime; only the `src/step-executor.ts` mirror has it. A recipe step that uses it halts the chain as `unsupported`. |
 | `delay` | Wait N milliseconds. **Discouraged in recipes** — fixed delays are fragile and slow; prefer `wait_for` (guard the next action on the element it needs; for whole-page reads, `wait_for` `.application-main`). Enforced by `tests/unit/no-fixed-delay.test.ts`. |
 | `key` | Send keyboard input — single key ("t", "/"), named key ("Enter", "Escape", "Tab", "ArrowDown"), modifier chord ("ctrl+a", "meta+a", "shift+tab"), or sequence ("g c" or keys:[]) |
 | `wait` | Duration wait (ms param) OR wait-for-selector (selector + optional timeout) |
 | `extract_text` | Read text from selector into buffer (selector + store_as) |
+
+## Unsupported actions, optional steps, and comments
+
+The live runtime is `packages/extension/src/entrypoints/background.ts`. A step whose `action` has no handler there gets status `unsupported`, and the chain halts with the error `Unsupported action [<stepId>]: "<action>" has no handler in the extension runtime`. Before 2026-09-15 only `error` halted a chain, so an unsupported step was skipped silently and the recipe ran on as if the step had worked.
+
+A step marked `optional: true` does not halt the chain when it fails, whether it errored or its action is unsupported. Its result gets status `skipped_error`, `optionalFailure: true`, and `failedStatus` set to the original status. Steps inside an `assess_state` branch follow the same rule.
+
+A chain item with no `action`, whose keys all start with `_`, is a section comment, for example `{"_": "PHASE 2 — OAuth Consent Screen"}`. The runtime skips it (status `skipped`, `comment: true`).
+
+`tests/unit/background-actions.test.ts` reads the handlers out of `background.ts` and walks every recipe's chain and branch steps. It fails when a step uses an action that has no handler, unless its `KNOWN_GAPS` table names that action and recipe. The table must match the recipes exactly, so the test also fails when a listed action gets a handler or a recipe stops using it.
 
 ## `key` Action Schema
 
