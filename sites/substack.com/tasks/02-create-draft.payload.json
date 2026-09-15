@@ -2,19 +2,19 @@
   "name": "substack-create-draft",
   "site": "substack.com",
   "task": "create-draft",
-  "description": "Create (or rewrite) a draft post on one Substack publication: title, optional subtitle, and a rich-text body pasted as HTML, so headings, italics, links, quotes and lists survive. It sets the post's audience in the draft settings. Title, body and audience are read back before leaving the editor. The proof is the publication's drafts list, which must show the title. It never publishes.",
-  "version": "2.0.0",
+  "description": "Create (or rewrite) a draft post on one Substack publication: title, optional subtitle, and a rich-text body pasted as HTML, so headings, italics, links, quotes and lists survive. Title and body are read back in the editor. The proof is the publication's drafts list, which must show the title; scripts/substack.mjs then checks the saved body. It never publishes, and it does not set the audience, because a draft does not keep one (see anomalies).",
+  "version": "2.1.0",
   "verified": false,
   "dryRunUntil": "s05",
-  "requires": "Extension build with the paste_html action (Yeshie branch feat/substack-recipes). Run from scripts/substack.mjs, which opens a Substack tab, turns Markdown into body_html, finds the new draft's id and checks the saved body and audience from /api/v1/drafts/<id>.",
-  "authorship": "v1 2026-09-13 (fleet recipe set, for the markinpc skill). v2: Mike Wolf (direction); Claude Opus 5 (CCc), 2026-09-15, from that day's survey of a draft on aiwtf.substack.com.",
+  "requires": "Extension build with paste_html's select-all replace (Yeshie branch fix/paste-html-select-all). Run from scripts/substack.mjs, which opens a Substack tab, turns Markdown into body_html, finds the new draft's id and checks the saved body from /api/v1/drafts/<id>.",
+  "authorship": "v1 2026-09-13 (fleet recipe set, for the markinpc skill). v2 and v2.1: Mike Wolf (direction); Claude Opus 5 (CCc), 2026-09-15, from that day's runs on aiwtf.substack.com.",
   "anomalies": [
     "v1 opened substack.com/publish/post/new, which does not name a publication. @rsilt administers 11 publications, so a draft there could land in the wrong one. v2 opens https://{{publication_subdomain}}.substack.com/publish/post/{{draft_id}}.",
-    "v1 typed the body with `type`, which delivers plain text through Input.insertText: every paragraph break, heading and link was lost. v2 pastes HTML (paste_html).",
-    "Opening /publish/post/new creates an empty draft at once, and the address stays /post/new. So the draft's id comes from the drafts list, not the URL.",
-    "New posts on aiwtf default to audience 'Paid subscribers only' (only_paid). s11-s14 set the audience explicitly and check it.",
-    "Selectors (2026-09-15): title textarea[data-testid='post-title'], subtitle textarea.subtitle, body [data-testid='editor'] (TipTap), Settings [data-testid='settings-button'], audience radios input[name='audience'][value=everyone|only_paid] inside labels.",
-    "The post editor autosaves ('Saved' at the top left). s16 waits for the page to settle before leaving it."
+    "v1 typed the body with `type`, which delivers plain text through Input.insertText, so every paragraph break, heading and link was lost. v2 pastes HTML (paste_html).",
+    "Opening /publish/post/new creates an empty draft at once, and the address stays /post/new. So the draft's id comes from the drafts list, not from the URL.",
+    "v2.0 set the audience in the draft's Settings drawer and asserted the radio was checked. That went green, but Substack never saved it: the draft JSON still said only_paid after the drawer's Done and after the next content autosave (2026-09-15, draft 215832370). The audience is chosen in the Publish panel, so 07-publish-no-email sets it and proves it.",
+    "Selectors (2026-09-15): title textarea[data-testid='post-title'], subtitle textarea.subtitle, body [data-testid='editor'] (TipTap).",
+    "The post editor autosaves ('Saved' at the top left). s11 waits for the page to settle before leaving it."
   ],
   "params": {
     "publication_subdomain": "aiwtf",
@@ -23,8 +23,7 @@
     "title_json": "",
     "subtitle": "",
     "body_html": "",
-    "proof_text": "",
-    "audience": "everyone"
+    "proof_text": ""
   },
   "chain": [
     { "stepId": "s01", "action": "assert", "url_pattern": "^https://([a-z0-9-]+\\.)?substack\\.com/", "message": "This run landed on a tab that is not on substack.com. Open a Substack tab first (scripts/substack.mjs does) and pass its tab id; refusing to navigate whatever tab is active." },
@@ -37,13 +36,8 @@
     { "stepId": "s08", "action": "paste_html", "selector": "[data-testid='editor']", "html": "{{body_html}}" },
     { "stepId": "s09", "action": "assert", "selector": "textarea[data-testid='post-title']", "value": "{{title}}", "message": "Read-back: the title is not '{{title}}'." },
     { "stepId": "s10", "action": "assert", "selector": "[data-testid='editor']", "value": "{{proof_text}}", "message": "Read-back: the body does not contain '{{proof_text}}'." },
-    { "stepId": "s11", "action": "click", "selector": "[data-testid='settings-button']" },
-    { "stepId": "s12", "action": "wait_for", "selector": "label:has(input[name='audience'][value='{{audience}}'])", "timeout": 8000 },
-    { "stepId": "s13", "action": "click", "selector": "label:has(input[name='audience'][value='{{audience}}'])" },
-    { "stepId": "s14", "action": "assert", "selector": "input[name='audience'][value='{{audience}}']:checked", "message": "The audience did not change to '{{audience}}'." },
-    { "stepId": "s15", "action": "click_text", "text": "Done", "exact": true },
-    { "stepId": "s16", "action": "wait_for", "selector": "body", "state": { "stable": 2000 }, "timeout": 20000, "note": "Let the draft autosave before leaving the editor." },
-    { "stepId": "s17", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/api/v1/post_management/drafts?offset=0&limit=25&order_by=draft_updated_at&order_direction=desc" },
-    { "stepId": "s18", "action": "assert", "selector": "body", "value": "\"draft_title\":\"{{title_json}}\"", "message": "The drafts list shows no draft titled '{{title}}': the draft did not save." }
+    { "stepId": "s11", "action": "wait_for", "selector": "body", "state": { "stable": 2500 }, "timeout": 20000, "note": "Let the draft autosave before leaving the editor." },
+    { "stepId": "s12", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/api/v1/post_management/drafts?offset=0&limit=25&order_by=draft_updated_at&order_direction=desc" },
+    { "stepId": "s13", "action": "assert", "selector": "body", "value": "\"draft_title\":\"{{title_json}}\"", "message": "The drafts list shows no draft titled '{{title}}': the draft did not save." }
   ]
 }

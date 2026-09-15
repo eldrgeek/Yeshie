@@ -14,6 +14,13 @@
  * That was checked live on a Substack draft on 2026-09-15: an h2, bold,
  * italic, a link, a blockquote and a bullet list all arrived intact.
  *
+ * The first live run of 02-create-draft then showed a second fault. The
+ * replace step selected the old content through the DOM, which ProseMirror
+ * reads as a TextSelection, and the pasted credit line merged into the
+ * heading that had opened the old draft. Replace now sends Cmd-A (Ctrl-A off
+ * the Mac), which ProseMirror answers with an AllSelection, and marks the
+ * HTML as a closed slice. Both were checked live the same day.
+ *
  * jsdom has no DataTransfer or ClipboardEvent, so these tests exercise the
  * fallback (a plain Event carrying a getData shim). Chrome takes the
  * ClipboardEvent path; the editor reads clipboardData the same way in both.
@@ -54,17 +61,25 @@ function run(step: Record<string, unknown>, params: Record<string, string> = {})
   return RUNTIME(step, { runId: 'test-run', tabId: 7, params, buffer: {}, abstractTargets: {}, payload: {} });
 }
 
-type Seen = { html?: string; text?: string; wholeContentSelected?: boolean };
+const CLOSED = ' data-pm-slice="0 0 []"';
+type Seen = { html?: string; text?: string; allSelected?: boolean; wholeContentSelected?: boolean };
 
 /**
  * A stand-in for a ProseMirror/TipTap editor. Like the real ones, it handles
  * paste by reading clipboardData, cancels the event, and replaces the
- * selection: the whole content when everything is selected, else it appends.
+ * selection. With `selectAll`, it also answers Ctrl-A or Cmd-A the way
+ * ProseMirror does, by selecting the whole document and cancelling the key.
  */
-function mountEditor(initial = '<p>old draft text</p>'): { ed: HTMLElement; seen: Seen } {
+function mountEditor(opts: { initial?: string; selectAll?: boolean } = {}): { ed: HTMLElement; seen: Seen } {
+  const { initial = '<h2>Old heading</h2><p>old draft text</p>', selectAll = false } = opts;
   document.body.innerHTML = `<div id="ed" contenteditable="true">${initial}</div>`;
   const ed = document.getElementById('ed') as HTMLElement;
   const seen: Seen = {};
+  if (selectAll) {
+    ed.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'a' && (e.ctrlKey || e.metaKey)) { seen.allSelected = true; e.preventDefault(); }
+    });
+  }
   ed.addEventListener('paste', (e: any) => {
     const sel = window.getSelection();
     const r = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
@@ -73,49 +88,73 @@ function mountEditor(initial = '<p>old draft text</p>'): { ed: HTMLElement; seen
     seen.html = e.clipboardData.getData('text/html');
     seen.text = e.clipboardData.getData('text/plain');
     e.preventDefault();
-    if (seen.wholeContentSelected) ed.innerHTML = seen.html as string;
+    if (seen.allSelected || seen.wholeContentSelected) ed.innerHTML = seen.html as string;
     else ed.insertAdjacentHTML('beforeend', seen.html as string);
   });
   return { ed, seen };
 }
 
-const ESSAY = '<h2>Beads on a Thread</h2><p>Mike holds the <em>thread</em>. <a href="https://ai-wtf.org/">More</a>.</p><blockquote><p>A quote.</p></blockquote>';
+const ESSAY = '<p><em>First published on ai-wtf.org, January 2026.</em></p><h2>Beads on a Thread</h2><p>Mike holds the <em>thread</em>. <a href="https://ai-wtf.org/">More</a>.</p><blockquote><p>A quote.</p></blockquote>';
 
 describe('paste_html (real background.ts executeStep)', () => {
   beforeEach(() => {
     window.getSelection()?.removeAllRanges();
   });
 
-  it('pastes text/html into the editor and replaces its content by default', async () => {
-    const { ed, seen } = mountEditor();
+  it("selects everything with the editor's own select-all, then replaces it", async () => {
+    const { ed, seen } = mountEditor({ selectAll: true });
     const r = await run({ stepId: 'p', action: 'paste_html', selector: '#ed', html: ESSAY });
     expect(r.status).toBe('ok');
-    expect(seen.wholeContentSelected).toBe(true);
-    expect(seen.html).toBe(ESSAY);
-    expect(ed.innerHTML).toBe(ESSAY);
+    expect(seen.allSelected).toBe(true);
+    expect(r.selectedBy).toBe('editor');
     expect(ed.textContent).not.toContain('old draft text');
+    expect(ed.textContent).toContain('First published on ai-wtf.org');
     expect(r.textLength).toBe(ed.textContent?.length);
   });
 
+  it('falls back to a DOM selection when no editor answers the key', async () => {
+    const { ed, seen } = mountEditor();
+    const r = await run({ stepId: 'p', action: 'paste_html', selector: '#ed', html: ESSAY });
+    expect(r.status).toBe('ok');
+    expect(r.selectedBy).toBe('dom');
+    expect(seen.wholeContentSelected).toBe(true);
+    expect(ed.textContent).not.toContain('old draft text');
+  });
+
+  it('marks the pasted HTML as a closed slice when replacing, so blocks go in whole', async () => {
+    const { seen } = mountEditor({ selectAll: true });
+    await run({ stepId: 'p', action: 'paste_html', selector: '#ed', html: ESSAY });
+    expect(seen.html).toBe(ESSAY.replace('<p>', `<p${CLOSED}>`));
+  });
+
+  it('keeps a data-pm-slice the caller already set', async () => {
+    const { seen } = mountEditor({ selectAll: true });
+    const html = '<p data-pm-slice="1 1 []">x</p>';
+    await run({ stepId: 'p', action: 'paste_html', selector: '#ed', html });
+    expect(seen.html).toBe(html);
+  });
+
   it('interpolates {{params}} and derives text/plain from the html', async () => {
-    const { seen } = mountEditor();
+    const { seen } = mountEditor({ selectAll: true });
     const r = await run({ stepId: 'p', action: 'paste_html', selector: '#ed', html: '<p>Hello <strong>{{name}}</strong></p>' }, { name: 'Verso' });
     expect(r.status).toBe('ok');
-    expect(seen.html).toBe('<p>Hello <strong>Verso</strong></p>');
+    expect(seen.html).toBe(`<p${CLOSED}>Hello <strong>Verso</strong></p>`);
     expect(seen.text).toBe('Hello Verso');
   });
 
   it('takes an explicit text/plain flavor when given', async () => {
-    const { seen } = mountEditor();
+    const { seen } = mountEditor({ selectAll: true });
     await run({ stepId: 'p', action: 'paste_html', selector: '#ed', html: '<p>x</p>', text: 'plain {{name}}' }, { name: 'Dee' });
     expect(seen.text).toBe('plain Dee');
   });
 
-  it('with replace: false, adds to the existing content', async () => {
-    const { ed, seen } = mountEditor();
+  it('with replace: false, adds to the existing content and leaves the HTML open', async () => {
+    const { ed, seen } = mountEditor({ selectAll: true });
     const r = await run({ stepId: 'p', action: 'paste_html', selector: '#ed', html: '<p>new</p>', replace: false });
     expect(r.status).toBe('ok');
-    expect(seen.wholeContentSelected).toBe(false);
+    expect(r.selectedBy).toBe('none');
+    expect(seen.allSelected).toBeUndefined();
+    expect(seen.html).toBe('<p>new</p>');
     expect(ed.textContent).toContain('old draft text');
     expect(ed.textContent).toContain('new');
   });

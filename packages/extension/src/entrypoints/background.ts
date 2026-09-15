@@ -1020,15 +1020,35 @@ export default defineBackground(() => {
     const el = document.querySelector(selector) as HTMLElement | null;
     if (!el) return { ok: false, error: 'paste_html: not found: ' + selector };
     el.focus();
+    let selectedBy = 'none';
     if (replace) {
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      const sel = window.getSelection();
-      sel?.removeAllRanges();
-      sel?.addRange(range);
+      // Select everything the way a person does: Cmd-A (Ctrl-A off the Mac).
+      // A ProseMirror editor answers with an AllSelection, and a paste over an
+      // AllSelection replaces the whole document. A DOM selection of the
+      // element's contents becomes a TextSelection instead, and the paste then
+      // merges its first paragraph into the first old block: on 2026-09-15 a
+      // credit line pasted over a Substack draft that began with a heading came
+      // out as a heading.
+      const mac = /Mac|iPhone|iPad/.test(navigator.platform || '');
+      const keydown = new KeyboardEvent('keydown', { key: 'a', code: 'KeyA', metaKey: mac, ctrlKey: !mac, bubbles: true, cancelable: true });
+      if (!el.dispatchEvent(keydown)) {
+        selectedBy = 'editor';
+      } else {
+        // No editor answered the key; select the contents through the DOM.
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+        selectedBy = 'dom';
+      }
       // Editors copy the DOM selection into their own state on selectionchange,
       // which fires asynchronously. Let it land before the paste reads it.
       await new Promise((r) => setTimeout(r, 60));
+      // Mark the HTML as a closed slice (ProseMirror's data-pm-slice, open
+      // start 0, open end 0), so the editor inserts the pasted blocks whole
+      // instead of opening the first and last ones into their neighbours.
+      if (!/data-pm-slice=/.test(html)) html = html.replace(/^(\s*<[a-zA-Z][\w-]*)/, '$1 data-pm-slice="0 0 []"');
     }
     let data: any;
     try {
@@ -1051,7 +1071,7 @@ export default defineBackground(() => {
     // An editor that handles the paste cancels the event. If nothing cancels
     // it, nothing was inserted: a plain contenteditable ignores synthetic paste.
     const handled = !el.dispatchEvent(ev);
-    return { ok: true, handled, textLength: (el.textContent || '').length };
+    return { ok: true, handled, selectedBy, textLength: (el.textContent || '').length };
   }
 
   // `click` + `within_row`: the row text around each match of the selector;
@@ -3171,7 +3191,7 @@ export default defineBackground(() => {
         if (!r.handled && step.requireHandled !== false) {
           throw new Error(`paste_html: ${resolvedSelector} did not handle the paste (no rich-text editor listening), so nothing was inserted`);
         }
-        return { stepId: step.stepId, action: a, status: 'ok', selector: resolvedSelector, resolvedVia, target: step.target, handled: r.handled, textLength: r.textLength, durationMs: Date.now() - t0 };
+        return { stepId: step.stepId, action: a, status: 'ok', selector: resolvedSelector, resolvedVia, target: step.target, handled: r.handled, selectedBy: r.selectedBy, textLength: r.textLength, durationMs: Date.now() - t0 };
       }
 
       return { stepId: step.stepId, action: a, status: 'unsupported', durationMs: Date.now() - t0 };

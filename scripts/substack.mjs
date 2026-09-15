@@ -21,7 +21,7 @@
  *   node scripts/substack.mjs about   --file about.md --proof "plain words"                  [--dry-run]
  *   node scripts/substack.mjs welcome --kind free|paid --subject "..." --file email.md --proof "plain words" [--dry-run]
  *   node scripts/substack.mjs invite  --email someone@example.com                              [--dry-run]
- *   node scripts/substack.mjs draft   --file post.md [--draft-id N] [--audience everyone|only_paid] [--dry-run]
+ *   node scripts/substack.mjs draft   --file post.md [--draft-id N]                           [--dry-run]
  *   node scripts/substack.mjs byline  --draft-id N --query "Verso" [--pick "Verso"]           [--dry-run]
  *   node scripts/substack.mjs publish --draft-id N [--audience everyone|only_paid]             [--dry-run]
  *
@@ -248,12 +248,12 @@ async function main() {
     if (!meta.title) die(`${file} has no title in its front matter`);
     const body_html = markdownToHtml(body);
     checkProof(meta.proof, body_html, 'front matter proof');
-    const audience = opt('audience', meta.audience || 'everyone');
-    if (!['everyone', 'only_paid'].includes(audience)) die('--audience must be everyone or only_paid');
+    // No audience here: a Substack draft does not keep one (02-create-draft
+    // anomalies). `publish --audience` chooses it in the Publish panel.
     const draft_id = opt('draft-id', 'new');
     runRecipe('draft', {
       publication_subdomain: pub, draft_id, title: meta.title, title_json: jsonEscape(meta.title),
-      subtitle: meta.subtitle || '', body_html, proof_text: meta.proof, audience,
+      subtitle: meta.subtitle || '', body_html, proof_text: meta.proof,
     }, tabId);
     if (dryRun) return;
     // Find the draft (a new one's id is not in the editor's URL) and check what Substack saved.

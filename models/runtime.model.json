@@ -81,7 +81,7 @@
     },
     {
       "name": "paste_html",
-      "description": "Paste rich text into an editor by dispatching a paste event whose clipboardData carries text/html (and text/plain). ProseMirror/TipTap editors, such as Substack's, keep headings, bold, italics, links, quotes and lists; `type` delivers plain text only. html takes {{param}} interpolation. replace (default true) selects the element's whole content first. Fails unless the page handles the paste, unless requireHandled is false.",
+      "description": "Paste rich text into an editor by dispatching a paste event whose clipboardData carries text/html (and text/plain). ProseMirror/TipTap editors, such as Substack's, keep headings, bold, italics, links, quotes and lists; `type` delivers plain text only. html takes {{param}} interpolation. replace (default true) selects everything with Cmd-A/Ctrl-A (a ProseMirror AllSelection; DOM selection if no editor answers) and marks the HTML as a closed slice, so the paste replaces the document and its blocks go in whole. Fails unless the page handles the paste, unless requireHandled is false.",
       "fields": ["target", "selector", "html", "text", "replace", "requireHandled"]
     },
     {
