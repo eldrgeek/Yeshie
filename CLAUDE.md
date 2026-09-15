@@ -102,7 +102,12 @@ Case study: `sites/suno.com/tasks/03-create-song.payload.json`. Its healing hist
   or `error`. A new `activate_tab` action raises the tab before the list is read.
   `wait_for` now interpolates `selector` and `text`. A guard step, s1e, stops the run
   if an earlier take with the same title is still generating, because s9 could not
-  tell that take from a new one.
+  tell that take from a new one. Verification: 18 unit tests run the real runtime
+  and the recipe's own selectors, and a free live check from a hidden tab passed.
+  The one paid run was cut off when the Yeshie worker froze, because a
+  `chrome-devtools-mcp` without its no-pause wrapper had attached to Chrome (the
+  failure behind [#65](https://github.com/eldrgeek/Yeshie/pull/65)). It made no
+  takes, so a live Create with the new proof is still owed.
 - **Lesson:** test a proof step against the state it exists to detect (here, a song
   that is still generating), not only against finished data.
 

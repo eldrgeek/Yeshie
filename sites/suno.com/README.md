@@ -25,7 +25,7 @@ the same title is still generating. See **Clip list and the proof step** below.
 |---|------|--------|------|----------|
 | 01 | create-workspace | `workspace_name` | creates a workspace (reversible) | flow confirmed live |
 | 02 | select-workspace | `workspace_name` | safe | yes |
-| 03 | create-song | `title`, `style`, `lyrics` | **consumes credits at s8** | fill + generate re-verified live 2026-07-08; proof (s9) rebuilt 2026-09-15, live check pending |
+| 03 | create-song | `title`, `style`, `lyrics` | **consumes credits at s8** | fill + generate re-verified live 2026-07-08; proof (s9) rebuilt 2026-09-15 and its free live check passed; a live Create with the new proof is still unverified |
 
 Run via the relay, e.g.:
 
