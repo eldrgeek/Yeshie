@@ -33,7 +33,7 @@
     { "stepId": "s09", "action": "click_text", "text": "{{pick_text}}" },
     { "stepId": "s10", "action": "wait_for", "selector": "div:has(> textarea.subtitle) ~ div", "text": "{{pick_text}}", "timeout": 8000, "note": "The new chip is in the byline row." },
     { "stepId": "s11", "action": "key", "key": "Escape" },
-    { "stepId": "s12", "action": "wait_for", "selector": "body", "state": { "stable": 1500 }, "timeout": 15000, "note": "Let the draft autosave." },
+    { "stepId": "s12", "action": "wait_for", "selector": "body", "state": { "stable": 4000 }, "timeout": 30000, "note": "Let the draft autosave; leaving too early abandons it." },
     { "stepId": "s13", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/api/v1/drafts/{{draft_id}}" },
     { "stepId": "s14", "action": "assert", "selector": "body", "value": "\"name\":\"{{name_json}}\"", "message": "The draft's postBylines do not list '{{pick_text}}'." }
   ]

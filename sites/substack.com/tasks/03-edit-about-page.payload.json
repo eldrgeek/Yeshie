@@ -28,7 +28,7 @@
     { "stepId": "s06", "action": "paste_html", "selector": "[data-testid='editor']", "html": "{{body_html}}" },
     { "stepId": "s07", "action": "assert", "selector": "[data-testid='editor']", "value": "{{proof_text}}", "message": "Read-back before Save: the editor does not contain '{{proof_text}}'." },
     { "stepId": "s08", "action": "click_text", "text": "Save", "exact": true },
-    { "stepId": "s09", "action": "wait_for", "selector": "body", "state": { "stable": 1500 }, "timeout": 15000, "note": "Let the save request finish before leaving the editor." },
+    { "stepId": "s09", "action": "wait_for", "selector": "body", "state": { "stable": 4000 }, "timeout": 30000, "note": "Let the save request finish before leaving the editor. Leaving too early abandons it." },
     { "stepId": "s10", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/api/v1/publication" },
     { "stepId": "s11", "action": "assert", "selector": "body", "value": "{{proof_text}}", "message": "The publication's JSON (subscribe_content) does not contain '{{proof_text}}', so the save did not land." },
     { "stepId": "s12", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/about" },

@@ -36,7 +36,7 @@
     { "stepId": "s08", "action": "paste_html", "selector": "[data-testid='editor']", "html": "{{body_html}}" },
     { "stepId": "s09", "action": "assert", "selector": "textarea[data-testid='post-title']", "value": "{{title}}", "message": "Read-back: the title is not '{{title}}'." },
     { "stepId": "s10", "action": "assert", "selector": "[data-testid='editor']", "value": "{{proof_text}}", "message": "Read-back: the body does not contain '{{proof_text}}'." },
-    { "stepId": "s11", "action": "wait_for", "selector": "body", "state": { "stable": 2500 }, "timeout": 20000, "note": "Let the draft autosave before leaving the editor." },
+    { "stepId": "s11", "action": "wait_for", "selector": "body", "state": { "stable": 6000 }, "timeout": 40000, "note": "Let the draft autosave before leaving the editor. Substack saves after a pause; with 2.5 s of quiet the run left first and the paste was never saved (2026-09-15)." },
     { "stepId": "s12", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/api/v1/post_management/drafts?offset=0&limit=25&order_by=draft_updated_at&order_direction=desc" },
     { "stepId": "s13", "action": "assert", "selector": "body", "value": "\"draft_title\":\"{{title_json}}\"", "message": "The drafts list shows no draft titled '{{title}}': the draft did not save." }
   ]
