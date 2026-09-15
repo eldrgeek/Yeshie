@@ -6,7 +6,7 @@ export type StepAction =
   | 'assess_state' | 'navigate' | 'open_tab' | 'type' | 'click' | 'click_preset'
   | 'wait_for' | 'read' | 'hover' | 'scroll' | 'assert' | 'js' | 'select'
   | 'probe_affordances' | 'delay' | 'perceive' | 'find_row' | 'click_text'
-  | 'capture_entities' | 'navigate_to_entity' | 'key' | 'wait' | 'extract_text';
+  | 'capture_entities' | 'navigate_to_entity' | 'key' | 'wait' | 'extract_text' | 'activate_tab';
 
 export interface StepResult {
   stepId: string;
@@ -463,6 +463,12 @@ export class StepExecutor {
         const state = this.assessState(sg);
         const matched = !step.expect?.state || state === step.expect.state;
         return { stepId: step.stepId, action: a, status: 'ok', state, matched, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'activate_tab') {
+        // Raising a tab is a browser action. The in-page mirror has no tab to
+        // raise, so it reports ok; the live runtime (background.ts) does the work.
+        return { stepId: step.stepId, action: a, status: 'ok', durationMs: Date.now() - t0 };
       }
 
       if (a === 'navigate') {

@@ -105,6 +105,7 @@ StepResult {
 | Action | Description |
 |--------|-------------|
 | `navigate` | Navigate to URL (value = URL, supports `{{params.base_url}}`) |
+| `activate_tab` | Bring the run's tab to the front and focus its window, then wait until the page reports `document.visibilityState === "visible"` (`timeout`, default 5000 ms). The step fails if the tab is still hidden. Chrome does not render a hidden tab, so a lazily rendered list (for example Suno's clip list) stays empty in a background tab. The step raises Chrome over other apps. Added 2026-09-15. |
 | `type` | Type value into target input |
 | `click` | Click target element. With `within_row`, click it only inside the one table row that contains those strings (see Step Schema). |
 | `wait_for` | Wait on selector, text, and/or `state.stable` (content fingerprint quiet for `quietMs`; default 800ms). `onTimeout: "continue"` honored. Prefer over `delay`. Landed in #55. |
@@ -157,6 +158,8 @@ Landed in [#55](https://github.com/eldrgeek/Yeshie/pull/55). Implementation: `sr
 | `state.stable` | `true` or number | Content-stability wait. `true` uses default `quietMs` 800; a number is quiet-ms. Fingerprint is `length:tail(280)` of visible text. |
 | `quietMs` | number | Alternate quiet window when `state.stable` is boolean |
 | `onTimeout` | `"continue"` \| (default fail) | `"continue"` returns `ok` with `timedOut: true` instead of throwing |
+
+`selector`, `text` and `state.text` take `{{param}}` interpolation. Until 2026-09-15 the live runtime passed them to the page raw, so they worked only when the caller had substituted params first: `scripts/run-async.mjs` does, and `yeshie_run` and `POST /run` do not.
 
 Recipes should `wait_for` a condition rather than a fixed `delay`.
 

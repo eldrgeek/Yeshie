@@ -2529,6 +2529,32 @@ export default defineBackground(() => {
         return { stepId: step.stepId, action: a, status: 'ok', url: r.url, tabId: r.tabId, durationMs: Date.now() - t0 };
       }
 
+      if (a === 'activate_tab') {
+        // Bring the run's tab to the front and focus its window, then wait until
+        // the page says it is visible. Chrome does not render a hidden tab:
+        // requestAnimationFrame, IntersectionObserver and ResizeObserver stop, so
+        // a lazily rendered list stays empty. Suno's clip list did (2026-09-15),
+        // which is why its create-song proof raises the tab before reading it.
+        const timeout = step.timeout || 5000;
+        const tab = await chrome.tabs.update(tabId, { active: true });
+        if (tab?.windowId != null) {
+          const win = await chrome.windows.get(tab.windowId);
+          await chrome.windows.update(tab.windowId, win?.state === 'minimized' ? { state: 'normal', focused: true } : { focused: true });
+        }
+        const start = Date.now();
+        let visibility = 'unknown';
+        while (Date.now() - start < timeout) {
+          try {
+            visibility = await execInTab(tabId, () => document.visibilityState, []);
+          } catch (_) {
+            // executeScript throws while the page is mid-navigation; retry until the deadline.
+          }
+          if (visibility === 'visible') return { stepId: step.stepId, action: a, status: 'ok', visibility, durationMs: Date.now() - t0 };
+          await new Promise(r => setTimeout(r, 200));
+        }
+        throw new Error(`activate_tab: the tab is still "${visibility}" after ${timeout} ms (is another window covering Chrome?)`);
+      }
+
       if (a === 'capture_entities') {
         const entities = await execInTab(tabId, PRE_CAPTURE_ENTITIES, [step]);
         if (step.store_as) buffer[step.store_as] = entities;
@@ -2722,7 +2748,18 @@ export default defineBackground(() => {
         // the step starts, and may be torn down/recreated between polls.
         const framePat = step.frame ? interpolate(step.frame, { ...params, ...buffer }) : null;
         let waitFrameId: number | null = framePat ? await resolveFrameId(tabId, framePat) : null;
-        let sel: string | null = step.selector || null;
+        // Interpolate `selector` and `text` the way every other action does.
+        // Until 2026-09-15 the page function got the raw step, so
+        // `text: "{{title}}"` searched the page for the literal "{{title}}"
+        // unless the caller had substituted params first. yeshie_run and
+        // POST /run do not substitute; scripts/run-async.mjs does. The
+        // StepExecutor mirror (src/wait-for.ts) always interpolated, so CI
+        // never saw the gap.
+        const Iw = (s: string) => interpolate(s, { ...params, ...buffer });
+        const pageStep = { ...step };
+        if (step.text) pageStep.text = Iw(String(step.text));
+        if (step.state?.text) pageStep.state = { ...step.state, text: Iw(String(step.state.text)) };
+        let sel: string | null = step.selector ? Iw(step.selector) : null;
         if (!sel && step.target && abstractTargets?.[step.target]) {
           const res = framePat && waitFrameId == null
             ? null // frame not up yet — fall through to fallbackSelectors
@@ -2741,7 +2778,7 @@ export default defineBackground(() => {
           }
           let match: any = null;
           try {
-            match = await execInTab(tabId, PRE_MATCH_WAIT_FOR, [step, sel as string, null], waitFrameId); // null: stateGraph causes PRE_ASSESS_STATE ref error in MAIN world
+            match = await execInTab(tabId, PRE_MATCH_WAIT_FOR, [pageStep, sel as string, null], waitFrameId); // null: stateGraph causes PRE_ASSESS_STATE ref error in MAIN world
           } catch (e) {
             // Swallow and retry until the deadline: executeScript throws
             // transiently while the page is mid-navigation ("Cannot access
