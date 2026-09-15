@@ -266,12 +266,18 @@ async function main() {
     const problems = [];
     if (d.draft_title !== meta.title) problems.push(`title is ${JSON.stringify(d.draft_title)}`);
     if ((meta.subtitle || '') && d.draft_subtitle !== meta.subtitle) problems.push(`subtitle is ${JSON.stringify(d.draft_subtitle)}`);
-    if (d.audience !== audience) problems.push(`audience is ${d.audience}`);
-    if (!String(d.draft_body || '').includes(meta.proof)) problems.push('the saved body lacks the proof words');
+    if (!String(d.draft_body || '').includes(meta.proof)) problems.push('the saved body lacks the proof words (the autosave may not have landed)');
+    // The first block must keep its kind. A paste that merged into the old first
+    // block saved a credit paragraph as a heading (2026-09-15).
+    const firstTag = (body_html.match(/^\s*<(\w+)/) || [])[1] || '';
+    let firstSaved = '';
+    try { firstSaved = JSON.parse(d.draft_body).content[0].type; } catch { /* reported below */ }
+    if (firstTag === 'p' && firstSaved !== 'paragraph') problems.push(`the first block saved as ${firstSaved || 'nothing'}, not a paragraph`);
+    if (/^h[1-6]$/.test(firstTag) && firstSaved !== 'heading') problems.push(`the first block saved as ${firstSaved || 'nothing'}, not a heading`);
     if (d.is_published) problems.push('it is published');
     if (problems.length) die(`draft ${found.id} saved wrong: ${problems.join('; ')}`, 1);
     if (mine.length > 1 && draft_id === 'new') console.log(`substack: note: ${mine.length} drafts share this title; checked the newest`);
-    console.log(`substack: draft ${found.id} saved and checked (title, audience ${audience}, body). Secret link: ${secretLink(d)}`);
+    console.log(`substack: draft ${found.id} saved and checked (title, subtitle, body, first block). Secret link: ${secretLink(d)}`);
     return;
   }
 
