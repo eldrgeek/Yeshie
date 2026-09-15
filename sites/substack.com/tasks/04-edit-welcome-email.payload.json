@@ -1,0 +1,45 @@
+{
+  "name": "substack-edit-welcome-email",
+  "site": "substack.com",
+  "task": "edit-welcome-email",
+  "description": "Replace one of a Substack publication's welcome emails (subject and rich-text body). Subject and body are read back in the editor before Save; after Save the publication's own JSON must hold both.",
+  "version": "1.0.0",
+  "verified": false,
+  "dryRunUntil": "s06",
+  "requires": "Extension build with the paste_html action (Yeshie branch feat/substack-recipes). scripts/substack.mjs fills editor_title, body_field and subject_field from --kind free|paid.",
+  "authorship": "Mike Wolf (direction); Claude Opus 5 (CCc), 2026-09-15, from that day's survey of aiwtf.substack.com settings.",
+  "anomalies": [
+    "Settings > Emails lists four welcome emails. Each Edit opens /publish/settings/edit with bodyField and titleField naming publication fields.",
+    "Free subscribers: bodyField=unfinished_subscription_email_content, titleField=unfinished_subscription_email_subject (Substack's default subject: \"You're on the list!\").",
+    "Paid subscribers: bodyField=welcome_email_content, titleField=welcome_email_subject (default subject: \"Welcome to <publication name>\"). Founding members get the paid email unless their own is set.",
+    "The subject is a <textarea class='page-title'> (placeholder 'Email subject...'); the body is TipTap ([data-testid='editor']).",
+    "Substack's JSON escapes non-ASCII as \\uXXXX, so subject_json and proof_text must be the ASCII-escaped forms (scripts/substack.mjs computes subject_json)."
+  ],
+  "params": {
+    "publication_subdomain": "aiwtf",
+    "editor_title": "Welcome%20email%20to%20free%20subscribers",
+    "body_field": "unfinished_subscription_email_content",
+    "subject_field": "unfinished_subscription_email_subject",
+    "subject": "",
+    "subject_json": "",
+    "body_html": "",
+    "proof_text": ""
+  },
+  "chain": [
+    { "stepId": "s01", "action": "assert", "url_pattern": "^https://([a-z0-9-]+\\.)?substack\\.com/", "message": "This run landed on a tab that is not on substack.com. Open a Substack tab first (scripts/substack.mjs does) and pass its tab id; refusing to navigate whatever tab is active." },
+    { "stepId": "s02", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/publish/settings/edit?title={{editor_title}}&bodyField={{body_field}}&titleField={{subject_field}}&titlePlaceholder=Email%20subject..." },
+    { "stepId": "s03", "action": "wait_for", "selector": "[data-testid='editor']", "timeout": 20000 },
+    { "stepId": "s04", "action": "assert", "url_pattern": "/publish/settings/edit", "message": "Not on the welcome email editor (signed out, or Substack redirected). Run 01-login first." },
+    { "stepId": "s05", "action": "wait_for", "selector": "textarea.page-title", "timeout": 10000, "note": "The subject field." },
+    { "stepId": "s06", "action": "wait_for", "selector": "[data-testid='editor']", "state": { "stable": 800 }, "timeout": 10000, "note": "The current email has loaded. A dry run stops here: nothing has been typed." },
+    { "stepId": "s07", "action": "type", "selector": "textarea.page-title", "value": "{{subject}}" },
+    { "stepId": "s08", "action": "paste_html", "selector": "[data-testid='editor']", "html": "{{body_html}}" },
+    { "stepId": "s09", "action": "assert", "selector": "textarea.page-title", "value": "{{subject}}", "message": "Read-back before Save: the subject is not '{{subject}}'." },
+    { "stepId": "s10", "action": "assert", "selector": "[data-testid='editor']", "value": "{{proof_text}}", "message": "Read-back before Save: the body does not contain '{{proof_text}}'." },
+    { "stepId": "s11", "action": "click_text", "text": "Save", "exact": true },
+    { "stepId": "s12", "action": "wait_for", "selector": "body", "state": { "stable": 1500 }, "timeout": 15000, "note": "Let the save request finish before leaving the editor." },
+    { "stepId": "s13", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/api/v1/publication" },
+    { "stepId": "s14", "action": "assert", "selector": "body", "value": "\"{{subject_field}}\":\"{{subject_json}}\"", "message": "The publication's JSON does not hold the new subject in {{subject_field}}." },
+    { "stepId": "s15", "action": "assert", "selector": "body", "value": "{{proof_text}}", "message": "The publication's JSON does not contain '{{proof_text}}', so the body did not save." }
+  ]
+}

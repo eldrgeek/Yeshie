@@ -6,7 +6,8 @@ export type StepAction =
   | 'assess_state' | 'navigate' | 'open_tab' | 'type' | 'click' | 'click_preset'
   | 'wait_for' | 'read' | 'hover' | 'scroll' | 'assert' | 'js' | 'select'
   | 'probe_affordances' | 'delay' | 'perceive' | 'find_row' | 'click_text'
-  | 'capture_entities' | 'navigate_to_entity' | 'key' | 'wait' | 'extract_text' | 'activate_tab';
+  | 'capture_entities' | 'navigate_to_entity' | 'key' | 'wait' | 'extract_text' | 'activate_tab'
+  | 'paste_html';
 
 export interface StepResult {
   stepId: string;
@@ -655,6 +656,28 @@ export class StepExecutor {
         }
         el.dispatchEvent(new Event('change', { bubbles: true }));
         return { stepId: step.stepId, action: a, status: 'ok', value, selector: res.selector, resolvedVia: res.resolvedVia, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'paste_html') {
+        // The live runtime (background.ts PRE_PASTE_HTML) dispatches a paste
+        // event carrying text/html so a rich-text editor keeps the formatting.
+        // The mirror dispatches the same event; the page's editor, if any,
+        // handles it. Like the runtime, it fails when nothing handles it.
+        const s = step as any;
+        const tgtDef = s.target ? (this.abstractTargets[s.target] ?? null) : null;
+        if (s.target && !this.abstractTargets[s.target]) throw new Error('Cannot resolve: ' + s.target);
+        const sel = s.selector ? this.I(s.selector) : null;
+        const res = tgtDef ? this.resolver.resolve(tgtDef) : (sel ? { element: this.doc.querySelector(sel), selector: sel, confidence: 0.7, resolvedVia: 'css_cascade' as const } : null);
+        if (!res?.element) throw new Error('Cannot resolve: ' + (s.target ?? s.selector));
+        const html = this.I(s.html ?? s.value ?? '');
+        if (!html) throw new Error('paste_html step needs html');
+        const text = s.text !== undefined ? this.I(s.text) : html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        const store: Record<string, string> = { 'text/html': html, 'text/plain': text };
+        const ev = new Event('paste', { bubbles: true, cancelable: true });
+        Object.defineProperty(ev, 'clipboardData', { value: { types: Object.keys(store), getData: (t: string) => store[t] ?? '' } });
+        const handled = !(res.element as HTMLElement).dispatchEvent(ev);
+        if (!handled && s.requireHandled !== false) throw new Error(`paste_html: ${res.selector} did not handle the paste`);
+        return { stepId: step.stepId, action: a, status: 'ok', selector: res.selector, resolvedVia: res.resolvedVia, durationMs: Date.now() - t0 };
       }
 
       if (a === 'click_preset') {

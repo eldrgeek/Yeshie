@@ -1,0 +1,37 @@
+{
+  "name": "substack-edit-about-page",
+  "site": "substack.com",
+  "task": "edit-about-page",
+  "description": "Replace a Substack publication's About page with new rich text. The text is read back in the editor before Save. After Save the recipe proves the change twice: from the publication's own JSON (field subscribe_content) and from the public /about page.",
+  "version": "1.0.0",
+  "verified": false,
+  "dryRunUntil": "s05",
+  "requires": "Extension build with the paste_html action (Yeshie branch feat/substack-recipes). Run from scripts/substack.mjs, which opens a Substack tab, converts Markdown to HTML and supports --dry-run.",
+  "authorship": "Mike Wolf (direction); Claude Opus 5 (CCc), 2026-09-15, from that day's survey of aiwtf.substack.com settings.",
+  "anomalies": [
+    "The About page is not a post. Settings > Website > About page > Edit opens /publish/settings/edit?title=About%20page&bodyField=subscribe_content, which edits the publication field subscribe_content. Navigating to that URL directly opens the same editor.",
+    "The editor is TipTap ([data-testid='editor']) with an explicit Save button. It sits beside a 'Saved' label, so do not use that label as proof of a save.",
+    "Substack's JSON escapes non-ASCII characters as \\uXXXX. proof_text must therefore be plain ASCII words that appear in the new text.",
+    "s01 refuses to run on a tab that is not on substack.com, so a run never navigates whatever tab happens to be active."
+  ],
+  "params": {
+    "publication_subdomain": "aiwtf",
+    "body_html": "",
+    "proof_text": ""
+  },
+  "chain": [
+    { "stepId": "s01", "action": "assert", "url_pattern": "^https://([a-z0-9-]+\\.)?substack\\.com/", "message": "This run landed on a tab that is not on substack.com. Open a Substack tab first (scripts/substack.mjs does) and pass its tab id; refusing to navigate whatever tab is active." },
+    { "stepId": "s02", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/publish/settings/edit?title=About%20page&bodyField=subscribe_content" },
+    { "stepId": "s03", "action": "wait_for", "selector": "[data-testid='editor']", "timeout": 20000 },
+    { "stepId": "s04", "action": "assert", "url_pattern": "/publish/settings/edit", "message": "Not on the About page editor (signed out, or Substack redirected). Run 01-login first." },
+    { "stepId": "s05", "action": "wait_for", "selector": "[data-testid='editor']", "state": { "stable": 800 }, "timeout": 10000, "note": "The editor has loaded the current About text and stopped changing. A dry run stops here: nothing has been typed." },
+    { "stepId": "s06", "action": "paste_html", "selector": "[data-testid='editor']", "html": "{{body_html}}" },
+    { "stepId": "s07", "action": "assert", "selector": "[data-testid='editor']", "value": "{{proof_text}}", "message": "Read-back before Save: the editor does not contain '{{proof_text}}'." },
+    { "stepId": "s08", "action": "click_text", "text": "Save", "exact": true },
+    { "stepId": "s09", "action": "wait_for", "selector": "body", "state": { "stable": 1500 }, "timeout": 15000, "note": "Let the save request finish before leaving the editor." },
+    { "stepId": "s10", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/api/v1/publication" },
+    { "stepId": "s11", "action": "assert", "selector": "body", "value": "{{proof_text}}", "message": "The publication's JSON (subscribe_content) does not contain '{{proof_text}}', so the save did not land." },
+    { "stepId": "s12", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/about" },
+    { "stepId": "s13", "action": "wait_for", "selector": "body", "text": "{{proof_text}}", "timeout": 20000, "note": "Public proof: the live About page shows the new text." }
+  ]
+}

@@ -1,252 +1,49 @@
 {
-  "_meta": {
-    "task": "create-draft",
-    "site": "substack.com",
-    "description": "Create a new draft post on a Substack publication. Navigates to the editor, enters title and body, saves as draft. Does NOT publish. Requires an active Substack writer session (run 01-login first if needed).",
-    "params": {
-      "publication_subdomain": {
-        "required": true,
-        "description": "Substack publication subdomain, e.g. 'markinpc' for markinpc.substack.com",
-        "hint": "Just the subdomain, not the full URL"
-      },
-      "title": {
-        "required": true,
-        "description": "Post title"
-      },
-      "body": {
-        "required": true,
-        "description": "Post body content (plain text; will be typed into the editor)"
-      },
-      "subtitle": {
-        "required": false,
-        "default": "",
-        "description": "Optional subtitle / preview text"
-      }
-    },
-    "prereqs": [
-      "01-login.payload.json"
-    ],
-    "selfImproving": true,
-    "runCount": 0,
-    "lastSuccess": null
-  },
+  "name": "substack-create-draft",
   "site": "substack.com",
-  "mode": "exploratory",
+  "task": "create-draft",
+  "description": "Create (or rewrite) a draft post on one Substack publication: title, optional subtitle, and a rich-text body pasted as HTML, so headings, italics, links, quotes and lists survive. It sets the post's audience in the draft settings. Title, body and audience are read back before leaving the editor. The proof is the publication's drafts list, which must show the title. It never publishes.",
+  "version": "2.0.0",
+  "verified": false,
+  "dryRunUntil": "s05",
+  "requires": "Extension build with the paste_html action (Yeshie branch feat/substack-recipes). Run from scripts/substack.mjs, which opens a Substack tab, turns Markdown into body_html, finds the new draft's id and checks the saved body and audience from /api/v1/drafts/<id>.",
+  "authorship": "v1 2026-09-13 (fleet recipe set, for the markinpc skill). v2: Mike Wolf (direction); Claude Opus 5 (CCc), 2026-09-15, from that day's survey of a draft on aiwtf.substack.com.",
+  "anomalies": [
+    "v1 opened substack.com/publish/post/new, which does not name a publication. @rsilt administers 11 publications, so a draft there could land in the wrong one. v2 opens https://{{publication_subdomain}}.substack.com/publish/post/{{draft_id}}.",
+    "v1 typed the body with `type`, which delivers plain text through Input.insertText: every paragraph break, heading and link was lost. v2 pastes HTML (paste_html).",
+    "Opening /publish/post/new creates an empty draft at once, and the address stays /post/new. So the draft's id comes from the drafts list, not the URL.",
+    "New posts on aiwtf default to audience 'Paid subscribers only' (only_paid). s11-s14 set the audience explicitly and check it.",
+    "Selectors (2026-09-15): title textarea[data-testid='post-title'], subtitle textarea.subtitle, body [data-testid='editor'] (TipTap), Settings [data-testid='settings-button'], audience radios input[name='audience'][value=everyone|only_paid] inside labels.",
+    "The post editor autosaves ('Saved' at the top left). s16 waits for the page to settle before leaving it."
+  ],
   "params": {
-    "publication_subdomain": "markinpc",
-    "title": "Test Draft",
-    "body": "This is a test draft body.",
-    "subtitle": ""
+    "publication_subdomain": "aiwtf",
+    "draft_id": "new",
+    "title": "",
+    "title_json": "",
+    "subtitle": "",
+    "body_html": "",
+    "proof_text": "",
+    "audience": "everyone"
   },
   "chain": [
-    {
-      "stepId": "s1",
-      "action": "navigate",
-      "url": "https://substack.com/publish/post/new",
-      "note": "Navigate to new post editor"
-    },
-    {
-      "stepId": "s2",
-      "action": "wait_for",
-      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
-      "timeout": 6000,
-      "onTimeout": "continue",
-      "note": "settle (was delay 3000ms); resolves on content root, proceeds on timeout"
-    },
-    {
-      "stepId": "s3",
-      "action": "assess_state",
-      "stateGraph": {
-        "nodes": {
-          "auth_required": {
-            "signals": [
-              {
-                "type": "url_matches",
-                "pattern": "sign-in|login|/account"
-              }
-            ]
-          },
-          "editor_ready": {
-            "signals": [
-              {
-                "type": "url_matches",
-                "pattern": "substack\\.com/publish/post"
-              }
-            ]
-          }
-        }
-      },
-      "onMatch": {
-        "auth_required": "exit_fail",
-        "editor_ready": "continue"
-      },
-      "note": "If redirected to login, fail \u2014 run 01-login.payload.json first"
-    },
-    {
-      "stepId": "s4",
-      "action": "click",
-      "target": "title_input",
-      "note": "Click into title field"
-    },
-    {
-      "stepId": "s5",
-      "action": "wait_for",
-      "target": "title_input",
-      "state": {
-        "visible": true
-      },
-      "timeout": 8000,
-      "note": "wait for title_input before next step (was delay 500ms)"
-    },
-    {
-      "stepId": "s6",
-      "action": "type",
-      "target": "title_input",
-      "value": "{{title}}",
-      "note": "Type post title"
-    },
-    {
-      "stepId": "s7",
-      "action": "wait_for",
-      "target": "subtitle_input",
-      "state": {
-        "visible": true
-      },
-      "timeout": 8000,
-      "note": "wait for subtitle_input before next step (was delay 500ms)"
-    },
-    {
-      "stepId": "s8",
-      "action": "click",
-      "target": "subtitle_input",
-      "skipIfParamEmpty": "subtitle",
-      "note": "Click subtitle field if subtitle provided"
-    },
-    {
-      "stepId": "s9",
-      "action": "type",
-      "target": "subtitle_input",
-      "value": "{{subtitle}}",
-      "skipIfParamEmpty": "subtitle",
-      "note": "Type subtitle"
-    },
-    {
-      "stepId": "s10",
-      "action": "click",
-      "target": "body_editor",
-      "note": "Click into the main body editor"
-    },
-    {
-      "stepId": "s11",
-      "action": "wait_for",
-      "target": "body_editor",
-      "state": {
-        "visible": true
-      },
-      "timeout": 8000,
-      "note": "wait for body_editor before next step (was delay 500ms)"
-    },
-    {
-      "stepId": "s12",
-      "action": "type",
-      "target": "body_editor",
-      "value": "{{body}}",
-      "note": "Type post body"
-    },
-    {
-      "stepId": "s13",
-      "action": "wait_for",
-      "selector": "main, [role='main'], .v-main, .v-data-table, .application-main, #app, #root, [data-testid='app-root']",
-      "timeout": 6000,
-      "onTimeout": "continue",
-      "note": "settle (was delay 1500ms); resolves on content root, proceeds on timeout"
-    },
-    {
-      "stepId": "s14",
-      "action": "read",
-      "candidates": [
-        "[data-testid='post-status']",
-        ".draft-indicator",
-        "[class*='save']",
-        "[class*='draft']",
-        "header"
-      ],
-      "store_as": "save_status",
-      "note": "Capture save/draft status indicator"
-    },
-    {
-      "stepId": "s15",
-      "action": "read",
-      "candidates": [
-        "window.location.href"
-      ],
-      "store_as": "draft_url",
-      "note": "Capture the URL of the draft post"
-    }
-  ],
-  "abstractTargets": {
-    "title_input": {
-      "description": "Post title input field in Substack editor",
-      "anchors": {
-        "placeholder": "Title",
-        "ariaLabel": "title"
-      },
-      "fallbackSelectors": [
-        "[data-placeholder='Title']",
-        "[aria-label*='title' i]",
-        "h1[contenteditable='true']",
-        "div[data-block-id='title']",
-        "input[placeholder*='Title']",
-        ".titled-editor h1",
-        "[class*='title'] [contenteditable]"
-      ]
-    },
-    "subtitle_input": {
-      "description": "Post subtitle / preview text field in Substack editor",
-      "anchors": {
-        "placeholder": "Subtitle"
-      },
-      "fallbackSelectors": [
-        "[data-placeholder='Subtitle']",
-        "[aria-label*='subtitle' i]",
-        "h3[contenteditable='true']",
-        "input[placeholder*='subtitle' i]",
-        "[class*='subtitle'] [contenteditable]"
-      ]
-    },
-    "body_editor": {
-      "description": "Main post body contenteditable editor area",
-      "anchors": {
-        "placeholder": "Write your post"
-      },
-      "fallbackSelectors": [
-        "[data-placeholder*='Write']",
-        "div.ProseMirror[contenteditable='true']",
-        "div[contenteditable='true'][class*='editor']",
-        "div[contenteditable='true'][class*='body']",
-        ".post-editor [contenteditable='true']:not(h1):not(h3)",
-        "div[contenteditable='true']"
-      ]
-    }
-  },
-  "stateGraph": {
-    "nodes": {
-      "editor_ready": {
-        "signals": [
-          {
-            "type": "url_matches",
-            "pattern": "substack\\.com/publish/post"
-          }
-        ]
-      },
-      "auth_required": {
-        "signals": [
-          {
-            "type": "url_matches",
-            "pattern": "sign-in|login"
-          }
-        ]
-      }
-    }
-  }
+    { "stepId": "s01", "action": "assert", "url_pattern": "^https://([a-z0-9-]+\\.)?substack\\.com/", "message": "This run landed on a tab that is not on substack.com. Open a Substack tab first (scripts/substack.mjs does) and pass its tab id; refusing to navigate whatever tab is active." },
+    { "stepId": "s02", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/publish/post/{{draft_id}}" },
+    { "stepId": "s03", "action": "wait_for", "selector": "textarea[data-testid='post-title']", "timeout": 20000 },
+    { "stepId": "s04", "action": "assert", "url_pattern": "/publish/post/", "message": "Not in the post editor (signed out, or Substack redirected). Run 01-login first." },
+    { "stepId": "s05", "action": "wait_for", "selector": "[data-testid='editor']", "state": { "stable": 800 }, "timeout": 10000, "note": "The editor has loaded. A dry run stops here; opening /post/new has created an empty draft, and nothing else." },
+    { "stepId": "s06", "action": "type", "selector": "textarea[data-testid='post-title']", "value": "{{title}}" },
+    { "stepId": "s07", "action": "type", "selector": "textarea.subtitle", "value": "{{subtitle}}", "condition": "{{subtitle}}" },
+    { "stepId": "s08", "action": "paste_html", "selector": "[data-testid='editor']", "html": "{{body_html}}" },
+    { "stepId": "s09", "action": "assert", "selector": "textarea[data-testid='post-title']", "value": "{{title}}", "message": "Read-back: the title is not '{{title}}'." },
+    { "stepId": "s10", "action": "assert", "selector": "[data-testid='editor']", "value": "{{proof_text}}", "message": "Read-back: the body does not contain '{{proof_text}}'." },
+    { "stepId": "s11", "action": "click", "selector": "[data-testid='settings-button']" },
+    { "stepId": "s12", "action": "wait_for", "selector": "label:has(input[name='audience'][value='{{audience}}'])", "timeout": 8000 },
+    { "stepId": "s13", "action": "click", "selector": "label:has(input[name='audience'][value='{{audience}}'])" },
+    { "stepId": "s14", "action": "assert", "selector": "input[name='audience'][value='{{audience}}']:checked", "message": "The audience did not change to '{{audience}}'." },
+    { "stepId": "s15", "action": "click_text", "text": "Done", "exact": true },
+    { "stepId": "s16", "action": "wait_for", "selector": "body", "state": { "stable": 2000 }, "timeout": 20000, "note": "Let the draft autosave before leaving the editor." },
+    { "stepId": "s17", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/api/v1/post_management/drafts?offset=0&limit=25&order_by=draft_updated_at&order_direction=desc" },
+    { "stepId": "s18", "action": "assert", "selector": "body", "value": "\"draft_title\":\"{{title_json}}\"", "message": "The drafts list shows no draft titled '{{title}}': the draft did not save." }
+  ]
 }
