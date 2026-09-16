@@ -35,6 +35,23 @@ export function sliceLoop(src: string): string {
   return src.slice(start, end) + '\n    }\n';
 }
 
+/**
+ * A deep copy in which every plain object's keys are sorted, the way Chrome
+ * hands executeScript arguments to the page and results back: through
+ * base::Value, whose dictionaries sort their keys. Arrays keep their order.
+ * Measured inside the extension 2026-09-16.
+ */
+export function sortKeysDeep(value: any): any {
+  if (Array.isArray(value)) return value.map(sortKeysDeep);
+  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    return Object.fromEntries(Object.keys(value).sort().map((k) => [k, sortKeysDeep(value[k])]));
+  }
+  return value;
+}
+
+/** `chromiumSerialization` (default true) makes execInTab sort keys the way Chrome does. */
+export type HarnessOptions = { chromiumSerialization?: boolean };
+
 export type ChainRun = { executed: string[]; result: any; stepResults: any[]; navigated: string[]; buffer: Record<string, any> };
 
 /**
@@ -48,11 +65,12 @@ export type Harness = {
   run: (chain: any[], payload?: any, hooks?: RunHooks) => Promise<ChainRun>;
 };
 
-export function chainHarness(source = BACKGROUND): Harness {
+export function chainHarness(source = BACKGROUND, options: HarnessOptions = {}): Harness {
   const fns = [
     '  function interpolate(',
     '  function haltsChain(',
     '  function routeAssessState(',
+    '  function assessArgs(',
     '  function PRE_ASSERT_SNAPSHOT(',
     '  function PRE_ASSESS_STATE(',
     '  function PRE_MATCH_WAIT_FOR(',
@@ -84,7 +102,9 @@ export function chainHarness(source = BACKGROUND): Harness {
     ContentStabilityTracker, expectedWaitState, quietMsOf, stateWaitMatched, waitStateGraph, wantsStable,
     assertFailureMessage, assertNeedsPage, evaluateAssert, buildResponse, createSurpriseEvidence, RUNTIME_FEATURES,
     // Chrome/runtime stubs
-    execInTab: async (_tabId: number, fn: (...a: any[]) => any, args: any[] = []) => fn(...args),
+    execInTab: async (_tabId: number, fn: (...a: any[]) => any, args: any[] = []) => (
+      options.chromiumSerialization === false ? fn(...args) : sortKeysDeep(await fn(...sortKeysDeep(args)))
+    ),
     resolveFrameId: async () => null,
     PRE_RESOLVE_TARGET: (t: any) => (t?.cachedSelector ? { found: true, selector: t.cachedSelector, resolvedVia: 'cached' } : { found: false }),
     isLoginUrl: () => false,
