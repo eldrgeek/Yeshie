@@ -19,7 +19,8 @@
       "NOTE: Google may take minutes to hours to prepare the archive"
     ],
     "notes": [
-      "2026-09-15: s6 ticks the Gemini checkbox with a click and s6b asserts it is ticked; s12 is a perceive. Caveat: on Takeout the 'Gemini' product is described as 'Your Gemini Gems data, including name and instructions'. Gemini chat history is 'Gemini Apps' activity, which Takeout files under 'My Activity', so this export may not contain conversations."
+      "2026-09-15: s6 ticks the Gemini checkbox with a click and s6b asserts it is ticked; s12 is a perceive. Caveat: on Takeout the 'Gemini' product is described as 'Your Gemini Gems data, including name and instructions'. Gemini chat history is 'Gemini Apps' activity, which Takeout files under 'My Activity', so this export may not contain conversations.",
+      "Verified live 2026-09-15 through the relay up to s12, with s13 'Create export' left off so no export was requested: s4 Deselect all, s6 tick Gemini, s6b assert it is ticked, s8 scroll, s10 Next step and s12 perceive all ok. lastSuccess stays null until a full run creates an export."
     ]
   },
   "params": {

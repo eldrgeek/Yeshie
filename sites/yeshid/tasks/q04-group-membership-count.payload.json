@@ -25,7 +25,8 @@
       "This payload is forward-compatible: when groups are enabled, it will work without modification.",
       "Group detail URL pattern: /organization/groups/{id} (UUID-based, discovered via find_row navigation).",
       "Groups table columns observed: Group name, Type, Description, Owners, Actions.",
-      "2026-09-15: guard_tier became an assess_state branch that stops with the plan message; perceive steps became read; respond is a runtime action; s0 stops the run when group_name is missing (the 2026-07-11 run searched for the literal '{{group_name}}', WQ-180). Only the steps up to s3c can be verified on this org, which has no groups."
+      "2026-09-15: guard_tier became an assess_state branch that stops with the plan message; perceive steps became read; respond is a runtime action; s0 stops the run when group_name is missing (the 2026-07-11 run searched for the literal '{{group_name}}', WQ-180). Only the steps up to s3c can be verified on this org, which has no groups.",
+      "2026-09-15 live: the guard first read the table too early, because s3 waited on the search box, which exists at once; it now waits on the footer and judges by '0-0 of 0'. The run reached s5 and stopped with 'Row not found: Engineering', which is honest: this org has no groups."
     ]
   },
   "runId": "yeshid-q04-group-membership-count-{{timestamp}}",
@@ -99,8 +100,9 @@
     {
       "stepId": "s3",
       "action": "wait_for",
-      "selector": ".v-data-table, .search-input, input[placeholder='Search']",
-      "timeout": 6000
+      "selector": ".v-data-table-footer",
+      "timeout": 6000,
+      "note": "Wait for the table's pagination footer, which renders only once the table has resolved its data. Waiting on the search box instead let s3c read the table before its empty-state row appeared (seen live 2026-09-15)."
     },
     {
       "stepId": "s3c",
@@ -111,8 +113,8 @@
             "signals": [
               {
                 "type": "element_text",
-                "selector": ".v-data-table",
-                "text": "No data available"
+                "selector": ".v-data-table-footer",
+                "text": "0-0 of 0"
               }
             ]
           },
@@ -120,7 +122,7 @@
             "signals": [
               {
                 "type": "element_visible",
-                "selector": ".v-data-table"
+                "selector": ".v-data-table-footer"
               }
             ]
           }
@@ -130,7 +132,7 @@
         "state": "groups-available"
       },
       "onMismatch": "branch:groups-unavailable",
-      "note": "Stop with a clear message when the groups table is empty because the plan has no groups. Was guard_tier, which the runtime never implemented."
+      "note": "Stop with a clear message when the groups table holds nothing, which on this plan is why it is empty. The footer reads 'Items per page:10 0-0 of 0'. Was guard_tier, which the runtime never implemented."
     },
     {
       "stepId": "s4",

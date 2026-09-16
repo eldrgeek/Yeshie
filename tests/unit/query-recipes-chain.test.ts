@@ -108,4 +108,19 @@ describe('q04-group-membership-count (real loop, real recipe)', () => {
     expect(out.executed).toContain('s4');
     expect(out.result.error ?? '').not.toMatch(/Groups are not available/);
   });
+
+  it('waits for the footer before judging, so a table that renders before its empty row still gets the plan message', async () => {
+    const q = recipe('q04-group-membership-count');
+    const out = await chainHarness().run(q.chain, q, {
+      params: { group_name: 'Engineering' },
+      onNavigate: () => {
+        // The search box and an empty table, with no footer yet: the state the live run read on 2026-09-15,
+        // when it judged the page "groups-available" and searched for a group on an org that has none.
+        document.body.innerHTML = '<input placeholder="Search"><div class="v-data-table"><table><tbody></tbody></table></div>';
+        setTimeout(() => listPage(0), 150);
+      },
+    });
+    expect(out.result.error).toMatch(/Groups are not available on the current YeshID plan/);
+    expect(out.executed).not.toContain('s4');
+  });
 });

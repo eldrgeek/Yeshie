@@ -5,7 +5,7 @@
     "description": "List users who are pending onboarding (status=STAGED). Returns each person's name, primary email, and start date if visible in the table. Returns an empty list if no staged users exist \u2014 this is expected on the current free-tier org.",
     "selfImproving": false,
     "runCount": 0,
-    "lastSuccess": null,
+    "lastSuccess": "2026-09-15",
     "requiredParams": [],
     "optionalParams": [],
     "auth": {
@@ -17,7 +17,8 @@
       "STAGED_OFFBOARDING is a separate status for users scheduled for removal.",
       "If the org has users onboarded with a future start date, they appear here.",
       "Table columns observed: YeshID account owner, Primary email, Directory synced, YeshID status, # of applications. Start date is not a visible column \u2014 may appear in person detail.",
-      "2026-09-15: footer and rows are read with read (perceive ignores selector); respond is a runtime action (src/respond-step.ts); `users` in the answer is the table body's text, not a list of rows; the auth guard runs after the first navigate and routes to a branch."
+      "2026-09-15: footer and rows are read with read (perceive ignores selector); respond is a runtime action (src/respond-step.ts); `users` in the answer is the table body's text, not a list of rows; the auth guard runs after the first navigate and routes to a branch.",
+      "Verified live 2026-09-15 through the relay: 8 of 8 steps ok, answer {count: 0, users: \"No data available\"} plus the empty_message, on an org with no staged users."
     ]
   },
   "runId": "yeshid-q02-pending-onboarding-{{timestamp}}",
