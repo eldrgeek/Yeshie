@@ -2656,6 +2656,13 @@ export default defineBackground(() => {
       return { stepId: step.stepId, action: a, status: 'skipped', comment: true, durationMs: 0 };
     }
 
+    // A step marked `disabled: true` does not run. Until 2026-09-16 the flag
+    // was ignored, so steps an author had switched off still ran, among them
+    // the three Deactivate clicks in okta/07-user-profile-actions.
+    if (step.disabled === true) {
+      return { stepId: step.stepId, action: a, status: 'skipped', disabled: true, durationMs: 0 };
+    }
+
     // A falsy `condition` skips a step — except on `assert`, where the
     // condition IS the assertion. Skipping it let every `assert false` guard
     // pass silently and the chain run on into destructive steps.
