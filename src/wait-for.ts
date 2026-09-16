@@ -74,10 +74,17 @@ export function waitStateGraph(step: WaitStep, payloadGraph?: StateGraphLike | n
   return null;
 }
 
-/** True when the page's current state is the one this wait_for is waiting for. */
-export function stateWaitMatched(step: WaitStep, currentState: string): boolean {
+/**
+ * True when the page is in the state this wait_for is waiting for. Given
+ * `holds` (each node's result from PRE_ASSESS_STATE), the expected node's own
+ * signals decide, so a node judged earlier that also holds cannot hide it; on a
+ * signed-in YeshID group page, "authenticated" holds as well as "group-detail".
+ * Without `holds`, the first node that held must be the expected one.
+ */
+export function stateWaitMatched(step: WaitStep, currentState: string, holds?: Record<string, boolean> | null): boolean {
   const expected = expectedWaitState(step);
-  return expected ? currentState === expected : currentState !== 'unknown';
+  if (!expected) return currentState !== 'unknown';
+  return holds ? holds[expected] === true : currentState === expected;
 }
 
 export function fingerprintContent(text: string | null | undefined): string {

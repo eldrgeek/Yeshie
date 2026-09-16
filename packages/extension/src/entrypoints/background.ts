@@ -584,6 +584,14 @@ export default defineBackground(() => {
     return false;
   }
 
+  // execInTab arguments for PRE_ASSESS_STATE: the graph, and its node names in
+  // the order written. The names travel as an array because executeScript
+  // hands an object argument to the page with its keys sorted, which made
+  // every state graph judge its nodes alphabetically until 2026-09-16.
+  function assessArgs(graph: any): [any, string[]] {
+    return [graph, Object.keys(graph?.nodes || {})];
+  }
+
   // What an assess_state result does to the chain: 'continue', 'branch' (to
   // payload.branches[name]), 'exit_success', or 'fail' with a message.
   //   onMismatch applies when the page is not in the expected state.
@@ -1341,7 +1349,7 @@ export default defineBackground(() => {
     return { href, elementFound: true, elementText: text ?? null };
   }
 
-  function PRE_ASSESS_STATE(stateGraph: any) {
+  function PRE_ASSESS_STATE(stateGraph: any, order?: string[]) {
     function matchesSignal(sig: any) {
       if (sig.type === 'url_matches') return !!sig.pattern && new RegExp(sig.pattern).test(window.location.href);
       if (sig.type === 'url_not_matches') return !!sig.pattern && !new RegExp(sig.pattern).test(window.location.href);
@@ -1354,17 +1362,23 @@ export default defineBackground(() => {
       }
       return false;
     }
-    if (!stateGraph?.nodes) return { state: 'unknown', holds: {} };
-    // Judge every node. `state` is the first node that holds, and `holds` says
-    // for each node whether all its signals hold, so a step can ask whether the
-    // page is in the state it expects whatever order the nodes arrive in.
+    if (!stateGraph?.nodes) return { state: 'unknown', holds: {}, states: [] };
+    // Judge the nodes in the order the recipe wrote them. That order arrives
+    // as `order`, an array, because executeScript passes an object argument
+    // through Chromium's base::Value, whose dictionaries sort their keys: the
+    // page receives stateGraph.nodes in alphabetical order (measured inside
+    // the extension 2026-09-16). Without `order`, nodes are judged in the order
+    // they arrive. `state` is the first node that holds, `states` lists every
+    // node that holds in judging order, and `holds` gives each node's result.
+    const names: string[] = Array.isArray(order) ? order.filter((n) => !!stateGraph.nodes[n]) : Object.keys(stateGraph.nodes);
     const holds: Record<string, boolean> = {};
-    let state = 'unknown';
-    for (const [name, node] of Object.entries(stateGraph.nodes) as any) {
+    const states: string[] = [];
+    for (const name of names) {
+      const node = stateGraph.nodes[name];
       holds[name] = !!node.signals?.length && node.signals.every((sig: any) => matchesSignal(sig));
-      if (holds[name] && state === 'unknown') state = name;
+      if (holds[name]) states.push(name);
     }
-    return { state, holds };
+    return { state: states[0] || 'unknown', holds, states };
   }
 
   function PRE_ARM_MUTATION_OBSERVER() {
@@ -2924,9 +2938,9 @@ export default defineBackground(() => {
           let lastState = 'unknown';
           while (Date.now() - start < timeout) {
             try {
-              const r = await execInTab(tabId, PRE_ASSESS_STATE, [waitGraph]);
+              const r = await execInTab(tabId, PRE_ASSESS_STATE, assessArgs(waitGraph));
               lastState = r?.state || 'unknown';
-              if (stateWaitMatched(step, lastState)) return { stepId: step.stepId, action: a, status: 'ok', state: lastState, durationMs: Date.now() - t0 };
+              if (stateWaitMatched(step, lastState, r?.holds)) return { stepId: step.stepId, action: a, status: 'ok', state: lastState, states: r?.states || [], durationMs: Date.now() - t0 };
             } catch (_) {
               // executeScript throws while the page is mid-navigation; retry until the deadline.
             }
@@ -3025,7 +3039,7 @@ export default defineBackground(() => {
 
       if (a === 'assess_state') {
         const sg = step.stateGraph || run.payload?.stateGraph || { nodes: {} };
-        const r = await execInTab(tabId, PRE_ASSESS_STATE, [sg]);
+        const r = await execInTab(tabId, PRE_ASSESS_STATE, assessArgs(sg));
         // The page is in the expected state when that node's own signals hold
         // (`expect.state`, or any node of `expect.state_any`). Until 2026-09-16
         // this compared the expected name with the first node that held, so
@@ -3034,7 +3048,7 @@ export default defineBackground(() => {
         // page. `state_any` was not read at all, so such a step always matched.
         const expected: string[] = step.expect?.state ? [step.expect.state] : Array.isArray(step.expect?.state_any) ? step.expect.state_any : [];
         const matched = expected.length === 0 || expected.some((n: string) => r?.holds?.[n] === true);
-        const states = Object.keys(r?.holds || {}).filter((n) => r.holds[n]);
+        const states: string[] = Array.isArray(r?.states) ? r.states : [];
         const surpriseEvidence = matched ? undefined : [
           createSurpriseEvidence('state_mismatch', {
             stepId: step.stepId,
