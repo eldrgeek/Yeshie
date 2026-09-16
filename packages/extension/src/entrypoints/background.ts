@@ -5,6 +5,7 @@ import { io } from 'socket.io-client';
 import { createResolvedTargetUpdate, createSurpriseEvidence } from '../../../../src/runtime-contract.js';
 import { ContentStabilityTracker, expectedWaitState, quietMsOf, stateWaitMatched, waitStateGraph, wantsStable } from '../../../../src/wait-for.js';
 import { assertFailureMessage, assertNeedsPage, evaluateAssert } from '../../../../src/assert-step.js';
+import { buildResponse } from '../../../../src/respond-step.js';
 import { describeOptions, pickOptionIndex } from '../../../../src/select-option.js';
 import { pickRowIndex, rowScope } from '../../../../src/row-scope.js';
 import { RUNTIME_FEATURES } from '../../../../src/runtime-features.js';
@@ -3269,6 +3270,17 @@ export default defineBackground(() => {
           throw new Error(`paste_html: ${resolvedSelector} did not handle the paste (no rich-text editor listening), so nothing was inserted`);
         }
         return { stepId: step.stepId, action: a, status: 'ok', selector: resolvedSelector, resolvedVia, target: step.target, handled: r.handled, selectedBy: r.selectedBy, textLength: r.textLength, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'respond') {
+        // Build a query recipe's answer from the buffer (src/respond-step.ts)
+        // and store it as buffer.response, which the ChainResult carries back.
+        // A field the buffer cannot fill fails the step, so a query never
+        // answers with a silent null.
+        const out = buildResponse(step, buffer, (s: string) => interpolate(s, { ...params, ...buffer }));
+        if (!out.ok) throw new Error(out.error);
+        buffer.response = out.response;
+        return { stepId: step.stepId, action: a, status: 'ok', response: out.response, durationMs: Date.now() - t0 };
       }
 
       if (a === 'clear') {

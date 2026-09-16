@@ -17,7 +17,8 @@
       "It is NOT a column in the people list table \u2014 iteration through detail pages is required.",
       "This payload uses for_each_row to visit each active user's detail page.",
       "With 28 active users and ~3s per detail page, expect ~90s total runtime.",
-      "The column-picker button (mdi-view-column-outline) may support adding a recovery-email column \u2014 not yet confirmed. If confirmed, simplify to a single perceive step."
+      "The column-picker button (mdi-view-column-outline) may support adding a recovery-email column \u2014 not yet confirmed. If confirmed, simplify to a single perceive step.",
+      "Decision 2026-09-15: this query visits every user's detail page, which needs a for_each_row loop primitive the runtime does not have. Building it is its own task. Until then the run halts at s6 (for_each_row) with 'Unsupported action'; see KNOWN_GAPS in tests/unit/background-actions.test.ts."
     ]
   },
   "runId": "yeshid-q03-users-without-recovery-email-{{timestamp}}",

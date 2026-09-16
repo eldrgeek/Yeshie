@@ -16,7 +16,8 @@
       "URL filter ?filters=status=STAGED tested live \u2014 returns 0 results on current org.",
       "STAGED_OFFBOARDING is a separate status for users scheduled for removal.",
       "If the org has users onboarded with a future start date, they appear here.",
-      "Table columns observed: YeshID account owner, Primary email, Directory synced, YeshID status, # of applications. Start date is not a visible column \u2014 may appear in person detail."
+      "Table columns observed: YeshID account owner, Primary email, Directory synced, YeshID status, # of applications. Start date is not a visible column \u2014 may appear in person detail.",
+      "2026-09-15: footer and rows are read with read (perceive ignores selector); respond is a runtime action (src/respond-step.ts); `users` in the answer is the table body's text, not a list of rows; the auth guard runs after the first navigate and routes to a branch."
     ]
   },
   "runId": "yeshid-q02-pending-onboarding-{{timestamp}}",
@@ -45,18 +46,19 @@
   },
   "chain": [
     {
-      "stepId": "s1",
-      "action": "assess_state",
-      "expect": {
-        "state": "authenticated"
-      },
-      "onMismatch": "exit_with_error:not-authenticated"
-    },
-    {
       "stepId": "s2",
       "action": "navigate",
       "url": "{{base_url}}/organization/people?filters=status=STAGED",
       "note": "Filter to users in STAGED (pending onboarding) status."
+    },
+    {
+      "stepId": "s2b",
+      "action": "assess_state",
+      "expect": {
+        "state": "authenticated"
+      },
+      "onMismatch": "branch:not-authenticated",
+      "note": "Checked after the first navigate, on the YeshID page itself. Until 2026-09-15 this guard was the first step, with onMismatch exit_with_error, which the runtime never implemented, so it never fired."
     },
     {
       "stepId": "s3",
@@ -75,24 +77,17 @@
     },
     {
       "stepId": "s5",
-      "action": "perceive",
+      "action": "read",
       "selector": ".v-data-table-footer",
       "store_as": "staged_footer",
-      "note": "Capture total count. '0-0 of 0' means no staged users."
+      "note": "Capture total count. '0-0 of 0' means no staged users. (2026-09-15: was perceive, which ignores selector and stores a page summary, so respond had no footer text to parse.)"
     },
     {
       "stepId": "s6",
-      "action": "perceive",
+      "action": "read",
       "selector": ".v-data-table tbody",
       "store_as": "staged_rows",
-      "extract": "table_rows",
-      "columns": [
-        "name",
-        "primary_email",
-        "directory_synced",
-        "status"
-      ],
-      "note": "Read all staged-user rows. Each row: name (col 1), primary email (col 2), directory sync (col 3), status chip (col 4). Start date not in table \u2014 would require navigating to each person's detail page."
+      "note": "Read all staged-user rows. Each row: name (col 1), primary email (col 2), directory sync (col 3), status chip (col 4). Start date not in table \u2014 would require navigating to each person's detail page. (2026-09-15: was perceive with extract: table_rows, which the runtime never implemented; `users` is now the table body's text.)"
     },
     {
       "stepId": "s7",
@@ -141,6 +136,18 @@
           }
         ]
       }
+    }
+  },
+  "branches": {
+    "not-authenticated": {
+      "steps": [
+        {
+          "stepId": "b1",
+          "action": "assert",
+          "condition": "false",
+          "message": "Not signed in to YeshID. Sign in at https://app.yeshid.com in the Yeshie Chrome profile, then run this query again."
+        }
+      ]
     }
   }
 }

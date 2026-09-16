@@ -105,50 +105,23 @@ function unhandledUses(recipes: Recipe[], handled: Set<string>): Record<string, 
 
 /**
  * Actions that recipes use and background.ts has no handler for, and the
- * recipes that use them (2026-09-15). Each recipe here halts at its first such
- * step, unless the step is optional. None of these recipes has a recorded
- * live success. The table must match the recipes exactly: when you add the
- * handler or rewrite the steps, delete the entry. A new recipe should not add
- * an entry; give the runtime the action instead.
+ * recipes that use them. Each recipe here halts at its first such step, unless
+ * the step is optional. None of these recipes has a recorded live success. The
+ * table must match the recipes exactly: when you add the handler or rewrite
+ * the steps, delete the entry. A new recipe should not add an entry; give the
+ * runtime the action instead.
+ *
+ * Resolved 2026-09-15: the six health-portal export recipes were retired (they
+ * had never run, and this repo is public); gemini export-data now uses
+ * `perceive`; `respond` is a runtime action (src/respond-step.ts); q04's
+ * `guard_tier` became an assess_state branch.
  */
 const KNOWN_GAPS: Record<string, string[]> = {
-  // Health-portal export recipes (2026-07-08). They name an auth wait and
-  // "try these candidates" clicks that were never built.
-  wait_for_auth: [
-    'app.onemedical.com/tasks/01-export-records',
-    'member.aetna.com/tasks/01-export-claims',
-    'my.helixvm.com/tasks/01-export-records',
-    'pharmacy.amazon.com/tasks/01-export-prescriptions',
-    'portal.patientfusion.com/tasks/01-export-records',
-    'portal.practicemailer.com/tasks/01-export-records',
-  ],
-  navigate_or_click: ['app.onemedical.com/tasks/01-export-records'],
-  click_text_or_navigate: [
-    'member.aetna.com/tasks/01-export-claims',
-    'my.helixvm.com/tasks/01-export-records',
-    'portal.patientfusion.com/tasks/01-export-records',
-    'portal.practicemailer.com/tasks/01-export-records',
-  ],
-  // Optional in every recipe, so these steps are recorded as skipped_error and never halt.
-  click_first_match: [
-    'app.onemedical.com/tasks/01-export-records',
-    'member.aetna.com/tasks/01-export-claims',
-    'my.helixvm.com/tasks/01-export-records',
-    'portal.patientfusion.com/tasks/01-export-records',
-    'portal.practicemailer.com/tasks/01-export-records',
-  ],
-  // Only the src/step-executor.ts mirror has it.
-  probe_affordances: ['gemini.google.com/tasks/export-data'],
-  // YeshID query recipes: an answer-shaping vocabulary that was never built.
-  respond: [
-    'yeshid/tasks/q01-count-by-status',
-    'yeshid/tasks/q02-pending-onboarding',
-    'yeshid/tasks/q03-users-without-recovery-email',
-    'yeshid/tasks/q04-group-membership-count',
-    'yeshid/tasks/q05-ungrouped-users',
-  ],
+  // Decision 2026-09-15: q03 and q05 visit every user's detail page, which
+  // needs a loop primitive the runtime does not have. Building one is its own
+  // task; until then both recipes halt at their first step below.
   for_each_row: ['yeshid/tasks/q03-users-without-recovery-email', 'yeshid/tasks/q05-ungrouped-users'],
-  guard_tier: ['yeshid/tasks/q04-group-membership-count', 'yeshid/tasks/q05-ungrouped-users'],
+  guard_tier: ['yeshid/tasks/q05-ungrouped-users'],
 };
 
 describe('every recipe step has a handler in background.ts', () => {
