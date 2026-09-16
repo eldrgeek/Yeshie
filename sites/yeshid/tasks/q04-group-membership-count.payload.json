@@ -102,27 +102,19 @@
       "action": "wait_for",
       "selector": ".v-data-table-footer",
       "timeout": 6000,
-      "note": "Wait for the table's pagination footer, which renders only once the table has resolved its data. Waiting on the search box instead let s3c read the table before its empty-state row appeared (seen live 2026-09-15)."
+      "note": "Wait until the footer shows a range, 'N-M of TOTAL'. Waiting only for the footer to exist was not enough: on 2026-09-15 the live run matched a footer left from the previous render in 3 ms and s3c judged the page before the count appeared.",
+      "text": " of "
     },
     {
       "stepId": "s3c",
       "action": "assess_state",
       "stateGraph": {
         "nodes": {
-          "groups-unavailable": {
-            "signals": [
-              {
-                "type": "element_text",
-                "selector": ".v-data-table-footer",
-                "text": "0-0 of 0"
-              }
-            ]
-          },
           "groups-available": {
             "signals": [
               {
-                "type": "element_visible",
-                "selector": ".v-data-table-footer"
+                "type": "element_absent",
+                "selector": ".v-data-table tbody tr.v-data-table-rows-no-data"
               }
             ]
           }
@@ -132,7 +124,7 @@
         "state": "groups-available"
       },
       "onMismatch": "branch:groups-unavailable",
-      "note": "Stop with a clear message when the groups table holds nothing, which on this plan is why it is empty. The footer reads 'Items per page:10 0-0 of 0'. Was guard_tier, which the runtime never implemented."
+      "note": "One node, on purpose: a state graph's nodes are judged in alphabetical order, not the order written, so a two-node graph named 'groups-available' and 'groups-unavailable' always answered 'groups-available' (measured live 2026-09-15). Vuetify marks an empty table with tr.v-data-table-rows-no-data, so its absence means the table has groups; anything else routes to the branch."
     },
     {
       "stepId": "s4",
