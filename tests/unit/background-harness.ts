@@ -52,6 +52,7 @@ export function chainHarness(source = BACKGROUND): Harness {
   const fns = [
     '  function interpolate(',
     '  function haltsChain(',
+    '  function routeAssessState(',
     '  function PRE_ASSERT_SNAPSHOT(',
     '  function PRE_ASSESS_STATE(',
     '  function PRE_MATCH_WAIT_FOR(',
