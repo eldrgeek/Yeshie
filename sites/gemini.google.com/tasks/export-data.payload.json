@@ -17,6 +17,9 @@
       "Click the download button in the email to get the archive",
       "Move the downloaded zip/tgz to ~/Downloads/chat-exports/",
       "NOTE: Google may take minutes to hours to prepare the archive"
+    ],
+    "notes": [
+      "2026-09-15: s6 ticks the Gemini checkbox with a click and s6b asserts it is ticked; s12 is a perceive. Caveat: on Takeout the 'Gemini' product is described as 'Your Gemini Gems data, including name and instructions'. Gemini chat history is 'Gemini Apps' activity, which Takeout files under 'My Activity', so this export may not contain conversations."
     ]
   },
   "params": {
@@ -93,10 +96,15 @@
     },
     {
       "stepId": "s6",
-      "action": "js",
-      "code": "/*cdp*/ (function() { var items = document.querySelectorAll('[data-product]'); var found = []; items.forEach(function(el) { var text = el.textContent; if (text.includes('Gemini') || text.includes('Bard')) { found.push(text.trim().substring(0, 60)); var cb = el.querySelector('input[type=checkbox]') || el.querySelector('mat-checkbox'); if (cb && !cb.checked) { cb.click(); } } }); return { found: found }; })()",
-      "store_as": "gemini_item_search",
-      "note": "Find and check Gemini/Bard checkbox via JS (handles Angular mat-checkbox complexity)"
+      "action": "click",
+      "selector": "div[data-id='gemini'] input[type=checkbox], input[type=checkbox][aria-label='Select Gemini']",
+      "note": "Tick the Gemini product (row div[data-id=gemini], checkbox aria-label 'Select Gemini'; seen live 2026-09-15). Replaces a js step whose code the runtime's keyword router never ran as written, so the box stayed unticked."
+    },
+    {
+      "stepId": "s6b",
+      "action": "assert",
+      "selector": "div[data-id='gemini'] input[type=checkbox]:checked",
+      "message": "The Gemini product is not ticked after s6, so the export would not include it."
     },
     {
       "stepId": "s7",
@@ -137,8 +145,9 @@
     },
     {
       "stepId": "s12",
-      "action": "probe_affordances",
-      "note": "Survey delivery page for button names before final click"
+      "action": "perceive",
+      "store_as": "delivery_page",
+      "note": "Survey the delivery page's buttons before the final click. Was probe_affordances, which only the src/step-executor.ts mirror has."
     },
     {
       "stepId": "s13",

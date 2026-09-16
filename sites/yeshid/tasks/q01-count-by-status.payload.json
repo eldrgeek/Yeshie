@@ -8,6 +8,7 @@
     "lastSuccess": null,
     "requiredParams": [],
     "optionalParams": [],
+    "notes": ["2026-09-15: the footers are read with read (perceive ignores selector and stores a page summary, so respond had no text to parse); respond is a runtime action (src/respond-step.ts); the auth guard runs after the first navigate and routes to a branch."],
     "auth": {
       "type": "sso_automatable",
       "googleAccountEmail": "mw@mike-wolf.com"
@@ -33,16 +34,17 @@
   },
   "chain": [
     {
-      "stepId": "s1",
-      "action": "assess_state",
-      "expect": { "state": "authenticated" },
-      "onMismatch": "exit_with_error:not-authenticated"
-    },
-    {
       "stepId": "s2",
       "action": "navigate",
       "url": "{{base_url}}/organization/people?filters=status=ACTIVE",
       "note": "URL filter confirmed from site exploration. dashboard 'View all active' uses this exact href."
+    },
+    {
+      "stepId": "s2b",
+      "action": "assess_state",
+      "expect": { "state": "authenticated" },
+      "onMismatch": "branch:not-authenticated",
+      "note": "Checked after the first navigate, on the YeshID page itself. Until 2026-09-15 this guard was the first step, with onMismatch exit_with_error, which the runtime never implemented, so it never fired."
     },
     {
       "stepId": "s3",
@@ -53,7 +55,7 @@
     },
     {
       "stepId": "s4",
-      "action": "perceive",
+      "action": "read",
       "selector": ".v-data-table-footer",
       "store_as": "active_footer",
       "note": "Footer shows e.g. 'Items per page:10 1-10 of 28'. Total is the number after 'of'."
@@ -71,7 +73,7 @@
     },
     {
       "stepId": "s7",
-      "action": "perceive",
+      "action": "read",
       "selector": ".v-data-table-footer",
       "store_as": "deactivated_footer"
     },
@@ -89,7 +91,7 @@
     },
     {
       "stepId": "s10",
-      "action": "perceive",
+      "action": "read",
       "selector": ".v-data-table-footer",
       "store_as": "staged_offboarding_footer"
     },
@@ -107,7 +109,7 @@
     },
     {
       "stepId": "s13",
-      "action": "perceive",
+      "action": "read",
       "selector": ".v-data-table-footer",
       "store_as": "total_footer"
     },
@@ -123,6 +125,13 @@
       "note": "Parse total from each footer's 'N-N of TOTAL' text. Return structured counts."
     }
   ],
+  "branches": {
+    "not-authenticated": {
+      "steps": [
+        { "stepId": "b1", "action": "assert", "condition": "false", "message": "Not signed in to YeshID. Sign in at https://app.yeshid.com in the Yeshie Chrome profile, then run this query again." }
+      ]
+    }
+  },
   "stateGraph": {
     "nodes": {
       "unauthenticated": {

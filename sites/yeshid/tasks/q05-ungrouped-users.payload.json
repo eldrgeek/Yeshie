@@ -17,7 +17,8 @@
       "This payload first checks if any groups exist. If not, it short-circuits with a tier warning.",
       "If groups exist, it iterates active users and checks each person's detail page for group membership info.",
       "Group membership on person detail: expected to appear on the Details tab or a dedicated Groups tab \u2014 not confirmed via live inspection (groups not available on current tier).",
-      "Alternative approach (if group detail is accessible): read all group member lists and diff against the full people list."
+      "Alternative approach (if group detail is accessible): read all group member lists and diff against the full people list.",
+      "Decision 2026-09-15: this query visits every user's detail page, which needs a for_each_row loop primitive the runtime does not have. Building it is its own task. Until then the run halts at s3c (guard_tier) with 'Unsupported action'; see KNOWN_GAPS in tests/unit/background-actions.test.ts."
     ]
   },
   "runId": "yeshid-q05-ungrouped-users-{{timestamp}}",

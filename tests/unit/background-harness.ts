@@ -5,12 +5,14 @@
  * Chrome APIs stubbed. execInTab runs page functions directly against jsdom,
  * so a test file that uses this harness needs `@jest-environment jsdom`.
  *
- * Used by assert-chain.test.ts and unsupported-chain.test.ts.
+ * Used by assert-chain.test.ts, unsupported-chain.test.ts and
+ * query-recipes-chain.test.ts.
  */
 import { readFileSync } from 'fs';
 import ts from 'typescript';
 import { ContentStabilityTracker, expectedWaitState, quietMsOf, stateWaitMatched, waitStateGraph, wantsStable } from '../../src/wait-for.js';
 import { assertFailureMessage, assertNeedsPage, evaluateAssert } from '../../src/assert-step.js';
+import { buildResponse } from '../../src/respond-step.js';
 import { createSurpriseEvidence } from '../../src/runtime-contract.js';
 import { RUNTIME_FEATURES } from '../../src/runtime-features.js';
 
@@ -33,10 +35,17 @@ export function sliceLoop(src: string): string {
   return src.slice(start, end) + '\n    }\n';
 }
 
-export type ChainRun = { executed: string[]; result: any; stepResults: any[]; navigated: string[] };
+export type ChainRun = { executed: string[]; result: any; stepResults: any[]; navigated: string[]; buffer: Record<string, any> };
+
+/**
+ * `params` are laid over the payload's own `params` block (its defaults), as
+ * the relay's callers do. `onNavigate` runs after each navigate, so a test can
+ * put the page for that URL into jsdom.
+ */
+export type RunHooks = { params?: Record<string, string>; onNavigate?: (url: string) => void };
 
 export type Harness = {
-  run: (chain: any[], payload?: any) => Promise<ChainRun>;
+  run: (chain: any[], payload?: any, hooks?: RunHooks) => Promise<ChainRun>;
 };
 
 export function chainHarness(source = BACKGROUND): Harness {
@@ -46,6 +55,7 @@ export function chainHarness(source = BACKGROUND): Harness {
     '  function PRE_ASSERT_SNAPSHOT(',
     '  function PRE_ASSESS_STATE(',
     '  function PRE_MATCH_WAIT_FOR(',
+    '  function PRE_GUARDED_READ(',
     '  function PRE_CLEAR_FIELD(',
     '  function PRE_SCROLL(',
     '  async function executeStep(',
@@ -53,24 +63,25 @@ export function chainHarness(source = BACKGROUND): Harness {
   const body = `
     ${fns}
     const __realExecuteStep = executeStep;
-    return async function runChain(chain, payload) {
+    return async function runChain(chain, payload, hooks) {
       const executed = [];
       const navigated = [];
-      navigateAndWait = async (_tabId, url) => { navigated.push(url); return { ok: true }; };
+      navigateAndWait = async (_tabId, url) => { navigated.push(url); hooks?.onNavigate?.(url); return { ok: true }; };
       const runId = 'test-run', tabId = 7, t0 = Date.now();
-      const run = { runId, payload, params: {}, tabId, abstractTargets: payload.abstractTargets || {}, buffer: {}, stepIndex: 0, status: 'running', result: null, stepResults: [], resolvedTargets: [] };
+      const params = { ...(payload.params || {}), ...(hooks?.params || {}) };
+      const run = { runId, payload, params, tabId, abstractTargets: payload.abstractTargets || {}, buffer: {}, stepIndex: 0, status: 'running', result: null, stepResults: [], resolvedTargets: [] };
       const executeStep = (step, r) => { executed.push(step.stepId); return __realExecuteStep(step, r); };
       // The loop ends a failed chain with a bare \`return\`, so it runs in its own function.
       await (async () => {
       ${sliceLoop(source)}
       })();
-      return { executed, navigated, result: run.result, stepResults: run.stepResults };
+      return { executed, navigated, result: run.result, stepResults: run.stepResults, buffer: run.buffer };
     };`;
   const js = ts.transpileModule(body, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   const deps: Record<string, unknown> = {
     // shared modules, exactly as background.ts imports them
     ContentStabilityTracker, expectedWaitState, quietMsOf, stateWaitMatched, waitStateGraph, wantsStable,
-    assertFailureMessage, assertNeedsPage, evaluateAssert, createSurpriseEvidence, RUNTIME_FEATURES,
+    assertFailureMessage, assertNeedsPage, evaluateAssert, buildResponse, createSurpriseEvidence, RUNTIME_FEATURES,
     // Chrome/runtime stubs
     execInTab: async (_tabId: number, fn: (...a: any[]) => any, args: any[] = []) => fn(...args),
     resolveFrameId: async () => null,
@@ -89,5 +100,5 @@ export function chainHarness(source = BACKGROUND): Harness {
   // `navigateAndWait` is reassigned per run, so it is passed as a mutable parameter.
   const factory = new Function(...names, js);
   const runChain = factory(...names.map((n) => deps[n]));
-  return { run: (chain, payload = {}) => runChain(chain, payload) };
+  return { run: (chain, payload = {}, hooks = {}) => runChain(chain, payload, hooks) };
 }
