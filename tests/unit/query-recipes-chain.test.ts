@@ -20,7 +20,9 @@ const recipe = (name: string) => JSON.parse(readFileSync(new URL(`../../sites/ye
 
 /** A YeshID list page: the table body (or "No data available") and the pagination footer. */
 function listPage(total: number, rows: string[] = []): void {
-  const body = rows.length ? rows.map((r) => `<tr><td>${r}</td></tr>`).join('') : '<tr><td>No data available</td></tr>';
+  // Vuetify marks an empty table with tr.v-data-table-rows-no-data, and q04's guard keys on it.
+  const empty = '<tr class="v-data-table-rows-no-data"><td colspan="7">No data available</td></tr>';
+  const body = rows.length ? rows.map((r) => `<tr><td>${r}</td></tr>`).join('') : empty;
   const range = total ? `1-${Math.min(total, 10)}` : '0-0';
   document.body.innerHTML = `<div class="v-data-table"><table><tbody>${body}</tbody></table><div class="v-data-table-footer">Items per page:10 ${range} of ${total}</div></div>`;
 }
