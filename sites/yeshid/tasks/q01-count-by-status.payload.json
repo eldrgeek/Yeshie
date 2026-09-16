@@ -5,10 +5,10 @@
     "description": "Count YeshID users by status. Navigates to /organization/people with URL-based status filters and reads totals from the pagination footer. Returns { active, deactivated, staged_offboarding, total }.",
     "selfImproving": false,
     "runCount": 0,
-    "lastSuccess": null,
+    "lastSuccess": "2026-09-15",
     "requiredParams": [],
     "optionalParams": [],
-    "notes": ["2026-09-15: the footers are read with read (perceive ignores selector and stores a page summary, so respond had no text to parse); respond is a runtime action (src/respond-step.ts); the auth guard runs after the first navigate and routes to a branch."],
+    "notes": ["2026-09-15: the footers are read with read (perceive ignores selector and stores a page summary, so respond had no text to parse); respond is a runtime action (src/respond-step.ts); the auth guard runs after the first navigate and routes to a branch.", "Verified live 2026-09-15 through the relay (extension build 0.1.553): 15 of 15 steps ok, answer {active: 34, deactivated: 3, staged_offboarding: 0, total: 37}, each count read from a pagination footer such as \"Items per page:10 1-34 of 34\"."],
     "auth": {
       "type": "sso_automatable",
       "googleAccountEmail": "mw@mike-wolf.com"
