@@ -19,17 +19,18 @@
   },
   "chain": [
     {
-      "stepId": "s1",
+      "stepId": "s2",
+      "action": "navigate",
+      "url": "{{base_url}}/access/grid"
+    },
+    {
+      "stepId": "s2-auth",
       "action": "assess_state",
       "expect": {
         "state": "authenticated"
       },
-      "onMismatch": "exit_with_error:not-authenticated"
-    },
-    {
-      "stepId": "s2",
-      "action": "navigate",
-      "url": "{{base_url}}/access/grid"
+      "onMismatch": "exit_with_error:not-authenticated",
+      "note": "Checked just after the first navigate, on the YeshID page itself. Until 2026-09-16 this guard was the first step, so it judged whatever tab the run started in and it switched off startRun's pre-chain sign-in check; its onMismatch exit_with_error was also never implemented, so it never fired."
     },
     {
       "stepId": "s3",

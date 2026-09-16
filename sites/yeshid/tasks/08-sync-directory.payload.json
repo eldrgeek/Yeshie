@@ -23,7 +23,8 @@
       "expect": {
         "state": "authenticated"
       },
-      "onMismatch": "exit_with_error:not-authenticated"
+      "onMismatch": "exit_with_error:not-authenticated",
+      "note": "This recipe has no navigate, so the guard stays first and judges the tab the run starts in: start the run on a signed-in YeshID page. Its onMismatch exit_with_error has been honoured since 2026-09-16."
     },
     {
       "stepId": "s2",

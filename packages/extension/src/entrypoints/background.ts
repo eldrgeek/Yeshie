@@ -584,6 +584,46 @@ export default defineBackground(() => {
     return false;
   }
 
+  // What an assess_state result does to the chain: 'continue', 'branch' (to
+  // payload.branches[name]), 'exit_success', or 'fail' with a message.
+  //   onMismatch applies when the page is not in the expected state.
+  //   onMatch applies when it is; with no `expect`, when the page is in any
+  //   state of the graph. onMatch may also map state names to outcomes:
+  //   {"auth_required": "exit_fail"}.
+  //   Outcomes: "branch:<name>", "exit_with_error:<reason>", "report_failure"
+  //   and "exit_fail" (fail), "exit_success", "continue".
+  // Until 2026-09-16 the loop honoured only onMatch "exit_success" and
+  // onMismatch "branch:<name>". It read every other value as a branch it could
+  // not find and ran on, so 19 recipes' sign-in guards never fired. Any other
+  // value now fails the step. A branch that payload.branches does not define
+  // still continues, as before.
+  function routeAssessState(step: any, res: any): { kind: string; name?: string; message?: string } {
+    const id = step.stepId ? ` [${step.stepId}]` : '';
+    const outcome = (value: any, why: string) => {
+      if (value === 'continue') return { kind: 'continue' };
+      if (value === 'exit_success') return { kind: 'exit_success' };
+      if (value === 'exit_fail' || value === 'report_failure') return { kind: 'fail', message: `assess_state${id}: ${why}` };
+      if (typeof value === 'string' && value.startsWith('exit_with_error:')) {
+        return { kind: 'fail', message: `assess_state${id}: ${why} (${value.slice('exit_with_error:'.length).trim()})` };
+      }
+      if (typeof value === 'string' && value.startsWith('branch:')) return { kind: 'branch', name: value.slice('branch:'.length) };
+      return { kind: 'fail', message: `assess_state${id}: unsupported routing ${JSON.stringify(value)}` };
+    };
+    if (step.onMatch !== undefined && step.onMatch !== null) {
+      if (typeof step.onMatch === 'object' && !Array.isArray(step.onMatch)) {
+        const hit = Object.keys(step.onMatch).find((name) => res.states?.includes(name));
+        if (hit) return outcome(step.onMatch[hit], `the page is in state "${hit}"`);
+      } else if (step.expect ? res.matched : !!res.state && res.state !== 'unknown') {
+        return outcome(step.onMatch, `the page is in state "${res.state}"`);
+      }
+    }
+    if (!res.matched && step.onMismatch !== undefined && step.onMismatch !== null) {
+      const expected = step.expect?.state ?? (Array.isArray(step.expect?.state_any) ? step.expect.state_any.join('" or "') : '');
+      return outcome(step.onMismatch, `expected state "${expected}", saw "${res.state || 'unknown'}"`);
+    }
+    return { kind: 'continue' };
+  }
+
   // ── Pre-bundled functions ────────────────────────────────────────────────────
   // Self-contained — passed as func to executeScript (MAIN world, no imports)
 
@@ -1314,13 +1354,17 @@ export default defineBackground(() => {
       }
       return false;
     }
-    if (!stateGraph?.nodes) return { state: 'unknown' };
+    if (!stateGraph?.nodes) return { state: 'unknown', holds: {} };
+    // Judge every node. `state` is the first node that holds, and `holds` says
+    // for each node whether all its signals hold, so a step can ask whether the
+    // page is in the state it expects whatever order the nodes arrive in.
+    const holds: Record<string, boolean> = {};
+    let state = 'unknown';
     for (const [name, node] of Object.entries(stateGraph.nodes) as any) {
-      if (!node.signals?.length) continue;
-      const allMatch = node.signals.every((sig: any) => matchesSignal(sig));
-      if (allMatch) return { state: name };
+      holds[name] = !!node.signals?.length && node.signals.every((sig: any) => matchesSignal(sig));
+      if (holds[name] && state === 'unknown') state = name;
     }
-    return { state: 'unknown' };
+    return { state, holds };
   }
 
   function PRE_ARM_MUTATION_OBSERVER() {
@@ -2975,16 +3019,24 @@ export default defineBackground(() => {
       if (a === 'assess_state') {
         const sg = step.stateGraph || run.payload?.stateGraph || { nodes: {} };
         const r = await execInTab(tabId, PRE_ASSESS_STATE, [sg]);
-        const matched = !step.expect?.state || r?.state === step.expect.state;
+        // The page is in the expected state when that node's own signals hold
+        // (`expect.state`, or any node of `expect.state_any`). Until 2026-09-16
+        // this compared the expected name with the first node that held, so
+        // the answer depended on node order: on /access/grid an `access-grid`
+        // node came first and an `authenticated` guard failed on a signed-in
+        // page. `state_any` was not read at all, so such a step always matched.
+        const expected: string[] = step.expect?.state ? [step.expect.state] : Array.isArray(step.expect?.state_any) ? step.expect.state_any : [];
+        const matched = expected.length === 0 || expected.some((n: string) => r?.holds?.[n] === true);
+        const states = Object.keys(r?.holds || {}).filter((n) => r.holds[n]);
         const surpriseEvidence = matched ? undefined : [
           createSurpriseEvidence('state_mismatch', {
             stepId: step.stepId,
-            expected: step.expect?.state,
+            expected: expected.join(' | '),
             observed: r?.state || 'unknown',
             details: 'assess_state did not match expected state',
           }),
         ];
-        return { stepId: step.stepId, action: a, status: 'ok', state: r?.state, matched, surpriseEvidence, durationMs: Date.now() - t0 };
+        return { stepId: step.stepId, action: a, status: 'ok', state: r?.state, states, matched, surpriseEvidence, durationMs: Date.now() - t0 };
       }
 
       if (a === 'js') {
@@ -3815,15 +3867,20 @@ export default defineBackground(() => {
           run.resolvedTargets.push({ abstractName: step.target, selector: res.selector, confidence: res.confidence || 0, resolvedVia: res.resolvedVia, resolvedAt: new Date().toISOString() });
         }
 
-        if (step.action === 'assess_state' && res.matched && step.onMatch === 'exit_success') {
+        const route = step.action === 'assess_state' && res.status === 'ok' ? routeAssessState(step, res) : { kind: 'continue' };
+        if (route.kind === 'exit_success') {
           run.status = 'complete';
           run.result = buildChainResult(run, t0, true);
           await chrome.storage.session.set({ [runId]: run.result });
           return;
         }
+        if (route.kind === 'fail') {
+          res.status = 'error';
+          res.error = route.message;
+        }
 
-        if (step.action === 'assess_state' && !res.matched && step.onMismatch) {
-          const branchName = step.onMismatch.replace('branch:', '');
+        if (route.kind === 'branch') {
+          const branchName = route.name as string;
           const branchSteps = payload.branches?.[branchName]?.steps || payload.branches?.[branchName] || [];
           for (const bStep of branchSteps) {
             const bRes = await executeStep(bStep, run);
