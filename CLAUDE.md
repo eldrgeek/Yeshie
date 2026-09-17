@@ -7,7 +7,7 @@ Chrome MV3 extension + local relay `http://127.0.0.1:3333`: Claude sends payload
 `master` is the trunk and GitHub's default branch. Branch from `origin/master`, and open every PR against `master`. Merge only with `~/Projects/_estate/bin/pr-merge-green <n> --repo eldrgeek/Yeshie`, which refuses a PR unless the `unit` check (`.github/workflows/unit-tests.yml`) ran and passed.
 
 - **`fix/adddns-netlify-token-from-env`** was the living line from April to 2026-09-13, while `master` sat stale at 2026-06-13. Merge `b2db8123` joined the two without changing any file: it kept the living branch's tree and recorded `master` as a parent. The only master-only content it dropped was a hardcoded, dead Netlify PAT in `adddns.py`. The old branch still exists because several worktrees are based on it. Do not target new PRs at it.
-- **`main`** is a different, dead repository that shares this URL: a separate root commit, with its last commit on 2026-01-15. Never branch from it or merge it.
+- **`main`** is a different, dead repository that shares this URL: a separate root commit, with its last commit on 2026-07-10 (corrected 2026-09-17, verification sweep). Never branch from it or merge it.
 - **The everyday extension** is built by launchd job `com.yeshie.watcher` from the working tree of the main checkout, `~/Projects/yeshie/packages/extension`. The relay's `GET /status` field `buildVersion` shows which build is loaded. Keep the main checkout on `master`.
 - **Dependencies are installed, not tracked (since 2026-09-15).** Until then git tracked 19,542 `node_modules` files: 11,961 at the root and 7,581 in `packages/extension`. They were committed by accident on 2026-03-30, before `.gitignore` covered them. That stale copy lacked `socket.io-client`, so a fresh worktree could not build the extension or pass the `relay-*` tests. A fresh worktree now has no `node_modules`, so run `npm ci && npm ci --prefix packages/extension && npm ci --prefix packages/relay` before building or testing. A worktree created before this change loses its tracked copy when it merges `master`, so run the same commands there afterwards. To keep a checkout's installed modules through that merge, run `git rm -r -q --cached node_modules packages/extension/node_modules` first; git then leaves the files on disk. The main checkout was updated that way.
 
@@ -31,8 +31,8 @@ A "recipe" is a `sites/<domain>/tasks/*.payload.json` file (that's what the per-
 `recipes/` directory is a one-off (`auth-flow-handler` only, added whole 2026-05-05,
 no history since) — not the repo's actual recipe home; don't count only that dir.
 
-Current corpus: **35 site dirs / ~220 recipes**. `github.com` is the largest set
-(100 recipes, of which 38 public ones were "live verified," per its own README —
+Current corpus: **28 site dirs / 217 recipes** (corrected 2026-09-17, verification sweep). `github.com` is the largest set
+(101 recipes, of which 38 of 38 public ones were "live verified," per its own README —
 the rest need an authenticated session to verify). `google-admin` and `okta`
 already have payloads. This git branch may lag the operator laptop (e.g. Rocket
 Money live-verified there, not landed here). Full per-site breakdown:
