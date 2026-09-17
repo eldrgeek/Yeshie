@@ -6,6 +6,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { appendFileSync, mkdirSync, existsSync, readFileSync, readdirSync, writeFileSync, statSync } from 'fs';
 import { buildRunRequestedConversationEntry } from './run-attribution.js';
+import { logChainSteps } from './automation-log.js';
 import { createInstanceRegistry, normalizeTarget } from './instances.js';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -820,6 +821,9 @@ export function createRelay(port = 3333) {
         // out has had its pending entry deleted, but the chain still settles
         // here later — we still want the failure filed to soma-errors.
         reportChainOutcome(result);
+        // One line per executed step to ~/Library/Logs/soma-automation/actions.jsonl
+        // (step kind + site host only), so human active time can exclude automation.
+        logChainSteps(result);
         const own = ownJob(commandId);
         if (!own) return;
         clearTimeout(own.p.timer);
@@ -830,6 +834,7 @@ export function createRelay(port = 3333) {
 
       socket.on('chain_error', ({ commandId, error, result }) => {
         reportChainOutcome(result, error);
+        logChainSteps(result);
         const own = ownJob(commandId);
         if (!own) return;
         clearTimeout(own.p.timer);
