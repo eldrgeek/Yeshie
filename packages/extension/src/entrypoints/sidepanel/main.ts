@@ -1,3 +1,5 @@
+import { splitCandidate, type SplitCandidate } from '../../split-view';
+
 // Simple markdown-to-HTML renderer for chat messages
 function renderMarkdown(text: string): string {
   return text
@@ -361,3 +363,57 @@ sendBtn.addEventListener('click', sendMessage);
 checkStatus();
 setInterval(checkStatus, 30000);
 init();
+
+// ── Split View: offer "Make split" when exactly two tabs are selected ───────
+// Select one tab, Cmd-click a second, open the side panel. The panel closes
+// itself and the background worker makes the split (see makeSplit there).
+const splitBar = document.getElementById('split-bar')!;
+const splitBtn = document.getElementById('split-btn') as HTMLButtonElement;
+const splitLeft = document.getElementById('split-left')!;
+const splitRight = document.getElementById('split-right')!;
+const splitErrorEl = document.getElementById('split-error')!;
+let splitOffer: SplitCandidate | null = null;
+
+async function refreshSplitOffer() {
+  try {
+    const win = await chrome.windows.getCurrent();
+    const highlighted = await chrome.tabs.query({ windowId: win.id, highlighted: true });
+    splitOffer = splitCandidate(highlighted as any);
+  } catch {
+    splitOffer = null;
+  }
+  if (splitOffer) {
+    splitLeft.textContent = `\u25E7 ${splitOffer.titles[0] || 'Untitled tab'}`;
+    splitRight.textContent = `\u25E8 ${splitOffer.titles[1] || 'Untitled tab'}`;
+    splitBtn.disabled = false;
+    splitBar.classList.add('visible');
+  } else {
+    splitBar.classList.remove('visible');
+  }
+}
+
+async function showLastSplitError() {
+  try {
+    const { yeshie_split_error: last } = await chrome.storage.local.get('yeshie_split_error');
+    if (last?.error) {
+      splitErrorEl.textContent = `\u26A0\uFE0F ${last.error}`;
+      splitErrorEl.classList.add('visible');
+      await chrome.storage.local.remove('yeshie_split_error');
+      const win = await chrome.windows.getCurrent();
+      chrome.action.setBadgeText({ text: '', windowId: win.id }).catch(() => {});
+    }
+  } catch { /* storage unavailable */ }
+}
+
+splitBtn.addEventListener('click', () => {
+  if (!splitOffer) return;
+  splitBtn.disabled = true;
+  // Fire and forget: the worker closes this panel before splitting.
+  chrome.runtime.sendMessage({ type: 'make_split', windowId: splitOffer.windowId, tabIds: splitOffer.tabIds }).catch(() => {});
+});
+
+chrome.tabs.onHighlighted.addListener(() => { refreshSplitOffer(); });
+chrome.tabs.onUpdated.addListener((_id, info) => { if ('splitViewId' in info || 'title' in info) refreshSplitOffer(); });
+chrome.tabs.onRemoved.addListener(() => { refreshSplitOffer(); });
+refreshSplitOffer();
+showLastSplitError();
