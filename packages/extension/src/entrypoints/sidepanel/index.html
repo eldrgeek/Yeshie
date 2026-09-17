@@ -36,12 +36,26 @@
     .fb-btn.selected { opacity: 1; background: #e3f2fd; }
     #rec-banner { display: none; background: #e53935; color: #fff; padding: 6px 16px; font-size: 12px; font-weight: 600; letter-spacing: 0.5px; text-align: center; }
     #rec-banner.active { display: block; }
+    #split-bar { display: none; margin: 0 16px 12px; padding: 10px 12px; background: #fff; border: 1px solid #bbdefb; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); font-size: 13px; color: #333; }
+    #split-bar.visible { display: block; }
+    #split-bar .split-tabs { margin-bottom: 8px; line-height: 1.4; overflow-wrap: anywhere; }
+    #split-bar .split-tabs span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #split-btn { background: #1a1a2e; color: #fff; border: none; border-radius: 16px; padding: 7px 16px; font-size: 13px; font-weight: 500; cursor: pointer; }
+    #split-btn:hover { background: #2d2d50; }
+    #split-btn:disabled { background: #ccc; cursor: not-allowed; }
+    #split-error { display: none; }
+    #split-error.visible { display: block; }
   </style>
 </head>
 <body>
   <div id="header">Yeshie</div>
   <div id="rec-banner">● RECORDING — ⌃⌥R to stop</div>
   <div id="messages"></div>
+  <div id="split-error" class="message error-message"></div>
+  <div id="split-bar">
+    <div class="split-tabs"><span id="split-left"></span><span id="split-right"></span></div>
+    <button id="split-btn">Make split</button>
+  </div>
   <div id="status">Checking connection...</div>
   <div id="input-area">
     <textarea id="chat-input" rows="1" placeholder="Ask Yeshie anything..."></textarea>

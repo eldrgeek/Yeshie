@@ -10,6 +10,7 @@ import { describeOptions, pickOptionIndex } from '../../../../src/select-option.
 import { pickRowIndex, rowScope } from '../../../../src/row-scope.js';
 import { RUNTIME_FEATURES } from '../../../../src/runtime-features.js';
 import { loadInstanceIdentity, captureInstanceState, watchInstanceState } from '../instance-state';
+import { buildSplitRequest, isSplitTogether } from '../split-view';
 
 export default defineBackground(() => {
   console.log('[Yeshie] Background worker started');
@@ -3943,6 +3944,51 @@ export default defineBackground(() => {
   }
 
   // ── Message handler ───────────────────────────────────────────────────────────
+
+  // ── Split View ("Make split" in the side panel) ─────────────────────────────
+  // The side panel closes itself first, so this runs in the worker. The split
+  // is made on the Mac by the local relay (macOS Accessibility presses Chrome's
+  // "New Split View with Current Tab"), so it always calls localhost, even in a
+  // build whose RELAY_URL points elsewhere. Success is judged by splitViewId,
+  // not by the relay's reply. A failure is kept in storage and shown the next
+  // time the side panel opens, because the panel is closed by then.
+  const LOCAL_RELAY_URL = 'http://localhost:3333';
+  const SPLIT_ERROR_KEY = 'yeshie_split_error';
+
+  async function makeSplit(windowId: number, tabIds: [number, number]) {
+    const fail = async (error: string) => {
+      await chrome.storage.local.set({ [SPLIT_ERROR_KEY]: { error, at: Date.now() } });
+      chrome.action.setBadgeText({ text: '!', windowId }).catch(() => {});
+      return { ok: false, error };
+    };
+    try {
+      await chrome.sidePanel.close({ windowId });
+    } catch { /* panel may already be closed */ }
+    const windowTabs = await chrome.tabs.query({ windowId });
+    const request = buildSplitRequest(windowTabs as any, tabIds);
+    if (!request) return fail('Split cancelled: the two tabs are no longer selected with one of them active.');
+    let relayResult: any = null;
+    try {
+      const resp = await fetch(`${LOCAL_RELAY_URL}/chrome/split`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      });
+      relayResult = await resp.json().catch(() => null);
+    } catch (e: any) {
+      return fail(`Split failed: the local relay is unreachable (${e?.message || e}).`);
+    }
+    for (let i = 0; i < 20; i++) {
+      const tabs = await Promise.all(tabIds.map(id => chrome.tabs.get(id)));
+      if (isSplitTogether(tabs as any)) {
+        await chrome.storage.local.remove(SPLIT_ERROR_KEY);
+        return { ok: true, splitViewId: (tabs[0] as any).splitViewId };
+      }
+      await new Promise(r => setTimeout(r, 150));
+    }
+    return fail(`Split failed: ${relayResult?.error || 'Chrome did not report a split view.'}`);
+  }
+
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'skill_run') {
       const runId = crypto.randomUUID();
@@ -4028,6 +4074,12 @@ export default defineBackground(() => {
           sendResponse({ error: e.message });
         }
       })();
+      return true;
+    }
+    if (msg.type === 'make_split') {
+      makeSplit(msg.windowId, msg.tabIds)
+        .then(sendResponse)
+        .catch((err: any) => sendResponse({ ok: false, error: err?.message || String(err) }));
       return true;
     }
     if (msg.type === 'chat_status') {

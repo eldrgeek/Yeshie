@@ -183,6 +183,22 @@ function loadRelaySecret() {
   }
 }
 
+export function validateSplitRequest(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return 'body must be an object';
+  const allowed = new Set(['titles', 'activeIndex', 'targetIndex']);
+  const unknown = Object.keys(body).find(k => !allowed.has(k));
+  if (unknown) return `unknown field: ${unknown}`;
+  const { titles, activeIndex, targetIndex } = body;
+  if (!Array.isArray(titles) || titles.length === 0 || titles.length > 1000 || !titles.every(t => typeof t === 'string')) {
+    return 'titles must be a non-empty array of strings';
+  }
+  for (const [name, v] of [['activeIndex', activeIndex], ['targetIndex', targetIndex]]) {
+    if (!Number.isInteger(v) || v < 0 || v >= titles.length) return `${name} must be an index into titles`;
+  }
+  if (activeIndex === targetIndex) return 'activeIndex and targetIndex must differ';
+  return null;
+}
+
 function extractClientIp(req) {
   // Prefer the socket's remoteAddress; fall back to X-Forwarded-For only if local.
   const raw = req.socket?.remoteAddress || '';
@@ -955,6 +971,37 @@ export function createRelay(port = 3333) {
 
     if (path === '/log' && req.method === 'GET') {
       jsonReply(res, 200, authLog);
+      return;
+    }
+
+    // --- Chrome Split View ("Make split" in the side panel) ---
+    // Chrome has no API that creates a split view, so scripts/chrome-split.py
+    // presses the tab menu's "New Split View with Current Tab" through macOS
+    // Accessibility. Loopback callers only: it drives the local desktop.
+    if (path === '/chrome/split' && req.method === 'POST') {
+      const ip = extractClientIp(req);
+      if (ip !== '127.0.0.1' && ip !== '::1') { jsonReply(res, 403, { error: 'Loopback callers only' }); return; }
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const problem = validateSplitRequest(body);
+      if (problem) { jsonReply(res, 400, { error: problem }); return; }
+      const script = process.env.YESHIE_CHROME_SPLIT || fileURLToPath(new URL('../../scripts/chrome-split.py', import.meta.url));
+      if (process.platform !== 'darwin' && !process.env.YESHIE_CHROME_SPLIT) {
+        jsonReply(res, 501, { error: 'Split view needs the Mac relay (macOS Accessibility)' });
+        return;
+      }
+      const python = process.env.YESHIE_PYTHON || '/opt/homebrew/bin/python3';
+      const request = { titles: body.titles, activeIndex: body.activeIndex, targetIndex: body.targetIndex };
+      execFile(python, [script, JSON.stringify(request)], { timeout: 10000 }, (err, stdout, stderr) => {
+        let result;
+        try { result = JSON.parse(String(stdout).trim().split('\n').pop() || ''); } catch { result = null; }
+        if (!result) {
+          jsonReply(res, 500, { ok: false, error: (err && err.message) || 'chrome-split produced no result', stderr: String(stderr).slice(-500) });
+          return;
+        }
+        console.log('[relay] chrome split:', JSON.stringify(result));
+        jsonReply(res, result.ok ? 200 : 422, result);
+      });
       return;
     }
 
