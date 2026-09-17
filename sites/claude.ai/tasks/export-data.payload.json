@@ -1,17 +1,18 @@
 {
   "_meta": {
     "task": "export-data",
-    "description": "Trigger Claude.ai data export. Settings are a hash-addressed modal as of ~2026-07: open a NEW tab directly on claude.ai/new#settings/data-privacy-controls and wait_for the dialog \u2014 the modal renders seconds AFTER tab 'complete' on a cold SPA load, so fixed delays race it (that raced-delay bug is why the 07-02/07-03 nightly runs failed with 'Text not found'). A mid-chain hashchange (navigate on an already-open tab) is NOT reliable \u2014 claude.ai's router only honors #settings at page load. Click 'Export data', then 'Export' in the confirm sub-dialog. FLOW CHANGE ~2026-07: the export is no longer a direct browser download \u2014 Anthropic emails a download link to the account email (expires in 24h).",
+    "description": "Trigger Claude.ai data export. Settings are a hash-addressed modal as of ~2026-07: open a NEW tab directly on claude.ai/new#settings/data-privacy-controls and wait_for the dialog — the modal renders seconds AFTER tab 'complete' on a cold SPA load, so fixed delays race it (that raced-delay bug is why the 07-02/07-03 nightly runs failed with 'Text not found'). A mid-chain hashchange (navigate on an already-open tab) is NOT reliable — claude.ai's router only honors #settings at page load. Click 'Export data', then 'Export' in the confirm sub-dialog. FLOW CHANGE ~2026-07: the export is no longer a direct browser download — Anthropic emails a download link to the account email (expires in 24h).",
     "selfImproving": true,
-    "runCount": 0,
-    "lastSuccess": "2026-07-03",
+    "runCount": 4,
+    "lastSuccess": "2026-09-17T07:10:08.794Z",
     "flowChangeLog": [
       "2026-07-03: old flow (navigate claude.ai/settings -> click Export data -> direct zip download) is dead. claude.ai/settings now redirects to the most recent chat. Rebuilt around the #settings hash modal. Export now emails a link instead of downloading directly. Verified live 2026-07-03 by Dee."
     ],
     "humanSteps": [
       "Anthropic emails a download link to the claude.ai account email (mw@mike-wolf.com). Link expires in 24 hours.",
-      "Click the link; the zip lands in ~/Downloads. The next nightly run (or acquire_exports) imports it \u2014 no manual move needed if it matches conversations*.zip / contains conversations.json."
-    ]
+      "Click the link; the zip lands in ~/Downloads. The next nightly run (or acquire_exports) imports it — no manual move needed if it matches conversations*.zip / contains conversations.json."
+    ],
+    "lastDurationMs": 3520
   },
   "params": {},
   "chain": [
@@ -19,14 +20,14 @@
       "stepId": "s1",
       "action": "open_tab",
       "url": "https://claude.ai/new#settings/data-privacy-controls",
-      "note": "New tab, hash in the load URL \u2014 NEVER 'navigate' as the first step: with tabId null the runner hijacks Mike's active tab (that's what the 07-01..07-03 version did)"
+      "note": "New tab, hash in the load URL — NEVER 'navigate' as the first step: with tabId null the runner hijacks Mike's active tab (that's what the 07-01..07-03 version did)"
     },
     {
       "stepId": "s2",
       "action": "wait_for",
       "selector": "[role='dialog']",
       "timeout": 30000,
-      "note": "Settings modal renders seconds after tab 'complete' on a cold SPA load \u2014 poll, don't fixed-delay"
+      "note": "Settings modal renders seconds after tab 'complete' on a cold SPA load — poll, don't fixed-delay"
     },
     {
       "stepId": "s3",
