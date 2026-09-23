@@ -24,6 +24,7 @@
  *   node scripts/substack.mjs draft   --file post.md [--draft-id N]                           [--dry-run]
  *   node scripts/substack.mjs byline  --draft-id N --query "Verso" [--pick "Verso"]           [--dry-run]
  *   node scripts/substack.mjs publish --draft-id N [--audience everyone|only_paid]             [--dry-run]
+ *   node scripts/substack.mjs nav     --title "ai-wtf.org" --url https://ai-wtf.org             [--dry-run]
  *
  * FLAGS
  *   --pub SUB   publication subdomain (default aiwtf)
@@ -55,6 +56,7 @@ const RECIPES = {
   invite: '05-invite-team-member.payload.json',
   byline: '06-add-byline.payload.json',
   publish: '07-publish-no-email.payload.json',
+  nav: '08-add-navigation-item.payload.json',
 };
 const WELCOME = {
   free: { editor_title: 'Welcome%20email%20to%20free%20subscribers', body_field: 'unfinished_subscription_email_content', subject_field: 'unfinished_subscription_email_subject' },
@@ -195,7 +197,7 @@ const draftsUrl = () => `https://${pub}.substack.com/api/v1/post_management/draf
 const secretLink = (d) => `https://${pub}.substack.com/p/${d.uuid}`;
 
 async function main() {
-  if (!RECIPES[cmd] && cmd !== 'drafts') die('usage: substack.mjs login|drafts|about|welcome|invite|draft|byline|publish [flags] (see the header of this file)');
+  if (!RECIPES[cmd] && cmd !== 'drafts') die('usage: substack.mjs login|drafts|about|welcome|invite|draft|byline|publish|nav [flags] (see the header of this file)');
   const status = await relay('/status');
   if (!status.extensionConnected) die('the Yeshie extension is not connected to the relay');
   const tabId = await substackTab();
@@ -239,6 +241,14 @@ async function main() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || ''))) die('--email must be an email address');
     runRecipe('invite', { publication_subdomain: pub, email }, tabId);
     if (!dryRun) console.log(`substack: invited ${email}; they accept from the email Substack sent`);
+    return;
+  }
+
+  if (cmd === 'nav') {
+    const title = opt('title'); if (!title) die('--title is required');
+    const url = opt('url'); if (!/^https?:\/\//.test(String(url || ''))) die('--url must start with http:// or https://');
+    runRecipe('nav', { publication_subdomain: pub, title, url }, tabId);
+    if (!dryRun) console.log(`substack: navigation item "${title}" -> ${url} added`);
     return;
   }
 

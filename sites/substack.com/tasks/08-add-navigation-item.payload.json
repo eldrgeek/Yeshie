@@ -1,0 +1,36 @@
+{
+  "name": "substack-add-navigation-item",
+  "site": "substack.com",
+  "task": "add-navigation-item",
+  "description": "Add one external link to a Substack publication's navigation bar (Settings > Website > Navigation bar > Add item). Used to point aiwtf.substack.com at ai-wtf.org, the site that holds the same essays. The proof is the item listed in the publication JSON's navigationBarItems and on the settings page after a reload.",
+  "version": "1.0.0",
+  "verified": false,
+  "dryRunUntil": "s06",
+  "requires": "Run from scripts/substack.mjs (command nav), which opens a Substack tab.",
+  "authorship": "Mike Wolf (direction: cross-link the site and the Substack); Claude Fable 5.1 (CCc), 2026-09-23, from that day's look at the settings page.",
+  "anomalies": [
+    "The Navigation bar section lives under Settings > Website; the address https://<sub>.substack.com/publish/settings?search=navigation shows it. Default items: Home /, Notes /notes, Archive /archive, About /about. The publication JSON field is navigationBarItems (an empty array while only defaults exist).",
+    "'Add item' opens a dialog titled 'Add navigation bar item' with two unnamed text inputs, placeholders 'Enter title…' and 'https://example.com', and buttons Cancel and Add. The inputs have no name or id, so the recipe selects them by placeholder.",
+    "Substack saves the item when Add is clicked; there is no separate Save."
+  ],
+  "params": {
+    "publication_subdomain": "aiwtf",
+    "title": "",
+    "url": ""
+  },
+  "chain": [
+    {"stepId": "s01", "action": "assert", "url_pattern": "^https://([a-z0-9-]+\\.)?substack\\.com/", "message": "This run landed on a tab that is not on substack.com. Open a Substack tab first (scripts/substack.mjs does) and pass its tab id; refusing to navigate whatever tab is active."},
+    {"stepId": "s02", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/publish/settings?search=navigation"},
+    {"stepId": "s03", "action": "wait_for", "selector": "body", "text": "Navigation bar", "timeout": 20000},
+    {"stepId": "s04", "action": "click_text", "text": "Add item", "exact": true},
+    {"stepId": "s05", "action": "wait_for", "selector": "input[placeholder='https://example.com']", "timeout": 8000},
+    {"stepId": "s06", "action": "wait_for", "selector": "body", "text": "Add navigation bar item", "timeout": 5000, "note": "The dialog is open. A dry run stops here: nothing has been typed."},
+    {"stepId": "s07", "action": "type", "selector": "div[role='dialog'] input[placeholder='Enter title…']", "value": "{{title}}"},
+    {"stepId": "s08", "action": "type", "selector": "div[role='dialog'] input[placeholder='https://example.com']", "value": "{{url}}"},
+    {"stepId": "s09", "action": "assert", "selector": "div[role='dialog'] input[placeholder='https://example.com']", "value": "{{url}}", "message": "Read-back before Add: the link is not '{{url}}'."},
+    {"stepId": "s10", "action": "click_text", "text": "Add", "exact": true},
+    {"stepId": "s11", "action": "wait_for", "selector": "input[placeholder='https://example.com']", "state": {"visible": false}, "timeout": 10000, "note": "The dialog closes once Substack saves the item."},
+    {"stepId": "s12", "action": "navigate", "url": "https://{{publication_subdomain}}.substack.com/api/v1/publication"},
+    {"stepId": "s13", "action": "assert", "selector": "body", "value": "{{url}}", "message": "Proof: the publication JSON does not list '{{url}}' among navigationBarItems."}
+  ]
+}

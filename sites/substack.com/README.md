@@ -28,7 +28,8 @@ are in the wrapper's header. The skills `substack-publish` and `aiwtf-daily-chec
 | `04-edit-welcome-email` | Replaces the free or paid welcome email | Subject and body in `/api/v1/publication` | Dry run green |
 | `05-invite-team-member` | Invites one address to the team | The address listed in Team settings after a reload | Dry run green |
 | `06-add-byline` | Adds a person Substack knows to a draft's byline | The name in the draft's `postBylines` | Dry run green |
-| `07-publish-no-email` | Publishes a draft to the chosen audience with no email | `is_published` true, `should_send_email` false, `email_sent_at` null, `audience` | Dry run green |
+| `07-publish-no-email` | Publishes a draft to the chosen audience with no email | `is_published` true, `should_send_email` false, `email_sent_at` null, `audience` | **Live green ×12** (2026-09-23) |
+| `08-add-navigation-item` | Adds an external link to the navigation bar | The URL in `/api/v1/publication` `navigationBarItems` | Live green (2026-09-23) |
 
 ## What Substack does that is easy to get wrong
 
@@ -85,3 +86,14 @@ are in the wrapper's header. The skills `substack-publish` and `aiwtf-daily-chec
   exposed a wrapper crash (a leftover `audience` reference). The wrapper now also checks that
   the first saved block keeps its kind.
 - Rerun: "Silicon Siblings" saved and checked (title, subtitle, body, first block a paragraph).
+
+**2026-09-23** (Claude Fable 5.1, CCc, for Mike)
+
+- First real `publish` run found two faults, both healed in 1.1.0.1: `click_text` cannot find the
+  Delivery label's text (the switch is `button[data-track-input='send_email']`), and after
+  "Publish now" Substack now asks "Do you want to send this post via email?" — the recipe answers
+  "Publish on web only". All 12 January essays then published green, one run each, 50–90 s a run.
+- `about` and `welcome --kind free` live green: the About page and the free welcome email had been
+  Substack's defaults.
+- New `08-add-navigation-item` (`substack.mjs nav`): the "Add item" dialog's two inputs have no
+  name or id, so they are selected by placeholder. Added "ai-wtf.org (the site)".
