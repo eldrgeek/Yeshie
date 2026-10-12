@@ -56,12 +56,19 @@ describe('sites/substack.com recipes', () => {
     expect(clicksText.filter((t: string) => /save|send|publish|invite/i.test(t) && t !== 'Invite')).toEqual([]);
   });
 
-  it('publish-no-email clicks only "Publish now", and only after waiting for it', () => {
+  it('publish-no-email clicks only "Publish now" then "Publish on web only", each after waiting for it', () => {
+    // Since 2026-09-23 Substack asks "Do you want to send this post via email?" after
+    // Publish now; "Publish on web only" is the no-email answer. "Also send via email"
+    // must never be clicked.
     const r = recipes.find(([f]) => f.startsWith('07-'))![1];
-    const clicks = r.chain.filter((s: { action: string }) => s.action === 'click_text').map((s: { text: string }) => s.text);
-    expect(clicks).toEqual(['Publish now']);
+    const textClicks = r.chain.filter((s: { action: string }) => s.action === 'click_text');
+    expect(textClicks.map((s: { text: string }) => s.text)).toEqual(['Publish now', 'Publish on web only']);
+    expect(JSON.stringify(r.chain)).not.toMatch(/"text":\s*"Also send via email"/);
     const ids = r.chain.map((s: { stepId: string }) => s.stepId);
-    const wait = r.chain.find((s: { action: string; text?: string }) => s.action === 'wait_for' && s.text === 'Publish now');
-    expect(ids.indexOf(wait.stepId)).toBe(ids.indexOf(r.chain.find((s: { text?: string; action: string }) => s.action === 'click_text').stepId) - 1);
+    for (const click of textClicks) {
+      const wait = r.chain.find((s: { action: string; text?: string }) => s.action === 'wait_for' && s.text === click.text);
+      expect(wait).toBeDefined();
+      expect(ids.indexOf(wait.stepId)).toBe(ids.indexOf(click.stepId) - 1);
+    }
   });
 });
