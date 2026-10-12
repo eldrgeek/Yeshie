@@ -1,0 +1,292 @@
+{
+  "_meta": {
+    "task": "create-stripe-restricted-key",
+    "description": "Fill Stripe's 'Create restricted API key' form for Mike's AI team: name the key and set eight permissions (Products, Prices, Payment Links, Webhook Endpoints = Write; Checkout Sessions, Events, Charges and Refunds, Balance = Read), everything else None. STOPS before 'Create key': a human clicks it, copies the key, and stores it in Keychain. The key value never passes through Yeshie.",
+    "site": "dashboard.stripe.com",
+    "version": "1.2.0",
+    "verified": false,
+    "verifiedDate": null,
+    "verificationNotes": "Built 2026-10-12 by Claude Opus 5.5 (session ac7c4516) from the live form on Eric Kohner & Co. LLC's account. Permission rows are <tr> with the label in the first <td> and div[role=button].db-SegmentedControlOption options None/Read/Write. Some labels appear twice (group row + resource row, e.g. 'Payment Links', 'Checkout Sessions'); the step sets every matching row. Balance and Events offer only None/Read. v1.1: the 'js' action only runs whitelisted patterns, and 'respond' needs a data map, so permissions are now eight 'click' steps with within_row cells (exact label), selecting option 2 (Read) or 3 (Write). v1.2: steps v1-v8 prove each permission is selected (fail closed).",
+    "params": {
+      "account_id": {
+        "required": true,
+        "description": "Stripe account id, e.g. acct_1U1riW241pTwoRhz (Eric Kohner & Co. LLC)"
+      },
+      "key_name": {
+        "required": false,
+        "default": "Mike's AI team",
+        "description": "Name shown in Stripe's key list"
+      },
+      "mode": {
+        "required": false,
+        "default": "live",
+        "description": "'live' or 'test'. For test mode the URL uses /test/apikeys/create."
+      }
+    },
+    "selfImproving": true,
+    "runCount": 3,
+    "lastSuccess": "2026-10-12T13:47:47.096Z",
+    "prerequisite": "user-logged-in-to-stripe-dashboard-with-developer-access",
+    "humanGate": "Create key, copy key, store in Keychain",
+    "lastDurationMs": 5385
+  },
+  "params": {
+    "account_id": "",
+    "key_name": "Mike's AI team",
+    "mode": "live"
+  },
+  "abstractTargets": {
+    "key_name_input": {
+      "description": "Key name text field",
+      "anchors": {
+        "id": "key-name"
+      },
+      "fallbackSelectors": [
+        "#key-name",
+        "input[type='text']"
+      ],
+      "cachedSelector": "#key-name",
+      "cachedConfidence": 0.89,
+      "resolvedOn": "2026-10-12T13:46:42.600Z",
+      "resolutionMethod": "auto_heal",
+      "resolvedVia": "auto_heal"
+    },
+    "create_key_button": {
+      "description": "Create key submit button. Yeshie never clicks it.",
+      "anchors": {
+        "testid": "submit-button",
+        "text": "Create key"
+      },
+      "fallbackSelectors": [
+        "[data-testid='submit-button']"
+      ]
+    }
+  },
+  "chain": [
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://dashboard.stripe.com/{{account_id}}/apikeys/create",
+      "note": "Live mode. For test mode use https://dashboard.stripe.com/{{account_id}}/test/apikeys/create"
+    },
+    {
+      "stepId": "s2",
+      "action": "assess_state",
+      "stateGraph": {
+        "nodes": {
+          "auth_required": {
+            "signals": [
+              {
+                "type": "url_matches",
+                "pattern": "dashboard\\.stripe\\.com/login"
+              }
+            ]
+          }
+        }
+      },
+      "onMatch": "exit_with_error:auth_required — sign in to Stripe first",
+      "onMismatch": "continue"
+    },
+    {
+      "stepId": "s2b",
+      "action": "assert",
+      "url_pattern": "^https://dashboard\\.stripe\\.com/.+/apikeys/create",
+      "message": "Not on Stripe's create-API-key page (signed out, or no developer access on this account). Nothing was changed."
+    },
+    {
+      "stepId": "s3",
+      "action": "wait_for",
+      "target": "key_name_input",
+      "state": {
+        "visible": true
+      },
+      "timeout": 15000,
+      "note": "The permission table renders after the name field"
+    },
+    {
+      "stepId": "s4",
+      "action": "type",
+      "target": "key_name_input",
+      "value": "{{key_name}}"
+    },
+    {
+      "stepId": "p1",
+      "action": "click",
+      "selector": "[role='button'].db-SegmentedControlOption:nth-child(3)",
+      "within_row": {
+        "cells": [
+          "Products"
+        ]
+      },
+      "note": "Products = Write. The row whose label cell is exactly 'Products' (group headings carry 'View documentation', so they do not match). Write is option 3 of the segmented control."
+    },
+    {
+      "stepId": "p2",
+      "action": "click",
+      "selector": "[role='button'].db-SegmentedControlOption:nth-child(3)",
+      "within_row": {
+        "cells": [
+          "Prices"
+        ]
+      },
+      "note": "Prices = Write. The row whose label cell is exactly 'Prices' (group headings carry 'View documentation', so they do not match). Write is option 3 of the segmented control."
+    },
+    {
+      "stepId": "p3",
+      "action": "click",
+      "selector": "[role='button'].db-SegmentedControlOption:nth-child(3)",
+      "within_row": {
+        "cells": [
+          "Payment Links"
+        ]
+      },
+      "note": "Payment Links = Write. The row whose label cell is exactly 'Payment Links' (group headings carry 'View documentation', so they do not match). Write is option 3 of the segmented control."
+    },
+    {
+      "stepId": "p4",
+      "action": "click",
+      "selector": "[role='button'].db-SegmentedControlOption:nth-child(3)",
+      "within_row": {
+        "cells": [
+          "Webhook Endpoints, Event Destinations"
+        ]
+      },
+      "note": "Webhook Endpoints, Event Destinations = Write. The row whose label cell is exactly 'Webhook Endpoints, Event Destinations' (group headings carry 'View documentation', so they do not match). Write is option 3 of the segmented control."
+    },
+    {
+      "stepId": "p5",
+      "action": "click",
+      "selector": "[role='button'].db-SegmentedControlOption:nth-child(2)",
+      "within_row": {
+        "cells": [
+          "Checkout Sessions"
+        ]
+      },
+      "note": "Checkout Sessions = Read. The row whose label cell is exactly 'Checkout Sessions' (group headings carry 'View documentation', so they do not match). Read is option 2 of the segmented control."
+    },
+    {
+      "stepId": "p6",
+      "action": "click",
+      "selector": "[role='button'].db-SegmentedControlOption:nth-child(2)",
+      "within_row": {
+        "cells": [
+          "Events"
+        ]
+      },
+      "note": "Events = Read. The row whose label cell is exactly 'Events' (group headings carry 'View documentation', so they do not match). Read is option 2 of the segmented control."
+    },
+    {
+      "stepId": "p7",
+      "action": "click",
+      "selector": "[role='button'].db-SegmentedControlOption:nth-child(2)",
+      "within_row": {
+        "cells": [
+          "Charges and Refunds"
+        ]
+      },
+      "note": "Charges and Refunds = Read. The row whose label cell is exactly 'Charges and Refunds' (group headings carry 'View documentation', so they do not match). Read is option 2 of the segmented control."
+    },
+    {
+      "stepId": "p8",
+      "action": "click",
+      "selector": "[role='button'].db-SegmentedControlOption:nth-child(2)",
+      "within_row": {
+        "cells": [
+          "Balance"
+        ]
+      },
+      "note": "Balance = Read. The row whose label cell is exactly 'Balance' (group headings carry 'View documentation', so they do not match). Read is option 2 of the segmented control."
+    },
+    {
+      "stepId": "v1",
+      "action": "click",
+      "selector": "[role='button'].db-SegmentedControlOption--selected:nth-child(3)",
+      "within_row": {
+        "cells": [
+          "Products"
+        ]
+      },
+      "note": "Proof: Products is now Write. Matches only if that option carries the --selected class, so the step fails closed if p1 did not take; re-clicking a selected option changes nothing."
+    },
+    {
+      "stepId": "v2",
+      "action": "click",
+      "selector": "[role='button'].db-SegmentedControlOption--selected:nth-child(3)",
+      "within_row": {
+        "cells": [
+          "Prices"
+        ]
+      },
+      "note": "Proof: Prices is now Write. Matches only if that option carries the --selected class, so the step fails closed if p2 did not take; re-clicking a selected option changes nothing."
+    },
+    {
+      "stepId": "v3",
+      "action": "click",
+      "selector": "[role='button'].db-SegmentedControlOption--selected:nth-child(3)",
+      "within_row": {
+        "cells": [
+          "Payment Links"
+        ]
+      },
+      "note": "Proof: Payment Links is now Write. Matches only if that option carries the --selected class, so the step fails closed if p3 did not take; re-clicking a selected option changes nothing."
+    },
+    {
+      "stepId": "v4",
+      "action": "click",
+      "selector": "[role='button'].db-SegmentedControlOption--selected:nth-child(3)",
+      "within_row": {
+        "cells": [
+          "Webhook Endpoints, Event Destinations"
+        ]
+      },
+      "note": "Proof: Webhook Endpoints, Event Destinations is now Write. Matches only if that option carries the --selected class, so the step fails closed if p4 did not take; re-clicking a selected option changes nothing."
+    },
+    {
+      "stepId": "v5",
+      "action": "click",
+      "selector": "[role='button'].db-SegmentedControlOption--selected:nth-child(2)",
+      "within_row": {
+        "cells": [
+          "Checkout Sessions"
+        ]
+      },
+      "note": "Proof: Checkout Sessions is now Read. Matches only if that option carries the --selected class, so the step fails closed if p5 did not take; re-clicking a selected option changes nothing."
+    },
+    {
+      "stepId": "v6",
+      "action": "click",
+      "selector": "[role='button'].db-SegmentedControlOption--selected:nth-child(2)",
+      "within_row": {
+        "cells": [
+          "Events"
+        ]
+      },
+      "note": "Proof: Events is now Read. Matches only if that option carries the --selected class, so the step fails closed if p6 did not take; re-clicking a selected option changes nothing."
+    },
+    {
+      "stepId": "v7",
+      "action": "click",
+      "selector": "[role='button'].db-SegmentedControlOption--selected:nth-child(2)",
+      "within_row": {
+        "cells": [
+          "Charges and Refunds"
+        ]
+      },
+      "note": "Proof: Charges and Refunds is now Read. Matches only if that option carries the --selected class, so the step fails closed if p7 did not take; re-clicking a selected option changes nothing."
+    },
+    {
+      "stepId": "v8",
+      "action": "click",
+      "selector": "[role='button'].db-SegmentedControlOption--selected:nth-child(2)",
+      "within_row": {
+        "cells": [
+          "Balance"
+        ]
+      },
+      "note": "Proof: Balance is now Read. Matches only if that option carries the --selected class, so the step fails closed if p8 did not take; re-clicking a selected option changes nothing."
+    }
+  ],
+  "stateGraph": {},
+  "site": "dashboard.stripe.com",
+  "mode": "assist"
+}
