@@ -3,7 +3,7 @@
     "task": "create-stripe-restricted-key",
     "description": "Fill Stripe's 'Create restricted API key' form for Mike's AI team: name the key and set eight permissions (Products, Prices, Payment Links, Webhook Endpoints = Write; Checkout Sessions, Events, Charges and Refunds, Balance = Read), everything else None. STOPS before 'Create key': a human clicks it, copies the key, and stores it in Keychain. The key value never passes through Yeshie.",
     "site": "dashboard.stripe.com",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "verified": false,
     "verifiedDate": null,
     "verificationNotes": "Built 2026-10-12 by Claude Opus 5.5 (session ac7c4516) from the live form on Eric Kohner & Co. LLC's account. Permission rows are <tr> with the label in the first <td> and div[role=button].db-SegmentedControlOption options None/Read/Write. Some labels appear twice (group row + resource row, e.g. 'Payment Links', 'Checkout Sessions'); the step sets every matching row. Balance and Events offer only None/Read. v1.1: the 'js' action only runs whitelisted patterns, and 'respond' needs a data map, so permissions are now eight 'click' steps with within_row cells (exact label), selecting option 2 (Read) or 3 (Write). v1.2: steps v1-v8 prove each permission is selected (fail closed).",
@@ -24,11 +24,11 @@
       }
     },
     "selfImproving": true,
-    "runCount": 3,
-    "lastSuccess": "2026-10-12T13:47:47.096Z",
+    "runCount": 4,
+    "lastSuccess": "2026-10-12T13:50:26.586Z",
     "prerequisite": "user-logged-in-to-stripe-dashboard-with-developer-access",
     "humanGate": "Create key, copy key, store in Keychain",
-    "lastDurationMs": 5385
+    "lastDurationMs": 6168
   },
   "params": {
     "account_id": "",
@@ -92,6 +92,14 @@
       "action": "assert",
       "url_pattern": "^https://dashboard\\.stripe\\.com/.+/apikeys/create",
       "message": "Not on Stripe's create-API-key page (signed out, or no developer access on this account). Nothing was changed."
+    },
+    {
+      "stepId": "s2c",
+      "action": "assert",
+      "requires": [
+        "within_row.cells"
+      ],
+      "message": "This Yeshie build does not support within_row with cells, so the permission rows cannot be chosen safely. Load an extension built from current master. Nothing was changed."
     },
     {
       "stepId": "s3",
