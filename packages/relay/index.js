@@ -3,6 +3,7 @@
 // Port 3333
 
 import { createServer } from 'http';
+import { createServer as createNetServer } from 'net';
 import { Server } from 'socket.io';
 import { appendFileSync, mkdirSync, existsSync, readFileSync, readdirSync, writeFileSync, statSync } from 'fs';
 import { buildRunRequestedConversationEntry } from './run-attribution.js';
@@ -3570,18 +3571,28 @@ h2{color:#58a6ff}hr{border-color:#333}
     }
   });
 
+  let v6Server = null;
   return {
     httpServer,
     io,
+    // Loopback only (Locke review, 2026-10-16). The relay drives Mike's
+    // logged-in browser, so it must not answer anyone on the same Wi-Fi.
+    // The HTTP server binds 127.0.0.1. A second listener on ::1 hands its
+    // sockets to the same HTTP server, because Chrome and Node resolve
+    // "localhost" to ::1 first.
     listen: (listenPort) => new Promise(resolve => {
-      httpServer.listen(listenPort ?? port, () => {
+      httpServer.listen(listenPort ?? port, '127.0.0.1', () => {
         const addr = httpServer.address();
-        console.log(`[relay] listening on port ${addr.port}`);
+        console.log(`[relay] listening on 127.0.0.1:${addr.port}`);
+        v6Server = createNetServer(sock => httpServer.emit('connection', sock));
+        v6Server.on('error', err => console.warn(`[relay] [::1]:${addr.port} unavailable (${err.code}); IPv4 loopback only`));
+        v6Server.listen(addr.port, '::1', () => console.log(`[relay] listening on [::1]:${addr.port}`));
         resolve(addr);
       });
     }),
     close: () => new Promise(resolve => {
       resetChatState();
+      v6Server?.close();
       io.close(() => httpServer.close(resolve));
     }),
   };
