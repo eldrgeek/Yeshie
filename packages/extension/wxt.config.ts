@@ -5,7 +5,7 @@ export default defineConfig({
   entrypointsDir: 'entrypoints',
   manifest: {
     name: 'Yeshie',
-    version: '0.1.513',
+    version: '0.1.560',
     // identity + identity.email: the signed-in account email, so the relay can
     // tell Chrome profiles apart (docs/design/multi-connection-relay.md).
     permissions: ['activeTab', 'scripting', 'debugger', 'tabs', 'storage', 'alarms', 'sidePanel', 'identity', 'identity.email'],

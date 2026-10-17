@@ -22,3 +22,24 @@ Six logged runs (07-07, 07-08, 07-11, 07-12, 07-13, 07-14; gaps on 07-09/07-10),
 
 ## Consolidated: 2026-07-15 through 2026-07-20 (clean runs)
 Seven passes (07-15, 07-16, 07-17, 07-18, 07-19 [two passes], 07-20 [two passes]). All 5 yeshie memory files clean and accurate every run (durable reference/feedback rules — no stale state, relative dates, or contradictions; unchanged since 2026-06-12); MEMORY.md index accurate, all 5 referenced files present. References re-verified live on disk each run, most recently 2026-07-20: skills/heal/detect-loop.sh present, package.json "type":"module", branch playmaker-chatgpt-bridge, relay localhost:3333/tabs/list returns 200. No content edits needed. Only cleanup was consolidating individual entries into blocks: the 07-15..07-20 entries here, and (second 07-20 pass) merging the standalone 07-13 and 07-14 entries into the 2026-07-07..07-14 block above.
+
+## Consolidated: 2026-07-21 through 2026-09-14 (clean runs, logged only in the main store)
+
+Spot-checks of these 5 yeshie memory files continued through this window at
+up to 4x/day (main-store cadence, root-caused 2026-09-12 as the
+`com.mikewolf.autodream` launchd job's 4-fire daily schedule), but were
+recorded only in `~/.auto-memory/dream-log.md`, not written back here — so
+read in isolation this file looked abandoned for ~55 days. All checks found
+the same result: all 5 files clean and accurate (durable reference/feedback
+rules, no stale state, relative dates, or contradictions), MEMORY.md index
+accurate. Branch drift observed across the window (`playmaker-chatgpt-bridge`
+as of 07-20 → `fix/adddns-netlify-token-from-env` as of 09-13 morning →
+`master` from 09-13 evening through 09-14) is expected per
+`worktree_merge_required.md`, not a defect. One real defect this window: a
+09:00 run on 2026-09-13 claimed to append a closing entry to this file but
+the edit did not survive (mtime moved, content unchanged) — caught and
+fixed by that day's 21:00 run; see the "self-reported fix that didn't land"
+entry in `~/.auto-memory/dream-log.md`'s History section. Live
+re-verification most recent 2026-09-14: `skills/heal/detect-loop.sh` exists,
+`package.json` has `"type": "module"`, relay `localhost:3333/tabs/list`
+returns 200, branch `master`.

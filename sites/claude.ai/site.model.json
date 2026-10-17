@@ -6,7 +6,10 @@
     "prompt_input": {
       "description": "Main chat prompt input area (contenteditable ProseMirror editor)",
       "match": {
-        "name_contains": ["Message Claude", "Write your prompt"]
+        "name_contains": [
+          "Message Claude",
+          "Write your prompt"
+        ]
       },
       "anchors": {
         "ariaLabel": "Write your prompt to Claude",
@@ -21,7 +24,10 @@
     "send_button": {
       "description": "Send message button (appears after text is typed)",
       "match": {
-        "name_contains": ["Send message", "Send"]
+        "name_contains": [
+          "Send message",
+          "Send"
+        ]
       },
       "anchors": {
         "ariaLabel": "Send message"
@@ -34,7 +40,10 @@
     "stop_button": {
       "description": "Stop streaming button (present while model is generating, absent when done)",
       "match": {
-        "name_contains": ["Stop streaming", "Stop"]
+        "name_contains": [
+          "Stop streaming",
+          "Stop"
+        ]
       },
       "anchors": {
         "ariaLabel": "Stop streaming"
@@ -63,24 +72,39 @@
     "nodes": {
       "authenticated": {
         "signals": [
-          { "type": "url_matches", "pattern": "claude\\.ai/(new|chat)" }
+          {
+            "type": "url_matches",
+            "pattern": "claude\\.ai/(new|chat)"
+          }
         ]
       },
       "generating": {
         "signals": [
-          { "type": "element_visible", "selector": "[aria-label='Stop streaming']" }
+          {
+            "type": "element_visible",
+            "selector": "[aria-label='Stop streaming']"
+          }
         ]
       },
       "idle": {
         "signals": [
-          { "type": "element_absent", "selector": "[aria-label='Stop streaming']" }
+          {
+            "type": "element_absent",
+            "selector": "[aria-label='Stop streaming']"
+          }
         ]
       },
       "auth_required": {
         "signals": [
-          { "type": "url_matches", "pattern": "claude\\.ai/login" }
+          {
+            "type": "url_matches",
+            "pattern": "claude\\.ai/login"
+          }
         ]
       }
     }
+  },
+  "_meta": {
+    "lastUpdated": "2026-09-17T07:10:08.794Z"
   }
 }
