@@ -47,3 +47,8 @@ packages/relay/jobs-state.json
 # Yeshie is a PUBLIC repo: these must never be tracked. Added 2026-09-13
 # after Rocket Money net-worth and transaction extracts turned up here uncommitted.
 sites/*/tasks/20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*
+
+# Per-recipe run statistics (runCount, lastSuccess, lastDurationMs), written by
+# improve.js after every successful run. Kept out of the tracked payload since
+# 2026-10-21 so a run no longer dirties the main checkout.
+sites/**/*.run-stats.json

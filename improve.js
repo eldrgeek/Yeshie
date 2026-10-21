@@ -39,6 +39,51 @@ function saveJSON(filePath, data) {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n', 'utf8');
 }
 
+/**
+ * Run statistics (runCount, lastSuccess, lastDurationMs) live in a gitignored
+ * sidecar next to the payload: `<task>.run-stats.json`. Until 2026-10-21 they
+ * were written into the tracked payload's `_meta` after every run, so the main
+ * checkout re-dirtied on every successful run (rescue PR #88 had to commit 35
+ * runs of telemetry). The tracked payload now changes only when the run taught
+ * it something: a better cached selector, or the verification → production
+ * mode upgrade. A `_meta.runCount` already in the payload seeds the sidecar.
+ */
+export function runStatsPathFor(payloadPath) {
+  return payloadPath.replace(/(\.payload)?\.json$/, '') + '.run-stats.json';
+}
+
+export function readRunStats(payloadPath, payload = null) {
+  const meta = payload?._meta || {};
+  const base = {
+    runCount: meta.runCount || 0,
+    lastSuccess: meta.lastSuccess ?? null,
+    lastDurationMs: meta.lastDurationMs ?? null,
+  };
+  const statsPath = runStatsPathFor(payloadPath);
+  if (!fs.existsSync(statsPath)) return base;
+  try {
+    const stats = loadJSON(statsPath);
+    return {
+      runCount: Math.max(base.runCount, stats.runCount || 0),
+      lastSuccess: stats.lastSuccess ?? base.lastSuccess,
+      lastDurationMs: stats.lastDurationMs ?? base.lastDurationMs,
+    };
+  } catch {
+    return base;
+  }
+}
+
+function recordRunStats(payloadPath, payload, chainResult) {
+  const prev = readRunStats(payloadPath, payload);
+  const stats = {
+    runCount: prev.runCount + 1,
+    lastSuccess: new Date().toISOString(),
+    lastDurationMs: chainResult.durationMs ?? null,
+  };
+  saveJSON(runStatsPathFor(payloadPath), stats);
+  return stats;
+}
+
 export function deriveAnchors(rawUpdate = {}) {
   const anchors = { ...(rawUpdate.anchors || {}) };
   const selector = typeof rawUpdate.selector === 'string' ? rawUpdate.selector : '';
@@ -291,11 +336,14 @@ export function applyImprovements(payloadPath, chainResult) {
   const resolvedTargets = updates.resolvedTargets || {};
   const signaturesObserved = updates.signaturesObserved || updates.observedResponseSignatures || {};
 
+  let payloadChanged = false;
+  let siteModelChanged = false;
+
   if (Object.keys(resolvedTargets).length > 0) {
     console.log('Updating abstractTargets in payload:');
     for (const [targetName, update] of Object.entries(resolvedTargets)) {
       if (payload.abstractTargets?.[targetName]) {
-        mergeTarget(payload.abstractTargets, targetName, update);
+        if (mergeTarget(payload.abstractTargets, targetName, update)) payloadChanged = true;
       }
     }
   }
@@ -304,7 +352,7 @@ export function applyImprovements(payloadPath, chainResult) {
     console.log('\nUpdating abstractTargets in site model:');
     for (const [targetName, update] of Object.entries(resolvedTargets)) {
       if (siteModel.abstractTargets?.[targetName]) {
-        mergeTarget(siteModel.abstractTargets, targetName, update);
+        if (mergeTarget(siteModel.abstractTargets, targetName, update)) siteModelChanged = true;
       }
     }
   }
@@ -313,22 +361,28 @@ export function applyImprovements(payloadPath, chainResult) {
     console.log('\nRecording response signatures:');
     for (const [stepId, observed] of Object.entries(signaturesObserved)) {
       mergeResponseSignatures(siteModel, stepId, observed);
+      siteModelChanged = true;
     }
   }
 
-  payload._meta.runCount = (payload._meta.runCount || 0) + 1;
-  payload._meta.lastSuccess = new Date().toISOString();
-  payload._meta.lastDurationMs = chainResult.durationMs;
+  const stats = recordRunStats(payloadPath, payload, chainResult);
+  const statsPath = runStatsPathFor(payloadPath);
+  console.log(`✓ Recorded run stats: ${statsPath}`);
 
-  if (payload._meta.runCount >= 5 && payload.mode === 'verification') {
+  if (stats.runCount >= 5 && payload.mode === 'verification') {
     console.log('\n↑ Upgrading mode: verification → production (5+ successful runs)');
     payload.mode = 'production';
+    payloadChanged = true;
   }
 
-  saveJSON(payloadPath, payload);
-  console.log(`\n✓ Saved updated payload: ${payloadPath}`);
+  if (payloadChanged) {
+    saveJSON(payloadPath, payload);
+    console.log(`\n✓ Saved updated payload: ${payloadPath}`);
+  } else {
+    console.log('\n= Payload unchanged (nothing new learned); not rewritten.');
+  }
 
-  if (siteModel) {
+  if (siteModel && siteModelChanged) {
     siteModel._meta = siteModel._meta || {};
     siteModel._meta.lastUpdated = new Date().toISOString();
     saveJSON(siteModelPath, siteModel);
@@ -336,14 +390,24 @@ export function applyImprovements(payloadPath, chainResult) {
   }
 
   console.log('\n─── Improvement Summary ─────────────────────────────');
-  console.log(`Payload run count: ${payload._meta.runCount}`);
+  console.log(`Payload run count: ${stats.runCount}`);
   console.log(`Execution mode: ${payload.mode}`);
   const cachedTargets = Object.values(payload.abstractTargets || {}).filter((t) => t.cachedSelector).length;
   const totalTargets = Object.keys(payload.abstractTargets || {}).length;
   console.log(`Cached targets: ${cachedTargets}/${totalTargets}`);
   console.log('─────────────────────────────────────────────────────\n');
 
-  return { changed: true, payloadPath, siteModelPath: siteModel ? siteModelPath : null };
+  return {
+    // changed = the heal was applied (stats always recorded); the tracked
+    // files were rewritten only when payloadChanged / siteModelChanged.
+    changed: true,
+    payloadChanged,
+    siteModelChanged,
+    payloadPath,
+    statsPath,
+    runStats: stats,
+    siteModelPath: siteModel && siteModelChanged ? siteModelPath : null,
+  };
 }
 
 function loadChainResult(resultArg) {
