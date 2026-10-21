@@ -6,7 +6,6 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 
 const srcDir = resolve(process.argv[2] || '.');
 const countFile = resolve(srcDir, '.build-count');
-const wxtConfig = resolve(srcDir, 'wxt.config.ts');
 
 const manifestPath = resolve(srcDir, '.output/chrome-mv3/manifest.json');
 
@@ -24,24 +23,15 @@ const server = createServer((req, res) => {
 });
 server.listen(27182, () => console.log('[watcher] version server on :27182'));
 
-function bumpVersion(n) {
-  // Update version in wxt.config.ts: version: '0.1.X' → '0.1.{n}'
-  try {
-    let cfg = readFileSync(wxtConfig, 'utf8');
-    cfg = cfg.replace(/version:\s*'[\d.]+'/, `version: '0.1.${n}'`);
-    writeFileSync(wxtConfig, cfg);
-  } catch(e) {
-    console.error('[watcher] could not bump version:', e.message);
-  }
-}
-
+// The manifest version comes from YESHIE_BUILD_NUMBER (read by wxt.config.ts),
+// so the tracked wxt.config.ts is never rewritten. (Until 2026-10-21 a
+// bumpVersion() here edited the literal version in place on every build.)
 function build() {
   if (building) { pending = true; return; }
   building = true;
   const nextBuild = buildCount + 1;
-  bumpVersion(nextBuild);
   const t = Date.now();
-  exec('npx wxt build', { cwd: srcDir }, (err, stdout, stderr) => {
+  exec('npx wxt build', { cwd: srcDir, env: { ...process.env, YESHIE_BUILD_NUMBER: String(nextBuild) } }, (err, stdout, stderr) => {
     building = false;
     if (err) {
       console.error('[watcher] build failed:', stderr.slice(-300));

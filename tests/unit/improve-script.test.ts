@@ -3,11 +3,14 @@ import { tmpdir } from 'os';
 import { join, resolve, dirname } from 'path';
 import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import { existsSync } from 'fs';
 import {
   applyImprovements,
   isHealAllowed,
   isProtectedRecipe,
   maybeAutoHeal,
+  readRunStats,
+  runStatsPathFor,
 } from '../../improve.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -82,8 +85,12 @@ describe('improve.js', () => {
     expect(payload.abstractTargets.search.resolvedVia).toBe('a11y_aria_label');
     expect(payload.abstractTargets.search.resolutionMethod).toBe('a11y_aria_label');
     expect(payload.abstractTargets.search.anchors).toEqual({ ariaLabel: 'Search' });
-    expect(payload._meta.runCount).toBe(1);
-    expect(payload._meta.lastDurationMs).toBe(1234);
+    // Run stats go to the gitignored sidecar, never into the tracked payload.
+    expect(payload._meta.runCount).toBe(0);
+    expect(payload._meta.lastDurationMs).toBeUndefined();
+    const stats = JSON.parse(readFileSync(runStatsPathFor(payloadPath), 'utf8'));
+    expect(stats.runCount).toBe(1);
+    expect(stats.lastDurationMs).toBe(1234);
 
     expect(siteModel.abstractTargets.search.cachedSelector).toBe('[aria-label="Search"]');
     expect(siteModel.abstractTargets.search.anchors).toEqual({ ariaLabel: 'Search' });
@@ -314,7 +321,7 @@ describe('improve.js', () => {
     });
 
     const payload = JSON.parse(readFileSync(payloadPath, 'utf8'));
-    expect(payload._meta.runCount).toBe(1);
+    expect(readRunStats(payloadPath, payload).runCount).toBe(1);
     expect(payload.abstractTargets.account.anchors).toEqual({ id: 'account-input' });
   });
 
@@ -436,5 +443,60 @@ describe('improve.js', () => {
     expect(out.healed).toBe(false);
     expect(out.reason).toBe('path_escape');
     expect(JSON.parse(readFileSync(outside, 'utf8')).abstractTargets.search.cachedSelector).toBeNull();
+  });
+  it('a run that learns nothing leaves the tracked payload and site model byte-identical', () => {
+    const root = mkdtempSync(join(tmpdir(), 'yeshie-improve-clean-'));
+    const siteDir = join(root, 'sites', 'clean');
+    const taskDir = join(siteDir, 'tasks');
+    mkdirSync(taskDir, { recursive: true });
+    const payloadPath = join(taskDir, '01-task.payload.json');
+    const siteModelPath = join(siteDir, 'site.model.json');
+    const payloadText = JSON.stringify({
+      _meta: { task: 'clean-task', runCount: 2, lastSuccess: '2026-07-03' },
+      mode: 'verification',
+      abstractTargets: {},
+    }, null, 2);
+    const siteModelText = JSON.stringify({ _meta: {}, abstractTargets: {} }, null, 2);
+    writeFileSync(payloadPath, payloadText);
+    writeFileSync(siteModelPath, siteModelText);
+
+    const chainResult = { success: true, goalReached: true, durationMs: 77, modelUpdates: {} };
+    const first = applyImprovements(payloadPath, chainResult);
+    applyImprovements(payloadPath, chainResult);
+
+    expect(first.changed).toBe(true);
+    expect(first.payloadChanged).toBe(false);
+    expect(first.siteModelChanged).toBe(false);
+    expect(readFileSync(payloadPath, 'utf8')).toBe(payloadText);
+    expect(readFileSync(siteModelPath, 'utf8')).toBe(siteModelText);
+
+    // The sidecar is seeded from the payload's historic runCount (2) and counts on.
+    const statsPath = runStatsPathFor(payloadPath);
+    expect(statsPath).toBe(join(taskDir, '01-task.run-stats.json'));
+    expect(existsSync(statsPath)).toBe(true);
+    const stats = JSON.parse(readFileSync(statsPath, 'utf8'));
+    expect(stats.runCount).toBe(4);
+    expect(stats.lastDurationMs).toBe(77);
+  });
+
+  it('sidecar run count drives the verification → production upgrade', () => {
+    const root = mkdtempSync(join(tmpdir(), 'yeshie-improve-upgrade-'));
+    const taskDir = join(root, 'sites', 'up', 'tasks');
+    mkdirSync(taskDir, { recursive: true });
+    const payloadPath = join(taskDir, '01-task.payload.json');
+    writeFileSync(payloadPath, JSON.stringify({
+      _meta: { task: 'up-task', runCount: 0 },
+      mode: 'verification',
+      abstractTargets: {},
+    }, null, 2));
+    writeFileSync(runStatsPathFor(payloadPath), JSON.stringify({ runCount: 4 }));
+
+    const out = applyImprovements(payloadPath, { success: true, goalReached: true, durationMs: 5 });
+
+    expect(out.payloadChanged).toBe(true);
+    const payload = JSON.parse(readFileSync(payloadPath, 'utf8'));
+    expect(payload.mode).toBe('production');
+    expect(payload._meta.runCount).toBe(0);
+    expect(readRunStats(payloadPath, payload).runCount).toBe(5);
   });
 });
