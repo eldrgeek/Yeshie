@@ -1,0 +1,26 @@
+{
+  "title": "Google Takeout: Gemini",
+  "url": "https://takeout.google.com/",
+  "closeOnDone": true,
+  "steps": [
+    {
+      "instruction": "Check the account picture at the top right is the account you want to export, then click Deselect all.",
+      "target": "button:has-text(\"Deselect all\")"
+    },
+    {
+      "instruction": "Scroll down and tick Gemini.",
+      "target": "input[type=\"checkbox\"][aria-label*=\"Gemini\" i]",
+      "doneWhen": { "selectorAppears": "input[type=\"checkbox\"][aria-label*=\"Gemini\" i]:checked" }
+    },
+    {
+      "instruction": "Tick My Activity too (Gemini Apps activity lives there).",
+      "target": "input[type=\"checkbox\"][aria-label*=\"My Activity\" i]",
+      "doneWhen": { "selectorAppears": "input[type=\"checkbox\"][aria-label*=\"My Activity\" i]:checked" }
+    },
+    {
+      "instruction": "Click Next step at the bottom, keep the defaults, then click Create export.",
+      "target": "button:has-text(\"Next step\")",
+      "doneWhen": { "textAppears": "Export progress" }
+    }
+  ]
+}

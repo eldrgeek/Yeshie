@@ -8,7 +8,28 @@ export interface TeachStep {
   highlightTarget: boolean;
   waitForAction?: 'click' | 'type' | 'navigate' | null;
   position: 'top' | 'bottom' | 'left' | 'right' | 'auto';
+  /**
+   * When set, the step is done once any of these holds, and clicking the
+   * target no longer advances it (a click can fail validation or open a
+   * confirm dialog). With doneWhen, targetSelector may be '' for a step that
+   * has no single control, such as "Sign in".
+   */
+  doneWhen?: TeachDoneWhen;
 }
+
+export interface TeachDoneWhen {
+  /** Case-insensitive substring of the page's visible text. */
+  textAppears?: string;
+  /** Selector (same syntax as targetSelector) that must match an element. */
+  selectorAppears?: string;
+  /** Selector that matched once the step was shown and no longer matches (a dialog closed). */
+  selectorGone?: string;
+  /** Substring of location.href. */
+  urlIncludes?: string;
+}
+
+/** How often doneWhen checks and a missing target are re-evaluated. */
+const RECHECK_MS = 750;
 
 export interface TeachTooltip {
   startTeach(steps: TeachStep[], startIndex?: number): void;
@@ -148,6 +169,31 @@ function resolveSelector(selector: string): Element | null {
   return null;
 }
 
+function pageText(): string {
+  const body = document.body;
+  if (!body) return '';
+  // innerText skips hidden text; jsdom lacks it, so fall back to textContent.
+  return (typeof body.innerText === 'string' ? body.innerText : body.textContent) || '';
+}
+
+/**
+ * True once any condition in doneWhen holds on the current page. selectorGone
+ * counts only after the selector has been seen, so a dialog that has not
+ * opened yet does not finish the step; the caller tracks that in `seen`.
+ */
+export function isStepDone(doneWhen: TeachDoneWhen | undefined, seen: { gone?: boolean } = {}): boolean {
+  if (!doneWhen) return false;
+  if (doneWhen.selectorGone) {
+    const present = !!resolveSelector(doneWhen.selectorGone);
+    if (present) seen.gone = true;
+    else if (seen.gone) return true;
+  }
+  if (doneWhen.urlIncludes && location.href.includes(doneWhen.urlIncludes)) return true;
+  if (doneWhen.selectorAppears && resolveSelector(doneWhen.selectorAppears)) return true;
+  if (doneWhen.textAppears && pageText().toLowerCase().includes(doneWhen.textAppears.toLowerCase())) return true;
+  return false;
+}
+
 export function createTeachTooltip(container: HTMLElement): TeachTooltip {
   let steps: TeachStep[] = [];
   let currentStepIndex = -1;
@@ -213,11 +259,14 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
   function positionTooltip(target: HTMLElement | null) {
     if (!tooltipEl) return;
 
+    const arrow = tooltipEl.querySelector('.tooltip-arrow') as HTMLElement | null;
+
     if (!target) {
       // Center in viewport if no target element found
       tooltipEl.style.top = '50%';
       tooltipEl.style.left = '50%';
       tooltipEl.style.transform = 'translate(-50%, -50%)';
+      if (arrow) arrow.style.display = 'none';
       return;
     }
 
@@ -234,7 +283,8 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
     let left = rect.left;
 
     // Flip above if bottom of tooltip would exceed viewport height
-    if (top + tooltipHeight > vh - 8) {
+    const above = top + tooltipHeight > vh - 8;
+    if (above) {
       top = rect.top - tooltipHeight - gap;
     }
 
@@ -246,6 +296,14 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
 
     tooltipEl.style.top = `${top}px`;
     tooltipEl.style.left = `${left}px`;
+
+    // Point the arrow at the target's center from whichever side faces it.
+    if (arrow) {
+      arrow.style.display = '';
+      arrow.className = `tooltip-arrow ${above ? 'arrow-top' : 'arrow-bottom'}`;
+      const arrowLeft = Math.min(Math.max(rect.left + rect.width / 2 - left, 14), tooltipWidth - 14);
+      arrow.style.left = `${arrowLeft}px`;
+    }
   }
 
   function removeEventListeners() {
@@ -268,16 +326,19 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
 
     // Find target in main document
     // resolveSelector handles :has-text() pseudo-selectors and comma-separated fallback lists
-    const target = resolveSelector(step.targetSelector) as HTMLElement | null;
+    const hasTarget = !!step.targetSelector;
+    const target = hasTarget ? resolveSelector(step.targetSelector) as HTMLElement | null : null;
     const targetRect = target ? target.getBoundingClientRect() : null;
     const elementFound = !!target;
 
     updateMask(targetRect, step.highlightTarget);
 
     // Build tooltip content
-    const notFoundHtml = !elementFound
+    const notFoundHtml = hasTarget && !elementFound
       ? `<div class="element-not-found">Element not found</div>`
       : '';
+    // With a doneWhen check, Next means "I did it": it advances without clicking.
+    const nextLabel = step.doneWhen ? 'I did it' : 'Next Step';
 
     tooltipEl!.setAttribute('data-target-selector', step.targetSelector || '');
     tooltipEl!.innerHTML = `
@@ -287,7 +348,7 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
         <div class="instruction">${step.instruction}</div>
         <div class="tooltip-controls">
           <button class="skip-btn">Skip</button>
-          <button class="next-btn">Next Step</button>
+          <button class="next-btn">${nextLabel}</button>
         </div>
       </div>
       <div class="tooltip-arrow"></div>
@@ -304,7 +365,9 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
     };
 
     const onNextClick = () => {
-      const currentTarget = resolveSelector(step.targetSelector) as HTMLElement | null;
+      const currentTarget = hasTarget && !step.doneWhen
+        ? resolveSelector(step.targetSelector) as HTMLElement | null
+        : null;
       if (currentTarget) {
         // Behavior 2: click the target for the user, then advance
         nextBtn.textContent = "I'll click that for you…";
@@ -326,13 +389,54 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
       nextBtn.removeEventListener('click', onNextClick);
     });
 
-    // Behavior 1: auto-advance when user clicks the target element (unconditional)
-    if (target) {
+    // Behavior 1: auto-advance when user clicks the target element, unless a
+    // doneWhen check decides instead
+    if (target && !step.doneWhen) {
       const onTargetClick = () => {
         advanceStep();
       };
       target.addEventListener('click', onTargetClick, { once: true });
       cleanupListeners.push(() => target.removeEventListener('click', onTargetClick));
+    }
+
+    // Behavior 3: keep watching the page. Advance once doneWhen holds; if the
+    // target was missing (late render), redraw when it shows up; follow the
+    // target when the page scrolls or resizes.
+    const seen = {};
+    const recheck = () => {
+      if (currentStepIndex !== index) return;
+      if (isStepDone(step.doneWhen, seen)) {
+        advanceStep();
+        return;
+      }
+      if (hasTarget && !target && resolveSelector(step.targetSelector)) {
+        renderStep(index);
+      }
+    };
+    const timer = setInterval(recheck, RECHECK_MS);
+    cleanupListeners.push(() => clearInterval(timer));
+    if (step.doneWhen) {
+      const first = setTimeout(recheck, 0);
+      cleanupListeners.push(() => clearTimeout(first));
+    }
+
+    if (target) {
+      let frame = 0;
+      const follow = () => {
+        if (frame) return;
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          updateMask(target.getBoundingClientRect(), step.highlightTarget);
+          positionTooltip(target);
+        });
+      };
+      window.addEventListener('scroll', follow, true);
+      window.addEventListener('resize', follow);
+      cleanupListeners.push(() => {
+        window.removeEventListener('scroll', follow, true);
+        window.removeEventListener('resize', follow);
+        if (frame) cancelAnimationFrame(frame);
+      });
     }
 
     if (step.waitForAction === 'navigate') {

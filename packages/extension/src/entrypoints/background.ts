@@ -177,9 +177,12 @@ export default defineBackground(() => {
     // Pulse asks Yeshie to place the human at an exact approval control.
     // Reuse the same handler as side-panel teach mode; this only highlights
     // and observes the target. It never clicks the control.
-    socket.on('teach_start', async ({ steps, tabId }: any, ack: (result: any) => void) => {
+    // A guide (url and/or guide set) is the same overlay plus an identity: the
+    // extension opens the page, reports teach_done when the human finishes,
+    // skips or closes it, and closes the tab when asked.
+    socket.on('teach_start', async ({ steps, tabId, url, guide }: any, ack: (result: any) => void) => {
       try {
-        ack(await handleTeachMessage({ type: 'teach_start', steps, targetTabId: tabId }));
+        ack(await handleTeachMessage({ type: 'teach_start', steps, targetTabId: tabId, url, guide }));
       } catch (err: any) {
         ack({ ok: false, error: err.message });
       }
@@ -250,16 +253,17 @@ export default defineBackground(() => {
   });
 
   // Clean up conversation memory when a tab is closed
-  chrome.tabs.onRemoved.addListener((tabId) => {
+  chrome.tabs.onRemoved.addListener(async (tabId) => {
     chrome.runtime.sendMessage({ type: 'tab_removed', tabId }).catch(() => {});
-    teachSessions.delete(tabId);
+    const session = await getTeachSession(tabId);
+    if (session) finishTeachSession(tabId, session, 'closed');
   });
 
   // Restore teach session after tab navigation (SPA or full reload)
   // Fire on status==='complete' (hard nav) OR when changeInfo.url is set (SPA pushState nav)
   chrome.tabs.onUpdated.addListener(async (tabId, info) => {
     if (info.status !== 'complete' && !info.url) return;
-    const session = teachSessions.get(tabId);
+    const session = await getTeachSession(tabId);
     if (!session) return;
 
     // First, ping the content script to see if it survived (SPA navigation)
@@ -332,14 +336,64 @@ export default defineBackground(() => {
   const abortFlags = new Map<string, boolean>();
 
   // ── Teach session state (survives SPA navigation) ────────────────────────────
-  const teachSessions = new Map<number, { steps: any[]; currentStepIndex: number }>();
+  // Guides can wait minutes for the human, longer than an idle MV3 worker
+  // lives, so sessions are mirrored to chrome.storage.session and reloaded.
+  type TeachGuide = { guideId: string; title?: string | null; closeOnDone?: boolean };
+  type TeachSession = { steps: any[]; currentStepIndex: number; guide?: TeachGuide };
+  const teachSessions = new Map<number, TeachSession>();
+  const TEACH_STORE_KEY = 'yeshie_teach_sessions';
+
+  async function persistTeachSessions() {
+    try {
+      await chrome.storage.session.set({ [TEACH_STORE_KEY]: Object.fromEntries(teachSessions) });
+    } catch { /* storage.session unavailable: in-memory only */ }
+  }
+
+  async function getTeachSession(tabId: number): Promise<TeachSession | undefined> {
+    if (teachSessions.has(tabId)) return teachSessions.get(tabId);
+    try {
+      const stored = (await chrome.storage.session.get(TEACH_STORE_KEY))?.[TEACH_STORE_KEY] || {};
+      for (const [id, session] of Object.entries(stored)) {
+        if (!teachSessions.has(Number(id))) teachSessions.set(Number(id), session as TeachSession);
+      }
+    } catch { /* ignore */ }
+    return teachSessions.get(tabId);
+  }
+
+  function setTeachSession(tabId: number, session: TeachSession) {
+    teachSessions.set(tabId, session);
+    persistTeachSessions();
+  }
+
+  // End a tab's teach session. For a guide, tell the relay how it ended and,
+  // when the human finished it and the caller asked, close the tab.
+  function finishTeachSession(tabId: number, session: TeachSession, outcome: 'done' | 'skipped' | 'closed') {
+    teachSessions.delete(tabId);
+    persistTeachSessions();
+    if (!session.guide) return;
+    console.log('[Yeshie] guide', session.guide.guideId, outcome, 'in tab', tabId);
+    const stepsCompleted = outcome === 'done' ? session.steps.length : Math.min(session.currentStepIndex, session.steps.length);
+    try {
+      socket?.emit('teach_done', { guideId: session.guide.guideId, outcome, stepsCompleted, tabId });
+    } catch { /* relay offline: the guide stays active there */ }
+    if (outcome === 'done' && session.guide.closeOnDone) {
+      // A short pause lets the human see the page react before it goes away.
+      setTimeout(() => { chrome.tabs.remove(tabId).catch(() => {}); }, 1500);
+    }
+  }
 
   async function handleTeachMessage(msg: any): Promise<{ ok: boolean; tabId?: number; error?: string }> {
-    // Preference order: (1) explicitly requested HTTPS tab, (2) active HTTPS
-    // tab, (3) YeshID, (4) any HTTPS tab. Chrome-internal and HTTP pages are
-    // intentionally excluded from this human-approval control plane.
+    // Preference order: (0) a page opened for this guide, (1) explicitly
+    // requested HTTPS tab, (2) active HTTPS tab, (3) YeshID, (4) any HTTPS tab.
+    // Chrome-internal and HTTP pages are intentionally excluded from this
+    // human-approval control plane.
     let targetTabId: number | undefined;
-    if (msg.targetTabId !== undefined) {
+    if (msg.type === 'teach_start' && typeof msg.url === 'string') {
+      if (!msg.url.startsWith('https://')) {
+        return { ok: false, error: 'Guide url must be an https:// page' };
+      }
+      targetTabId = (await openTabAndWait(msg.url)).tabId;
+    } else if (msg.targetTabId !== undefined) {
       try {
         const requested = await chrome.tabs.get(msg.targetTabId);
         if (!requested.url?.startsWith('https://')) {
@@ -408,9 +462,14 @@ export default defineBackground(() => {
     }
 
     if (msg.type === 'teach_start') {
-      teachSessions.set(targetTabId, { steps: msg.steps, currentStepIndex: 0 });
+      const previous = await getTeachSession(targetTabId);
+      if (previous?.guide && previous.guide.guideId !== msg.guide?.guideId) {
+        finishTeachSession(targetTabId, previous, 'skipped');
+      }
+      setTeachSession(targetTabId, { steps: msg.steps, currentStepIndex: 0, ...(msg.guide ? { guide: msg.guide } : {}) });
     } else if (msg.type === 'teach_end') {
-      teachSessions.delete(targetTabId);
+      const previous = await getTeachSession(targetTabId);
+      if (previous) finishTeachSession(targetTabId, previous, 'skipped');
     }
     return { ok: true, tabId: targetTabId };
   }
@@ -4103,14 +4162,21 @@ export default defineBackground(() => {
     if (msg.type === 'teach_step_complete') {
       const tabId = sender.tab?.id;
       if (tabId !== undefined) {
-        const session = teachSessions.get(tabId);
-        if (session) session.currentStepIndex = (msg.stepIndex ?? 0) + 1;
+        getTeachSession(tabId).then(session => {
+          if (!session) return;
+          session.currentStepIndex = Math.max(session.currentStepIndex, (msg.stepIndex ?? 0) + 1);
+          setTeachSession(tabId, session);
+        });
       }
       return false;
     }
     if (msg.type === 'teach_exit' || msg.type === 'teach_skip') {
       const tabId = sender.tab?.id;
-      if (tabId !== undefined) teachSessions.delete(tabId);
+      if (tabId !== undefined) {
+        getTeachSession(tabId).then(session => {
+          if (session) finishTeachSession(tabId, session, msg.type === 'teach_exit' ? 'done' : 'skipped');
+        });
+      }
       return false;
     }
     if (msg.type === 'content_ready') return false;

@@ -224,7 +224,10 @@ function isAllowedClientIp(ip) {
   return false;
 }
 
-const TEACH_START_KEYS = new Set(['steps', 'tabId', 'target']);
+// A guide is a teach session with an identity: the relay can open its page,
+// learn when the human finished it, notify them, and close the tab. Every
+// guide field is optional, so the original Pulse payload stays valid.
+const TEACH_START_KEYS = new Set(['steps', 'tabId', 'target', 'url', 'guideId', 'title', 'closeOnDone', 'notify']);
 const TEACH_STEP_KEYS = new Set([
   'stepIndex',
   'totalSteps',
@@ -233,9 +236,27 @@ const TEACH_STEP_KEYS = new Set([
   'highlightTarget',
   'waitForAction',
   'position',
+  'doneWhen',
 ]);
+const TEACH_DONE_WHEN_KEYS = new Set(['textAppears', 'selectorAppears', 'selectorGone', 'urlIncludes']);
+const GUIDE_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const TEACH_POSITIONS = new Set(['top', 'bottom', 'left', 'right', 'auto']);
 const TEACH_WAIT_ACTIONS = new Set(['click', 'type', 'navigate']);
+
+function validateDoneWhen(doneWhen) {
+  if (!doneWhen || typeof doneWhen !== 'object' || Array.isArray(doneWhen)) return 'must be an object';
+  const keys = Object.keys(doneWhen);
+  const unknown = keys.filter(key => !TEACH_DONE_WHEN_KEYS.has(key));
+  if (unknown.length > 0) return `has unknown field${unknown.length === 1 ? '' : 's'}: ${unknown.join(', ')}`;
+  if (keys.length === 0) return `needs one of: ${[...TEACH_DONE_WHEN_KEYS].join(', ')}`;
+  for (const key of keys) {
+    const value = doneWhen[key];
+    if (typeof value !== 'string' || !value.trim() || value.length > 1000) {
+      return `.${key} must be a non-empty string of at most 1000 characters`;
+    }
+  }
+  return null;
+}
 
 function validateTeachStartPayload(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
@@ -256,6 +277,21 @@ function validateTeachStartPayload(body) {
   }
   if (body.target !== undefined && typeof body.target !== 'string' && (!body.target || typeof body.target !== 'object' || Array.isArray(body.target))) {
     return 'target must be a profile string or an object';
+  }
+  if (body.url !== undefined) {
+    if (typeof body.url !== 'string' || body.url.length > 2000 || !body.url.startsWith('https://')) {
+      return 'url must be an https:// URL of at most 2000 characters';
+    }
+    if (body.tabId !== undefined) return 'give url or tabId, not both';
+  }
+  if (body.guideId !== undefined && (typeof body.guideId !== 'string' || !GUIDE_ID_RE.test(body.guideId))) {
+    return 'guideId must be 1-64 letters, digits, _ or -';
+  }
+  if (body.title !== undefined && (typeof body.title !== 'string' || !body.title.trim() || body.title.length > 120 || /[<>]/.test(body.title))) {
+    return 'title must be plain text of at most 120 characters';
+  }
+  for (const flag of ['closeOnDone', 'notify']) {
+    if (body[flag] !== undefined && typeof body[flag] !== 'boolean') return `${flag} must be a boolean`;
   }
 
   for (let i = 0; i < body.steps.length; i++) {
@@ -282,7 +318,14 @@ function validateTeachStartPayload(body) {
     if (/[<>]/.test(step.instruction)) {
       return `${prefix}.instruction must be plain text`;
     }
-    if (typeof step.targetSelector !== 'string' || !step.targetSelector.trim() || step.targetSelector.length > 1000) {
+    if (step.doneWhen !== undefined) {
+      const doneWhenError = validateDoneWhen(step.doneWhen);
+      if (doneWhenError) return `${prefix}.doneWhen ${doneWhenError}`;
+    }
+    // A step with a doneWhen check may have no target (e.g. "Sign in"): the
+    // tooltip is centered and the check alone decides when it is done.
+    const targetOptional = step.doneWhen !== undefined && step.targetSelector === '';
+    if (!targetOptional && (typeof step.targetSelector !== 'string' || !step.targetSelector.trim() || step.targetSelector.length > 1000)) {
       return `${prefix}.targetSelector must be a non-empty string of at most 1000 characters`;
     }
     if (typeof step.highlightTarget !== 'boolean') {
@@ -417,6 +460,56 @@ export function createRelay(port = 3333) {
 
   // Pending calls: commandId → { resolve, reject, timer }
   const pending = new Map();
+
+  // Guides: guideId → { guideId, title, url, tabId, instanceId, status, notify,
+  // closeOnDone, stepsCompleted, totalSteps, startedAt, endedAt }. A guide stays
+  // 'active' until the extension reports teach_done with done, skipped or closed.
+  // Waiters are long-poll HTTP requests on GET /teach/result/:guideId.
+  const guides = new Map();
+  const guideWaiters = new Map();
+  const GUIDE_HISTORY_LIMIT = 200;
+  const GUIDE_OUTCOMES = new Set(['done', 'skipped', 'closed']);
+
+  function rememberGuide(guide) {
+    guides.set(guide.guideId, guide);
+    while (guides.size > GUIDE_HISTORY_LIMIT) guides.delete(guides.keys().next().value);
+  }
+
+  function settleGuide(guideId, { outcome, stepsCompleted }) {
+    const guide = guides.get(guideId);
+    if (!guide || guide.status !== 'active' || !GUIDE_OUTCOMES.has(outcome)) return null;
+    guide.status = outcome;
+    guide.endedAt = new Date().toISOString();
+    if (Number.isInteger(stepsCompleted)) guide.stepsCompleted = stepsCompleted;
+    const waiters = guideWaiters.get(guideId) || [];
+    guideWaiters.delete(guideId);
+    for (const waiter of waiters) waiter(guide);
+    if (guide.notify) {
+      const label = guide.title || 'Guide';
+      const message = outcome === 'done' ? `${label}: done`
+        : outcome === 'skipped' ? `${label}: skipped at step ${guide.stepsCompleted + 1} of ${guide.totalSteps}`
+        : `${label}: tab closed after ${guide.stepsCompleted} of ${guide.totalSteps} steps`;
+      runOsascript(message, 'Yeshie guide');
+    }
+    return guide;
+  }
+
+  function waitForGuide(guideId, waitMs) {
+    const guide = guides.get(guideId);
+    if (!guide || guide.status !== 'active' || waitMs <= 0) return Promise.resolve(guide);
+    return new Promise(resolve => {
+      const list = guideWaiters.get(guideId) || [];
+      const waiter = (g) => { clearTimeout(timer); resolve(g); };
+      const timer = setTimeout(() => {
+        const current = guideWaiters.get(guideId) || [];
+        guideWaiters.set(guideId, current.filter(w => w !== waiter));
+        resolve(guides.get(guideId));
+      }, waitMs);
+      if (timer.unref) timer.unref();
+      list.push(waiter);
+      guideWaiters.set(guideId, list);
+    });
+  }
 
   // Async (fire-and-forget) skill runs: id → { id, status, result, error, createdAt, updatedAt }
   // A run submitted via POST /run/async registers a normal `pending` entry whose
@@ -863,6 +956,16 @@ export function createRelay(port = 3333) {
       socket.on('status_update', ({ commandId, stepIndex, totalSteps, action }) => {
         const own = ownJob(commandId);
         if (own) own.p.lastStatus = { stepIndex, totalSteps, action };
+      });
+
+      // A guide finished in the browser: the human completed it, skipped it,
+      // or closed its tab. Only the instance that started the guide may settle it.
+      socket.on('teach_done', ({ guideId, outcome, stepsCompleted } = {}) => {
+        const guide = guides.get(guideId);
+        const inst = registry.bySocket(socket);
+        if (!guide || !inst || guide.instanceId !== inst.instanceId) return;
+        const settled = settleGuide(guideId, { outcome, stepsCompleted });
+        if (settled) console.log(`[relay] guide ${guideId} ${settled.status} (${settled.stepsCompleted}/${settled.totalSteps})`);
       });
 
       // Case 1: chain `notify` step — extension emits this, relay fires osascript
@@ -1970,10 +2073,28 @@ export function createRelay(port = 3333) {
       const teachRoute = routeRequest(res, body);
       if (!teachRoute) return;
 
+      const isGuide = ['url', 'guideId', 'title', 'closeOnDone', 'notify'].some(key => body[key] !== undefined);
+      let guide = null;
+      if (isGuide) {
+        const guideId = body.guideId || `g_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+        if (guides.get(guideId)?.status === 'active') {
+          jsonReply(res, 409, { error: `Guide ${guideId} is already active` });
+          return;
+        }
+        guide = { guideId, title: body.title || null, closeOnDone: body.closeOnDone === true };
+      }
+      const emitted = { steps: body.steps, tabId: teachRoute.tabId ?? undefined };
+      if (guide) {
+        emitted.url = body.url;
+        emitted.guide = guide;
+      }
+      // Opening a page waits for it to load, so allow more time for the ack.
+      const ackTimeoutMs = body.url ? 30_000 : 10_000;
+
       try {
         const result = await new Promise((resolve, reject) => {
-          const timer = setTimeout(() => reject(new Error('Timeout waiting for teach_start acknowledgment')), 10_000);
-          teachRoute.instance.socket.emit('teach_start', { steps: body.steps, tabId: teachRoute.tabId ?? undefined }, (ack) => {
+          const timer = setTimeout(() => reject(new Error('Timeout waiting for teach_start acknowledgment')), ackTimeoutMs);
+          teachRoute.instance.socket.emit('teach_start', emitted, (ack) => {
             clearTimeout(timer);
             resolve(ack);
           });
@@ -1982,10 +2103,56 @@ export function createRelay(port = 3333) {
           jsonReply(res, 502, { error: result?.error || 'Extension returned an invalid teach_start acknowledgment' });
           return;
         }
-        jsonReply(res, 200, { ok: true, tabId: result.tabId });
+        if (!guide) {
+          jsonReply(res, 200, { ok: true, tabId: result.tabId });
+          return;
+        }
+        rememberGuide({
+          ...guide,
+          url: body.url || null,
+          tabId: result.tabId,
+          instanceId: teachRoute.instance.instanceId,
+          status: 'active',
+          notify: body.notify !== false,
+          stepsCompleted: 0,
+          totalSteps: body.steps.length,
+          startedAt: new Date().toISOString(),
+          endedAt: null,
+        });
+        jsonReply(res, 200, { ok: true, tabId: result.tabId, guideId: guide.guideId });
       } catch (err) {
         jsonReply(res, 504, { error: err.message });
       }
+      return;
+    }
+
+    // ── Guide result: has the human finished the guide? ──
+    // ?waitMs=N long-polls up to N ms (max 240000, under Node's 300 s request timeout) for the guide to settle.
+    const guideResultMatch = path.match(/^\/teach\/result\/([A-Za-z0-9_-]{1,64})$/);
+    if (guideResultMatch && req.method === 'GET') {
+      const clientIp = extractClientIp(req);
+      if (!isAllowedClientIp(clientIp)) {
+        jsonReply(res, 403, { error: 'Forbidden: source IP not allowed', ip: clientIp });
+        return;
+      }
+      const secret = loadRelaySecret();
+      if (!secret) {
+        jsonReply(res, 503, { error: 'Relay secret not configured' });
+        return;
+      }
+      if ((req.headers['x-dispatch-token'] || '') !== secret) {
+        jsonReply(res, 401, { error: 'Bad token' });
+        return;
+      }
+      const guideId = guideResultMatch[1];
+      if (!guides.has(guideId)) {
+        jsonReply(res, 404, { error: `Unknown guide ${guideId}` });
+        return;
+      }
+      const waitMs = Math.min(Math.max(parseInt(url.searchParams.get('waitMs') || '0', 10) || 0, 0), 240_000);
+      const guide = await waitForGuide(guideId, waitMs);
+      const { instanceId, ...publicGuide } = guide;
+      jsonReply(res, 200, publicGuide);
       return;
     }
 

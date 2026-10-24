@@ -13,6 +13,7 @@ export default defineContentScript({
       chrome.runtime.sendMessage({ type: 'teach_step_complete', stepIndex });
     });
     teach.onSkip(() => {
+      teach.endTeach();
       chrome.runtime.sendMessage({ type: 'teach_skip' });
     });
     teach.onExit(() => {
