@@ -1,0 +1,18 @@
+{
+  "title": "Allow {{app}} to control the Mac",
+  "app": "com.apple.systempreferences",
+  "open": "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+  "dim": 0.2,
+  "steps": [
+    {
+      "instruction": "Turn on the switch next to {{app}}. macOS will ask for your password or Touch ID. If {{app}} is not in the list, click the + button under the list and choose it from Applications.",
+      "target": [
+        { "role": "AXCheckBox", "text": "{{app}}" },
+        { "role": "AXStaticText", "text": "{{app}}" }
+      ],
+      "doneWhen": {
+        "valueEquals": { "target": { "role": "AXCheckBox", "text": "{{app}}" }, "value": 1 }
+      }
+    }
+  ]
+}
