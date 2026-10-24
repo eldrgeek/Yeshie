@@ -291,7 +291,7 @@ export default defineBackground(() => {
     let ok = await trySend();
     if (!ok) {
       try {
-        await chrome.scripting.executeScript({ target: { tabId }, files: ['content-overlay.js'] });
+        await chrome.scripting.executeScript({ target: { tabId }, files: ['content-overlay.js'], injectImmediately: true });
         // Poll for readiness instead of fixed delay (content script may take >300ms to init)
         for (let i = 0; i < 5 && !ok; i++) {
           await new Promise(r => setTimeout(r, 200));
@@ -443,6 +443,9 @@ export default defineBackground(() => {
         await chrome.scripting.executeScript({
           target: { tabId: targetTabId },
           files: ['content-overlay.js'],
+          // Some pages (ChatGPT) never leave readyState "loading"; without this
+          // executeScript waits for document_idle forever and the ack times out.
+          injectImmediately: true,
         });
         for (let i = 0; i < 5 && !delivered; i++) {
           await new Promise(resolve => setTimeout(resolve, 200));

@@ -1,17 +1,21 @@
 {
   "title": "ChatGPT data export",
-  "url": "https://chatgpt.com/#settings/DataControls",
+  "url": "https://chatgpt.com/settings/data-controls",
   "closeOnDone": true,
   "steps": [
     {
       "instruction": "Click Export next to Export data. If ChatGPT asks you to log in again, do that first.",
-      "target": "button:has-text(\"Export\")",
-      "doneWhen": { "selectorAppears": "button:has-text(\"Confirm export\")" }
+      "target": "button[aria-label=\"Export ChatGPT account data\"], button:has-text(\"Export\")",
+      "doneWhen": {
+        "selectorAppears": "button:has-text(\"Confirm export\")"
+      }
     },
     {
       "instruction": "Click Confirm export. The download link arrives by email.",
       "target": "button:has-text(\"Confirm export\")",
-      "doneWhen": { "selectorGone": "button:has-text(\"Confirm export\")" }
+      "doneWhen": {
+        "selectorGone": "button:has-text(\"Confirm export\")"
+      }
     }
   ]
 }
