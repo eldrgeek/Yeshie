@@ -89,3 +89,116 @@ describe('Teach Tooltip', () => {
     expect(container.innerHTML).not.toContain('Click the Add button');
   });
 });
+
+describe('Teach Tooltip doneWhen (guides)', () => {
+  let container: HTMLElement;
+  let tooltip: ReturnType<typeof createTeachTooltip>;
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    document.body.innerHTML = '<div id="test-container"></div><button id="export-btn">Export data</button><div id="toast"></div>';
+    container = document.getElementById('test-container')!;
+    tooltip = createTeachTooltip(container);
+  });
+
+  afterEach(() => {
+    tooltip.endTeach();
+    jest.useRealTimers();
+    document.body.innerHTML = '';
+  });
+
+  const exportSteps: TeachStep[] = [
+    { stepIndex: 0, totalSteps: 2, instruction: 'Click Export data', targetSelector: '#export-btn', highlightTarget: true, position: 'auto', doneWhen: { textAppears: 'export requested' } },
+    { stepIndex: 1, totalSteps: 2, instruction: 'Check your email', targetSelector: '', highlightTarget: false, position: 'auto', doneWhen: { selectorAppears: '#done-marker' } },
+  ];
+
+  it('advances when doneWhen text appears, not on the click itself', () => {
+    const stepCompleteCb = jest.fn();
+    tooltip.onStepComplete(stepCompleteCb);
+    tooltip.startTeach(exportSteps);
+
+    document.getElementById('export-btn')!.click();
+    jest.advanceTimersByTime(1000);
+    expect(stepCompleteCb).not.toHaveBeenCalled();
+    expect(container.innerHTML).toContain('Step 1 of 2');
+
+    document.getElementById('toast')!.textContent = 'Export Requested. Check your email.';
+    jest.advanceTimersByTime(1000);
+    expect(stepCompleteCb).toHaveBeenCalledWith(0);
+    expect(container.innerHTML).toContain('Step 2 of 2');
+  });
+
+  it('finishes the guide when the last doneWhen selector appears', () => {
+    const exitCb = jest.fn();
+    tooltip.onExit(exitCb);
+    tooltip.startTeach(exportSteps, 1);
+    expect(container.innerHTML).not.toContain('not found');
+
+    const marker = document.createElement('span');
+    marker.id = 'done-marker';
+    document.body.appendChild(marker);
+    jest.advanceTimersByTime(1000);
+    expect(exitCb).toHaveBeenCalled();
+    expect(container.querySelector('#yeshie-teach-tooltip')).toBeNull();
+  });
+
+  it('labels Next as "I did it" and advances without clicking the target', () => {
+    const clicked = jest.fn();
+    document.getElementById('export-btn')!.addEventListener('click', clicked);
+    tooltip.startTeach(exportSteps);
+    const next = container.querySelector('.next-btn') as HTMLButtonElement;
+    expect(next.textContent).toBe('I did it');
+    next.click();
+    expect(clicked).not.toHaveBeenCalled();
+    expect(container.innerHTML).toContain('Step 2 of 2');
+  });
+
+  it('skips a step that is already done when it is shown', () => {
+    document.getElementById('toast')!.textContent = 'export requested';
+    const stepCompleteCb = jest.fn();
+    tooltip.onStepComplete(stepCompleteCb);
+    tooltip.startTeach(exportSteps);
+    jest.advanceTimersByTime(0);
+    expect(stepCompleteCb).toHaveBeenCalledWith(0);
+  });
+
+  it('selectorGone finishes only after the element was seen and then removed', () => {
+    const steps: TeachStep[] = [
+      { stepIndex: 0, totalSteps: 1, instruction: 'Click Confirm export', targetSelector: '#export-btn', highlightTarget: true, position: 'auto', doneWhen: { selectorGone: '#confirm-dialog' } },
+    ];
+    const exitCb = jest.fn();
+    tooltip.onExit(exitCb);
+    tooltip.startTeach(steps);
+    jest.advanceTimersByTime(1000);
+    expect(exitCb).not.toHaveBeenCalled();
+
+    const dialog = document.createElement('div');
+    dialog.id = 'confirm-dialog';
+    document.body.appendChild(dialog);
+    jest.advanceTimersByTime(1000);
+    expect(exitCb).not.toHaveBeenCalled();
+
+    dialog.remove();
+    jest.advanceTimersByTime(1000);
+    expect(exitCb).toHaveBeenCalled();
+  });
+
+  it('redraws when a target that rendered late shows up', () => {
+    const steps: TeachStep[] = [
+      { stepIndex: 0, totalSteps: 1, instruction: 'Click Create export', targetSelector: '#late-btn', highlightTarget: true, position: 'auto' },
+    ];
+    tooltip.startTeach(steps);
+    expect(container.innerHTML).toContain('not found');
+
+    const late = document.createElement('button');
+    late.id = 'late-btn';
+    document.body.appendChild(late);
+    jest.advanceTimersByTime(1000);
+    expect(container.innerHTML).not.toContain('not found');
+
+    const stepCompleteCb = jest.fn();
+    tooltip.onStepComplete(stepCompleteCb);
+    late.click();
+    expect(stepCompleteCb).toHaveBeenCalledWith(0);
+  });
+});
