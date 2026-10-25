@@ -256,7 +256,7 @@ export default defineContentScript({
 
     // ── Start / stop recording ──────────────────────────────────────────────────
 
-    function startRecording(id: string) {
+    function startRecording(id: string, resumed = false) {
       if (recording) return;
       recording = true;
       episodeId = id;
@@ -268,7 +268,8 @@ export default defineContentScript({
       startNavWatcher();
       installXhrHook();
 
-      // Emit episode_start
+      // Emit episode_start (not when the page reloaded mid-recording)
+      if (resumed) return;
       const startEnvelope = {
         type: 'episode_start',
         ts: new Date().toISOString(),
@@ -312,7 +313,7 @@ export default defineContentScript({
 
     chrome.runtime.onMessage.addListener((msg) => {
       if (msg.type === 'record_start') {
-        startRecording(msg.episodeId);
+        startRecording(msg.episodeId, msg.resumed === true);
       } else if (msg.type === 'record_stop') {
         stopRecording();
       } else if (msg.type === 'record_query') {

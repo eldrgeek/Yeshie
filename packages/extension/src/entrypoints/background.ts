@@ -585,6 +585,14 @@ export default defineBackground(() => {
     } catch (_) {
       // Bridge not running — fail silently (fail-closed means recording proceeds locally)
     }
+    // The relay keeps the trace so scripts/learn-task.mjs can turn it into a guide.
+    try {
+      await fetch(`${RELAY_URL}/trace`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(envelope),
+      });
+    } catch (_) { /* relay down: the trace has a gap, recording carries on */ }
   }
 
   async function broadcastRecordState(active: boolean, episodeId: string | null) {
@@ -4183,7 +4191,22 @@ export default defineBackground(() => {
       return false;
     }
     if (msg.type === 'content_ready') return false;
-    if (msg.type === 'observer_ready') return false;
+    if (msg.type === 'observer_ready') {
+      // A full page load restarts the content script with recording off. Keep a
+      // recording going across it, and log the load as a navigation.
+      const tabId = sender.tab?.id;
+      if (recordingState.active && recordingState.episodeId && tabId != null) {
+        const episodeId = recordingState.episodeId;
+        chrome.tabs.sendMessage(tabId, { type: 'record_start', episodeId, resumed: true }).catch(() => {});
+        let host = '';
+        try { host = new URL(msg.url).hostname; } catch (_) { /* non-URL page */ }
+        forwardToBridge({
+          type: 'navigate', ts: new Date().toISOString(), surface: 'browser', app: 'Chrome',
+          origin_or_bundle: host, event_type: 'navigate', episode_id: episodeId, url: msg.url, page_load: true,
+        });
+      }
+      return false;
+    }
 
     // ── Do-It-Once recording ────────────────────────────────────────────────────
     if (msg.type === 'record_toggle') {
