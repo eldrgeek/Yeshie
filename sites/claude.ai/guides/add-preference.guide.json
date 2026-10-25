@@ -1,0 +1,21 @@
+{
+  "title": "claude.ai preferences",
+  "url": "https://claude.ai/new#settings/account",
+  "closeOnDone": true,
+  "steps": [
+    {
+      "instruction": "Click at the end of 'Instructions for Claude', start a new line, and paste (Cmd+V). The line is already on your clipboard.",
+      "target": "textarea#conversation-preferences, textarea[name=\"conversation_preferences\"]",
+      "doneWhen": {
+        "selectorAppears": "button:has-text(\"Save\")"
+      }
+    },
+    {
+      "instruction": "Click Save. (If no Save button appears, the box saves by itself: click I did it.)",
+      "target": "button:has-text(\"Save\")",
+      "doneWhen": {
+        "selectorGone": "button:has-text(\"Save\")"
+      }
+    }
+  ]
+}
