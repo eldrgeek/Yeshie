@@ -66,11 +66,27 @@ const TOOLTIP_STYLES = `
     border-radius: 8px;
     padding: 14px 16px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    cursor: grab;
+    touch-action: none;
+  }
+  #yeshie-teach-tooltip.dragging .tooltip-content {
+    cursor: grabbing;
+    user-select: none;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.25);
+  }
+  .tooltip-content button {
+    cursor: pointer;
   }
   .step-counter {
+    display: flex;
+    justify-content: space-between;
     font-size: 12px;
     color: #888;
     margin-bottom: 6px;
+  }
+  .drag-grip {
+    letter-spacing: 1px;
+    color: #bbb;
   }
   .instruction {
     font-size: 16px;
@@ -201,6 +217,10 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
   let skipCallback: (() => void) | null = null;
   let exitCallback: (() => void) | null = null;
   let cleanupListeners: (() => void)[] = [];
+  // Where the reader dragged the tooltip to, in viewport pixels. It is kept for the rest
+  // of the guide. Only the tooltip uses it: the spotlight on the control (the mask) and its
+  // follow-on-scroll never read it, so moving the tooltip cannot move the "click here" cue.
+  let manualPos: { left: number; top: number } | null = null;
 
   // DOM elements (created lazily)
   let styleEl: HTMLStyleElement | null = null;
@@ -260,6 +280,19 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
     if (!tooltipEl) return;
 
     const arrow = tooltipEl.querySelector('.tooltip-arrow') as HTMLElement | null;
+
+    if (manualPos) {
+      // The reader parked it. The spotlight marks the control, so the arrow is not needed.
+      const w = tooltipEl.offsetWidth || 280;
+      const h = tooltipEl.offsetHeight || 120;
+      const left = Math.min(Math.max(manualPos.left, 8), Math.max(8, window.innerWidth - w - 8));
+      const top = Math.min(Math.max(manualPos.top, 8), Math.max(8, window.innerHeight - h - 8));
+      tooltipEl.style.transform = '';
+      tooltipEl.style.left = `${left}px`;
+      tooltipEl.style.top = `${top}px`;
+      if (arrow) arrow.style.display = 'none';
+      return;
+    }
 
     if (!target) {
       // Center in viewport if no target element found
@@ -343,7 +376,7 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
     tooltipEl!.setAttribute('data-target-selector', step.targetSelector || '');
     tooltipEl!.innerHTML = `
       <div class="tooltip-content">
-        <div class="step-counter">Step ${step.stepIndex + 1} of ${step.totalSteps}</div>
+        <div class="step-counter"><span>Step ${step.stepIndex + 1} of ${step.totalSteps}</span><span class="drag-grip" title="Drag to move. Double-click to put it back.">⠿ drag</span></div>
         ${notFoundHtml}
         <div class="instruction">${step.instruction}</div>
         <div class="tooltip-controls">
@@ -387,6 +420,51 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
     cleanupListeners.push(() => {
       skipBtn.removeEventListener('click', onSkipClick);
       nextBtn.removeEventListener('click', onNextClick);
+    });
+
+    // Drag the tooltip by its body (not its buttons). Double-click puts it back by the control.
+    const contentEl = tooltipEl!.querySelector('.tooltip-content') as HTMLElement;
+    const tip = tooltipEl!;
+    let drag: { dx: number; dy: number; pointerId: number } | null = null;
+    const onDown = (e: PointerEvent) => {
+      if (e.button) return;
+      if ((e.target as Element | null)?.closest('button')) return;
+      const r = tip.getBoundingClientRect();
+      // A centred tooltip uses a transform; pin it to pixels before it moves.
+      tip.style.transform = '';
+      tip.style.left = `${r.left}px`;
+      tip.style.top = `${r.top}px`;
+      drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, pointerId: e.pointerId };
+      tip.classList.add('dragging');
+      try { contentEl.setPointerCapture?.(e.pointerId); } catch (_) { /* not capturable: window listeners still work */ }
+      e.preventDefault();
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      manualPos = { left: e.clientX - drag.dx, top: e.clientY - drag.dy };
+      positionTooltip(target);
+    };
+    const onUp = (e: PointerEvent) => {
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      drag = null;
+      tip.classList.remove('dragging');
+    };
+    const onReset = (e: MouseEvent) => {
+      if ((e.target as Element | null)?.closest('button')) return;
+      manualPos = null;
+      positionTooltip(target);
+    };
+    contentEl.addEventListener('pointerdown', onDown);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    contentEl.addEventListener('dblclick', onReset);
+    cleanupListeners.push(() => {
+      contentEl.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      contentEl.removeEventListener('dblclick', onReset);
     });
 
     // Behavior 1: auto-advance when user clicks the target element, unless a
@@ -470,11 +548,13 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
     if (styleEl) { styleEl.remove(); styleEl = null; }
     steps = [];
     currentStepIndex = -1;
+    manualPos = null;
   }
 
   return {
     startTeach(newSteps: TeachStep[], startIndex = 0) {
       steps = newSteps;
+      manualPos = null;
       if (steps.length > 0) {
         renderStep(Math.min(startIndex, steps.length - 1));
       }

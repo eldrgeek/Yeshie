@@ -202,3 +202,114 @@ describe('Teach Tooltip doneWhen (guides)', () => {
     expect(stepCompleteCb).toHaveBeenCalledWith(0);
   });
 });
+
+describe('Teach Tooltip dragging', () => {
+  let container: HTMLElement;
+  let tooltip: ReturnType<typeof createTeachTooltip>;
+
+  const steps: TeachStep[] = [
+    { stepIndex: 0, totalSteps: 2, instruction: 'Click the Add button', targetSelector: '#add-btn', highlightTarget: true, position: 'auto' },
+    { stepIndex: 1, totalSteps: 2, instruction: 'Click Save', targetSelector: '#save-btn', highlightTarget: true, position: 'auto' },
+  ];
+
+  const rectOf = (left: number, top: number, width: number, height: number) =>
+    ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON() {} }) as DOMRect;
+
+  const fire = (el: EventTarget, type: string, x: number, y: number) =>
+    el.dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, bubbles: true, cancelable: true }));
+
+  const tipEl = () => container.querySelector('#yeshie-teach-tooltip') as HTMLElement;
+  const body = () => container.querySelector('.tooltip-content') as HTMLElement;
+  const mask = () => container.querySelector('#yeshie-teach-mask')!.innerHTML;
+
+  beforeEach(() => {
+    document.body.innerHTML = '<div id="test-container"></div><button id="add-btn">Add</button><button id="save-btn">Save</button>';
+    document.getElementById('add-btn')!.getBoundingClientRect = () => rectOf(200, 100, 100, 40);
+    document.getElementById('save-btn')!.getBoundingClientRect = () => rectOf(400, 300, 80, 30);
+    container = document.getElementById('test-container')!;
+    tooltip = createTeachTooltip(container);
+  });
+
+  afterEach(() => {
+    tooltip.endTeach();
+    document.body.innerHTML = '';
+  });
+
+  it('moves the tooltip when its body is dragged', () => {
+    tooltip.startTeach(steps);
+    const before = { left: tipEl().style.left, top: tipEl().style.top };
+    // jsdom does no layout: report the box where the tooltip was placed, as a browser would.
+    tipEl().getBoundingClientRect = () => rectOf(parseFloat(tipEl().style.left), parseFloat(tipEl().style.top), 280, 100);
+    fire(body(), 'pointerdown', 220, 160);
+    fire(window, 'pointermove', 320, 260);
+    fire(window, 'pointerup', 320, 260);
+    expect(tipEl().style.left).toBe(`${parseFloat(before.left) + 100}px`);
+    expect(tipEl().style.top).toBe(`${parseFloat(before.top) + 100}px`);
+  });
+
+  it('does not move the spotlight on the control', () => {
+    tooltip.startTeach(steps);
+    const spotlight = mask();
+    expect(spotlight).toContain('<rect x="196" y="96"');
+    fire(body(), 'pointerdown', 220, 160);
+    fire(window, 'pointermove', 500, 400);
+    fire(window, 'pointerup', 500, 400);
+    expect(mask()).toBe(spotlight);
+  });
+
+  it('hides the arrow once the tooltip is moved, because the spotlight marks the control', () => {
+    tooltip.startTeach(steps);
+    const arrow = () => container.querySelector('.tooltip-arrow') as HTMLElement;
+    expect(arrow().style.display).toBe('');
+    fire(body(), 'pointerdown', 220, 160);
+    fire(window, 'pointermove', 240, 180);
+    fire(window, 'pointerup', 240, 180);
+    expect(arrow().style.display).toBe('none');
+  });
+
+  it('keeps the parked position on the next step, while the spotlight moves to the next control', () => {
+    tooltip.startTeach(steps);
+    fire(body(), 'pointerdown', 220, 160);
+    fire(window, 'pointermove', 300, 260);
+    fire(window, 'pointerup', 300, 260);
+    const parked = { left: tipEl().style.left, top: tipEl().style.top };
+    const firstSpotlight = mask();
+    tooltip.advanceStep();
+    expect(container.innerHTML).toContain('Click Save');
+    expect({ left: tipEl().style.left, top: tipEl().style.top }).toEqual(parked);
+    expect(mask()).not.toBe(firstSpotlight);
+    expect(mask()).toContain('<rect x="396" y="296"');
+  });
+
+  it('does not start a drag from a button', () => {
+    tooltip.startTeach(steps);
+    const before = tipEl().style.left;
+    const skip = container.querySelector('.skip-btn') as HTMLElement;
+    fire(skip, 'pointerdown', 10, 10);
+    fire(window, 'pointermove', 400, 400);
+    fire(window, 'pointerup', 400, 400);
+    expect(tipEl().style.left).toBe(before);
+  });
+
+  it('puts the tooltip back by the control on double-click', () => {
+    tooltip.startTeach(steps);
+    const before = { left: tipEl().style.left, top: tipEl().style.top };
+    fire(body(), 'pointerdown', 220, 160);
+    fire(window, 'pointermove', 500, 500);
+    fire(window, 'pointerup', 500, 500);
+    expect(tipEl().style.left).not.toBe(before.left);
+    fire(body(), 'dblclick', 500, 500);
+    expect({ left: tipEl().style.left, top: tipEl().style.top }).toEqual(before);
+  });
+
+  it('forgets the parked position when a new guide starts', () => {
+    tooltip.startTeach(steps);
+    const before = tipEl().style.left;
+    fire(body(), 'pointerdown', 220, 160);
+    fire(window, 'pointermove', 500, 500);
+    fire(window, 'pointerup', 500, 500);
+    tooltip.endTeach();
+    tooltip.startTeach(steps);
+    expect(tipEl().style.left).toBe(before);
+  });
+});

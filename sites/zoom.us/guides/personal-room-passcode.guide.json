@@ -1,0 +1,19 @@
+{
+  "title": "Change the passcode of Mike's Zoom room",
+  "url": "https://zoom.us/profile",
+  "closeOnDone": true,
+  "steps": [
+    { "instruction": "Sign in to Zoom with the account that owns Personal Meeting ID 854 638 4441 (Mike's room). If you are already signed in, this step finishes by itself.",
+      "target": "",
+      "doneWhen": { "urlIncludes": "zoom.us/profile" } },
+    { "instruction": "Next to Personal Meeting ID 854 638 4441, click Edit. This opens the settings page for your personal room.",
+      "target": "",
+      "doneWhen": { "selectorAppears": "input[id*=\"passcode\" i], input[name*=\"passcode\" i], input[name*=\"pwd\" i]" } },
+    { "instruction": "Type a new passcode in the Passcode box: 10 or more letters and digits that you have never used for this room. Then click Save.",
+      "target": "button:has-text(\"Save\")",
+      "doneWhen": { "selectorGone": "button:has-text(\"Save\")" } },
+    { "instruction": "Click Copy Invitation or Copy join link for the personal room. Claude will read it from your clipboard and put it in the Zoom bot's room list. Nothing is shown on screen.",
+      "target": "button:has-text(\"Copy\"), a:has-text(\"Copy\")",
+      "doneWhen": { "textAppears": "copied" } }
+  ]
+}
