@@ -285,8 +285,11 @@ export default defineBackground(() => {
     // Full navigation: content script is dead, restore the session
     console.log('[Yeshie] Tab navigation complete, restoring teach session at step', session.currentStepIndex, 'for tab', tabId);
     const teachMsg = { type: 'teach_start', steps: session.steps, startIndex: session.currentStepIndex };
+    // Only the overlay answers {ok:true}. Another content script on the page
+    // (the Do-It-Once observer) also receives the message and resolves it with
+    // undefined, which must not count as delivered.
     const trySend = async (): Promise<boolean> => {
-      try { await chrome.tabs.sendMessage(tabId, teachMsg); return true; } catch { return false; }
+      try { return (await chrome.tabs.sendMessage(tabId, teachMsg))?.ok === true; } catch { return false; }
     };
     let ok = await trySend();
     if (!ok) {
@@ -429,8 +432,8 @@ export default defineBackground(() => {
 
     const trySend = async (): Promise<boolean> => {
       try {
-        await chrome.tabs.sendMessage(targetTabId!, teachMsg);
-        return true;
+        // {ok:true} comes only from the overlay; see the restore path above.
+        return (await chrome.tabs.sendMessage(targetTabId!, teachMsg))?.ok === true;
       } catch {
         return false;
       }
