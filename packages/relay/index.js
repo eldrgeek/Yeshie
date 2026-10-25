@@ -345,6 +345,36 @@ function validateTeachStartPayload(body) {
   return null;
 }
 
+// ====================== Do-It-Once traces ======================
+
+const TRACES_DIR = join(DISPATCH_DIR, 'traces');
+const TRACE_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+function isLoopbackIp(ip) {
+  return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+}
+
+function readTrace(file) {
+  return readFileSync(file, 'utf8').split('\n').filter(Boolean).flatMap(line => {
+    try { return [JSON.parse(line)]; } catch { return []; }
+  });
+}
+
+// Newest first: id, event count, first URL and when it was last written.
+function listTraces() {
+  if (!existsSync(TRACES_DIR)) return [];
+  return readdirSync(TRACES_DIR).filter(f => f.endsWith('.jsonl')).map(f => {
+    const file = join(TRACES_DIR, f);
+    const events = readTrace(file);
+    return {
+      episodeId: f.slice(0, -'.jsonl'.length),
+      events: events.length,
+      url: events.find(e => e.url)?.url || null,
+      updatedAt: statSync(file).mtime.toISOString(),
+    };
+  }).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
 // ====================== Conversation Logger ======================
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -1061,6 +1091,80 @@ export function createRelay(port = 3333) {
     // In-memory ring buffer for auth flow events from extension
     if (!global.__authLog) global.__authLog = [];
     const authLog = global.__authLog;
+
+    // ── Do-It-Once traces: the extension posts each recorded event here ──
+    // Events can hold what Mike typed, so they live under DISPATCH_DIR, never
+    // in the repo. scripts/learn-task.mjs compiles a trace into a guide.
+    if (path === '/trace' && req.method === 'POST') {
+      if (!isLoopbackIp(extractClientIp(req))) {
+        jsonReply(res, 403, { error: 'Forbidden: traces are accepted from this machine only' });
+        return;
+      }
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      const events = Array.isArray(body) ? body : [body];
+      let stored = 0;
+      for (const ev of events) {
+        const episodeId = ev?.episode_id;
+        if (typeof episodeId !== 'string' || !TRACE_ID_RE.test(episodeId)) continue;
+        mkdirSync(TRACES_DIR, { recursive: true });
+        appendFileSync(join(TRACES_DIR, `${episodeId}.jsonl`), JSON.stringify(ev) + '\n');
+        stored++;
+      }
+      jsonReply(res, stored ? 200 : 400, stored ? { ok: true, stored } : { error: 'No event with a valid episode_id' });
+      return;
+    }
+
+    const traceMatch = path.match(/^\/trace(?:\/([A-Za-z0-9_-]{1,64}))?$/);
+    if (traceMatch && req.method === 'GET') {
+      if (!isLoopbackIp(extractClientIp(req))) {
+        jsonReply(res, 403, { error: 'Forbidden: traces are served to this machine only' });
+        return;
+      }
+      const secret = loadRelaySecret();
+      if (!secret || (req.headers['x-dispatch-token'] || '') !== secret) {
+        jsonReply(res, 401, { error: 'Bad token' });
+        return;
+      }
+      if (!traceMatch[1]) {
+        jsonReply(res, 200, { traces: listTraces() });
+        return;
+      }
+      const file = join(TRACES_DIR, `${traceMatch[1]}.jsonl`);
+      if (!existsSync(file)) {
+        jsonReply(res, 404, { error: `Unknown trace ${traceMatch[1]}` });
+        return;
+      }
+      jsonReply(res, 200, { episodeId: traceMatch[1], events: readTrace(file) });
+      return;
+    }
+
+    // Start or stop recording in the extension, as Ctrl+Alt+R does.
+    if (path === '/trace/toggle' && req.method === 'POST') {
+      if (!isLoopbackIp(extractClientIp(req))) {
+        jsonReply(res, 403, { error: 'Forbidden' });
+        return;
+      }
+      const secret = loadRelaySecret();
+      if (!secret || (req.headers['x-dispatch-token'] || '') !== secret) {
+        jsonReply(res, 401, { error: 'Bad token' });
+        return;
+      }
+      let body = {};
+      try { body = await readBody(req); } catch { body = {}; }
+      const route = routeRequest(res, body);
+      if (!route) return;
+      try {
+        const state = await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('Timeout waiting for record_toggle acknowledgment')), 10_000);
+          route.instance.socket.emit('record_toggle', (ack) => { clearTimeout(timer); resolve(ack); });
+        });
+        jsonReply(res, 200, { ok: true, ...state });
+      } catch (err) {
+        jsonReply(res, 504, { error: err.message });
+      }
+      return;
+    }
 
     if (path === '/log' && req.method === 'POST') {
       let body;

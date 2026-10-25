@@ -285,8 +285,11 @@ export default defineBackground(() => {
     // Full navigation: content script is dead, restore the session
     console.log('[Yeshie] Tab navigation complete, restoring teach session at step', session.currentStepIndex, 'for tab', tabId);
     const teachMsg = { type: 'teach_start', steps: session.steps, startIndex: session.currentStepIndex };
+    // Only the overlay answers {ok:true}. Another content script on the page
+    // (the Do-It-Once observer) also receives the message and resolves it with
+    // undefined, which must not count as delivered.
     const trySend = async (): Promise<boolean> => {
-      try { await chrome.tabs.sendMessage(tabId, teachMsg); return true; } catch { return false; }
+      try { return (await chrome.tabs.sendMessage(tabId, teachMsg))?.ok === true; } catch { return false; }
     };
     let ok = await trySend();
     if (!ok) {
@@ -429,8 +432,8 @@ export default defineBackground(() => {
 
     const trySend = async (): Promise<boolean> => {
       try {
-        await chrome.tabs.sendMessage(targetTabId!, teachMsg);
-        return true;
+        // {ok:true} comes only from the overlay; see the restore path above.
+        return (await chrome.tabs.sendMessage(targetTabId!, teachMsg))?.ok === true;
       } catch {
         return false;
       }
@@ -585,6 +588,14 @@ export default defineBackground(() => {
     } catch (_) {
       // Bridge not running — fail silently (fail-closed means recording proceeds locally)
     }
+    // The relay keeps the trace so scripts/learn-task.mjs can turn it into a guide.
+    try {
+      await fetch(`${RELAY_URL}/trace`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(envelope),
+      });
+    } catch (_) { /* relay down: the trace has a gap, recording carries on */ }
   }
 
   async function broadcastRecordState(active: boolean, episodeId: string | null) {
@@ -4183,7 +4194,22 @@ export default defineBackground(() => {
       return false;
     }
     if (msg.type === 'content_ready') return false;
-    if (msg.type === 'observer_ready') return false;
+    if (msg.type === 'observer_ready') {
+      // A full page load restarts the content script with recording off. Keep a
+      // recording going across it, and log the load as a navigation.
+      const tabId = sender.tab?.id;
+      if (recordingState.active && recordingState.episodeId && tabId != null) {
+        const episodeId = recordingState.episodeId;
+        chrome.tabs.sendMessage(tabId, { type: 'record_start', episodeId, resumed: true }).catch(() => {});
+        let host = '';
+        try { host = new URL(msg.url).hostname; } catch (_) { /* non-URL page */ }
+        forwardToBridge({
+          type: 'navigate', ts: new Date().toISOString(), surface: 'browser', app: 'Chrome',
+          origin_or_bundle: host, event_type: 'navigate', episode_id: episodeId, url: msg.url, page_load: true,
+        });
+      }
+      return false;
+    }
 
     // ── Do-It-Once recording ────────────────────────────────────────────────────
     if (msg.type === 'record_toggle') {
