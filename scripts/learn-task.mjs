@@ -144,6 +144,9 @@ export function compileTrace(events, { name, title, episodeId } = {}) {
   if (!actions.length) throw new Error('The recording has no clicks or typing to learn from');
   const host = (() => { try { return new URL(startUrl).hostname; } catch { return 'unknown'; } })();
   const notes = [];
+  if (!/^https:\/\//.test(startUrl || '')) {
+    notes.push(`The start page ${startUrl} is not https; guide.mjs only opens https pages, so this guide cannot run as is.`);
+  }
 
   // Abstract targets, one per distinct control, named from what Mike saw.
   const targets = {};
@@ -309,7 +312,7 @@ async function main(args) {
     console.log(`guide:   ${path.relative(process.cwd(), guideFile)} (${guide.steps.length} steps)`);
     console.log(`payload: ${path.relative(process.cwd(), payloadFile)} (draft)`);
   }
-  for (const n of notes) console.log(`review: ${n}`);
+  for (const n of notes) console.error(`review: ${n}`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

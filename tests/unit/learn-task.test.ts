@@ -88,3 +88,19 @@ describe('helpers', () => {
     expect(urlMarker('https://chatgpt.com/')).toBe('chatgpt.com');
   });
 });
+
+describe('start page checks', () => {
+  test('flags a recording that starts on a non-https page', () => {
+    const r = compileTrace([ev('click', 'http://127.0.0.1:8099/index.html', { target: { role: 'link', name: 'Edit' } }, 1)]);
+    expect(r.notes.join(' ')).toContain('not https');
+  });
+
+  test('sorts events by time even when they arrived out of order', () => {
+    const field = { role: 'textbox', name: 'Title' };
+    const { actions } = reduceTrace([
+      ev('input', 'https://a.test/', { target: field, value: { literal: 'abc' } }, 3),
+      ev('input', 'https://a.test/', { target: field, value: { literal: 'ab' } }, 2),
+    ]);
+    expect(actions[0].value).toBe('abc');
+  });
+});

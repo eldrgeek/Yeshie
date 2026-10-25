@@ -1,5 +1,5 @@
 /**
- * content-observer.ts — Do-It-Once DOM event capture
+ * observer.content.ts — Do-It-Once DOM event capture
  *
  * Injected as a content script in all pages. When recording is active
  * (driven by background.ts), captures DOM interactions as DemoTrace events
