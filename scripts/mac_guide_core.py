@@ -20,7 +20,8 @@ import time
 
 TEXT_KEYS = ('title', 'description', 'value', 'identifier', 'help')
 MATCHER_KEYS = {'role', 'subrole', 'title', 'description', 'value', 'identifier',
-                'help', 'text', 'exact', 'index', 'within', 'window', 'app'}
+                'help', 'text', 'exact', 'matchCase', 'index', 'within', 'window', 'app'}
+CLIP_ROLES = ('AXScrollArea', 'AXWindow')
 DONE_KEYS = {'elementAppears', 'elementGone', 'windowAppears', 'windowGone',
              'textAppears', 'valueEquals', 'appFrontmost', 'appRunning',
              'appQuit', 'fileAppears', 'shell'}
@@ -111,12 +112,13 @@ def check_guide(guide):
 
 # ---------------------------------------------------------------- matching
 
-def _norm(v):
+def _norm(v, keep_case=False):
     if v is None:
         return ''
     if isinstance(v, bool):
         return '1' if v else '0'
-    return str(v).strip().lower()
+    v = str(v).strip()
+    return v if keep_case else v.lower()
 
 
 def node_matches(a, m):
@@ -125,14 +127,15 @@ def node_matches(a, m):
         if key in m and a.get(key) != m[key]:
             return False
     exact = bool(m.get('exact'))
+    case = bool(m.get('matchCase'))
     for key in ('title', 'description', 'value', 'identifier', 'help'):
         if key in m:
-            want, have = _norm(m[key]), _norm(a.get(key))
+            want, have = _norm(m[key], case), _norm(a.get(key), case)
             if (have != want) if exact else (want not in have):
                 return False
     if 'text' in m:
-        want = _norm(m['text'])
-        haves = [_norm(a.get(k)) for k in TEXT_KEYS]
+        want = _norm(m['text'], case)
+        haves = [_norm(a.get(k), case) for k in TEXT_KEYS]
         if not any((h == want) if exact else (want in h) for h in haves if h):
             return False
     return True
@@ -172,7 +175,8 @@ def find(roots, matcher, attrs, children, visible_only=True):
             a = attrs(node)
             if not node_matches(a, matcher):
                 continue
-            if visible_only and not usable_frame(a.get('frame')):
+            if visible_only and not (usable_frame(a.get('frame'))
+                                     and not clipped(a['frame'], [attrs(x) for x in anc])):
                 continue
             if withins and not any(node_matches(attrs(x), w) for x in anc for w in withins):
                 continue
@@ -184,6 +188,18 @@ def find(roots, matcher, attrs, children, visible_only=True):
 
 def usable_frame(frame):
     return bool(frame) and frame[2] > 1 and frame[3] > 1 and frame[0] > -10000 and frame[1] > -10000
+
+
+def clipped(frame, ancestors):
+    """True when frame's centre lies outside a scroll area or window it sits in,
+    which is how a row scrolled out of view looks: AX still reports its frame."""
+    cx, cy = frame[0] + frame[2] / 2, frame[1] + frame[3] / 2
+    for a in ancestors:
+        f = a.get('frame')
+        if a.get('role') in CLIP_ROLES and usable_frame(f):
+            if not (f[0] <= cx <= f[0] + f[2] and f[1] <= cy <= f[1] + f[3]):
+                return True
+    return False
 
 
 def collect_text(roots, attrs, children):

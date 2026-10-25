@@ -26,7 +26,7 @@ def node(role, kids=(), frame=(10, 10, 50, 20), **attrs):
 ATTRS = lambda n: n  # noqa: E731
 KIDS = lambda n: n['kids']  # noqa: E731
 
-WINDOW = node('AXWindow', title='Accessibility', kids=[
+WINDOW = node('AXWindow', title='Accessibility', frame=(0, 0, 1000, 800), kids=[
     node('AXGroup', identifier='list', kids=[
         node('AXStaticText', value='Terminal'),
         node('AXCheckBox', description='Terminal', value=0, frame=(300, 200, 40, 22)),
@@ -81,6 +81,27 @@ class MatchTest(unittest.TestCase):
         self.assertIsNotNone(core.find([WINDOW], m, ATTRS, KIDS))
         m['within'] = {'identifier': 'nope'}
         self.assertIsNone(core.find([WINDOW], m, ATTRS, KIDS))
+
+    def test_match_case(self):
+        root = node('AXWindow', frame=(0, 0, 1000, 800), kids=[
+            node('AXCheckBox', identifier='claude_Toggle', frame=(10, 10, 36, 16)),
+            node('AXCheckBox', identifier='Claude_Toggle', frame=(10, 50, 36, 16)),
+        ])
+        m = {'identifier': 'Claude_Toggle', 'exact': True}
+        self.assertEqual(core.find([root], m, ATTRS, KIDS)['frame'][1], 10)
+        m['matchCase'] = True
+        self.assertEqual(core.find([root], m, ATTRS, KIDS)['frame'][1], 50)
+
+    def test_rows_scrolled_out_of_view_skipped(self):
+        root = node('AXWindow', frame=(0, 0, 1000, 800), kids=[
+            node('AXScrollArea', frame=(0, 100, 500, 600), kids=[
+                node('AXCheckBox', identifier='Zoom_Toggle', frame=(400, 760, 36, 16)),
+                node('AXCheckBox', identifier='Omi_Toggle', frame=(400, 300, 36, 16)),
+            ]),
+        ])
+        self.assertIsNone(core.find([root], {'identifier': 'Zoom_Toggle'}, ATTRS, KIDS))
+        self.assertIsNotNone(core.find([root], {'identifier': 'Omi_Toggle'}, ATTRS, KIDS))
+        self.assertIsNotNone(core.find([root], {'identifier': 'Zoom_Toggle'}, ATTRS, KIDS, visible_only=False))
 
     def test_invisible_nodes_skipped(self):
         self.assertIsNone(core.find([WINDOW], {'title': 'Hidden'}, ATTRS, KIDS))

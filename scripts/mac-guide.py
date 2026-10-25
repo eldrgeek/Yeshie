@@ -28,9 +28,11 @@ GUIDE FILE:
   }
   target: an AX matcher, or a list of matchers tried in order. Keys: role, subrole
     (exact), title, description, value, identifier, help, text (any of those five)
-    as case-insensitive substrings, or whole values with "exact": true; index (nth
-    match); within (matcher for an ancestor); window (substring of the window
-    title); app (look in another app, such as a system dialog).
+    as case-insensitive substrings, or whole values with "exact": true; "matchCase":
+    true makes either comparison case-sensitive; index (nth match); within (matcher
+    for an ancestor); window (substring of the window title); app (look in another
+    app, such as a system dialog). A node scrolled out of its scroll area or window
+    does not match, so a fallback matcher (or the "can't find" note) takes over.
   doneWhen: any of elementAppears, elementGone (after it was seen), windowAppears,
     windowGone, textAppears, valueEquals {target, value}, appFrontmost, appRunning,
     appQuit, fileAppears (glob, modified after the step began), shell (exit 0,
@@ -43,7 +45,8 @@ FLAGS: --no-wait, --max-wait-ms N (default 1800000), --no-notify, --guide-id ID,
 
 EXIT: 0 done, 2 skipped, 3 closed early, 4 still active at max wait, 1 error.
 
-Needs PyObjC (/opt/homebrew/bin/python3) and Accessibility permission for the
+Needs PyObjC (any python3 that has it; without it the script re-runs itself
+under the first of PYOBJC_PYTHONS that does) and Accessibility permission for the
 app that launches it. Without that permission the tooltips still show, centred,
 and only the non-AX doneWhen checks work.
 Results: ~/.yeshie/mac-guides/<guideId>.json (YESHIE_MAC_GUIDE_DIR overrides).
@@ -84,10 +87,25 @@ def die(message):
     sys.exit(1)
 
 
+PYOBJC_PYTHONS = ('/opt/homebrew/bin/python3', '/opt/homebrew/bin/python3.14', '/opt/homebrew/bin/python3.13',
+                  '/opt/homebrew/bin/python3.12', '/usr/local/bin/python3', '/usr/bin/python3')
+
+
 def need_pyobjc():
-    if _IMPORT_ERROR:
-        die(f"missing PyObjC module '{_IMPORT_ERROR.name}'. Use /opt/homebrew/bin/python3, "
-            'or pip install pyobjc-framework-ApplicationServices pyobjc-framework-Cocoa')
+    """Without PyObjC, re-run under the first interpreter that has it (a Homebrew
+    upgrade moves python3 to a new minor version that has no PyObjC yet)."""
+    if not _IMPORT_ERROR:
+        return
+    if not os.environ.get('MAC_GUIDE_REEXEC'):
+        for py in PYOBJC_PYTHONS:
+            if not os.access(py, os.X_OK) or os.path.realpath(py) == os.path.realpath(sys.executable):
+                continue
+            probe = subprocess.run([py, '-c', 'import ApplicationServices, AppKit, objc'], capture_output=True)
+            if probe.returncode == 0:
+                os.environ['MAC_GUIDE_REEXEC'] = '1'
+                os.execv(py, [py, os.path.abspath(__file__)] + sys.argv[1:])
+    die(f"missing PyObjC module '{_IMPORT_ERROR.name}' and no other python3 here has it. "
+        'pip install pyobjc-framework-ApplicationServices pyobjc-framework-Cocoa')
 
 
 # ---------------------------------------------------------------- AX access
@@ -555,8 +573,9 @@ if AppKit is not None:
             screens = screen_frames()
             screen = screens[0]
             if rect:
+                cx, cy = rect[0] + rect[2] / 2, rect[1] + rect[3] / 2
                 for sf in screens:
-                    if sf[0] <= rect[0] <= sf[0] + sf[2] and sf[1] <= rect[1] <= sf[1] + sf[3]:
+                    if sf[0] <= cx <= sf[0] + sf[2] and sf[1] <= cy <= sf[1] + sf[3]:
                         screen = sf
             ox, oy = core.place_tooltip(rect, (size.width, size.height), screen)
             self.tip.setFrameOrigin_((ox, oy))
@@ -736,7 +755,8 @@ def cmd_inspect(args):
     if args.menus:
         elem = app_element(args.app)
         bar = ax_get(elem, 'AXMenuBar') if elem is not None else None
-        roots = roots + ([bar] if bar is not None else [])
+        if bar is not None and not any(r == bar for r in roots):  # roots_for adds it for AXMenu* roles
+            roots = roots + [bar]
     if not roots:
         die(f'{args.app} is not running or has no windows')
     n = 0
