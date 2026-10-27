@@ -15,7 +15,12 @@ export interface TeachStep {
    * has no single control, such as "Sign in".
    */
   doneWhen?: TeachDoneWhen;
+  /** When this holds at step start, auto-advance as "already" after a short notice. */
+  alreadyDoneWhen?: TeachDoneWhen;
+  alreadyDoneNote?: string;
 }
+
+export type StepOutcome = 'done' | 'skipped' | 'already';
 
 export interface TeachDoneWhen {
   /** Case-insensitive substring of the page's visible text. */
@@ -31,15 +36,31 @@ export interface TeachDoneWhen {
 /** How often doneWhen checks and a missing target are re-evaluated. */
 const RECHECK_MS = 750;
 
+export interface TeachExplainPayload {
+  text: string;
+  stepIndex: number;
+  url: string;
+  snapshot: string;
+}
+
+export interface TeachReplyPayload {
+  stepIndex: number;
+  message?: string;
+  action?: 'skip' | 'redo' | 'replace';
+  step?: TeachStep;
+}
+
 export interface TeachTooltip {
   startTeach(steps: TeachStep[], startIndex?: number): void;
   advanceStep(): void;
   gotoStep(index: number): void;
   endTeach(): void;
   getCurrentStep(): number;
-  onStepComplete: (callback: (stepIndex: number) => void) => void;
+  handleReply(payload: TeachReplyPayload): void;
+  onStepComplete: (callback: (stepIndex: number, outcome: StepOutcome, reason?: string) => void) => void;
   onSkip: (callback: () => void) => void;
   onExit: (callback: () => void) => void;
+  onExplain: (callback: (payload: TeachExplainPayload) => void) => void;
 }
 
 const TOOLTIP_STYLES = `
@@ -110,6 +131,51 @@ const TOOLTIP_STYLES = `
   }
   .skip-btn:hover {
     color: #555;
+  }
+  .skip-done-link {
+    background: none;
+    border: none;
+    color: #6a6aef;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0;
+    text-decoration: underline;
+    margin-top: 8px;
+    display: block;
+    text-align: left;
+  }
+  .explain-btn {
+    background: none;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    color: #444;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 4px 10px;
+    margin-bottom: 8px;
+  }
+  .explain-form textarea {
+    width: 100%;
+    min-height: 72px;
+    font-size: 13px;
+    margin-bottom: 8px;
+    box-sizing: border-box;
+  }
+  .explain-form-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-bottom: 8px;
+  }
+  .explain-status, .reply-message, .already-done-notice {
+    font-size: 13px;
+    color: #444;
+    margin-bottom: 8px;
+    line-height: 1.35;
+  }
+  .already-done-notice {
+    color: #0a7;
+    font-weight: 500;
   }
   .next-btn {
     background: #007bff;
@@ -197,6 +263,22 @@ function pageText(): string {
  * counts only after the selector has been seen, so a dialog that has not
  * opened yet does not finish the step; the caller tracks that in `seen`.
  */
+/** Default reason when the target is missing but doneWhen already holds. */
+export function alreadyDoneReason(step: TeachStep, elementFound: boolean): string | null {
+  if (isStepDone(step.alreadyDoneWhen)) {
+    return step.alreadyDoneNote?.trim() || 'This step looks complete already.';
+  }
+  if (step.targetSelector && !elementFound && isStepDone(step.doneWhen)) {
+    return step.alreadyDoneNote?.trim() || 'The page already matches what this step was waiting for.';
+  }
+  return null;
+}
+
+function pageSnapshot(): string {
+  const text = pageText().trim().slice(0, 4000);
+  return `Title: ${document.title}\n\n${text}`;
+}
+
 export function isStepDone(doneWhen: TeachDoneWhen | undefined, seen: { gone?: boolean } = {}): boolean {
   if (!doneWhen) return false;
   if (doneWhen.selectorGone) {
@@ -213,9 +295,11 @@ export function isStepDone(doneWhen: TeachDoneWhen | undefined, seen: { gone?: b
 export function createTeachTooltip(container: HTMLElement): TeachTooltip {
   let steps: TeachStep[] = [];
   let currentStepIndex = -1;
-  let stepCompleteCallback: ((stepIndex: number) => void) | null = null;
+  let stepCompleteCallback: ((stepIndex: number, outcome: StepOutcome, reason?: string) => void) | null = null;
   let skipCallback: (() => void) | null = null;
   let exitCallback: (() => void) | null = null;
+  let explainCallback: ((payload: TeachExplainPayload) => void) | null = null;
+  let awaitingExplainReply = false;
   let cleanupListeners: (() => void)[] = [];
   // Where the reader dragged the tooltip to, in viewport pixels. It is kept for the rest
   // of the guide. Only the tooltip uses it: the spotlight on the control (the mask) and its
@@ -366,35 +450,132 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
 
     updateMask(targetRect, step.highlightTarget);
 
-    // Build tooltip content
-    const notFoundHtml = hasTarget && !elementFound
-      ? `<div class="element-not-found">Element not found</div>`
-      : '';
-    // With a doneWhen check, Next means "I did it": it advances without clicking.
     const nextLabel = step.doneWhen ? 'I did it' : 'Next Step';
 
     tooltipEl!.setAttribute('data-target-selector', step.targetSelector || '');
-    tooltipEl!.innerHTML = `
-      <div class="tooltip-content">
-        <div class="step-counter"><span>Step ${step.stepIndex + 1} of ${step.totalSteps}</span><span class="drag-grip" title="Drag to move. Double-click to put it back.">⠿ drag</span></div>
-        ${notFoundHtml}
-        <div class="instruction">${step.instruction}</div>
-        <div class="tooltip-controls">
-          <button class="skip-btn">Skip</button>
-          <button class="next-btn">${nextLabel}</button>
-        </div>
-      </div>
-      <div class="tooltip-arrow"></div>
-    `;
+    tooltipEl!.replaceChildren();
+    const contentEl = document.createElement('div');
+    contentEl.className = 'tooltip-content';
+    const counter = document.createElement('div');
+    counter.className = 'step-counter';
+    const counterLeft = document.createElement('span');
+    counterLeft.textContent = `Step ${step.stepIndex + 1} of ${step.totalSteps}`;
+    const grip = document.createElement('span');
+    grip.className = 'drag-grip';
+    grip.title = 'Drag to move. Double-click to put it back.';
+    grip.textContent = '⠿ drag';
+    counter.append(counterLeft, grip);
+    contentEl.appendChild(counter);
+
+    if (hasTarget && !elementFound) {
+      const nf = document.createElement('div');
+      nf.className = 'element-not-found';
+      nf.textContent = 'Element not found';
+      contentEl.appendChild(nf);
+    }
+
+    const instructionEl = document.createElement('div');
+    instructionEl.className = 'instruction';
+    instructionEl.textContent = step.instruction;
+    contentEl.appendChild(instructionEl);
+
+    const replyEl = document.createElement('div');
+    replyEl.className = 'reply-message';
+    replyEl.style.display = 'none';
+    contentEl.appendChild(replyEl);
+
+    const explainStatusEl = document.createElement('div');
+    explainStatusEl.className = 'explain-status';
+    explainStatusEl.style.display = 'none';
+    contentEl.appendChild(explainStatusEl);
+
+    const explainForm = document.createElement('div');
+    explainForm.className = 'explain-form';
+    explainForm.style.display = 'none';
+    const explainPrompt = document.createElement('div');
+    explainPrompt.textContent = "What do you see, or what's different?";
+    explainPrompt.style.marginBottom = '6px';
+    explainPrompt.style.fontSize = '13px';
+    const explainText = document.createElement('textarea');
+    explainText.setAttribute('aria-label', "What do you see, or what's different?");
+    const explainActions = document.createElement('div');
+    explainActions.className = 'explain-form-actions';
+    const explainCancel = document.createElement('button');
+    explainCancel.type = 'button';
+    explainCancel.textContent = 'Cancel';
+    const explainSend = document.createElement('button');
+    explainSend.type = 'button';
+    explainSend.textContent = 'Send';
+    explainActions.append(explainCancel, explainSend);
+    explainForm.append(explainPrompt, explainText, explainActions);
+    contentEl.appendChild(explainForm);
+
+    const explainBtn = document.createElement('button');
+    explainBtn.type = 'button';
+    explainBtn.className = 'explain-btn';
+    explainBtn.textContent = 'Explain';
+    contentEl.appendChild(explainBtn);
+
+    const controls = document.createElement('div');
+    controls.className = 'tooltip-controls';
+    const skipBtn = document.createElement('button');
+    skipBtn.type = 'button';
+    skipBtn.className = 'skip-btn';
+    skipBtn.textContent = 'Skip';
+    const nextBtn = document.createElement('button');
+    nextBtn.type = 'button';
+    nextBtn.className = 'next-btn';
+    nextBtn.textContent = nextLabel;
+    controls.append(skipBtn, nextBtn);
+    contentEl.appendChild(controls);
+
+    const skipDoneLink = document.createElement('button');
+    skipDoneLink.type = 'button';
+    skipDoneLink.className = 'skip-done-link';
+    skipDoneLink.textContent = 'Skip, already done';
+    contentEl.appendChild(skipDoneLink);
+
+    const arrowEl = document.createElement('div');
+    arrowEl.className = 'tooltip-arrow';
+    tooltipEl!.append(contentEl, arrowEl);
 
     positionTooltip(target);
 
-    // Wire controls
-    const skipBtn = tooltipEl!.querySelector('.skip-btn')!;
-    const nextBtn = tooltipEl!.querySelector('.next-btn') as HTMLButtonElement;
-
     const onSkipClick = () => {
       skipCallback?.();
+    };
+
+    const onSkipDoneClick = () => {
+      completeStep('already', 'already done');
+    };
+
+    const onExplainOpen = () => {
+      explainForm.style.display = '';
+      explainBtn.style.display = 'none';
+      explainText.focus();
+    };
+
+    const onExplainCancel = () => {
+      explainForm.style.display = 'none';
+      explainBtn.style.display = '';
+      explainText.value = '';
+    };
+
+    const onExplainSend = () => {
+      const text = explainText.value.trim();
+      if (!text) return;
+      explainForm.style.display = 'none';
+      explainBtn.style.display = 'none';
+      explainText.value = '';
+      awaitingExplainReply = true;
+      explainStatusEl.style.display = '';
+      explainStatusEl.textContent = 'Got it, adjusting…';
+      explainCallback?.({
+        text,
+        stepIndex: step.stepIndex,
+        url: location.href,
+        snapshot: pageSnapshot(),
+      });
     };
 
     const onNextClick = () => {
@@ -402,28 +583,43 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
         ? resolveSelector(step.targetSelector) as HTMLElement | null
         : null;
       if (currentTarget) {
-        // Behavior 2: click the target for the user, then advance
         nextBtn.textContent = "I'll click that for you…";
         nextBtn.disabled = true;
         currentTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
         setTimeout(() => {
-          advanceStep();
+          completeStep('done');
         }, 1500);
       } else {
-        // No target — just advance
-        advanceStep();
+        completeStep('done');
       }
     };
 
     skipBtn.addEventListener('click', onSkipClick);
+    skipDoneLink.addEventListener('click', onSkipDoneClick);
+    explainBtn.addEventListener('click', onExplainOpen);
+    explainCancel.addEventListener('click', onExplainCancel);
+    explainSend.addEventListener('click', onExplainSend);
     nextBtn.addEventListener('click', onNextClick);
     cleanupListeners.push(() => {
       skipBtn.removeEventListener('click', onSkipClick);
+      skipDoneLink.removeEventListener('click', onSkipDoneClick);
+      explainBtn.removeEventListener('click', onExplainOpen);
+      explainCancel.removeEventListener('click', onExplainCancel);
+      explainSend.removeEventListener('click', onExplainSend);
       nextBtn.removeEventListener('click', onNextClick);
     });
 
+    const alreadyReason = alreadyDoneReason(step, elementFound);
+    if (alreadyReason) {
+      const notice = document.createElement('div');
+      notice.className = 'already-done-notice';
+      notice.textContent = `Already done: ${alreadyReason}`;
+      contentEl.insertBefore(notice, instructionEl);
+      const t = setTimeout(() => completeStep('already', alreadyReason), 1500);
+      cleanupListeners.push(() => clearTimeout(t));
+    }
+
     // Drag the tooltip by its body (not its buttons). Double-click puts it back by the control.
-    const contentEl = tooltipEl!.querySelector('.tooltip-content') as HTMLElement;
     const tip = tooltipEl!;
     let drag: { dx: number; dy: number; pointerId: number } | null = null;
     const onDown = (e: PointerEvent) => {
@@ -471,7 +667,7 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
     // doneWhen check decides instead
     if (target && !step.doneWhen) {
       const onTargetClick = () => {
-        advanceStep();
+        completeStep('done');
       };
       target.addEventListener('click', onTargetClick, { once: true });
       cleanupListeners.push(() => target.removeEventListener('click', onTargetClick));
@@ -484,7 +680,7 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
     const recheck = () => {
       if (currentStepIndex !== index) return;
       if (isStepDone(step.doneWhen, seen)) {
-        advanceStep();
+        completeStep('done');
         return;
       }
       if (hasTarget && !target && resolveSelector(step.targetSelector)) {
@@ -519,7 +715,7 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
 
     if (step.waitForAction === 'navigate') {
       const onNav = () => {
-        advanceStep();
+        completeStep('done');
       };
       window.addEventListener('popstate', onNav, { once: true });
       window.addEventListener('hashchange', onNav, { once: true });
@@ -530,15 +726,45 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
     }
   }
 
-  function advanceStep() {
-    // Always notify background so session.currentStepIndex stays current (Next btn, click, navigate)
-    stepCompleteCallback?.(currentStepIndex);
+  function completeStep(outcome: StepOutcome, reason?: string) {
+    if (currentStepIndex < 0) return;
+    stepCompleteCallback?.(currentStepIndex, outcome, reason);
     if (currentStepIndex >= steps.length - 1) {
       endTeach();
       exitCallback?.();
       return;
     }
     renderStep(currentStepIndex + 1);
+  }
+
+  function advanceStep() {
+    completeStep('done');
+  }
+
+  function handleReply(payload: TeachReplyPayload) {
+    if (currentStepIndex < 0 || payload.stepIndex !== currentStepIndex) return;
+    if (payload.message) {
+      const tip = tooltipEl?.querySelector('.reply-message') as HTMLElement | null;
+      const status = tooltipEl?.querySelector('.explain-status') as HTMLElement | null;
+      if (status) status.style.display = 'none';
+      awaitingExplainReply = false;
+      if (tip) {
+        tip.style.display = '';
+        tip.textContent = payload.message;
+      }
+    }
+    if (payload.action === 'redo') {
+      renderStep(currentStepIndex);
+      return;
+    }
+    if (payload.action === 'replace' && payload.step) {
+      steps[currentStepIndex] = { ...steps[currentStepIndex], ...payload.step, stepIndex: currentStepIndex, totalSteps: steps.length };
+      renderStep(currentStepIndex);
+      return;
+    }
+    if (payload.action === 'skip') {
+      completeStep('skipped', payload.message || 'skipped by guide session');
+    }
   }
 
   function endTeach() {
@@ -549,6 +775,7 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
     steps = [];
     currentStepIndex = -1;
     manualPos = null;
+    awaitingExplainReply = false;
   }
 
   return {
@@ -562,6 +789,8 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
 
     advanceStep,
 
+    handleReply,
+
     gotoStep(index: number) {
       if (index >= 0 && index < steps.length) {
         renderStep(index);
@@ -574,7 +803,7 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
       return currentStepIndex;
     },
 
-    onStepComplete(callback: (stepIndex: number) => void) {
+    onStepComplete(callback: (stepIndex: number, outcome: StepOutcome, reason?: string) => void) {
       stepCompleteCallback = callback;
     },
 
@@ -584,6 +813,10 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
 
     onExit(callback: () => void) {
       exitCallback = callback;
+    },
+
+    onExplain(callback: (payload: TeachExplainPayload) => void) {
+      explainCallback = callback;
     },
   };
 }
