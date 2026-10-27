@@ -188,6 +188,18 @@ export default defineBackground(() => {
       }
     });
 
+    socket.on('teach_reply', async (payload: any) => {
+      const guideId = payload?.guideId;
+      if (!guideId) return;
+      for (const [tabId, session] of teachSessions) {
+        if (session.guide?.guideId !== guideId) continue;
+        try {
+          await chrome.tabs.sendMessage(tabId, { type: 'teach_reply', ...payload });
+        } catch { /* tab gone or overlay not ready */ }
+        break;
+      }
+    });
+
     // Relay injects a chat message into a specific tab's side-panel conversation.
     // The message appears as if the user typed it, then flows through the normal
     // chat path so the listener receives it just like any user-initiated message.
@@ -342,7 +354,8 @@ export default defineBackground(() => {
   // Guides can wait minutes for the human, longer than an idle MV3 worker
   // lives, so sessions are mirrored to chrome.storage.session and reloaded.
   type TeachGuide = { guideId: string; title?: string | null; closeOnDone?: boolean };
-  type TeachSession = { steps: any[]; currentStepIndex: number; guide?: TeachGuide };
+  type StepOutcomeRecord = { index: number; outcome: 'done' | 'skipped' | 'already'; reason?: string };
+  type TeachSession = { steps: any[]; currentStepIndex: number; guide?: TeachGuide; stepOutcomes?: StepOutcomeRecord[] };
   const teachSessions = new Map<number, TeachSession>();
   const TEACH_STORE_KEY = 'yeshie_teach_sessions';
 
@@ -377,7 +390,13 @@ export default defineBackground(() => {
     console.log('[Yeshie] guide', session.guide.guideId, outcome, 'in tab', tabId);
     const stepsCompleted = outcome === 'done' ? session.steps.length : Math.min(session.currentStepIndex, session.steps.length);
     try {
-      socket?.emit('teach_done', { guideId: session.guide.guideId, outcome, stepsCompleted, tabId });
+      socket?.emit('teach_done', {
+        guideId: session.guide.guideId,
+        outcome,
+        stepsCompleted,
+        tabId,
+        stepOutcomes: session.stepOutcomes || [],
+      });
     } catch { /* relay offline: the guide stays active there */ }
     if (outcome === 'done' && session.guide.closeOnDone) {
       // A short pause lets the human see the page react before it goes away.
@@ -472,7 +491,7 @@ export default defineBackground(() => {
       if (previous?.guide && previous.guide.guideId !== msg.guide?.guideId) {
         finishTeachSession(targetTabId, previous, 'skipped');
       }
-      setTeachSession(targetTabId, { steps: msg.steps, currentStepIndex: 0, ...(msg.guide ? { guide: msg.guide } : {}) });
+      setTeachSession(targetTabId, { steps: msg.steps, currentStepIndex: 0, stepOutcomes: [], ...(msg.guide ? { guide: msg.guide } : {}) });
     } else if (msg.type === 'teach_end') {
       const previous = await getTeachSession(targetTabId);
       if (previous) finishTeachSession(targetTabId, previous, 'skipped');
@@ -4178,8 +4197,44 @@ export default defineBackground(() => {
       if (tabId !== undefined) {
         getTeachSession(tabId).then(session => {
           if (!session) return;
-          session.currentStepIndex = Math.max(session.currentStepIndex, (msg.stepIndex ?? 0) + 1);
+          const idx = msg.stepIndex ?? 0;
+          session.currentStepIndex = Math.max(session.currentStepIndex, idx + 1);
+          if (!session.stepOutcomes) session.stepOutcomes = [];
+          session.stepOutcomes.push({
+            index: idx,
+            outcome: msg.outcome || 'done',
+            ...(msg.reason ? { reason: msg.reason } : {}),
+          });
           setTeachSession(tabId, session);
+          if (session.guide?.guideId) {
+            try {
+              socket?.emit('teach_step', {
+                guideId: session.guide.guideId,
+                index: idx,
+                outcome: msg.outcome || 'done',
+                reason: msg.reason || null,
+              });
+            } catch { /* relay offline */ }
+          }
+        });
+      }
+      return false;
+    }
+    if (msg.type === 'teach_explain') {
+      const tabId = sender.tab?.id;
+      if (tabId !== undefined) {
+        getTeachSession(tabId).then(session => {
+          if (!session?.guide?.guideId) return;
+          try {
+            socket?.emit('teach_explain', {
+              guideId: session.guide.guideId,
+              stepIndex: msg.stepIndex,
+              text: msg.text,
+              url: msg.url,
+              snapshot: msg.snapshot,
+              at: new Date().toISOString(),
+            });
+          } catch { /* relay offline */ }
         });
       }
       return false;

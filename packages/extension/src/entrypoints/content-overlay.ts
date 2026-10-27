@@ -9,8 +9,11 @@ export default defineContentScript({
     const panel = createProgressPanel(document.body);
     const teach = createTeachTooltip(document.body);
 
-    teach.onStepComplete((stepIndex) => {
-      chrome.runtime.sendMessage({ type: 'teach_step_complete', stepIndex });
+    teach.onStepComplete((stepIndex, outcome, reason) => {
+      chrome.runtime.sendMessage({ type: 'teach_step_complete', stepIndex, outcome, reason });
+    });
+    teach.onExplain((payload) => {
+      chrome.runtime.sendMessage({ type: 'teach_explain', ...payload });
     });
     teach.onSkip(() => {
       teach.endTeach();
@@ -46,6 +49,9 @@ export default defineContentScript({
         // Background pings this to check if content script is alive (SPA nav detection)
         const idx = teach.getCurrentStep();
         sendResponse({ ok: true, stepIndex: idx, active: idx >= 0 });
+      } else if (msg.type === 'teach_reply') {
+        teach.handleReply(msg);
+        sendResponse({ ok: true });
       }
     });
   }

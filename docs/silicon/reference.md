@@ -1,8 +1,8 @@
 ---
 audience: silicon
 document: reference
-sync_version: 5
-last_updated: 2026-08-27
+sync_version: 6
+last_updated: 2026-10-27
 repo: yeshie
 authorship_update: "Mike Wolf (system direction), OpenAI Codex (2026-07-27 Pulse human-gate contract pass), 2026-08-26 async run API, 2026-08-27 assume #55 landed"
 ---
@@ -35,7 +35,10 @@ Live runtime is this relay + the Chrome MV3 extension. CIC is discovery-only. `e
 | POST | `/run/async` | `{payload, params?, tabId?, timeoutMs?}` (default `timeoutMs` 300000) | `202 {ok: true, id, status: "running"}` immediately. Same auto-heal as `/run` when the stashed result settles green. |
 | GET | `/run/result/:id` | — | `{id, status: running\|done\|error, result, error, progress}`. `result` is the full ChainResult once `done`. Settled runs expire after 30-min job TTL. |
 | GET | `/status` | — | `{ok, extensionConnected, pending, asyncRuns, lastDisconnectAt, buildVersion}` |
-| POST | `/teach/start` | `{steps: TeachStep[], tabId?: int}` + `X-Dispatch-Token` | `{ok: true, tabId: int}` |
+| POST | `/teach/start` | `{steps: TeachStep[], tabId?, url?, guideId?, …}` + `X-Dispatch-Token` | `{ok: true, tabId, guideId?}` |
+| GET | `/teach/result/:guideId` | `?waitMs=` (max 240000) | Guide record; includes `explanations`, `stepOutcomes` when settled |
+| GET | `/teach/events/:guideId` | `?since=&waitMs=` | `{events, next}` long-poll (`explain`, `step`) |
+| POST | `/teach/reply/:guideId` | `{stepIndex, message?, action?, step?}` | `{ok: true}` → socket `teach_reply` to guide instance |
 | POST | `/pulse/voice/turn` | `{text, mode?, recipient?, dispatch_target?, client_id?}` | Routed voice-turn envelope |
 | GET | `/dispatch/conversation` | query `since`, `limit` | Merged Mike + named AI-team messages |
 
@@ -52,6 +55,16 @@ rejected. Each TeachStep supplies `stepIndex`, `totalSteps`, plain-text
 `instruction`, `targetSelector`, `highlightTarget`, `waitForAction`, and
 `position`. The extension highlights and observes the target. This endpoint
 never clicks it.
+
+**Guides — Explain, skip-already-done, preconditions:** TeachStep may include
+`doneWhen`, `alreadyDoneWhen` (same keys), and `alreadyDoneNote`. The tooltip
+**Explain** button sends `teach_explain` (human text + page snapshot). The
+guiding session polls `GET /teach/events/:guideId` and responds with
+`POST /teach/reply/:guideId` (`message`, or `action`: `skip` | `redo` |
+`replace`). **Skip, already done** advances one step with outcome `already`
+without ending the guide. `teach_done` may include `stepOutcomes`:
+`[{index, outcome: done|skipped|already, reason?}]`. CLI:
+`node scripts/guide.mjs` (`--events`, `--reply`).
 
 ## ChainResult Schema
 
