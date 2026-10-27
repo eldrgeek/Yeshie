@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { createTeachTooltip } from '../../packages/extension/src/overlay/teach-tooltip.js';
+import { createTeachTooltip, alreadyDoneReason } from '../../packages/extension/src/overlay/teach-tooltip.js';
 import type { TeachStep } from '../../packages/extension/src/overlay/teach-tooltip.js';
 
 describe('Teach Tooltip', () => {
@@ -60,17 +60,16 @@ describe('Teach Tooltip', () => {
     tooltip.startTeach(mockSteps);
     const target = document.getElementById('add-btn')!;
     target.click();
-    expect(stepCompleteCb).toHaveBeenCalledWith(0);
+    expect(stepCompleteCb).toHaveBeenCalledWith(0, 'done', undefined);
   });
 
   it('fires skip callback on skip button click', () => {
     const skipCb = jest.fn();
     tooltip.onSkip(skipCb);
     tooltip.startTeach(mockSteps);
-    const allBtns = container.querySelectorAll('button');
-    const skip = Array.from(allBtns).find(b => b.textContent?.toLowerCase().includes('skip'));
+    const skip = container.querySelector('.skip-btn') as HTMLButtonElement;
     expect(skip).toBeTruthy();
-    skip!.click();
+    skip.click();
     expect(skipCb).toHaveBeenCalled();
   });
 
@@ -124,7 +123,7 @@ describe('Teach Tooltip doneWhen (guides)', () => {
 
     document.getElementById('toast')!.textContent = 'Export Requested. Check your email.';
     jest.advanceTimersByTime(1000);
-    expect(stepCompleteCb).toHaveBeenCalledWith(0);
+    expect(stepCompleteCb).toHaveBeenCalledWith(0, 'done', undefined);
     expect(container.innerHTML).toContain('Step 2 of 2');
   });
 
@@ -159,7 +158,7 @@ describe('Teach Tooltip doneWhen (guides)', () => {
     tooltip.onStepComplete(stepCompleteCb);
     tooltip.startTeach(exportSteps);
     jest.advanceTimersByTime(0);
-    expect(stepCompleteCb).toHaveBeenCalledWith(0);
+    expect(stepCompleteCb).toHaveBeenCalledWith(0, 'done', undefined);
   });
 
   it('selectorGone finishes only after the element was seen and then removed', () => {
@@ -199,7 +198,7 @@ describe('Teach Tooltip doneWhen (guides)', () => {
     const stepCompleteCb = jest.fn();
     tooltip.onStepComplete(stepCompleteCb);
     late.click();
-    expect(stepCompleteCb).toHaveBeenCalledWith(0);
+    expect(stepCompleteCb).toHaveBeenCalledWith(0, 'done', undefined);
   });
 });
 
@@ -311,5 +310,103 @@ describe('Teach Tooltip dragging', () => {
     tooltip.endTeach();
     tooltip.startTeach(steps);
     expect(tipEl().style.left).toBe(before);
+  });
+});
+
+describe('Teach Tooltip explain and preconditions', () => {
+  let container: HTMLElement;
+  let tooltip: ReturnType<typeof createTeachTooltip>;
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    document.body.innerHTML = '<div id="test-container"></div><button id="signin">Sign in</button>';
+    container = document.getElementById('test-container')!;
+    tooltip = createTeachTooltip(container);
+  });
+
+  afterEach(() => {
+    tooltip.endTeach();
+    jest.useRealTimers();
+    document.body.innerHTML = '';
+  });
+
+  it('sends explain payload and shows adjusting status', () => {
+    const onExplain = jest.fn();
+    tooltip.onExplain(onExplain);
+    const steps: TeachStep[] = [
+      { stepIndex: 0, totalSteps: 1, instruction: 'Sign in', targetSelector: '#signin', highlightTarget: true, position: 'auto' },
+    ];
+    tooltip.startTeach(steps);
+    (container.querySelector('.explain-btn') as HTMLButtonElement).click();
+    const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+    textarea.value = 'I am already signed in';
+    (container.querySelector('.explain-form-actions button:last-child') as HTMLButtonElement).click();
+    expect(onExplain).toHaveBeenCalledWith(expect.objectContaining({
+      text: 'I am already signed in',
+      stepIndex: 0,
+      snapshot: expect.stringContaining('Title:'),
+    }));
+    expect(container.textContent).toContain('Got it, adjusting');
+  });
+
+  it('shows session reply via handleReply', () => {
+    const steps: TeachStep[] = [
+      { stepIndex: 0, totalSteps: 1, instruction: 'Sign in', targetSelector: '#signin', highlightTarget: true, position: 'auto' },
+    ];
+    tooltip.startTeach(steps);
+    tooltip.handleReply({ stepIndex: 0, message: 'Use the account menu instead.' });
+    expect(container.textContent).toContain('Use the account menu instead.');
+  });
+
+  it('Skip, already done advances with outcome already', () => {
+    const stepCompleteCb = jest.fn();
+    tooltip.onStepComplete(stepCompleteCb);
+    const steps: TeachStep[] = [
+      { stepIndex: 0, totalSteps: 2, instruction: 'Sign in', targetSelector: '#signin', highlightTarget: true, position: 'auto' },
+      { stepIndex: 1, totalSteps: 2, instruction: 'Next', targetSelector: '#signin', highlightTarget: true, position: 'auto' },
+    ];
+    tooltip.startTeach(steps);
+    (container.querySelector('.skip-done-link') as HTMLButtonElement).click();
+    expect(stepCompleteCb).toHaveBeenCalledWith(0, 'already', 'already done');
+    expect(container.textContent).toContain('Step 2 of 2');
+  });
+
+  it('auto-advances with alreadyDoneWhen after notice', () => {
+    const acct = document.createElement('div');
+    acct.id = 'acct';
+    acct.textContent = 'signed in';
+    document.body.appendChild(acct);
+    const stepCompleteCb = jest.fn();
+    tooltip.onStepComplete(stepCompleteCb);
+    const steps: TeachStep[] = [
+      {
+        stepIndex: 0,
+        totalSteps: 1,
+        instruction: 'Sign in',
+        targetSelector: '#signin',
+        highlightTarget: true,
+        position: 'auto',
+        alreadyDoneWhen: { textAppears: 'signed in' },
+        alreadyDoneNote: 'You are signed in',
+      },
+    ];
+    tooltip.startTeach(steps);
+    expect(container.textContent).toContain('Already done: You are signed in');
+    jest.advanceTimersByTime(1500);
+    expect(stepCompleteCb).toHaveBeenCalledWith(0, 'already', 'You are signed in');
+  });
+
+  it('alreadyDoneReason when target missing but doneWhen holds', () => {
+    const step: TeachStep = {
+      stepIndex: 0,
+      totalSteps: 1,
+      instruction: 'Click Sign in',
+      targetSelector: '#missing',
+      highlightTarget: true,
+      position: 'auto',
+      doneWhen: { textAppears: 'welcome back' },
+    };
+    document.body.appendChild(document.createElement('span')).textContent = 'welcome back';
+    expect(alreadyDoneReason(step, false)).toMatch(/already matches/);
   });
 });

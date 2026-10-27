@@ -1,8 +1,8 @@
 ---
 audience: carbon
 document: reference
-sync_version: 5
-last_updated: 2026-08-27
+sync_version: 6
+last_updated: 2026-10-27
 repo: yeshie
 authorship_update: "Mike Wolf (system direction), OpenAI Codex (2026-07-27 Pulse human-gate contract pass), 2026-08-26 async run API, 2026-08-27 assume #55 landed"
 ---
@@ -49,6 +49,23 @@ instruction, a target selector, highlighting options, and the action to
 observe. There is intentionally no auto-click option: Yeshie navigates and
 points, Mike supplies the irreducible consent, and the requesting workflow
 must verify the effect afterward.
+
+### Explain, skip-already-done, and preconditions
+
+Each step tooltip includes **Explain** (the human describes what they see; the
+extension forwards it to the relay as `teach_explain`) and **Skip, already
+done** (advance this step only, recorded as outcome `already`). Whole-guide
+**Skip** behavior is unchanged.
+
+The workflow guiding Mike polls `GET /teach/events/:guideId` and answers with
+`POST /teach/reply/:guideId` — plain `message` text in the tooltip, or
+`action` `skip`, `redo`, or `replace` (with a new `step` object).
+
+Guide steps may set `alreadyDoneWhen` (same shape as `doneWhen`) and
+`alreadyDoneNote`. When a step opens, if that condition already holds—or the
+target is missing but `doneWhen` is satisfied—the overlay shows “Already done”
+briefly and moves on. Finished guides report per-step `stepOutcomes` on
+`teach_done`. Use `node scripts/guide.mjs --events` / `--reply` from a shell.
 
 ---
 
