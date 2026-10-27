@@ -237,6 +237,8 @@ const TEACH_STEP_KEYS = new Set([
   'waitForAction',
   'position',
   'doneWhen',
+  'alreadyDoneWhen',
+  'alreadyDoneNote',
 ]);
 const TEACH_DONE_WHEN_KEYS = new Set(['textAppears', 'selectorAppears', 'selectorGone', 'urlIncludes']);
 const GUIDE_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
@@ -321,6 +323,16 @@ function validateTeachStartPayload(body) {
     if (step.doneWhen !== undefined) {
       const doneWhenError = validateDoneWhen(step.doneWhen);
       if (doneWhenError) return `${prefix}.doneWhen ${doneWhenError}`;
+    }
+    if (step.alreadyDoneWhen !== undefined) {
+      const alreadyError = validateDoneWhen(step.alreadyDoneWhen);
+      if (alreadyError) return `${prefix}.alreadyDoneWhen ${alreadyError}`;
+    }
+    if (step.alreadyDoneNote !== undefined) {
+      if (typeof step.alreadyDoneNote !== 'string' || !step.alreadyDoneNote.trim() || step.alreadyDoneNote.length > 500) {
+        return `${prefix}.alreadyDoneNote must be a non-empty string of at most 500 characters`;
+      }
+      if (/[<>]/.test(step.alreadyDoneNote)) return `${prefix}.alreadyDoneNote must be plain text`;
     }
     // A step with a doneWhen check may have no target (e.g. "Sign in"): the
     // tooltip is centered and the check alone decides when it is done.
@@ -497,20 +509,62 @@ export function createRelay(port = 3333) {
   // Waiters are long-poll HTTP requests on GET /teach/result/:guideId.
   const guides = new Map();
   const guideWaiters = new Map();
+  const guideEventWaiters = new Map();
   const GUIDE_HISTORY_LIMIT = 200;
   const GUIDE_OUTCOMES = new Set(['done', 'skipped', 'closed']);
 
   function rememberGuide(guide) {
-    guides.set(guide.guideId, guide);
+    const record = {
+      explanations: [],
+      events: [],
+      stepOutcomes: [],
+      ...guide,
+    };
+    guides.set(guide.guideId, record);
     while (guides.size > GUIDE_HISTORY_LIMIT) guides.delete(guides.keys().next().value);
   }
 
-  function settleGuide(guideId, { outcome, stepsCompleted }) {
+  function appendGuideEvent(guideId, event) {
+    const guide = guides.get(guideId);
+    if (!guide) return null;
+    const entry = { at: new Date().toISOString(), ...event };
+    guide.events.push(entry);
+    const waiters = guideEventWaiters.get(guideId) || [];
+    guideEventWaiters.delete(guideId);
+    for (const waiter of waiters) waiter(guide);
+    return entry;
+  }
+
+  function waitForGuideEvents(guideId, since, waitMs) {
+    const guide = guides.get(guideId);
+    if (!guide) return Promise.resolve(null);
+    if (guide.events.length > since || waitMs <= 0) return Promise.resolve(guide);
+    return new Promise(resolve => {
+      const list = guideEventWaiters.get(guideId) || [];
+      const waiter = (g) => { clearTimeout(timer); resolve(g); };
+      const timer = setTimeout(() => {
+        const current = guideEventWaiters.get(guideId) || [];
+        guideEventWaiters.set(guideId, current.filter(w => w !== waiter));
+        resolve(guides.get(guideId));
+      }, waitMs);
+      if (timer.unref) timer.unref();
+      list.push(waiter);
+      guideEventWaiters.set(guideId, list);
+    });
+  }
+
+  function publicGuideView(guide) {
+    const { instanceId, ...publicGuide } = guide;
+    return publicGuide;
+  }
+
+  function settleGuide(guideId, { outcome, stepsCompleted, stepOutcomes }) {
     const guide = guides.get(guideId);
     if (!guide || guide.status !== 'active' || !GUIDE_OUTCOMES.has(outcome)) return null;
     guide.status = outcome;
     guide.endedAt = new Date().toISOString();
     if (Number.isInteger(stepsCompleted)) guide.stepsCompleted = stepsCompleted;
+    if (Array.isArray(stepOutcomes)) guide.stepOutcomes = stepOutcomes;
     const waiters = guideWaiters.get(guideId) || [];
     guideWaiters.delete(guideId);
     for (const waiter of waiters) waiter(guide);
@@ -990,12 +1044,37 @@ export function createRelay(port = 3333) {
 
       // A guide finished in the browser: the human completed it, skipped it,
       // or closed its tab. Only the instance that started the guide may settle it.
-      socket.on('teach_done', ({ guideId, outcome, stepsCompleted } = {}) => {
+      socket.on('teach_done', ({ guideId, outcome, stepsCompleted, stepOutcomes } = {}) => {
         const guide = guides.get(guideId);
         const inst = registry.bySocket(socket);
         if (!guide || !inst || guide.instanceId !== inst.instanceId) return;
-        const settled = settleGuide(guideId, { outcome, stepsCompleted });
+        const settled = settleGuide(guideId, { outcome, stepsCompleted, stepOutcomes });
         if (settled) console.log(`[relay] guide ${guideId} ${settled.status} (${settled.stepsCompleted}/${settled.totalSteps})`);
+      });
+
+      socket.on('teach_explain', (payload = {}) => {
+        const { guideId, stepIndex, text, url, snapshot, at } = payload;
+        const guide = guides.get(guideId);
+        const inst = registry.bySocket(socket);
+        if (!guide || !inst || guide.instanceId !== inst.instanceId) return;
+        const explanation = {
+          stepIndex,
+          text: typeof text === 'string' ? text : '',
+          url: typeof url === 'string' ? url : '',
+          snapshot: typeof snapshot === 'string' ? snapshot : '',
+          at: typeof at === 'string' ? at : new Date().toISOString(),
+        };
+        guide.explanations.push(explanation);
+        appendGuideEvent(guideId, { type: 'explain', ...explanation });
+      });
+
+      socket.on('teach_step', (payload = {}) => {
+        const { guideId, index, outcome, reason } = payload;
+        const guide = guides.get(guideId);
+        const inst = registry.bySocket(socket);
+        if (!guide || !inst || guide.instanceId !== inst.instanceId) return;
+        if (!Number.isInteger(index) || !['done', 'skipped', 'already'].includes(outcome)) return;
+        appendGuideEvent(guideId, { type: 'step', index, outcome, reason: reason || null });
       });
 
       // Case 1: chain `notify` step — extension emits this, relay fires osascript
@@ -2255,8 +2334,104 @@ export function createRelay(port = 3333) {
       }
       const waitMs = Math.min(Math.max(parseInt(url.searchParams.get('waitMs') || '0', 10) || 0, 0), 240_000);
       const guide = await waitForGuide(guideId, waitMs);
-      const { instanceId, ...publicGuide } = guide;
-      jsonReply(res, 200, publicGuide);
+      jsonReply(res, 200, publicGuideView(guide));
+      return;
+    }
+
+    const guideEventsMatch = path.match(/^\/teach\/events\/([A-Za-z0-9_-]{1,64})$/);
+    if (guideEventsMatch && req.method === 'GET') {
+      const clientIp = extractClientIp(req);
+      if (!isAllowedClientIp(clientIp)) {
+        jsonReply(res, 403, { error: 'Forbidden: source IP not allowed', ip: clientIp });
+        return;
+      }
+      const secret = loadRelaySecret();
+      if (!secret) {
+        jsonReply(res, 503, { error: 'Relay secret not configured' });
+        return;
+      }
+      if ((req.headers['x-dispatch-token'] || '') !== secret) {
+        jsonReply(res, 401, { error: 'Bad token' });
+        return;
+      }
+      const guideId = guideEventsMatch[1];
+      if (!guides.has(guideId)) {
+        jsonReply(res, 404, { error: `Unknown guide ${guideId}` });
+        return;
+      }
+      const since = Math.max(parseInt(url.searchParams.get('since') || '0', 10) || 0, 0);
+      const waitMs = Math.min(Math.max(parseInt(url.searchParams.get('waitMs') || '0', 10) || 0, 0), 240_000);
+      const guide = await waitForGuideEvents(guideId, since, waitMs);
+      if (!guide) {
+        jsonReply(res, 404, { error: `Unknown guide ${guideId}` });
+        return;
+      }
+      jsonReply(res, 200, { events: guide.events.slice(since), next: guide.events.length });
+      return;
+    }
+
+    const guideReplyMatch = path.match(/^\/teach\/reply\/([A-Za-z0-9_-]{1,64})$/);
+    if (guideReplyMatch && req.method === 'POST') {
+      const clientIp = extractClientIp(req);
+      if (!isAllowedClientIp(clientIp)) {
+        jsonReply(res, 403, { error: 'Forbidden: source IP not allowed', ip: clientIp });
+        return;
+      }
+      const secret = loadRelaySecret();
+      if (!secret) {
+        jsonReply(res, 503, { error: 'Relay secret not configured' });
+        return;
+      }
+      if ((req.headers['x-dispatch-token'] || '') !== secret) {
+        jsonReply(res, 401, { error: 'Bad token' });
+        return;
+      }
+      const guideId = guideReplyMatch[1];
+      const guide = guides.get(guideId);
+      if (!guide) {
+        jsonReply(res, 404, { error: `Unknown guide ${guideId}` });
+        return;
+      }
+      if (guide.status !== 'active') {
+        jsonReply(res, 409, { error: `Guide ${guideId} is not active` });
+        return;
+      }
+      let body;
+      try { body = await readBody(req); } catch { jsonReply(res, 400, { error: 'Invalid JSON' }); return; }
+      if (!body || typeof body !== 'object' || Array.isArray(body)) {
+        jsonReply(res, 400, { error: 'body must be an object' });
+        return;
+      }
+      if (!Number.isInteger(body.stepIndex) || body.stepIndex < 0) {
+        jsonReply(res, 400, { error: 'stepIndex must be a non-negative integer' });
+        return;
+      }
+      const action = body.action;
+      if (action !== undefined && !['skip', 'redo', 'replace'].includes(action)) {
+        jsonReply(res, 400, { error: 'action must be skip, redo, or replace' });
+        return;
+      }
+      if (action === 'replace' && (!body.step || typeof body.step !== 'object' || Array.isArray(body.step))) {
+        jsonReply(res, 400, { error: 'replace action requires a step object' });
+        return;
+      }
+      if (body.message !== undefined && (typeof body.message !== 'string' || body.message.length > 2000)) {
+        jsonReply(res, 400, { error: 'message must be a string of at most 2000 characters' });
+        return;
+      }
+      const inst = registry.all().find(i => i.instanceId === guide.instanceId);
+      if (!inst?.socket) {
+        jsonReply(res, 503, { error: 'Guide extension instance is not connected' });
+        return;
+      }
+      inst.socket.emit('teach_reply', {
+        guideId,
+        stepIndex: body.stepIndex,
+        message: body.message,
+        action,
+        step: body.step,
+      });
+      jsonReply(res, 200, { ok: true });
       return;
     }
 

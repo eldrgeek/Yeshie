@@ -23,6 +23,36 @@ account email, its version, and its live windows and tabs. Full design:
 - `YESHIE_PROFILE_LABELS` (JSON, email → label) overrides the built-in labels
   `Default` (mw@) and `Profile 3` (claude@).
 
+## Guides (`/teach/*`)
+
+Guides are teach sessions with an identity (`guideId`). `POST /teach/start` with
+`url`, `guideId`, `title`, or `closeOnDone` registers a guide; the extension
+reports completion with socket `teach_done`. All guide HTTP endpoints require
+`X-Dispatch-Token` (same as `~/.dispatch/relay.secret`) and allowed source IP.
+
+| Method | Path | Notes |
+|--------|------|--------|
+| POST | `/teach/start` | `{steps, url?, guideId?, title?, closeOnDone?, notify?, target?}` → `{ok, tabId, guideId?}` |
+| GET | `/teach/result/:guideId` | `?waitMs=` long-poll (max 240000). Settled guide includes `explanations`, `stepOutcomes`, `events` history via separate poll |
+| GET | `/teach/events/:guideId` | `?since=<n>&waitMs=` long-poll; returns `{events, next}` (`explain` and `step` events) |
+| POST | `/teach/reply/:guideId` | `{stepIndex, message?, action?: skip\|redo\|replace, step?}` → emits `teach_reply` to the extension running the guide |
+
+**Explain:** each step tooltip has **Explain**. The human describes what they see;
+the extension emits `teach_explain` (stored on the guide). The guiding session
+polls `/teach/events` and answers with `/teach/reply` (`message`, or `action`
+`skip` / `redo` / `replace`).
+
+**Skip, already done:** per-step link records outcome `already` and advances
+without ending the whole guide (whole-guide **Skip** is unchanged).
+
+**Preconditions:** optional `alreadyDoneWhen` (same shape as `doneWhen`) and
+`alreadyDoneNote` on a step. When the step opens, if that condition holds—or the
+target is missing but `doneWhen` already holds—the tooltip shows “Already done”
+briefly and auto-advances.
+
+Client: `node scripts/guide.mjs` (`--wait`, `--events`, `--reply`). Guide JSON
+may use short field names (`target`, `alreadyDoneWhen`, …); see script header.
+
 ## Attribution
 
 `POST /run` and `POST /run/async` accept optional requester-attribution headers:
