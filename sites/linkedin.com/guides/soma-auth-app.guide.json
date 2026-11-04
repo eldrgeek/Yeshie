@@ -1,0 +1,40 @@
+{
+  "title": "SOMA Auth: LinkedIn app",
+  "url": "https://www.linkedin.com/developers/apps/new",
+  "closeOnDone": false,
+  "_note": "Company page: Minds Aligned (linkedin.com/company/144083636, Minds Aligned LLC, Mike is admin; typeahead shows it as 'Minds Aligned, Education; Myself Only' - a different 'Minds Aligned, Professional Training and Coaching' page is not ours). People signing in see the app name and logo, not the company. Logo: ~/Projects/soma-studios-brand/final/youtube/avatar.png (Yeshie cannot pick a file for Mike).",
+  "prefill": [
+    {
+      "selector": "#createAppNameInput",
+      "value": "SOMA"
+    },
+    {
+      "selector": "#associateCompanyTypeaheadInput",
+      "value": "Minds Aligned"
+    },
+    {
+      "clickText": "Myself Only",
+      "waitFor": "#createAppPrivacyUrlInput"
+    },
+    {
+      "selector": "#createAppPrivacyUrlInput",
+      "value": "https://somastudios.ai/privacy/"
+    }
+  ],
+  "steps": [
+    {
+      "instruction": "Yeshie filled in App name SOMA, LinkedIn Page Minds Aligned (your new company page; people signing in only see SOMA) and the privacy policy https://somastudios.ai/privacy/. Click Upload logo and choose avatar.png in the folder Projects/soma-studios-brand/final/youtube.",
+      "target": "label[for=\"appLogoImageUpload\"], #appLogoImageUpload",
+      "doneWhen": {
+        "selectorAppears": "img[src^=\"blob:\"], img[src*=\"media.licdn.com\"][alt*=\"logo\" i]"
+      }
+    },
+    {
+      "instruction": "Read and tick the legal agreement box, then click Create app.",
+      "target": "button:has-text(\"Create app\")",
+      "doneWhen": {
+        "urlIncludes": "/settings"
+      }
+    }
+  ]
+}

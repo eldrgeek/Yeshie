@@ -1,0 +1,19 @@
+{
+  "title": "SOMA Auth: LinkedIn redirect URL",
+  "url": "https://www.linkedin.com/developers/apps/264207680/auth",
+  "closeOnDone": false,
+  "_note": "App 264207680. Redirect editor: pencil button (aria-label contains edit), then Add redirect URL, input aria-label 'redirect URL', then Update. Client ID is public (#clientIdInput); the secret is never read.",
+  "prefillReady": "button[aria-label*=\"edit\" i]",
+  "prefill": [
+    { "click": "button[aria-label*=\"edit\" i]", "waitFor": "button" },
+    { "clickText": "Add redirect URL", "waitFor": "input[aria-label=\"redirect URL\"]" },
+    { "selector": "input[aria-label=\"redirect URL\"]", "value": "https://omfwcodoimjmbrhssvfl.supabase.co/auth/v1/callback" }
+  ],
+  "steps": [
+    { "instruction": "Yeshie added the redirect URL https://omfwcodoimjmbrhssvfl.supabase.co/auth/v1/callback (SOMA Auth's Supabase callback). Check it, then click Update.",
+      "target": "button:has-text(\"Update\")",
+      "doneWhen": { "textAppears": "omfwcodoimjmbrhssvfl.supabase.co/auth/v1/callback" } },
+    { "instruction": "Click Copy next to Primary Client Secret, so the secret is on your clipboard for the Supabase step. Leave this tab open.",
+      "target": "button:has-text(\"Copy\")" }
+  ]
+}

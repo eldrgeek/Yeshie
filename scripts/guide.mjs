@@ -233,6 +233,10 @@ if (guideFile.prefill?.length) {
   body.tabId = await runPrefill(guideFile);
   delete body.url;
   console.error(`prefilled ${guideFile.prefill.length} field(s) in tab ${body.tabId}`);
+} else if (opt('tab')) {
+  // No prefill: run the guide in an existing tab as it is (no navigation).
+  body.tabId = Number(opt('tab'));
+  delete body.url;
 }
 if (flag('no-notify')) body.notify = false;
 const profile = opt('profile');
