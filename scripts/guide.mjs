@@ -47,7 +47,7 @@
  *   Yeshie types every field whose value is known and is not a secret, then the
  *   guide starts on a review step. Mike makes only the final click (Register,
  *   Save, Enable) and pastes secrets himself. An item { "click": sel | "clickText": text, "waitFor"?: sel }
- *   opens a panel on the way (never the final action). "prefillReady" (optional) is the
+ *   opens a panel on the way (never the final action). "prefillTimeoutMs" (default 90000) bounds the fill; "prefillReady" (optional) is the
  *   selector to wait for before typing; it defaults to the first field.
  *
  * EXIT: 0 done, 2 skipped, 3 tab closed early, 4 still active at max wait, 1 error.
@@ -205,17 +205,24 @@ async function runPrefill(guide) {
     params[k] = v.join('=');
   });
   const chain = prefillChain(guide, { tabId, params });
-  const res = await fetch(`${RELAY}/run`, {
-    method: 'POST', headers,
-    body: JSON.stringify({ payload: { _meta: { task: 'guide-prefill' }, chain }, params: {}, tabId, timeoutMs: 90000 }),
-  });
-  const out = await res.json();
-  const failed = (out.stepResults || []).find(r => r.status !== 'ok');
-  if (!res.ok || out.success === false || failed) {
-    die(`prefill failed at ${failed?.stepId || '?'}: ${failed?.error || out.error || res.status}`);
+  // The extension keeps a run in chrome.storage.session, which has a small
+  // quota, so a long fill (e.g. 47 origins) goes as several runs in one tab.
+  const size = guide.prefillBatch || 24;
+  let runTab = tabId;
+  for (let i = 0; i < chain.length; i += size) {
+    const res = await fetch(`${RELAY}/run`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ payload: { _meta: { task: 'guide-prefill' }, chain: chain.slice(i, i + size) }, params: {}, tabId: runTab, timeoutMs: guide.prefillTimeoutMs || 90000 }),
+    });
+    const out = await res.json();
+    const failed = (out.stepResults || []).find(r => r.status !== 'ok');
+    if (!res.ok || out.success === false || failed) {
+      die(`prefill failed (batch at step ${i}) at ${failed?.stepId || "?"}: ${failed?.error || out.error || res.status}`);
+    }
+    const opened = out.stepResults.find(r => r.stepId === 'p_open');
+    runTab = runTab || opened?.tabId || out.route?.tabId;
   }
-  const opened = out.stepResults.find(r => r.stepId === 'p_open');
-  return tabId || opened?.tabId || out.route?.tabId;
+  return runTab;
 }
 
 const file = args.find(a => a.endsWith('.json'));

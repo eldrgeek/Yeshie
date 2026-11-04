@@ -1,0 +1,10 @@
+{
+  "title": "Sign in to Google Cloud (SOMA Auth client)",
+  "url": "https://console.cloud.google.com/auth/clients/722754072346-8eoer9ipth4j7reup8roi321sis0fmuk.apps.googleusercontent.com?project=722754072346",
+  "closeOnDone": false,
+  "steps": [
+    { "instruction": "Google wants to confirm it is you before it opens Cloud Console. Use your passkey (or Try another way). This step is done when the SOMA sign-in OAuth client page shows.",
+      "target": "",
+      "doneWhen": { "urlIncludes": "console.cloud.google.com/auth/clients/722754072346" } }
+  ]
+}

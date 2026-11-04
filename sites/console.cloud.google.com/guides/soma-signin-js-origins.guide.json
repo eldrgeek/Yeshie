@@ -1,0 +1,396 @@
+{
+  "title": "SOMA sign-in: Google JavaScript origins",
+  "url": "https://console.cloud.google.com/auth/clients/722754072346-8eoer9ipth4j7reup8roi321sis0fmuk.apps.googleusercontent.com?project=722754072346&authuser=3",
+  "closeOnDone": true,
+  "_note": "Google client 'SOMA Auth/Playmaker' in project TestingTheCloud (Chrome Google account authuser=3). Origins = non-wildcard origins of the Supabase uri_allow_list + blog.somastudios.ai, minus ones already on the client. GIS needs exact origins, no wildcards. Existing origins and the redirect URI are left untouched.",
+  "prefillReady": "button[aria-label=\"Add URI\"]",
+  "prefillTimeoutMs": 300000,
+  "prefill": [
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "http://localhost:5173"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "http://localhost:8888"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "http://localhost:8892"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://a-different-mind.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://agi-connect-26.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://agi26-chris-fields.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://agi26-christof-koch.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://agi26-david-eagleman.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://agi26-david-spivak.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://agi26-gary-marcus.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://agi26-hananel-hazan.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://agi26-karl-friston.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://agi26-review.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://agi26-room.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://agi26-wall.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://ainjel-concepts.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://cdc-review.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://cimc-meat.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://common-ground-mw.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://community-seed.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://frontrowtheater.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://joschese.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://legends-connect.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://legends-membership.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://levinese-preview.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://minds-aligned.org"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://minds-at-work-soma.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://miracles-begin-with-mira.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://momentum-demo-esr.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://playmaker-design-gallery.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://playmaker-mw.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://proof.vpsmikewolf.duckdns.org"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://pulse-zero.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://r1x1.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://siliconchildren.com"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://soma-auth-relay.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://soma-briefings-esr.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://soma-forge.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://soma-keydrop.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://soma-portfolio-map.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://soma-relay.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://soma-warm-invite.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://somastudios.ai"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://songmaker-soma-demo.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://stephanie-hours-dashboard.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://vegas-connect.netlify.app"
+    },
+    {
+      "click": "button[aria-label=\"Add URI\"]",
+      "waitFor": "input[placeholder=\"https://www.example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"https://www.example.com\"]:placeholder-shown",
+      "value": "https://blog.somastudios.ai"
+    }
+  ],
+  "steps": [
+    {
+      "instruction": "Yeshie added 47 Authorized JavaScript origins (every SOMA app that signs in, plus blog.somastudios.ai and localhost:5173 for testing). The 4 origins already there and the redirect URI are unchanged. Scroll to check, then click Save.",
+      "target": "button:has-text(\"Save\")",
+      "doneWhen": {
+        "textAppears": "OAuth client saved"
+      }
+    }
+  ],
+  "prefillBatch": 6
+}

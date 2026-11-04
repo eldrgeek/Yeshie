@@ -1,0 +1,16 @@
+{
+  "title": "SOMA sign-in: Google branding",
+  "url": "https://console.cloud.google.com/auth/branding?project=722754072346&authuser=3",
+  "closeOnDone": true,
+  "_note": "Project TestingTheCloud, Google account authuser=3. App name was Playmaker. Run after the JavaScript-origins Save, which adds most authorized domains; somastudios.ai is added here in case it is missing. No logo: uploading one sends the app to Google's brand verification.",
+  "prefillReady": "#_0rif_mat-input-0",
+  "prefill": [
+    { "selector": "#_0rif_mat-input-0", "value": "SOMA" },
+    { "selector": "#_0rif_mat-input-1", "value": "https://somastudios.ai" }
+  ],
+  "steps": [
+    { "instruction": "Yeshie set App name to SOMA (it was Playmaker) and Application home page to https://somastudios.ai. Every SOMA app's Google sign-in uses this name. If somastudios.ai is not under Authorized domains, click Add domain and type somastudios.ai. Then click Save.",
+      "target": "button:has-text(\"Save\")",
+      "doneWhen": { "textAppears": "Branding saved" } }
+  ]
+}

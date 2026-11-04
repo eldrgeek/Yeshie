@@ -91,7 +91,7 @@ export default defineBackground(() => {
     socket.on('skill_run', async ({ commandId, payload, params, tabId }: any) => {
       console.log('[Yeshie] skill_run from relay', commandId, tabId ? `tab ${tabId}` : '(tab not named)');
       const runId = crypto.randomUUID();
-      chrome.storage.session.set({ __yeshieLastRunId: runId });
+      await rememberRunId(runId);
       try {
         let runTabId = tabId;
         if (!runTabId) {
@@ -320,6 +320,25 @@ export default defineBackground(() => {
   });
 
 
+
+
+  // Run results go to chrome.storage.session under their runId and were never
+  // removed, so a day of runs filled the 10 MB quota and every new run failed
+  // with "Session storage quota bytes exceeded" (2026-11-04). Keep the last
+  // RUN_RESULTS_KEPT run ids in an index and drop older results.
+  const RUN_RESULTS_KEPT = 10;
+  async function rememberRunId(runId: string) {
+    try {
+      const got = await chrome.storage.session.get('__yeshieRunIndex');
+      const index: string[] = Array.isArray(got.__yeshieRunIndex) ? got.__yeshieRunIndex : [];
+      index.push(runId);
+      const drop = index.splice(0, Math.max(0, index.length - RUN_RESULTS_KEPT));
+      if (drop.length) await chrome.storage.session.remove(drop);
+      await chrome.storage.session.set({ __yeshieRunIndex: index, __yeshieLastRunId: runId });
+    } catch (err) {
+      console.warn('[Yeshie] could not prune run results', err);
+    }
+  }
 
   // ── Hot reload: poll watcher server, reload extension when build changes ──────
   let _lastBuild = -1;
@@ -4087,7 +4106,7 @@ export default defineBackground(() => {
       const tabId = msg.tabId || sender.tab?.id;
       if (!tabId) { sendResponse({ error: 'No tabId' }); return true; }
       // Store lastRunId so page can recover it after navigation
-      chrome.storage.session.set({ __yeshieLastRunId: runId });
+      void rememberRunId(runId);
       startKeepalive();
       startRun(runId, msg.payload, msg.params || {}, tabId);
       sendResponse({ runId, status: 'started' });
