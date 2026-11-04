@@ -2,20 +2,21 @@
   "title": "SOMA Auth: enable GitHub sign-in",
   "url": "https://supabase.com/dashboard/project/omfwcodoimjmbrhssvfl/auth/providers",
   "closeOnDone": true,
-  "_note": "Selectors not yet checked against the live page (Supabase was signed out on 2026-11-03). Run sign-in.guide.json first if needed. Pass --param CLIENT_ID=<GitHub app Client ID>; the secret is never prefilled.",
+  "_note": "Run sign-in.guide.json first if Supabase is signed out. Pass --param CLIENT_ID=<GitHub app Client ID>. The secret is never prefilled or read.",
+  "prefillReady": "button",
   "prefill": [
-    { "click": "button:has-text(\"GitHub\")", "waitFor": "input[name=\"EXTERNAL_GITHUB_CLIENT_ID\"], input#EXTERNAL_GITHUB_CLIENT_ID" },
-    { "selector": "input[name=\"EXTERNAL_GITHUB_CLIENT_ID\"], input#EXTERNAL_GITHUB_CLIENT_ID", "value": "{{CLIENT_ID}}" }
+    { "clickText": "GitHubDisabled", "waitFor": "input[name=\"EXTERNAL_GITHUB_CLIENT_ID\"]" },
+    { "selector": "input[name=\"EXTERNAL_GITHUB_CLIENT_ID\"]", "value": "{{CLIENT_ID}}" }
   ],
   "steps": [
-    { "instruction": "Turn on Enable Sign in with GitHub.",
+    { "instruction": "Turn on GitHub enabled (the first switch at the top of this panel).",
       "target": "[role=\"dialog\"] button[role=\"switch\"]",
-      "doneWhen": { "selectorAppears": "[role=\"dialog\"] button[role=\"switch\"][data-state=\"checked\"], [role=\"dialog\"] button[role=\"switch\"][aria-checked=\"true\"]" } },
-    { "instruction": "Go to the GitHub tab, copy the new client secret (the copy icon next to it), come back, and paste it into Client Secret.",
-      "target": "input[name=\"EXTERNAL_GITHUB_SECRET\"], input#EXTERNAL_GITHUB_SECRET",
-      "doneWhen": { "selectorAppears": "input[name=\"EXTERNAL_GITHUB_SECRET\"]:not(:placeholder-shown), input#EXTERNAL_GITHUB_SECRET:not(:placeholder-shown)" } },
-    { "instruction": "Yeshie filled in the Client ID from your GitHub app. Check it matches the GitHub tab, then click Save.",
+      "doneWhen": { "selectorAppears": "[role=\"dialog\"] button[role=\"switch\"][data-state=\"checked\"]" } },
+    { "instruction": "Paste the client secret from your clipboard into Client Secret.",
+      "target": "input[name=\"EXTERNAL_GITHUB_SECRET\"]",
+      "doneWhen": { "selectorAppears": "input[name=\"EXTERNAL_GITHUB_SECRET\"]:not([value=\"\"])" } },
+    { "instruction": "Yeshie filled in the Client ID from your GitHub app (it starts Ov23li2k). Check it matches the GitHub tab, leave Allow users without an email off, then click Save.",
       "target": "[role=\"dialog\"] button:has-text(\"Save\")",
-      "doneWhen": { "textAppears": "Successfully updated settings" } }
+      "doneWhen": { "selectorAppears": "button:has-text(\"GitHubEnabled\")", "textAppears": "Successfully updated settings" } }
   ]
 }

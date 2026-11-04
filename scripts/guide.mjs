@@ -46,7 +46,7 @@
  * PREFILL (Mike's rule, 2026-11-03): "prefill": [{ "selector": "...", "value": "..." }]
  *   Yeshie types every field whose value is known and is not a secret, then the
  *   guide starts on a review step. Mike makes only the final click (Register,
- *   Save, Enable) and pastes secrets himself. An item { "click": sel, "waitFor"?: sel }
+ *   Save, Enable) and pastes secrets himself. An item { "click": sel | "clickText": text, "waitFor"?: sel }
  *   opens a panel on the way (never the final action). "prefillReady" (optional) is the
  *   selector to wait for before typing; it defaults to the first field.
  *
@@ -176,12 +176,14 @@ export function prefillChain(guide, { tabId = null, params = {} } = {}) {
   const chain = [tabId
     ? { stepId: 'p_open', action: 'navigate', url: guide.url }
     : { stepId: 'p_open', action: 'open_tab', url: guide.url }];
-  chain.push({ stepId: 'p_ready', action: 'wait_for', selector: guide.prefillReady || fill[0].selector || fill[0].click, timeout: 20000 });
+  chain.push({ stepId: 'p_ready', action: 'wait_for', selector: guide.prefillReady || fill[0].selector || fill[0].click || 'body', timeout: 20000 });
   fill.forEach((f, i) => {
     // { "click": sel } opens a panel or tab on the way (never a final action:
     // Register, Save and Enable stay Mike's clicks in the guide).
-    if (f.click) {
-      chain.push({ stepId: `p_click${i}`, action: 'click', selector: f.click });
+    if (f.click || f.clickText) {
+      chain.push(f.clickText
+        ? { stepId: `p_click${i}`, action: 'click_text', text: f.clickText }
+        : { stepId: `p_click${i}`, action: 'click', selector: f.click });
       chain.push({ stepId: `p_wait${i}`, action: 'wait_for', selector: f.waitFor || fill[i + 1]?.selector || 'body', timeout: 15000 });
       return;
     }
