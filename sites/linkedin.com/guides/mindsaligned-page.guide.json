@@ -1,0 +1,45 @@
+{
+  "title": "LinkedIn page: Minds Aligned LLC",
+  "url": "https://www.linkedin.com/company/setup/new/",
+  "closeOnDone": false,
+  "_note": "Drafted 2026-11-04 by Claude (Opus 5.5). No Minds Aligned logo exists yet; add it later from the page admin. LinkedIn's Industry typeahead ignored Yeshie's typing in a background tab, so Mike picks Industry.",
+  "prefill": [
+    {
+      "click": ".org-page-create-portal__organization-btn",
+      "waitFor": "#single-line-text-form-component-urn-li-fsu-pageCreationFormItem-NAME"
+    },
+    {
+      "selector": "#single-line-text-form-component-urn-li-fsu-pageCreationFormItem-NAME",
+      "value": "Minds Aligned"
+    },
+    {
+      "selector": "#single-line-text-form-component-urn-li-fsu-pageCreationFormItem-UNIVERSAL-NAME",
+      "value": "mindsaligned"
+    },
+    {
+      "selector": "#single-line-text-form-component-urn-li-fsu-pageCreationFormItem-WEBSITE",
+      "value": "https://minds-aligned-door.netlify.app"
+    },
+    {
+      "selector": "#text-entity-list-form-component-urn-li-fsu-pageCreationFormItem-ORGANIZATION-SIZE",
+      "select": "0–1 employees"
+    },
+    {
+      "selector": "#text-entity-list-form-component-urn-li-fsu-pageCreationFormItem-ORGANIZATION-TYPE",
+      "select": "Privately held"
+    },
+    {
+      "selector": "#multiline-text-form-component-urn-li-fsu-pageCreationFormItem-TAGLINE",
+      "value": "People and AIs, working as one team. The artifacts are the evidence. The company behind SOMA Studios."
+    }
+  ],
+  "steps": [
+    {
+      "instruction": "Yeshie filled in Minds Aligned, linkedin.com/company/mindsaligned, the website, 0–1 employees, Privately held and the tagline. In Industry, type Business Consulting and pick Business Consulting and Services. Tick the box saying you can act for Minds Aligned LLC, then click Create page.",
+      "target": "button:has-text(\"Create page\")",
+      "doneWhen": {
+        "urlIncludes": "/admin"
+      }
+    }
+  ]
+}

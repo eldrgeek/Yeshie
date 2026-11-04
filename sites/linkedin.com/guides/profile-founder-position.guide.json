@@ -1,0 +1,25 @@
+{
+  "title": "LinkedIn profile: Founder, SOMA Studios",
+  "url": "https://www.linkedin.com/in/mikewolf01/add-edit/POSITION/",
+  "closeOnDone": true,
+  "_note": "Drafted 2026-11-04 by Claude (Opus 5.5), thread SS: Set up LinkedIn pages and socials; copy from soma-studios/brain-trust/PROFILE-REFRESH.md. Company page: linkedin.com/company/somastudiosai (id 144097600).",
+  "prefill": [
+    {
+      "selector": "input[placeholder=\"Example: Senior Product Manager\"]",
+      "value": "Founder"
+    },
+    {
+      "selector": "[aria-label^=\"Highlights\"]",
+      "value": "SOMA Studios (Minds Aligned LLC) makes short, funny films and the apps behind them with a crew of AIs, and shows how it all gets made. somastudios.ai"
+    }
+  ],
+  "steps": [
+    {
+      "instruction": "Yeshie filled in the title Founder and a description. In Company name, type SOMA Studios and pick the one with the SOMA Studios logo (Media Production, not the London one). Tick I currently work here, set the start date to November 2026, leave End current position unticked, then click Save.",
+      "target": "input[placeholder=\"Example: Microsoft\"]",
+      "doneWhen": {
+        "selectorGone": "input[placeholder=\"Example: Microsoft\"]"
+      }
+    }
+  ]
+}

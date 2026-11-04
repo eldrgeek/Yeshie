@@ -1,0 +1,21 @@
+{
+  "title": "LinkedIn profile: headline",
+  "url": "https://www.linkedin.com/in/mikewolf01/edit/intro/",
+  "closeOnDone": true,
+  "_note": "Drafted 2026-11-04 by Claude (Opus 5.5), thread SS: Set up LinkedIn pages and socials; copy from soma-studios/brain-trust/PROFILE-REFRESH.md.",
+  "prefill": [
+    {
+      "selector": "[aria-label=\"Headline\"]",
+      "value": "Founder, SOMA Studios. One human, a crowd of AIs, making real things on camera. Besserwisser emeritus."
+    }
+  ],
+  "steps": [
+    {
+      "instruction": "Yeshie replaced your headline with: Founder, SOMA Studios. One human, a crowd of AIs, making real things on camera. Besserwisser emeritus. Edit it if you like, then click Save.",
+      "target": "button:has-text(\"Save\")",
+      "doneWhen": {
+        "selectorGone": "[aria-label=\"Headline\"]"
+      }
+    }
+  ]
+}
