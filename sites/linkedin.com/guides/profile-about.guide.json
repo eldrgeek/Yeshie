@@ -1,0 +1,21 @@
+{
+  "title": "LinkedIn profile: About",
+  "url": "https://www.linkedin.com/in/mikewolf01/add-edit/SUMMARY/",
+  "closeOnDone": true,
+  "_note": "Drafted 2026-11-04 by Claude (Opus 5.5), thread SS: Set up LinkedIn pages and socials; copy from soma-studios/brain-trust/PROFILE-REFRESH.md.",
+  "prefill": [
+    {
+      "selector": "[aria-label=\"About\"]",
+      "value": "I run SOMA Studios, a film and software studio where the crew is me and a team of AIs. We build in public: short funny films, the apps behind them, and a running show about how it all gets made. If you have an idea, bring it and your AI, and leave with something finished. Big project? Book a call. Small one? Come to a Room. somastudios.ai\n\nBefore this: embedded systems research at MIT, and a long career of being right at inconvenient moments. I write irreverently at 70 Years. WTF."
+    }
+  ],
+  "steps": [
+    {
+      "instruction": "Yeshie wrote your About section (SOMA Studios, the crew of AIs, book a call or come to a Room, then MIT and 70 Years. WTF). Edit it if you like, then click Save.",
+      "target": "button:has-text(\"Save\")",
+      "doneWhen": {
+        "selectorGone": "[aria-label=\"About\"]"
+      }
+    }
+  ]
+}
