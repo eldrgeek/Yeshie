@@ -1,0 +1,57 @@
+{
+  "title": "LinkedIn page: SOMA Studios",
+  "url": "https://www.linkedin.com/company/setup/new/",
+  "closeOnDone": false,
+  "_note": "Drafted 2026-11-04 by Claude (Opus 5.5), thread SS: Set up LinkedIn pages and socials. Tagline is the site's line; swap when Mike picks the promise.",
+  "prefill": [
+    {
+      "click": ".org-page-create-portal__organization-btn",
+      "waitFor": "#single-line-text-form-component-urn-li-fsu-pageCreationFormItem-NAME"
+    },
+    {
+      "selector": "#single-line-text-form-component-urn-li-fsu-pageCreationFormItem-NAME",
+      "value": "SOMA Studios"
+    },
+    {
+      "selector": "#single-line-text-form-component-urn-li-fsu-pageCreationFormItem-UNIVERSAL-NAME",
+      "value": "somastudiosai"
+    },
+    {
+      "selector": "#single-line-text-form-component-urn-li-fsu-pageCreationFormItem-WEBSITE",
+      "value": "https://somastudios.ai"
+    },
+    {
+      "selector": "#single-typeahead-entity-form-component-urn-li-fsu-pageCreationFormItem-INDUSTRY",
+      "value": "Media Production",
+      "pickText": "Media Production"
+    },
+    {
+      "selector": "#text-entity-list-form-component-urn-li-fsu-pageCreationFormItem-ORGANIZATION-SIZE",
+      "select": "0–1 employees"
+    },
+    {
+      "selector": "#text-entity-list-form-component-urn-li-fsu-pageCreationFormItem-ORGANIZATION-TYPE",
+      "select": "Privately held"
+    },
+    {
+      "selector": "#multiline-text-form-component-urn-li-fsu-pageCreationFormItem-TAGLINE",
+      "value": "Come with a dream. We'll make it real. Every picture has two leads, one human and one AI."
+    }
+  ],
+  "steps": [
+    {
+      "instruction": "Click Upload logo and choose avatar.png in the folder Projects/soma-studios-brand/final/youtube (the same mark as the YouTube channel).",
+      "target": "label[for=\"media-upload-form-component-urn-li-fsu-pageCreationFormItem-LOGO\"], #media-upload-form-component-urn-li-fsu-pageCreationFormItem-LOGO",
+      "doneWhen": {
+        "selectorAppears": "img[src^=\"blob:\"], img[src^=\"data:image\"]"
+      }
+    },
+    {
+      "instruction": "Yeshie filled in SOMA Studios, linkedin.com/company/somastudiosai, https://somastudios.ai, Media Production, 0–1 employees, Privately held and the tagline. Check them (if LinkedIn says the address is taken, change it), tick the box saying you can act for this organization, then click Create page.",
+      "target": "button:has-text(\"Create page\")",
+      "doneWhen": {
+        "urlIncludes": "/admin"
+      }
+    }
+  ]
+}

@@ -47,7 +47,8 @@
  *   Yeshie types every field whose value is known and is not a secret, then the
  *   guide starts on a review step. Mike makes only the final click (Register,
  *   Save, Enable) and pastes secrets himself. An item { "click": sel | "clickText": text, "waitFor"?: sel }
- *   opens a panel on the way (never the final action). "prefillTimeoutMs" (default 90000) bounds the fill; "prefillReady" (optional) is the
+ *   opens a panel on the way (never the final action). { "selector", "select": "option text" } picks a native
+ *   <select> option; { "selector", "value", "pickText" } types into a typeahead and clicks that suggestion. "prefillTimeoutMs" (default 90000) bounds the fill; "prefillReady" (optional) is the
  *   selector to wait for before typing; it defaults to the first field.
  *
  * EXIT: 0 done, 2 skipped, 3 tab closed early, 4 still active at max wait, 1 error.
@@ -187,11 +188,21 @@ export function prefillChain(guide, { tabId = null, params = {} } = {}) {
       chain.push({ stepId: `p_wait${i}`, action: 'wait_for', selector: f.waitFor || fill[i + 1]?.selector || 'body', timeout: 15000 });
       return;
     }
+    // { "selector": sel, "select": "option text" } picks an option in a native <select>.
+    if (f.select !== undefined) {
+      chain.push({ stepId: `p_select${i}`, action: 'select', selector: f.selector, value: String(f.select) });
+      return;
+    }
+    // { "selector": sel, "value": text, "pickText": text } types into a typeahead, then clicks the suggestion.
     const value = String(f.value).replace(/\{\{(\w+)\}\}/g, (m, k) => {
       if (params[k] === undefined) die(`prefill ${f.selector}: no --param ${k}=…`);
       return params[k];
     });
     chain.push({ stepId: `p_fill${i}`, action: 'type', selector: f.selector, value });
+    if (f.pickText) {
+      chain.push({ stepId: `p_pickwait${i}`, action: 'wait_for', selector: f.pickWaitFor || '[role=option], [role=listbox] li', timeout: 10000 });
+      chain.push({ stepId: `p_pick${i}`, action: 'click_text', text: f.pickText });
+    }
   });
   return chain;
 }
