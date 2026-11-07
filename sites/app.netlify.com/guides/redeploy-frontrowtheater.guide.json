@@ -1,0 +1,15 @@
+{
+  "title": "FrontRow: redeploy so functions pick up the new key",
+  "url": "https://app.netlify.com/projects/frontrowtheater/deploys",
+  "closeOnDone": false,
+  "_note": "Step 3 of 3 for the FrontRow token 503 (2026-11-07). Netlify functions read env vars at deploy time, so a saved variable needs a new production deploy. Run with --tab <the Netlify tab from set-supabase-service-key> so no new tab opens. Prefill only opens the Trigger deploy menu; Mike clicks Deploy project. Checked live 2026-11-07: the menu items are [role=option].menuitem, Deploy project comes before Deploy project without cache.",
+  "prefillReady": "button[aria-label^=\"Trigger deploy\"]",
+  "prefill": [
+    { "click": "button[aria-label^=\"Trigger deploy\"]", "waitFor": "[role=\"option\"].menuitem" }
+  ],
+  "steps": [
+    { "instruction": "Click Deploy project (not the without cache one). Netlify starts a new production build of master.",
+      "target": "[role=\"option\"].menuitem:has-text(\"Deploy project\")",
+      "doneWhen": { "textAppears": "Building" } }
+  ]
+}

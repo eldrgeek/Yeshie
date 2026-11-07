@@ -1,0 +1,21 @@
+{
+  "title": "FrontRow: paste the Supabase service key into Netlify",
+  "url": "https://app.netlify.com/projects/frontrowtheater/configuration/env",
+  "closeOnDone": false,
+  "_note": "Step 2 of 3 for the FrontRow token 503 (2026-11-07). Run after supabase.com/guides/rotate-frontrow-service-key.guide.json put the key on Mike's clipboard. Prefill only opens SUPABASE_SERVICE_ROLE_KEY and its Edit form (each variable is li > details > summary; Edit is the first button.menuitem in the Options menu of the open details). Mike pastes and saves; Yeshie never reads or types the value. The field steps finish when Mike clicks into the field, because a hidden secret field has no reliable sign that a paste happened; the Save step is confirmed by the edit form closing. Other contexts and other variables are left alone. The tab stays open for redeploy-frontrowtheater.guide.json (run it with --tab).",
+  "prefillReady": "summary code",
+  "prefill": [
+    { "clickText": "SUPABASE_SERVICE_ROLE_KEY", "waitFor": "details[open] button[aria-label=\"Options. Open menu\"]" },
+    { "click": "details[open] button[aria-label=\"Options. Open menu\"]", "waitFor": "details[open] button.menuitem" },
+    { "click": "details[open] button.menuitem", "waitFor": "input[name=\"value-production\"]" }
+  ],
+  "steps": [
+    { "instruction": "Click into the Production value, press Cmd+A to select the old key, then Cmd+V to paste the key you copied from Supabase.",
+      "target": "input[name=\"value-production\"]" },
+    { "instruction": "Do the same in Deploy Previews: click into it, Cmd+A, then Cmd+V. Leave the other contexts as they are.",
+      "target": "input[name=\"value-deploy-preview\"]" },
+    { "instruction": "Click Save variable.",
+      "target": "button[type=\"submit\"]:has-text(\"Save variable\")",
+      "doneWhen": { "selectorGone": "input[name=\"value-production\"]" } }
+  ]
+}
