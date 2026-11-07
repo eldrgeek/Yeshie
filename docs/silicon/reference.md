@@ -253,3 +253,13 @@ Pattern-matches code strings to pre-bundled fns (no eval):
 | Generated IDs | `input-v-10`, `input-v-12` change per page load — never hardcode |
 | People list path | `Organization > People` in sidebar |
 | User UUID in URL | `/organization/people/{uuid}/details` — read from list table |
+
+**Guides — prefill, then review (Mike's rule, 2026-11-03):** Yeshie fills in
+every field whose value is known and is not a secret, then the guide starts on
+a "review these" step. Mike makes only the final click (Register, Save,
+Enable) and pastes secrets himself; Yeshie never reads, logs or stores a
+secret. In a guide file, `prefill: [{selector, value}]` lists the fields
+(`{{KEY}}` in a value comes from `--param KEY=V`), and `{click, waitFor?}`
+items open a panel on the way. `node scripts/guide.mjs` runs the prefill as a
+normal Yeshie chain in a new tab (or `--tab N`), then starts the guide in
+that tab. Example: `sites/github.com/guides/soma-auth-oauth-app.guide.json`.

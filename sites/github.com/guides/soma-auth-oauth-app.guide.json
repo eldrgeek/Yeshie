@@ -1,0 +1,18 @@
+{
+  "title": "SOMA Auth: GitHub OAuth app",
+  "url": "https://github.com/settings/applications/new",
+  "closeOnDone": false,
+  "prefill": [
+    { "selector": "input#oauth_application_name", "value": "SOMA Auth" },
+    { "selector": "input#oauth_application_url", "value": "https://somastudios.ai" },
+    { "selector": "input#oauth_application_application_callback_urls_attributes_0_url", "value": "https://omfwcodoimjmbrhssvfl.supabase.co/auth/v1/callback" }
+  ],
+  "steps": [
+    { "instruction": "Yeshie filled in the form: name SOMA Auth, homepage https://somastudios.ai, redirect URI https://omfwcodoimjmbrhssvfl.supabase.co/auth/v1/callback. Device Flow stays unticked. If it looks right, click Register application.",
+      "target": "button:has-text(\"Register application\")",
+      "doneWhen": { "textAppears": "Generate a new client secret" } },
+    { "instruction": "Click Generate a new client secret. GitHub may ask for your passkey or password first. Then leave this tab open: the Supabase guide asks you to copy the secret from here.",
+      "target": "button:has-text(\"Generate a new client secret\"), input[value=\"Generate a new client secret\"]",
+      "doneWhen": { "textAppears": "Make sure to copy your new client secret now" } }
+  ]
+}

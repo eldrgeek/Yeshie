@@ -1,0 +1,10 @@
+{
+  "title": "Sign in to Supabase",
+  "url": "https://supabase.com/dashboard/project/omfwcodoimjmbrhssvfl/auth/providers",
+  "closeOnDone": false,
+  "steps": [
+    { "instruction": "Sign in to Supabase. Continue with GitHub is the quickest. This step is done when the SOMA Auth project's dashboard shows.",
+      "target": "",
+      "doneWhen": { "selectorAppears": "a[href*=\"/project/omfwcodoimjmbrhssvfl/auth/\"]" } }
+  ]
+}

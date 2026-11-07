@@ -1,0 +1,11 @@
+{
+  "title": "SOMA sign-in: Google test on localhost",
+  "url": "http://localhost:5173/",
+  "closeOnDone": false,
+  "_note": "Test page for soma-platform PR #66 (packages/soma-signin with googleClientId). Serve it on http://localhost:5173 first.",
+  "steps": [
+    { "instruction": "Click Sign in with Google and pick your account. Note what Google's window says under the title: it should name localhost, not supabase.co. The blue bar at the top turns to SIGNED IN when it works.",
+      "target": ".soma-signin-google-gsi",
+      "doneWhen": { "selectorAppears": "#session[data-signed-in=\"yes\"]" } }
+  ]
+}

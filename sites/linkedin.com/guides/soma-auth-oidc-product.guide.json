@@ -1,0 +1,11 @@
+{
+  "title": "SOMA Auth: LinkedIn sign-in product",
+  "url": "https://www.linkedin.com/developers/apps/264207680/products",
+  "closeOnDone": false,
+  "_note": "App 264207680 (SOMA, Minds Aligned page). Each product card has its own Request access button, so the tooltip is centered and names the card.",
+  "steps": [
+    { "instruction": "Find the card Sign In with LinkedIn using OpenID Connect and click its Request access button. In the box that opens, tick the agreement and click Request access.",
+      "target": "",
+      "doneWhen": { "textAppears": "Added products" } }
+  ]
+}

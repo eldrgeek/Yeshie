@@ -1,0 +1,11 @@
+{
+  "title": "Meta: create the Minds Aligned business portfolio",
+  "url": "https://business.facebook.com/latest/home",
+  "closeOnDone": false,
+  "_note": "Meta's create-app wizard needs a business portfolio and offers no skip when the account has none. A free, unverified portfolio is enough to create the app; do not start Business Verification. The create form was not reachable by URL on 2026-11-04 (business.facebook.com/create redirects home), so this step is centered text.",
+  "steps": [
+    { "instruction": "Meta needs a business portfolio before it will create the app. Click the account name at the top left, choose Create a business portfolio, and enter Minds Aligned LLC, your name and mw@mike-wolf.com. Click Submit (or Create). Do not start Business Verification.",
+      "target": "",
+      "doneWhen": { "textAppears": "Minds Aligned LLC" } }
+  ]
+}

@@ -40,6 +40,15 @@
  *   --max-wait-ms N    give up waiting after N ms (default 1800000 = 30 min); the guide stays open
  *   --profile P        Chrome profile (email or label) to open the page in
  *   --no-notify        no macOS notification when it ends
+ *   --tab N            prefill in this existing tab instead of opening a new one
+ *   --param K=V        value for {{K}} in a prefill value (never a secret)
+ *
+ * PREFILL (Mike's rule, 2026-11-03): "prefill": [{ "selector": "...", "value": "..." }]
+ *   Yeshie types every field whose value is known and is not a secret, then the
+ *   guide starts on a review step. Mike makes only the final click (Register,
+ *   Save, Enable) and pastes secrets himself. An item { "click": sel | "clickText": text, "waitFor"?: sel }
+ *   opens a panel on the way (never the final action). "prefillTimeoutMs" (default 90000) bounds the fill; "prefillReady" (optional) is the
+ *   selector to wait for before typing; it defaults to the first field.
  *
  * EXIT: 0 done, 2 skipped, 3 tab closed early, 4 still active at max wait, 1 error.
  *
@@ -158,9 +167,77 @@ if (replyId) {
 const waitId = opt('wait');
 if (waitId) await waitFor(waitId);
 
+// Prefill (Mike, 2026-11-03): Yeshie types every field whose value is known
+// and not a secret, then the guide starts on the review step, so Mike makes
+// only the final click (Register, Save, Enable). Runs a normal Yeshie chain in
+// a new tab (or --tab N), then starts the guide in that same tab.
+export function prefillChain(guide, { tabId = null, params = {} } = {}) {
+  const fill = guide.prefill || [];
+  const chain = [tabId
+    ? { stepId: 'p_open', action: 'navigate', url: guide.url }
+    : { stepId: 'p_open', action: 'open_tab', url: guide.url }];
+  chain.push({ stepId: 'p_ready', action: 'wait_for', selector: guide.prefillReady || fill[0].selector || fill[0].click || 'body', timeout: 20000 });
+  fill.forEach((f, i) => {
+    // { "click": sel } opens a panel or tab on the way (never a final action:
+    // Register, Save and Enable stay Mike's clicks in the guide).
+    if (f.click || f.clickText) {
+      chain.push(f.clickText
+        ? { stepId: `p_click${i}`, action: 'click_text', text: f.clickText }
+        : { stepId: `p_click${i}`, action: 'click', selector: f.click });
+      chain.push({ stepId: `p_wait${i}`, action: 'wait_for', selector: f.waitFor || fill[i + 1]?.selector || 'body', timeout: 15000 });
+      return;
+    }
+    const value = String(f.value).replace(/\{\{(\w+)\}\}/g, (m, k) => {
+      if (params[k] === undefined) die(`prefill ${f.selector}: no --param ${k}=…`);
+      return params[k];
+    });
+    chain.push({ stepId: `p_fill${i}`, action: 'type', selector: f.selector, value });
+  });
+  return chain;
+}
+
+async function runPrefill(guide) {
+  const tabId = opt('tab') ? Number(opt('tab')) : null;
+  const params = {};
+  args.forEach((a, i) => {
+    if (a !== '--param') return;
+    const [k, ...v] = String(args[i + 1] || '').split('=');
+    params[k] = v.join('=');
+  });
+  const chain = prefillChain(guide, { tabId, params });
+  // The extension keeps a run in chrome.storage.session, which has a small
+  // quota, so a long fill (e.g. 47 origins) goes as several runs in one tab.
+  const size = guide.prefillBatch || 24;
+  let runTab = tabId;
+  for (let i = 0; i < chain.length; i += size) {
+    const res = await fetch(`${RELAY}/run`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ payload: { _meta: { task: 'guide-prefill' }, chain: chain.slice(i, i + size) }, params: {}, tabId: runTab, timeoutMs: guide.prefillTimeoutMs || 90000 }),
+    });
+    const out = await res.json();
+    const failed = (out.stepResults || []).find(r => r.status !== 'ok');
+    if (!res.ok || out.success === false || failed) {
+      die(`prefill failed (batch at step ${i}) at ${failed?.stepId || "?"}: ${failed?.error || out.error || res.status}`);
+    }
+    const opened = out.stepResults.find(r => r.stepId === 'p_open');
+    runTab = runTab || opened?.tabId || out.route?.tabId;
+  }
+  return runTab;
+}
+
 const file = args.find(a => a.endsWith('.json'));
 if (!file) die('give a guide .json file or --wait <guideId>');
-const body = expandGuide(JSON.parse(fs.readFileSync(file, 'utf8')));
+const guideFile = JSON.parse(fs.readFileSync(file, 'utf8'));
+const body = expandGuide(guideFile);
+if (guideFile.prefill?.length) {
+  body.tabId = await runPrefill(guideFile);
+  delete body.url;
+  console.error(`prefilled ${guideFile.prefill.length} field(s) in tab ${body.tabId}`);
+} else if (opt('tab')) {
+  // No prefill: run the guide in an existing tab as it is (no navigation).
+  body.tabId = Number(opt('tab'));
+  delete body.url;
+}
 if (flag('no-notify')) body.notify = false;
 const profile = opt('profile');
 if (profile) body.target = profile;
