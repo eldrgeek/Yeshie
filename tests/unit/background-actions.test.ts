@@ -41,7 +41,7 @@ describe('background.ts action coverage (the live runtime)', () => {
     'type', 'clear', 'click', 'wait_for', 'assert', 'read', 'assess_state', 'js',
     'delay', 'perceive', 'find_row', 'click_text', 'select_entity', 'click_preset',
     'notify', 'anchor_comment', 'drag_select', 'key', 'wait', 'extract_text',
-    'select', 'paste_html', 'scroll',
+    'select', 'paste_html', 'scroll', 'attach_file',
   ];
 
   for (const action of requiredActions) {

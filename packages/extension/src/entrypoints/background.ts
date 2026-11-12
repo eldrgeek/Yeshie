@@ -7,6 +7,7 @@ import { ContentStabilityTracker, expectedWaitState, quietMsOf, stateWaitMatched
 import { assertFailureMessage, assertNeedsPage, evaluateAssert } from '../../../../src/assert-step.js';
 import { buildResponse } from '../../../../src/respond-step.js';
 import { describeOptions, pickOptionIndex } from '../../../../src/select-option.js';
+import { attachFiles } from '../../../../src/attach-file.js';
 import { pickRowIndex, rowScope } from '../../../../src/row-scope.js';
 import { RUNTIME_FEATURES } from '../../../../src/runtime-features.js';
 import { loadInstanceIdentity, captureInstanceState, watchInstanceState } from '../instance-state';
@@ -3356,6 +3357,19 @@ export default defineBackground(() => {
         }
         if (ms > 0) await new Promise(r => setTimeout(r, ms));
         return { stepId: step.stepId, action: a, status: 'ok', delayMs: ms, durationMs: Date.now() - t0 };
+      }
+
+      if (a === 'attach_file') {
+        // Put a local file into an <input type="file"> by its path (CDP DOM.setFileInputFiles),
+        // so a 15 MB video never travels through the relay. src/attach-file.ts explains why.
+        if (step.frame) throw new Error('attach_file does not support frame yet');
+        const vars = { ...params, ...buffer };
+        const selector = interpolate(step.selector || 'input[type="file"]', vars);
+        const raw = step.files ?? step.file ?? step.value;
+        const files = (Array.isArray(raw) ? raw : [raw]).map((f: any) => interpolate(String(f ?? ''), vars));
+        await ensureDebugger(tabId);
+        const r = await attachFiles((method, p) => chrome.debugger.sendCommand({ tabId }, method, p), selector, files.length === 1 ? files[0] : files, { timeoutMs: step.timeout || 10000 });
+        return { stepId: step.stepId, action: a, status: 'ok', selector: r.selector, files: r.files, durationMs: Date.now() - t0 };
       }
 
       if (a === 'extract_text') {

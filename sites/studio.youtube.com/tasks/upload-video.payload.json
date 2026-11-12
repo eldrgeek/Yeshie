@@ -1,0 +1,73 @@
+{
+  "_meta": {
+    "task": "upload-video",
+    "id": "upload-video",
+    "title": "Upload a video to a YouTube channel",
+    "description": "Upload a local video file to a YouTube channel in Studio: attach the file by its path, set title and description, answer not made for kids, disclose AI use, add it to a playlist, choose the visibility, publish, and read back the youtu.be link.",
+    "baseUrl": "https://studio.youtube.com",
+    "requiresAuth": true,
+    "auth": {
+      "type": "google_session",
+      "note": "Mike's Chrome must be signed in to the Google account that owns the channel. SOMA Studios (UCxJydLvsDTvWH41YXC4UdnA) and AI WTF (UC40elGacNV5R5z4OLJvPSOw) are Brand Accounts under mw@mike-wolf.com, so their Studio URLs open without switching identity."
+    },
+    "params": {
+      "file": { "required": true, "description": "Absolute path of the video on the Mac, e.g. /Users/mikewolf/Projects/abundance-film/out/youtube/abundance-lead-cut3.mp4. Any size: attach_file hands Chrome the path." },
+      "title": { "required": true, "description": "Video title (YouTube's limit is 100 characters)." },
+      "description": { "required": true, "description": "Video description. Newlines are kept. For SOMA work end it with `provenance line <artifact-id>`." },
+      "visibility": { "required": true, "description": "PUBLIC, UNLISTED or PRIVATE (the radio button's name attribute). Mike, 2026-11-12: public unless there is a good reason not to." },
+      "playlist": { "required": true, "description": "Exact name of an existing playlist on the channel, e.g. Abundance. Create a new playlist in Studio first." },
+      "channel_id": { "required": false, "default": "UCxJydLvsDTvWH41YXC4UdnA", "description": "Channel id. Default: SOMA Studios." }
+    },
+    "requiredParams": ["file", "title", "description", "visibility", "playlist"],
+    "optionalParams": ["channel_id"],
+    "doneWhen": "s19 sees YouTube's 'Video published' share dialog with a youtu.be link, and s20 stores that link as published_url. A run without published_url did not publish. After the run, confirm processing with https://i.ytimg.com/vi/<id>/hqdefault.jpg returning 200 (oEmbed proves nothing).",
+    "risk": "PUBLISHES — s18 clicks Publish (or Save for UNLISTED/PRIVATE). To fill the dialog without publishing, stop after s16; the upload stays as a private draft. Never reload or navigate the run's tab while a file is uploading: the upload lives in that tab (kinetic-lyric-video skill, 2026-10-29: page loads killed 8 of 12 uploads). An unverified channel stops at about 10 uploads a day.",
+    "selectorNotes": {
+      "file_input": "ytcp-uploads-file-picker input[type=file][name=Filedata] — one light-DOM input, multiple=true, checked live 2026-11-12. attach_file sets it through CDP DOM.setFileInputFiles; Chrome fires change and the dialog moves to Details.",
+      "title_description": "Both are contenteditable #textbox elements. Their aria-labels start 'Add a title' and 'Tell viewers' (2026-11-12). The `type` action selects the contents and inserts the text with CDP Input.insertText.",
+      "made_for_kids": "tp-yt-paper-radio-button[name=VIDEO_MADE_FOR_KIDS_NOT_MFK]. A new channel leaves this unset, and Next stays disabled until it is answered.",
+      "ai_use": "The 'Yes, AI was used' radio ignored a scripted .click() on 2026-11-12 and took a real click, so s10 uses a trusted click_text.",
+      "category": "Not set by this recipe. On SOMA Studios it defaulted to Music on 2026-11-12; set Film & Animation (films) or Music (songs) in Studio afterwards if it matters.",
+      "visibility": "Step badge #step-badge-3 opens the Visibility step; radios carry name PUBLIC, UNLISTED, PRIVATE. #done-button reads Publish for PUBLIC and Save otherwise.",
+      "playlist": "A playlist ticked in an earlier upload's dialog stays ticked on the next one. s12 clicks the named playlist's row, so check the read-back in s13b when the previous upload used a different playlist."
+    },
+    "history": [
+      "2026-11-12: written from the hand run that uploaded the four Abundance films and the making-of to SOMA Studios through chrome-devtools (https://youtu.be/8l3vJrwjx8g and three more). Built on the new attach_file action. Not yet replayed live: the next real film upload is its first run. Claude Opus 5.5 for Mike Wolf (EM thread 'Link every artifact to its conversation')."
+    ],
+    "selfImproving": true
+  },
+  "runId": "youtube-upload-video-{{timestamp}}",
+  "mode": "exploratory",
+  "site": "studio.youtube.com",
+  "params": {
+    "file": "{{file}}",
+    "title": "{{title}}",
+    "description": "{{description}}",
+    "visibility": "{{visibility}}",
+    "playlist": "{{playlist}}",
+    "channel_id": "UCxJydLvsDTvWH41YXC4UdnA"
+  },
+  "chain": [
+    { "stepId": "s1", "action": "navigate", "url": "https://studio.youtube.com/channel/{{channel_id}}/videos/upload?d=ud", "note": "?d=ud opens the Upload videos dialog." },
+    { "stepId": "s1a", "action": "activate_tab", "timeout": 5000, "note": "Studio renders the dialog lazily; a hidden tab may not draw it." },
+    { "stepId": "s2", "action": "wait_for", "selector": "#select-files-button", "timeout": 20000 },
+    { "stepId": "s3", "action": "attach_file", "selector": "ytcp-uploads-file-picker input[type=\"file\"][name=\"Filedata\"]", "file": "{{file}}", "timeout": 10000 },
+    { "stepId": "s4", "action": "wait_for", "selector": "ytcp-uploads-dialog #textbox[aria-label^=\"Add a title\"]", "timeout": 60000, "note": "The Details step appears once YouTube accepts the file." },
+    { "stepId": "s5", "action": "type", "selector": "ytcp-uploads-dialog #textbox[aria-label^=\"Add a title\"]", "value": "{{title}}", "note": "YouTube prefills the file name; type replaces it." },
+    { "stepId": "s6", "action": "type", "selector": "ytcp-uploads-dialog #textbox[aria-label^=\"Tell viewers\"]", "value": "{{description}}" },
+    { "stepId": "s7", "action": "click", "selector": "ytcp-uploads-dialog tp-yt-paper-radio-button[name=\"VIDEO_MADE_FOR_KIDS_NOT_MFK\"]" },
+    { "stepId": "s8", "action": "click", "selector": "ytcp-uploads-dialog #toggle-button", "note": "Show advanced settings: paid promotion and AI use live there." },
+    { "stepId": "s9", "action": "click_text", "text": "No, my video doesn’t include paid promotion", "trusted": true, "optional": true, "note": "Already the default on 2026-11-12; kept so a changed default does not slip through." },
+    { "stepId": "s10", "action": "click_text", "text": "Yes, AI was used", "exact": true, "trusted": true, "note": "YouTube's policy: realistic AI pictures and an AI voice must be disclosed. SOMA films always use AI." },
+    { "stepId": "s11", "action": "click", "selector": "ytcp-uploads-dialog ytcp-video-metadata-playlists ytcp-dropdown-trigger" },
+    { "stepId": "s12", "action": "click_text", "text": "{{playlist}}", "exact": true, "trusted": true, "note": "Ticks the playlist in the Choose playlists dialog." },
+    { "stepId": "s13", "action": "click_text", "text": "Done", "exact": true, "trusted": true },
+    { "stepId": "s13b", "action": "extract_text", "selector": "ytcp-uploads-dialog ytcp-video-metadata-playlists ytcp-dropdown-trigger", "store_as": "playlist_readback", "note": "Should read the playlist name, or 'N playlists' if an old tick carried over." },
+    { "stepId": "s14", "action": "click", "selector": "ytcp-uploads-dialog #step-badge-3", "note": "Jump to the Visibility step." },
+    { "stepId": "s15", "action": "click", "selector": "ytcp-uploads-dialog tp-yt-paper-radio-button[name=\"{{visibility}}\"]" },
+    { "stepId": "s16", "action": "extract_text", "selector": "ytcp-uploads-dialog a[href^=\"https://youtu.be/\"]", "store_as": "video_url", "note": "The video's link exists as soon as the upload starts." },
+    { "stepId": "s18", "action": "click", "selector": "ytcp-uploads-dialog #done-button", "note": "PUBLISH (Save for unlisted/private). YouTube publishes when the upload finishes, as long as this tab stays open and is not reloaded." },
+    { "stepId": "s19", "action": "wait_for", "selector": "ytcp-video-share-dialog a[href^=\"https://youtu.be/\"]", "timeout": 30000, "note": "PROOF: the 'Video published' dialog with the link." },
+    { "stepId": "s20", "action": "extract_text", "selector": "ytcp-video-share-dialog a[href^=\"https://youtu.be/\"]", "store_as": "published_url" }
+  ]
+}
