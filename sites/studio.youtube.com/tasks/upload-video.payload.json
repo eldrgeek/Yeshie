@@ -8,10 +8,10 @@
     "requiresAuth": true,
     "auth": {
       "type": "google_session",
-      "note": "Mike's Chrome must be signed in to the Google account that owns the channel. SOMA Studios (UCxJydLvsDTvWH41YXC4UdnA) and AI WTF (UC40elGacNV5R5z4OLJvPSOw) are Brand Accounts under mw@mike-wolf.com, so their Studio URLs open without switching identity."
+      "note": "Chrome must be signed in to the Google account that owns the channel. SOMA Studios (UCxJydLvsDTvWH41YXC4UdnA) and AI WTF (UC40elGacNV5R5z4OLJvPSOw) are Brand Accounts under that account, so their Studio URLs open without switching identity."
     },
     "params": {
-      "file": { "required": true, "description": "Absolute path of the video on the Mac, e.g. /Users/mikewolf/Projects/abundance-film/out/youtube/abundance-lead-cut3.mp4. Any size: attach_file hands Chrome the path." },
+      "file": { "required": true, "description": "Absolute path of the video on the Mac, e.g. ~/Projects/<film>/out/<name>.mp4 written out in full. Any size: attach_file hands Chrome the path." },
       "title": { "required": true, "description": "Video title (YouTube's limit is 100 characters)." },
       "description": { "required": true, "description": "Video description. Newlines are kept. For SOMA work end it with `provenance line <artifact-id>`." },
       "visibility": { "required": true, "description": "PUBLIC, UNLISTED or PRIVATE (the radio button's name attribute). Mike, 2026-11-12: public unless there is a good reason not to." },
