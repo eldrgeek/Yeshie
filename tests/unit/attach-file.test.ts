@@ -114,15 +114,50 @@ describe('sites/studio.youtube.com/tasks/upload-video.payload.json', () => {
     expect(order.indexOf('s3')).toBeLessThan(order.indexOf('s5'));
   });
   it('ends on a proof that reads back the published link', () => {
-    const last = steps.at(-1);
+    // the upload's own chain ends at s20; the optional replace steps (r*) follow it
+    const last = byId.s20;
+    expect(steps.filter((s) => !/^r\d/.test(s.stepId)).at(-1)).toBe(last);
     expect(last.action).toBe('extract_text');
     expect(last.store_as).toBe('published_url');
     expect(byId.s19.action).toBe('wait_for');
     expect(byId.s19.selector).toContain('https://youtu.be/');
     expect(payload._meta.doneWhen).toMatch(/published_url/);
   });
-  it('never navigates after the file is attached (a page load kills the upload)', () => {
+  it('never navigates the upload tab after the file is attached (a page load kills the upload)', () => {
     const after = steps.slice(steps.findIndex((s) => s.stepId === 's3') + 1);
-    expect(after.some((s) => s.action === 'navigate' || s.action === 'open_tab')).toBe(false);
+    expect(after.some((s) => s.action === 'navigate')).toBe(false);
+    // the only other tab is the replaced video's edit page, opened in a NEW tab after the publish proof
+    const opens = after.filter((s) => s.action === 'open_tab');
+    expect(opens.map((s) => s.stepId)).toEqual(['r1']);
+    expect(steps.findIndex((s) => s.stepId === 'r1')).toBeGreaterThan(steps.findIndex((s) => s.stepId === 's20'));
+  });
+
+  describe('replaces (Mike, 2026-11-12: the old version goes unlisted and off every playlist)', () => {
+    const replace = steps.filter((s) => /^r\d/.test(s.stepId));
+    it('is an optional parameter', () => {
+      expect(payload._meta.requiredParams).not.toContain('replaces');
+      expect(payload._meta.optionalParams).toContain('replaces');
+    });
+    it('every replace step runs only when replaces is set', () => {
+      expect(replace.length).toBeGreaterThan(5);
+      for (const s of replace) expect(s.condition).toBe('{{replaces}}');
+    });
+    it('makes the old video unlisted, unticks its playlists, saves, and proves the save', () => {
+      expect(replace.some((s) => s.action === 'click' && s.selector.includes('name="UNLISTED"'))).toBe(true);
+      const untick = replace.filter((s) => s.selector?.includes('aria-checked="true"'));
+      expect(untick.length).toBeGreaterThanOrEqual(3);
+      for (const s of untick) expect(s.optional).toBe(true);
+      expect(replace.some((s) => s.selector === 'ytcp-button#save' && s.action === 'click')).toBe(true);
+      expect(replace.at(-1).action).toBe('wait_for');
+      expect(replace.at(-1).selector).toBe('ytcp-button#save[disabled]');
+    });
+    it('reads the old playlists back before removing them', () => {
+      const ids = replace.map((s) => s.stepId);
+      expect(ids.indexOf('r3')).toBeLessThan(ids.indexOf('r8a'));
+      expect(replace.find((s) => s.stepId === 'r3').store_as).toBe('replaced_playlists');
+    });
+    it('tells the caller how to record the new version in the provenance registry', () => {
+      expect(payload._meta.afterRun).toMatch(/provenance public-url/);
+    });
   });
 });

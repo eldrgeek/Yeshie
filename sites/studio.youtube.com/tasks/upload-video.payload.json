@@ -11,17 +11,50 @@
       "note": "Chrome must be signed in to the Google account that owns the channel. SOMA Studios (UCxJydLvsDTvWH41YXC4UdnA) and AI WTF (UC40elGacNV5R5z4OLJvPSOw) are Brand Accounts under that account, so their Studio URLs open without switching identity."
     },
     "params": {
-      "file": { "required": true, "description": "Absolute path of the video on the Mac, e.g. ~/Projects/<film>/out/<name>.mp4 written out in full. Any size: attach_file hands Chrome the path." },
-      "title": { "required": true, "description": "Video title (YouTube's limit is 100 characters)." },
-      "description": { "required": true, "description": "Video description. Newlines are kept. For SOMA work end it with `provenance line <artifact-id>`." },
-      "visibility": { "required": true, "description": "PUBLIC, UNLISTED or PRIVATE (the radio button's name attribute). Mike, 2026-11-12: public unless there is a good reason not to." },
-      "playlist": { "required": true, "description": "Exact name of an existing playlist on the channel, e.g. Abundance. Create a new playlist in Studio first." },
-      "channel_id": { "required": false, "default": "UCxJydLvsDTvWH41YXC4UdnA", "description": "Channel id. Default: SOMA Studios." }
+      "file": {
+        "required": true,
+        "description": "Absolute path of the video on the Mac, e.g. ~/Projects/<film>/out/<name>.mp4 written out in full. Any size: attach_file hands Chrome the path."
+      },
+      "title": {
+        "required": true,
+        "description": "Video title (YouTube's limit is 100 characters)."
+      },
+      "description": {
+        "required": true,
+        "description": "Video description. Newlines are kept. For SOMA work end it with `provenance line <artifact-id>`."
+      },
+      "visibility": {
+        "required": true,
+        "description": "PUBLIC, UNLISTED or PRIVATE (the radio button's name attribute). Mike, 2026-11-12: public unless there is a good reason not to."
+      },
+      "playlist": {
+        "required": true,
+        "description": "Exact name of an existing playlist on the channel, e.g. Abundance. Create a new playlist in Studio first."
+      },
+      "channel_id": {
+        "required": false,
+        "default": "UCxJydLvsDTvWH41YXC4UdnA",
+        "description": "Channel id. Default: SOMA Studios."
+      },
+      "replaces": {
+        "required": false,
+        "default": "",
+        "description": "Optional. The YouTube id of the video this upload replaces (an earlier version). After the new one is published, the recipe sets the old one to Unlisted and removes it from every playlist (Mike, 2026-11-12: \"when we make a new version we make the old version unlisted and take it off any playlists that it is on\"). Pass the old video's playlist as `playlist`, so the new version takes its place there; r3 reads the old video's playlists back as replaced_playlists to check."
+      }
     },
-    "requiredParams": ["file", "title", "description", "visibility", "playlist"],
-    "optionalParams": ["channel_id"],
+    "requiredParams": [
+      "file",
+      "title",
+      "description",
+      "visibility",
+      "playlist"
+    ],
+    "optionalParams": [
+      "channel_id",
+      "replaces"
+    ],
     "doneWhen": "s19 sees YouTube's 'Video published' share dialog with a youtu.be link, and s20 stores that link as published_url. A run without published_url did not publish. After the run, confirm processing with https://i.ytimg.com/vi/<id>/hqdefault.jpg returning 200 (oEmbed proves nothing).",
-    "risk": "PUBLISHES — s18 clicks Publish (or Save for UNLISTED/PRIVATE). To fill the dialog without publishing, stop after s16; the upload stays as a private draft. Never reload or navigate the run's tab while a file is uploading: the upload lives in that tab (kinetic-lyric-video skill, 2026-10-29: page loads killed 8 of 12 uploads). An unverified channel stops at about 10 uploads a day.",
+    "risk": "PUBLISHES — s18 clicks Publish (or Save for UNLISTED/PRIVATE). To fill the dialog without publishing, stop after s16; the upload stays as a private draft. Never reload or navigate the run's tab while a file is uploading: the upload lives in that tab (kinetic-lyric-video skill, 2026-10-29: page loads killed 8 of 12 uploads). An unverified channel stops at about 10 uploads a day. With `replaces`, r1-r14 also edit the OLD video: they make it Unlisted, take it off every playlist, and Save. They run in a new tab (open_tab), so the upload tab is never reloaded.",
     "selectorNotes": {
       "file_input": "ytcp-uploads-file-picker input[type=file][name=Filedata] — one light-DOM input, multiple=true, checked live 2026-11-12. attach_file sets it through CDP DOM.setFileInputFiles; Chrome fires change and the dialog moves to Details.",
       "title_description": "Both are contenteditable #textbox elements. Their aria-labels start 'Add a title' and 'Tell viewers' (2026-11-12). The `type` action selects the contents and inserts the text with CDP Input.insertText.",
@@ -29,12 +62,15 @@
       "ai_use": "The 'Yes, AI was used' radio ignored a scripted .click() on 2026-11-12 and took a real click, so s10 uses a trusted click_text.",
       "category": "Not set by this recipe. On SOMA Studios it defaulted to Music on 2026-11-12; set Film & Animation (films) or Music (songs) in Studio afterwards if it matters.",
       "visibility": "Step badge #step-badge-3 opens the Visibility step; radios carry name PUBLIC, UNLISTED, PRIVATE. #done-button reads Publish for PUBLIC and Save otherwise.",
-      "playlist": "A playlist ticked in an earlier upload's dialog stays ticked on the next one. s12 clicks the named playlist's row, so check the read-back in s13b when the previous upload used a different playlist."
+      "playlist": "A playlist ticked in an earlier upload's dialog stays ticked on the next one. s12 clicks the named playlist's row, so check the read-back in s13b when the previous upload used a different playlist.",
+      "replace": "Studio's video edit page (studio.youtube.com/video/<id>/edit), read 2026-11-12: visibility opens from ytcp-video-metadata-visibility #select-button, radios carry name UNLISTED etc., and its Done button is #save-button. The playlist picker opens from ytcp-video-metadata-playlists ytcp-dropdown-trigger; each row has #checkbox[role=checkbox] with aria-checked, and the dialog's #done-button closes it. The page's Save is ytcp-button#save, disabled until something changes and again after it saves. Yeshie has no loops, so r8a-r8f untick up to six playlists, one per step, each optional."
     },
     "history": [
-      "2026-11-12: written from the hand run that uploaded the four Abundance films and the making-of to SOMA Studios through chrome-devtools (https://youtu.be/8l3vJrwjx8g and three more). Built on the new attach_file action. Not yet replayed live: the next real film upload is its first run. Claude Opus 5.5 for Mike Wolf (EM thread 'Link every artifact to its conversation')."
+      "2026-11-12: written from the hand run that uploaded the four Abundance films and the making-of to SOMA Studios through chrome-devtools (https://youtu.be/8l3vJrwjx8g and three more). Built on the new attach_file action. Not yet replayed live: the next real film upload is its first run. Claude Opus 5.5 for Mike Wolf (EM thread 'Link every artifact to its conversation').",
+      "2026-11-12: added the optional `replaces` parameter (Mike's rule for new versions: the old one goes Unlisted and off every playlist). Steps r1-r14 run only when `replaces` is set (step condition). Not run against a real video yet."
     ],
-    "selfImproving": true
+    "selfImproving": true,
+    "afterRun": "If `replaces` was set: record the change in the provenance registry (projects-meta). `_estate/bin/provenance public-url <artifact> <published_url>` points the artifact at the new video, and `_estate/bin/provenance register --artifact <artifact> ... --where <published_url> --made <today>` adds the new version after the old one, so the old youtu.be link stays in that artifact's versions. If replaced_playlists names more than one playlist, add the new video to the others in Studio."
   },
   "runId": "youtube-upload-video-{{timestamp}}",
   "mode": "exploratory",
@@ -45,29 +81,260 @@
     "description": "{{description}}",
     "visibility": "{{visibility}}",
     "playlist": "{{playlist}}",
-    "channel_id": "UCxJydLvsDTvWH41YXC4UdnA"
+    "channel_id": "UCxJydLvsDTvWH41YXC4UdnA",
+    "replaces": "{{replaces}}"
   },
   "chain": [
-    { "stepId": "s1", "action": "navigate", "url": "https://studio.youtube.com/channel/{{channel_id}}/videos/upload?d=ud", "note": "?d=ud opens the Upload videos dialog." },
-    { "stepId": "s1a", "action": "activate_tab", "timeout": 5000, "note": "Studio renders the dialog lazily; a hidden tab may not draw it." },
-    { "stepId": "s2", "action": "wait_for", "selector": "#select-files-button", "timeout": 20000 },
-    { "stepId": "s3", "action": "attach_file", "selector": "ytcp-uploads-file-picker input[type=\"file\"][name=\"Filedata\"]", "file": "{{file}}", "timeout": 10000 },
-    { "stepId": "s4", "action": "wait_for", "selector": "ytcp-uploads-dialog #textbox[aria-label^=\"Add a title\"]", "timeout": 60000, "note": "The Details step appears once YouTube accepts the file." },
-    { "stepId": "s5", "action": "type", "selector": "ytcp-uploads-dialog #textbox[aria-label^=\"Add a title\"]", "value": "{{title}}", "note": "YouTube prefills the file name; type replaces it." },
-    { "stepId": "s6", "action": "type", "selector": "ytcp-uploads-dialog #textbox[aria-label^=\"Tell viewers\"]", "value": "{{description}}" },
-    { "stepId": "s7", "action": "click", "selector": "ytcp-uploads-dialog tp-yt-paper-radio-button[name=\"VIDEO_MADE_FOR_KIDS_NOT_MFK\"]" },
-    { "stepId": "s8", "action": "click", "selector": "ytcp-uploads-dialog #toggle-button", "note": "Show advanced settings: paid promotion and AI use live there." },
-    { "stepId": "s9", "action": "click_text", "text": "No, my video doesn’t include paid promotion", "trusted": true, "optional": true, "note": "Already the default on 2026-11-12; kept so a changed default does not slip through." },
-    { "stepId": "s10", "action": "click_text", "text": "Yes, AI was used", "exact": true, "trusted": true, "note": "YouTube's policy: realistic AI pictures and an AI voice must be disclosed. SOMA films always use AI." },
-    { "stepId": "s11", "action": "click", "selector": "ytcp-uploads-dialog ytcp-video-metadata-playlists ytcp-dropdown-trigger" },
-    { "stepId": "s12", "action": "click_text", "text": "{{playlist}}", "exact": true, "trusted": true, "note": "Ticks the playlist in the Choose playlists dialog." },
-    { "stepId": "s13", "action": "click_text", "text": "Done", "exact": true, "trusted": true },
-    { "stepId": "s13b", "action": "extract_text", "selector": "ytcp-uploads-dialog ytcp-video-metadata-playlists ytcp-dropdown-trigger", "store_as": "playlist_readback", "note": "Should read the playlist name, or 'N playlists' if an old tick carried over." },
-    { "stepId": "s14", "action": "click", "selector": "ytcp-uploads-dialog #step-badge-3", "note": "Jump to the Visibility step." },
-    { "stepId": "s15", "action": "click", "selector": "ytcp-uploads-dialog tp-yt-paper-radio-button[name=\"{{visibility}}\"]" },
-    { "stepId": "s16", "action": "extract_text", "selector": "ytcp-uploads-dialog a[href^=\"https://youtu.be/\"]", "store_as": "video_url", "note": "The video's link exists as soon as the upload starts." },
-    { "stepId": "s18", "action": "click", "selector": "ytcp-uploads-dialog #done-button", "note": "PUBLISH (Save for unlisted/private). YouTube publishes when the upload finishes, as long as this tab stays open and is not reloaded." },
-    { "stepId": "s19", "action": "wait_for", "selector": "ytcp-video-share-dialog a[href^=\"https://youtu.be/\"]", "timeout": 30000, "note": "PROOF: the 'Video published' dialog with the link." },
-    { "stepId": "s20", "action": "extract_text", "selector": "ytcp-video-share-dialog a[href^=\"https://youtu.be/\"]", "store_as": "published_url" }
+    {
+      "stepId": "s1",
+      "action": "navigate",
+      "url": "https://studio.youtube.com/channel/{{channel_id}}/videos/upload?d=ud",
+      "note": "?d=ud opens the Upload videos dialog."
+    },
+    {
+      "stepId": "s1a",
+      "action": "activate_tab",
+      "timeout": 5000,
+      "note": "Studio renders the dialog lazily; a hidden tab may not draw it."
+    },
+    {
+      "stepId": "s2",
+      "action": "wait_for",
+      "selector": "#select-files-button",
+      "timeout": 20000
+    },
+    {
+      "stepId": "s3",
+      "action": "attach_file",
+      "selector": "ytcp-uploads-file-picker input[type=\"file\"][name=\"Filedata\"]",
+      "file": "{{file}}",
+      "timeout": 10000
+    },
+    {
+      "stepId": "s4",
+      "action": "wait_for",
+      "selector": "ytcp-uploads-dialog #textbox[aria-label^=\"Add a title\"]",
+      "timeout": 60000,
+      "note": "The Details step appears once YouTube accepts the file."
+    },
+    {
+      "stepId": "s5",
+      "action": "type",
+      "selector": "ytcp-uploads-dialog #textbox[aria-label^=\"Add a title\"]",
+      "value": "{{title}}",
+      "note": "YouTube prefills the file name; type replaces it."
+    },
+    {
+      "stepId": "s6",
+      "action": "type",
+      "selector": "ytcp-uploads-dialog #textbox[aria-label^=\"Tell viewers\"]",
+      "value": "{{description}}"
+    },
+    {
+      "stepId": "s7",
+      "action": "click",
+      "selector": "ytcp-uploads-dialog tp-yt-paper-radio-button[name=\"VIDEO_MADE_FOR_KIDS_NOT_MFK\"]"
+    },
+    {
+      "stepId": "s8",
+      "action": "click",
+      "selector": "ytcp-uploads-dialog #toggle-button",
+      "note": "Show advanced settings: paid promotion and AI use live there."
+    },
+    {
+      "stepId": "s9",
+      "action": "click_text",
+      "text": "No, my video doesn’t include paid promotion",
+      "trusted": true,
+      "optional": true,
+      "note": "Already the default on 2026-11-12; kept so a changed default does not slip through."
+    },
+    {
+      "stepId": "s10",
+      "action": "click_text",
+      "text": "Yes, AI was used",
+      "exact": true,
+      "trusted": true,
+      "note": "YouTube's policy: realistic AI pictures and an AI voice must be disclosed. SOMA films always use AI."
+    },
+    {
+      "stepId": "s11",
+      "action": "click",
+      "selector": "ytcp-uploads-dialog ytcp-video-metadata-playlists ytcp-dropdown-trigger"
+    },
+    {
+      "stepId": "s12",
+      "action": "click_text",
+      "text": "{{playlist}}",
+      "exact": true,
+      "trusted": true,
+      "note": "Ticks the playlist in the Choose playlists dialog."
+    },
+    {
+      "stepId": "s13",
+      "action": "click_text",
+      "text": "Done",
+      "exact": true,
+      "trusted": true
+    },
+    {
+      "stepId": "s13b",
+      "action": "extract_text",
+      "selector": "ytcp-uploads-dialog ytcp-video-metadata-playlists ytcp-dropdown-trigger",
+      "store_as": "playlist_readback",
+      "note": "Should read the playlist name, or 'N playlists' if an old tick carried over."
+    },
+    {
+      "stepId": "s14",
+      "action": "click",
+      "selector": "ytcp-uploads-dialog #step-badge-3",
+      "note": "Jump to the Visibility step."
+    },
+    {
+      "stepId": "s15",
+      "action": "click",
+      "selector": "ytcp-uploads-dialog tp-yt-paper-radio-button[name=\"{{visibility}}\"]"
+    },
+    {
+      "stepId": "s16",
+      "action": "extract_text",
+      "selector": "ytcp-uploads-dialog a[href^=\"https://youtu.be/\"]",
+      "store_as": "video_url",
+      "note": "The video's link exists as soon as the upload starts."
+    },
+    {
+      "stepId": "s18",
+      "action": "click",
+      "selector": "ytcp-uploads-dialog #done-button",
+      "note": "PUBLISH (Save for unlisted/private). YouTube publishes when the upload finishes, as long as this tab stays open and is not reloaded."
+    },
+    {
+      "stepId": "s19",
+      "action": "wait_for",
+      "selector": "ytcp-video-share-dialog a[href^=\"https://youtu.be/\"]",
+      "timeout": 30000,
+      "note": "PROOF: the 'Video published' dialog with the link."
+    },
+    {
+      "stepId": "s20",
+      "action": "extract_text",
+      "selector": "ytcp-video-share-dialog a[href^=\"https://youtu.be/\"]",
+      "store_as": "published_url"
+    },
+    {
+      "stepId": "r1",
+      "action": "open_tab",
+      "url": "https://studio.youtube.com/video/{{replaces}}/edit",
+      "note": "A new tab, so the upload tab is never reloaded.",
+      "condition": "{{replaces}}"
+    },
+    {
+      "stepId": "r2",
+      "action": "wait_for",
+      "selector": "ytcp-video-metadata-visibility #select-button",
+      "timeout": 30000,
+      "condition": "{{replaces}}"
+    },
+    {
+      "stepId": "r3",
+      "action": "extract_text",
+      "selector": "ytcp-video-metadata-playlists ytcp-dropdown-trigger",
+      "store_as": "replaced_playlists",
+      "note": "The old video's playlists before they are removed: one name, 'N playlists', or 'Select' for none.",
+      "condition": "{{replaces}}"
+    },
+    {
+      "stepId": "r4",
+      "action": "click",
+      "selector": "ytcp-video-metadata-visibility #select-button",
+      "condition": "{{replaces}}"
+    },
+    {
+      "stepId": "r5",
+      "action": "click",
+      "selector": "tp-yt-paper-radio-button[name=\"UNLISTED\"]",
+      "condition": "{{replaces}}"
+    },
+    {
+      "stepId": "r6",
+      "action": "click",
+      "selector": "#save-button",
+      "note": "Done in the visibility picker.",
+      "condition": "{{replaces}}"
+    },
+    {
+      "stepId": "r7",
+      "action": "click",
+      "selector": "ytcp-video-metadata-playlists ytcp-dropdown-trigger",
+      "condition": "{{replaces}}"
+    },
+    {
+      "stepId": "r8a",
+      "action": "click",
+      "selector": "ytcp-playlist-dialog #checkbox[aria-checked=\"true\"]",
+      "optional": true,
+      "note": "Untick the first ticked playlist; optional, so it does nothing once none is left.",
+      "condition": "{{replaces}}"
+    },
+    {
+      "stepId": "r8b",
+      "action": "click",
+      "selector": "ytcp-playlist-dialog #checkbox[aria-checked=\"true\"]",
+      "optional": true,
+      "note": "Untick the first ticked playlist; optional, so it does nothing once none is left.",
+      "condition": "{{replaces}}"
+    },
+    {
+      "stepId": "r8c",
+      "action": "click",
+      "selector": "ytcp-playlist-dialog #checkbox[aria-checked=\"true\"]",
+      "optional": true,
+      "note": "Untick the first ticked playlist; optional, so it does nothing once none is left.",
+      "condition": "{{replaces}}"
+    },
+    {
+      "stepId": "r8d",
+      "action": "click",
+      "selector": "ytcp-playlist-dialog #checkbox[aria-checked=\"true\"]",
+      "optional": true,
+      "note": "Untick the first ticked playlist; optional, so it does nothing once none is left.",
+      "condition": "{{replaces}}"
+    },
+    {
+      "stepId": "r8e",
+      "action": "click",
+      "selector": "ytcp-playlist-dialog #checkbox[aria-checked=\"true\"]",
+      "optional": true,
+      "note": "Untick the first ticked playlist; optional, so it does nothing once none is left.",
+      "condition": "{{replaces}}"
+    },
+    {
+      "stepId": "r8f",
+      "action": "click",
+      "selector": "ytcp-playlist-dialog #checkbox[aria-checked=\"true\"]",
+      "optional": true,
+      "note": "Untick the first ticked playlist; optional, so it does nothing once none is left.",
+      "condition": "{{replaces}}"
+    },
+    {
+      "stepId": "r9",
+      "action": "click",
+      "selector": "ytcp-playlist-dialog #done-button",
+      "condition": "{{replaces}}"
+    },
+    {
+      "stepId": "r10",
+      "action": "click",
+      "selector": "ytcp-button#save",
+      "condition": "{{replaces}}"
+    },
+    {
+      "stepId": "r14",
+      "action": "wait_for",
+      "selector": "ytcp-button#save[disabled]",
+      "timeout": 20000,
+      "note": "PROOF the old video saved: Save goes back to disabled once Studio has stored the change.",
+      "condition": "{{replaces}}"
+    }
   ]
 }
