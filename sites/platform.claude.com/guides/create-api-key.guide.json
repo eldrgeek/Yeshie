@@ -1,0 +1,19 @@
+{
+  "title": "New Anthropic key for the VPS",
+  "url": "https://platform.claude.com/settings/keys",
+  "closeOnDone": true,
+  "steps": [
+    { "instruction": "If the Claude Console asks you to sign in, sign in as mw@mike-wolf.com. The API keys page opens next.",
+      "target": "",
+      "doneWhen": { "selectorAppears": "button:has-text(\"Create Key\"), button:has-text(\"Create key\")" } },
+    { "instruction": "Click Create Key.",
+      "target": "button:has-text(\"Create Key\"), button:has-text(\"Create key\")",
+      "doneWhen": { "selectorAppears": "[role=dialog] input" } },
+    { "instruction": "Type the name vps-hermes-2026-11b. If there is a workspace menu, leave it on Default. Then click Add (or Create Key) in the dialog.",
+      "target": "[role=dialog] input",
+      "doneWhen": { "selectorAppears": "[role=dialog] button:has-text(\"Copy\")" } },
+    { "instruction": "Click Copy Key so the new key is on your clipboard, then close the dialog. Optional: delete the unused key vps-hermes-2026-11 from the list. Claude installs it on the VPS right after.",
+      "target": "[role=dialog] button:has-text(\"Copy\")",
+      "doneWhen": { "selectorGone": "[role=dialog] button:has-text(\"Copy\")" } }
+  ]
+}
