@@ -1,0 +1,42 @@
+{
+  "title": "SOMA sign-in: Google branding",
+  "url": "https://console.cloud.google.com/auth/branding?project=722754072346&authuser=3",
+  "closeOnDone": true,
+  "_note": "Project TestingTheCloud, Google account authuser=3. App name was Playmaker. Run after the JavaScript-origins Save, which adds most authorized domains; somastudios.ai must be an authorized domain for the home page (Google: 'missing domain name' otherwise). No logo: uploading one sends the app to Google's brand verification.",
+  "prefillReady": "#_0rif_mat-input-0",
+  "prefill": [
+    {
+      "selector": "#_0rif_mat-input-0",
+      "value": "SOMA"
+    },
+    {
+      "selector": "#_0rif_mat-input-1",
+      "value": "https://somastudios.ai"
+    },
+    {
+      "selector": "#_0rif_mat-input-2",
+      "value": "https://somastudios.ai/privacy/"
+    },
+    {
+      "selector": "#_0rif_mat-input-3",
+      "value": "https://somastudios.ai/terms/"
+    },
+    {
+      "clickText": "Add domain",
+      "waitFor": "input[placeholder=\"example.com\"]:placeholder-shown"
+    },
+    {
+      "selector": "input[placeholder=\"example.com\"]:placeholder-shown",
+      "value": "somastudios.ai"
+    }
+  ],
+  "steps": [
+    {
+      "instruction": "Yeshie set App name to SOMA (it was Playmaker), home page https://somastudios.ai, privacy policy https://somastudios.ai/privacy/, terms https://somastudios.ai/terms/, and added somastudios.ai under Authorized domains. Check them, then click Save.",
+      "target": "button:has-text(\"Save\")",
+      "doneWhen": {
+        "textAppears": "Branding saved"
+      }
+    }
+  ]
+}

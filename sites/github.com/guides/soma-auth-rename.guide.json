@@ -1,0 +1,13 @@
+{
+  "title": "SOMA Auth: rename the GitHub OAuth app",
+  "url": "https://github.com/settings/applications/3990426",
+  "closeOnDone": true,
+  "prefill": [
+    { "selector": "input#oauth_application_name", "value": "SOMA" }
+  ],
+  "steps": [
+    { "instruction": "Yeshie changed Application name to SOMA, the name people see on the GitHub sign-in screen for every SOMA app (Legends included). Edit it if you prefer another name, then click Update application.",
+      "target": "button:has-text(\"Update application\")",
+      "doneWhen": { "textAppears": "Application updated successfully" } }
+  ]
+}
