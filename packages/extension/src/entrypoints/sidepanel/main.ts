@@ -25,7 +25,7 @@ export function renderMessage(msg: { role: 'user' | 'assistant' | 'error' | 'sys
   const html = (msg.role === 'assistant' || msg.role === 'system') ? renderMarkdown(msg.content) : escapeHtml(msg.content);
   // Add feedback buttons to assistant messages
   const feedbackHtml = (msg.role === 'assistant' && chatId)
-    ? `<div class="feedback-row" data-chat-id="${chatId}">
+    ? `<div class="feedback-row" data-chat-id="${escapeHtml(chatId)}">
         <button class="fb-btn fb-up" title="Helpful">&#x1F44D;</button>
         <button class="fb-btn fb-down" title="Not helpful">&#x1F44E;</button>
        </div>`
