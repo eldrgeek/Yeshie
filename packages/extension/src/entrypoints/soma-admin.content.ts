@@ -14,6 +14,11 @@
 // injections rely on. runAt document_start sets the global before page/widget
 // scripts read it.
 //
+// Personal build only, and only on SOMA sites: wxt.config.ts replaces the
+// matches below with DEFAULT_SOMA_ADMIN_MATCHES (or WXT_SOMA_ADMIN_MATCHES from
+// .env) and leaves this script out of the store build. Until 2026-11-17 it ran
+// on every page, so any site Mike opened could read the token.
+//
 // Token value comes from WXT_SOMA_ADMIN_TOKEN in packages/extension/.env
 // (gitignored, never committed) and is inlined into this bundle at build time.
 export default defineContentScript({
