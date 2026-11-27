@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 import { createYeshieLogo, normalizeChoice, LOGOS, DEFAULT_LOGO } from '../../packages/extension/src/overlay/logo.js';
 import { iconPaths } from '../../packages/extension/src/toolbar-logo.js';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 
 const EXT = join(process.cwd(), 'packages/extension');
@@ -48,5 +48,16 @@ describe('Yeshie logo', () => {
     }
     expect(iconPaths('robot')['16']).toBe('icon/16.png');
     expect(iconPaths('yeti')['16']).toBe('icon/yeti/16.png');
+  });
+});
+
+describe('Share-or-vote link', () => {
+  it('the picker links to the SOMA page in a new tab and the extension never calls it', () => {
+    const html = readFileSync(join(EXT, 'src/entrypoints/sidepanel/index.html'), 'utf8');
+    expect(html).toMatch(/<a id="logo-share" href="https:\/\/vps\.mike-wolf\.com\/soma-rooms\/yeshie-logos\.html" target="_blank" rel="noopener">/);
+    const walk = (d: string): string[] => readdirSync(d).flatMap((f: string) => statSync(join(d, f)).isDirectory() ? walk(join(d, f)) : [join(d, f)]);
+    for (const f of walk(join(EXT, 'src')).filter((f) => /\.(ts|js)$/.test(f))) {
+      expect(readFileSync(f, 'utf8')).not.toMatch(/api\/yeshie-logos/);
+    }
   });
 });

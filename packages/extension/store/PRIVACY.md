@@ -20,7 +20,7 @@ The relay and any assistant you connect to it are programs you install and run y
 
 ## What Yeshie stores in Chrome
 
-A random ID for this Chrome profile, an optional profile name you set, and the state of a running task or guide, kept in Chrome's extension storage on your computer. Removing the extension deletes them.
+A random ID for this Chrome profile, an optional profile name you set, the logo you chose for Yeshie (including a picture you uploaded), and the state of a running task or guide, kept in Chrome's extension storage on your computer. Removing the extension deletes them.
 
 ## What Yeshie never does
 
@@ -28,6 +28,8 @@ A random ID for this Chrome profile, an optional profile name you set, and the s
 - It does not use your data for advertising, sell it, or transfer it to anyone.
 - It does not use your data to decide credit or lending.
 - It does not run code downloaded from the internet. Tasks are data (which button to click, what to type) carried out by code that ships inside the extension.
+
+The logo picker has a link to a SOMA web page where you can vote for a favourite logo or send one you made. Yeshie does not send anything there; the page sends only what you choose on it, in your browser like any other website.
 
 ## Permissions
 
