@@ -1,3 +1,4 @@
+import { createYeshieLogo } from './logo.js';
 /** Bead 9: Teach Mode Tooltip Overlay */
 
 export interface TeachStep {
@@ -104,6 +105,15 @@ const TOOLTIP_STYLES = `
     font-size: 12px;
     color: #888;
     margin-bottom: 6px;
+  }
+  .step-who {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .step-who svg {
+    flex-shrink: 0;
+    border-radius: 5px;
   }
   .drag-grip {
     letter-spacing: 1px;
@@ -459,7 +469,10 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
     const counter = document.createElement('div');
     counter.className = 'step-counter';
     const counterLeft = document.createElement('span');
-    counterLeft.textContent = `Step ${step.stepIndex + 1} of ${step.totalSteps}`;
+    counterLeft.className = 'step-who';
+    const counterText = document.createElement('span');
+    counterText.textContent = `Step ${step.stepIndex + 1} of ${step.totalSteps}`;
+    counterLeft.append(createYeshieLogo(20), counterText);
     const grip = document.createElement('span');
     grip.className = 'drag-grip';
     grip.title = 'Drag to move. Double-click to put it back.';

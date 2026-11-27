@@ -31,9 +31,8 @@ export const overlayStyles = `
   .yeshie-logo {
     width: 22px;
     height: 22px;
-    background: #6c5ce7;
-    color: #fff;
-    border-radius: 4px;
+    border-radius: 5px;
+    overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
