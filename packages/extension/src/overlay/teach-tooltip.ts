@@ -1,4 +1,4 @@
-import { createYeshieLogo } from './logo.js';
+import { createYeshieLogo, getLogoChoice } from './logo.js';
 /** Bead 9: Teach Mode Tooltip Overlay */
 
 export interface TeachStep {
@@ -472,7 +472,7 @@ export function createTeachTooltip(container: HTMLElement): TeachTooltip {
     counterLeft.className = 'step-who';
     const counterText = document.createElement('span');
     counterText.textContent = `Step ${step.stepIndex + 1} of ${step.totalSteps}`;
-    counterLeft.append(createYeshieLogo(20), counterText);
+    counterLeft.append(createYeshieLogo(20, document, getLogoChoice()), counterText);
     const grip = document.createElement('span');
     grip.className = 'drag-grip';
     grip.title = 'Drag to move. Double-click to put it back.';

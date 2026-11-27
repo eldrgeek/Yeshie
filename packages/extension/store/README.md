@@ -8,7 +8,8 @@ _Written 2026-11-17 by Claude Opus 5.5 for Mike Wolf. Mike owns the SoMA Studios
 | `PRIVACY.md` | The privacy policy the listing links to |
 | `REVIEW-2026-11-17.md` | The code review behind the 1.0.0 cleanup, and open follow-ups |
 | `assets/` | Store icon, two 1280×800 screenshots, 440×280 promo tile |
-| `icon.svg` | Source for the icons in `../public/icon/` |
+| `icon.svg` | Source for the default (robot) icons in `../public/icon/` |
+| `logos/` | Sources for the other built-in logos (`../public/icon/<id>/`); shapes are mirrored in `src/overlay/logo.ts` |
 | `../CHANGELOG.md` | One line per zip sent to the store |
 
 ## Make the zip
