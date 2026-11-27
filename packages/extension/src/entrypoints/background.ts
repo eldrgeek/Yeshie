@@ -11,9 +11,11 @@ import { pickRowIndex, rowScope } from '../../../../src/row-scope.js';
 import { RUNTIME_FEATURES } from '../../../../src/runtime-features.js';
 import { loadInstanceIdentity, captureInstanceState, watchInstanceState } from '../instance-state';
 import { buildSplitRequest, isSplitTogether } from '../split-view';
+import { startToolbarLogo } from '../toolbar-logo';
 
 export default defineBackground(() => {
   console.log('[Yeshie] Background worker started');
+  startToolbarLogo();
   const DEFAULT_BASE_URL = 'https://app.yeshid.com';
   // The store flavor (wxt --mode store, see wxt.config.ts) talks only to the
   // relay on this computer and ignores .env; the personal flavor may point
