@@ -8,6 +8,8 @@ export default defineContentScript({
     window.addEventListener('message', (e) => {
       const m = e.data;
       if (e.source !== window || !m || m.source !== 'jared' || !m.type) return;
+      // A copy left over from before Yeshie reloaded stays quiet, so only the fresh copy answers.
+      if (!chrome.runtime?.id) return;
       chrome.runtime.sendMessage({ jared: m }, (reply) => {
         const r = chrome.runtime.lastError ? { ok: false, why: chrome.runtime.lastError.message } : reply;
         window.postMessage({ source: 'yeshie-jared', id: m.id, reply: r }, window.location.origin);

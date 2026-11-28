@@ -194,6 +194,40 @@
     return { ok: true, moved: location.href !== before, capture: capture({ prefix }) };
   }
   window.jaredAct = act;
+
+  // Puppet play (Mike, 2026-11-28: "two play modes ... the other when it acts as puppeteer running the
+  // app in another window"). A designed part has no copied key, so the real control is found by its
+  // words: the button, link or tappable whose text or label best matches, with emoji and case ignored.
+  const words = (t) => String(t || '').normalize('NFKD').replace(/[^\p{L}\p{N}\s']/gu, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+  function findByText(text) {
+    const want = words(text);
+    if (!want) return null;
+    const seen = new Set(), hits = [];
+    const sel = 'button, a[href], [role=button], [role=link], [role=tab], [role=menuitem], [role=option], [role=switch], [role=checkbox], input[type=button], input[type=submit], [onclick], [tabindex]';
+    const visible = (el) => { const r = el.getBoundingClientRect(); return r.width > 2 && r.height > 2 && getComputedStyle(el).visibility !== 'hidden'; };
+    const consider = (el) => {
+      if (seen.has(el) || !visible(el)) return; seen.add(el);
+      const label = words(el.getAttribute('aria-label') || el.value || el.innerText || el.textContent);
+      if (!label) return;
+      const score = label === want ? 3 : label.startsWith(want) || want.startsWith(label) ? 2 : label.includes(want) ? 1 : 0;
+      if (score) hits.push({ el, score, len: label.length });
+    };
+    document.querySelectorAll(sel).forEach(consider);
+    if (!hits.length) for (const el of document.querySelectorAll('body *')) if (getComputedStyle(el).cursor === 'pointer') consider(el);
+    hits.sort((a, b) => b.score - a.score || a.len - b.len);
+    return hits[0] || null;
+  }
+  async function actText(text) {
+    const el = findByText(text)?.el;
+    if (!el) return { ok: false, found: false, why: `No "${text}" on the real page now.` };
+    const before = location.href;
+    press(el);
+    await settle();
+    return { ok: true, found: true, moved: location.href !== before, url: location.href };
+  }
+  window.jaredActText = actText;
+  // How well this page (or frame) matches, without clicking, so the caller can pick one frame to click.
+  window.jaredFindText = (text) => { const h = findByText(text); return h ? { score: h.score, len: h.len } : null; };
   // The bookmarklet route: Jared's window sends messages. An extension (Yeshie) calls jaredAct itself,
   // and its injected copy has no home site, so it listens to no messages.
   if (HOME) window.addEventListener('message', async (e) => {
