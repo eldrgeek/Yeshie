@@ -11,12 +11,18 @@ import { pickRowIndex, rowScope } from '../../../../src/row-scope.js';
 import { RUNTIME_FEATURES } from '../../../../src/runtime-features.js';
 import { loadInstanceIdentity, captureInstanceState, watchInstanceState } from '../instance-state';
 import { buildSplitRequest, isSplitTogether } from '../split-view';
+import { startToolbarLogo } from '../toolbar-logo';
+import { handleJared, handlePicked } from '../jared-bridge';
 
 export default defineBackground(() => {
   console.log('[Yeshie] Background worker started');
+  startToolbarLogo();
   const DEFAULT_BASE_URL = 'https://app.yeshid.com';
-  const RELAY_URL = import.meta.env.WXT_RELAY_URL || 'http://localhost:3333';
-  const WATCHER_URL = import.meta.env.WXT_WATCHER_URL || 'http://localhost:27182';
+  // The store flavor (wxt --mode store, see wxt.config.ts) talks only to the
+  // relay on this computer and ignores .env; the personal flavor may point
+  // somewhere else and polls the build watcher for hot reload.
+  const STORE_BUILD = import.meta.env.MODE === 'store';
+  const RELAY_URL = STORE_BUILD ? 'http://localhost:3333' : (import.meta.env.WXT_RELAY_URL || 'http://localhost:3333');
   const CHAT_URL = `${RELAY_URL}/chat`;
   const CHAT_FEEDBACK_URL = `${RELAY_URL}/chat/feedback`;
   const CHAT_STATUS_URL = `${RELAY_URL}/chat/status`;
@@ -341,10 +347,11 @@ export default defineBackground(() => {
   }
 
   // ── Hot reload: poll watcher server, reload extension when build changes ──────
+  // Personal flavor only. The store build updates through the store.
   let _lastBuild = -1;
-  async function checkForReload() {
+  async function checkForReload(watcherUrl: string) {
     try {
-      const r = await fetch(`${WATCHER_URL}/`);
+      const r = await fetch(`${watcherUrl}/`);
       const { build, ready } = await r.json();
       if (_lastBuild === -1) { _lastBuild = build; return; }
       // Only reload when build number changed AND watcher confirms build is complete
@@ -360,7 +367,10 @@ export default defineBackground(() => {
       }
     } catch (_) {}
   }
-  setInterval(checkForReload, 2000);
+  if (!STORE_BUILD) {
+    const watcherUrl = import.meta.env.WXT_WATCHER_URL || 'http://localhost:27182';
+    setInterval(() => checkForReload(watcherUrl), 2000);
+  }
 
 
   // onInstalled: no tab reload (kills sessions). Content scripts inject naturally on next page load.
@@ -591,8 +601,10 @@ export default defineBackground(() => {
   }
 
   // Keep-alive: prevent service worker suspension ALWAYS (relay needs persistent connection)
-  // MV3 workers sleep after ~30s idle — the alarm fires every 24s to keep the worker alive
-  chrome.alarms.create('yeshie-keepalive', { periodInMinutes: 0.4 });
+  // MV3 workers sleep after ~30s idle. Chrome runs a packed (store) extension's
+  // alarms at most every 30s, so 0.5 min is the shortest period that holds in
+  // both flavors; the open relay WebSocket also keeps the worker awake.
+  chrome.alarms.create('yeshie-keepalive', { periodInMinutes: 0.5 });
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'yeshie-keepalive') {
       // Accessing any chrome API keeps the service worker awake
@@ -668,7 +680,7 @@ export default defineBackground(() => {
     await chrome.storage.session.set({ __yeshieRecording: recordingState });
   }
 
-  // Keyboard shortcut: ⌃⌥R (Ctrl+Alt+R)
+  // Keyboard shortcut: ⌃⇧R on a Mac, Ctrl+Shift+Y elsewhere (wxt.config.ts)
   chrome.commands.onCommand.addListener((command) => {
     if (command === 'toggle-recording') {
       toggleRecording();
@@ -2596,7 +2608,7 @@ export default defineBackground(() => {
   // ── Observability: log auth flow events to relay ─────────────────────────────
   async function logToRelay(event: string, data: any) {
     try {
-      await fetch('http://localhost:3333/log', {
+      await fetch(`${RELAY_URL}/log`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ event, ts: new Date().toISOString(), ...data })
@@ -4100,7 +4112,36 @@ export default defineBackground(() => {
     return fail(`Split failed: ${relayResult?.error || 'Chrome did not report a split view.'}`);
   }
 
+  // Messages that start work, read results or reach the relay come only from
+  // Yeshie's own pages (the side panel), never from a content script running
+  // inside a web page. Content scripts may send only overlay, teach-progress
+  // and recording events. Before 2026-11-17 any page could reach skill_run and
+  // get_status through a postMessage bridge in content.ts.
+  const EXTENSION_PAGE_ONLY = new Set([
+    'skill_run', 'get_active_runs', 'get_status', 'abort',
+    'chat_message', 'chat_feedback', 'chat_status', 'make_split',
+    'teach_start', 'teach_goto', 'teach_end', 'record_toggle', 'record_status',
+  ]);
+
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (sender.id !== chrome.runtime.id) return false;
+    // An extension page (side panel, or sidepanel.html opened in a tab) has a
+    // chrome-extension:// sender URL; a content script has the web page's URL.
+    const fromExtensionPage = typeof sender.url === 'string' && sender.url.startsWith(chrome.runtime.getURL(''));
+    // Jared bridge (src/jared-bridge.ts): requests from Jared's own pages, and the picker's answer.
+    if (msg?.jared && typeof msg.jared === 'object') {
+      handleJared(msg.jared, sender).then(sendResponse, (e) => sendResponse({ ok: false, why: String(e?.message || e) }));
+      return true;
+    }
+    if (msg?.type === 'jared_picked') {
+      if (!fromExtensionPage) { sendResponse({ error: 'jared_picked is not accepted from a web page' }); return false; }
+      handlePicked(msg).then(sendResponse, () => sendResponse({ ok: false }));
+      return true;
+    }
+    if (EXTENSION_PAGE_ONLY.has(msg?.type) && !fromExtensionPage) {
+      sendResponse({ error: `${msg.type} is not accepted from a web page` });
+      return false;
+    }
     if (msg.type === 'skill_run') {
       const runId = crypto.randomUUID();
       const tabId = msg.tabId || sender.tab?.id;
@@ -4267,7 +4308,7 @@ export default defineBackground(() => {
       }
       return false;
     }
-    if (msg.type === 'content_ready') return false;
+    if (msg.type === 'content_ready') return false; // sent by content scripts in builds before 1.0.0
     if (msg.type === 'observer_ready') {
       // A full page load restarts the content script with recording off. Keep a
       // recording going across it, and log the load as a navigation.

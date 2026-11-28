@@ -1,4 +1,5 @@
 import { splitCandidate, type SplitCandidate } from '../../split-view';
+import { startLogoPicker } from './logo-picker';
 
 // Simple markdown-to-HTML renderer for chat messages
 function renderMarkdown(text: string): string {
@@ -25,7 +26,7 @@ export function renderMessage(msg: { role: 'user' | 'assistant' | 'error' | 'sys
   const html = (msg.role === 'assistant' || msg.role === 'system') ? renderMarkdown(msg.content) : escapeHtml(msg.content);
   // Add feedback buttons to assistant messages
   const feedbackHtml = (msg.role === 'assistant' && chatId)
-    ? `<div class="feedback-row" data-chat-id="${chatId}">
+    ? `<div class="feedback-row" data-chat-id="${escapeHtml(chatId)}">
         <button class="fb-btn fb-up" title="Helpful">&#x1F44D;</button>
         <button class="fb-btn fb-down" title="Not helpful">&#x1F44E;</button>
        </div>`
@@ -59,7 +60,8 @@ const messagesEl = document.getElementById('messages')!;
 const statusEl = document.getElementById('status')!;
 const inputEl = document.getElementById('chat-input') as HTMLTextAreaElement;
 const sendBtn = document.getElementById('send-btn') as HTMLButtonElement;
-const headerEl = document.getElementById('header')!;
+const headerEl = document.getElementById('header-title')!;
+startLogoPicker();
 
 // Track the current chatId for feedback
 let lastChatId: string | null = null;

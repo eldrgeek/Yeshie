@@ -10,81 +10,23 @@ Solves two problems that block `ClaudeInChrome`-only execution:
 
 1. Open Chrome → `chrome://extensions`
 2. Enable **Developer mode** (top right)
-3. Click **Load unpacked** → select this directory (`packages/extension/`)
+3. Click **Load unpacked** → select `packages/extension/.output/chrome-mv3` (after `npm run build`)
 4. Note the **Extension ID** shown on the card (e.g. `abcdefghijklmnopqrstuvwxyzabcdef`)
 
 ## Trigger a payload run
 
-From DevTools console on the target tab (e.g. `app.yeshid.com`):
+Payloads arrive from the relay (`packages/relay`, `http://localhost:3333`): `POST /run` or MCP `yeshie_run`. Web pages cannot reach the extension. Until 1.0.0 (2026-11-17) a `window.postMessage({__yeshieExt})` bridge let any page start runs and read results; it was removed (`store/REVIEW-2026-11-17.md`).
 
-```javascript
-// 1. Send skill_run
-chrome.runtime.sendMessage(
-  'YOUR_EXTENSION_ID',
-  {
-    type: 'skill_run',
-    tabId: chrome.devtools?.inspectedWindow?.tabId,   // or omit — uses sender.tab.id
-    payload: { /* full payload JSON */ },
-    params: { user_identifier: 'Alice Example' }
-  },
-  (r) => console.log('started runId:', r.runId)
-);
+## Builds
 
-// 2. Poll for result
-const runId = '...';
-const poll = setInterval(() => {
-  chrome.runtime.sendMessage('YOUR_EXTENSION_ID', { type: 'get_status', runId }, (r) => {
-    console.log(r.status, r.stepIndex);
-    if (r.status === 'complete' || r.status === 'failed') {
-      clearInterval(poll);
-      console.log('Result:', JSON.stringify(r.result, null, 2));
-    }
-  });
-}, 1000);
-```
-
-Or via `window.postMessage` relay (from any page script):
-
-```javascript
-const requestId = crypto.randomUUID();
-window.postMessage({ __yeshieExt: true, requestId, type: 'skill_run', payload: {...}, params: {...} }, '*');
-window.addEventListener('message', (e) => {
-  if (e.data?.__yeshieExtResponse && e.data.requestId === requestId) {
-    console.log('runId:', e.data.response.runId);
-  }
-});
-```
-
-## Message types
-
-| type | fields | response |
-|------|--------|----------|
-| `skill_run` | `payload`, `params`, `tabId?` | `{ runId, status: 'started' }` |
-| `get_status` | `runId` | `{ status, stepIndex, totalSteps, result? }` |
-| `abort` | `runId` | `{ aborted: true }` |
-
-Status values: `running` → `complete` or `failed` or `aborted`
-
-## Minimum viable test (02-user-delete)
-
-```javascript
-// In DevTools on app.yeshid.com/organization/people
-const payload = await fetch('/path/to/02-user-delete.payload.json').then(r => r.json());
-chrome.runtime.sendMessage('EXT_ID', {
-  type: 'skill_run',
-  payload,
-  params: { user_identifier: 'Deletable User' }
-}, r => { window._runId = r.runId; console.log('started', r.runId); });
-// Then poll: chrome.runtime.sendMessage('EXT_ID', {type:'get_status', runId: window._runId}, console.log)
-```
+- Personal: `npm run build` (the watcher does this), loaded unpacked from `.output/chrome-mv3`.
+- Chrome Web Store: `npm run zip:store`. See `store/README.md` and `CHANGELOG.md`.
 
 ## Architecture
 
 ```
-content.js (ISOLATED world)
-  └─ relays window.postMessage ↔ chrome.runtime
-
 background.js (service worker)
+  ├─ Socket.IO client to the relay (localhost:3333)
   ├─ runs Map — holds RunState across navigations
   ├─ executeChain() — walks payload.chain[]
   ├─ executeStep() — dispatches: navigate/type/click/read/wait_for/assess_state/js/find_row/click_text

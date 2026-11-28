@@ -1,4 +1,5 @@
 import { overlayStyles } from './styles.js';
+import { mountYeshieLogo } from './logo.js';
 
 export interface StepInfo {
   id: string;
@@ -49,7 +50,7 @@ export function createProgressPanel(
 
   overlay.innerHTML = `
     <div class="yeshie-header">
-      <span class="yeshie-logo">Y</span>
+      <span class="yeshie-logo"></span>
       <span class="yeshie-title"></span>
       <button class="yeshie-minimize">_</button>
     </div>
@@ -66,6 +67,7 @@ export function createProgressPanel(
     </div>
   `;
 
+  mountYeshieLogo(shadow.querySelector('.yeshie-logo') as HTMLElement, 22, document);
   const titleEl = shadow.querySelector('.yeshie-title') as HTMLElement;
   const stepsEl = shadow.querySelector('.yeshie-steps') as HTMLElement;
   const bodyEl = shadow.querySelector('.yeshie-body') as HTMLElement;
