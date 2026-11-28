@@ -75,8 +75,10 @@ async function arrange(jaredTab: number, msg: any) {
     let u: URL | null = null; try { u = new URL(String(msg.url || '')); } catch {}
     const local = u && u.protocol === 'http:' && /^(localhost|127\.0\.0\.1)$/.test(u.hostname); // an app you run yourself
     if (!u || (u.protocol !== 'https:' && !local)) return { ok: false, why: 'Jared can only open an https address.' };
-    const tab = await chrome.tabs.create({ url: u.href, active: true, windowId: jt.windowId });
-    tabId = tab.id!;
+    // Straight into a window of its own: opening it as a tab in Jared's window and moving it out left
+    // Jared's window showing some other tab (Mike, 2026-11-28: "it lost the Jared window").
+    const w = await chrome.windows.create({ url: u.href, type: 'normal', focused: false, ...right }).catch(() => null) || await chrome.windows.create({ url: u.href, type: 'normal', focused: false });
+    tabId = w.tabs![0].id!;
   }
   // A tab that shares Jared's window moves out into its own window; one already alone just moves.
   const t = await chrome.tabs.get(tabId);
@@ -92,7 +94,9 @@ async function arrange(jaredTab: number, msg: any) {
   await place(winId, right);
   if (!granted.has(jaredTab)) granted.set(jaredTab, new Set());
   granted.get(jaredTab)!.add(tabId);
-  await chrome.windows.update(jt.windowId, { focused: true }).catch(() => {});
+  // Jared stays the tab you see on the left, and its window comes to the front.
+  await chrome.tabs.update(jaredTab, { active: true }).catch(() => {});
+  await chrome.windows.update(jt.windowId, { state: 'normal', focused: true }).catch(() => {});
   return { ok: true, tabId, placed };
 }
 
