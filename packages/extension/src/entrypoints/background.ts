@@ -12,6 +12,7 @@ import { RUNTIME_FEATURES } from '../../../../src/runtime-features.js';
 import { loadInstanceIdentity, captureInstanceState, watchInstanceState } from '../instance-state';
 import { buildSplitRequest, isSplitTogether } from '../split-view';
 import { startToolbarLogo } from '../toolbar-logo';
+import { handleJared, handlePicked } from '../jared-bridge';
 
 export default defineBackground(() => {
   console.log('[Yeshie] Background worker started');
@@ -4108,6 +4109,16 @@ export default defineBackground(() => {
     // An extension page (side panel, or sidepanel.html opened in a tab) has a
     // chrome-extension:// sender URL; a content script has the web page's URL.
     const fromExtensionPage = typeof sender.url === 'string' && sender.url.startsWith(chrome.runtime.getURL(''));
+    // Jared bridge (src/jared-bridge.ts): requests from Jared's own pages, and the picker's answer.
+    if (msg?.jared && typeof msg.jared === 'object') {
+      handleJared(msg.jared, sender).then(sendResponse, (e) => sendResponse({ ok: false, why: String(e?.message || e) }));
+      return true;
+    }
+    if (msg?.type === 'jared_picked') {
+      if (!fromExtensionPage) { sendResponse({ error: 'jared_picked is not accepted from a web page' }); return false; }
+      handlePicked(msg).then(sendResponse, () => sendResponse({ ok: false }));
+      return true;
+    }
     if (EXTENSION_PAGE_ONLY.has(msg?.type) && !fromExtensionPage) {
       sendResponse({ error: `${msg.type} is not accepted from a web page` });
       return false;

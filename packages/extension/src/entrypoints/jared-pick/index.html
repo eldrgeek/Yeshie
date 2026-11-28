@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Yeshie: pick a tab for Jared</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; background: #f8f9fa; color: #222; }
+    header { background: #1a1a2e; color: #fff; padding: 12px 16px; font-weight: 600; }
+    p { margin: 12px 16px; font-size: 13px; color: #555; line-height: 1.4; }
+    ul { list-style: none; margin: 0; padding: 0 8px 16px; }
+    button.tab { display: flex; gap: 10px; align-items: center; width: 100%; text-align: left; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 10px; margin: 6px 0; cursor: pointer; font: inherit; }
+    button.tab:hover { border-color: #7fe0c4; background: #f2fbf8; }
+    button.tab img { width: 16px; height: 16px; flex: none; }
+    .t { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .u { font-size: 12px; color: #777; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col { min-width: 0; }
+    #cancel { margin: 0 16px 16px; padding: 8px 14px; border-radius: 6px; border: 1px solid #ccc; background: #fff; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <header>Let Jared copy and drive a tab</header>
+  <p>Jared will copy the tab you pick, and clicks you make in Jared will be made in that tab too. Only this tab is shared, and only with this Jared tab, until one of them closes.</p>
+  <ul id="tabs"></ul>
+  <button id="cancel">Cancel</button>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>
