@@ -1,0 +1,14 @@
+{
+  "title": "SOMA Auth: verify LinkedIn app with Minds Aligned",
+  "url": "https://www.linkedin.com/developers/apps/264207680/settings",
+  "closeOnDone": false,
+  "_note": "Products cannot be added until a Page admin verifies the app's association with the LinkedIn Page. Mike is the Minds Aligned admin, so he approves his own request.",
+  "steps": [
+    { "instruction": "LinkedIn wants the app verified by the Minds Aligned page before it adds sign-in. Click Verify next to Minds Aligned.",
+      "target": "button:has-text(\"Verify\")",
+      "doneWhen": { "textAppears": "Generate URL" } },
+    { "instruction": "Click Generate URL, then open the link it shows (you are the Page admin). On that page click Verify. Then come back to this tab.",
+      "target": "button:has-text(\"Generate URL\")",
+      "doneWhen": { "textAppears": "Verified" } }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "title": "Sign in to Meta for Developers",
+  "url": "https://www.facebook.com/login/?next=https%3A%2F%2Fdevelopers.facebook.com%2Fapps%2F",
+  "closeOnDone": false,
+  "steps": [
+    {
+      "instruction": "Sign in to Facebook: click Continue on your profile (or log in). If Meta asks you to register as a developer, follow its steps. This step is done when the Meta for Developers apps page shows.",
+      "target": "",
+      "doneWhen": {
+        "selectorAppears": "a[href*=\"/apps/creation\"], button:has-text(\"Create app\")"
+      }
+    }
+  ]
+}

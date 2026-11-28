@@ -1,0 +1,10 @@
+{
+  "title": "FrontRow: copy the current Supabase service key",
+  "url": "https://supabase.com/dashboard/project/omfwcodoimjmbrhssvfl/settings/api-keys",
+  "closeOnDone": false,
+  "_note": "Step 1 of 3 for the FrontRow token 503 (2026-11-07). The key value is never read, printed or stored by Yeshie: Mike copies it to his clipboard and pastes it in the Netlify guide (app.netlify.com/guides/set-supabase-service-key.guide.json). default_rotated_20260811 is the current key: its own description says it replaced default_rotated_20260723b, which was exposed in a transcript on 2026-08-04. The tab stays open so Mike can copy again if the paste fails.",
+  "steps": [
+    { "instruction": "Click the copy button on the default_rotated_20260811 row under Secret keys. That puts the current FrontRow service key on your clipboard. Do not reveal it.",
+      "target": "tr:has(button[aria-label=\"More actions for API key default_rotated_20260811\"]) button[aria-label=\"Copy API key\"]" }
+  ]
+}

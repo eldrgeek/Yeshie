@@ -1,0 +1,39 @@
+{
+  "title": "SOMA Auth: Facebook app",
+  "url": "https://developers.facebook.com/apps/creation/",
+  "closeOnDone": false,
+  "_note": "Meta's create-app wizard: App details, Use cases, Business, Requirements, Overview. Contact email is prefilled by Meta (mw@mike-wolf.com). Later pages were not inspected before the first run; their targets fall back to a centered tooltip.",
+  "prefill": [
+    {
+      "selector": "input[maxlength=\"30\"]",
+      "value": "SOMA"
+    }
+  ],
+  "steps": [
+    {
+      "instruction": "Yeshie typed SOMA as the app name. The contact email is mw@mike-wolf.com. Click Next.",
+      "target": "div[role=\"button\"]:has-text(\"Next\"), button:has-text(\"Next\")",
+      "doneWhen": {
+        "textAppears": "Facebook Login"
+      }
+    },
+    {
+      "instruction": "Choose Authenticate and request data from users with Facebook Login, then click Next.",
+      "target": "div[role=\"button\"]:has-text(\"Next\"), button:has-text(\"Next\")",
+      "doneWhen": {
+        "textAppears": "business portfolio"
+      }
+    },
+    {
+      "instruction": "Choose I do not want to connect a business portfolio yet (unless you want one), then click Next.",
+      "target": "div[role=\"button\"]:has-text(\"Next\"), button:has-text(\"Next\")"
+    },
+    {
+      "instruction": "Click Next on Requirements, then Create app on Overview. Meta may ask for your password.",
+      "target": "div[role=\"button\"]:has-text(\"Create app\"), button:has-text(\"Create app\"), div[role=\"button\"]:has-text(\"Next\")",
+      "doneWhen": {
+        "urlIncludes": "/dashboard"
+      }
+    }
+  ]
+}

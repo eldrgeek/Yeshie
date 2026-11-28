@@ -253,3 +253,13 @@ If you need to look at code, here's where to find things:
 | `improve.js` | Self-improvement merge script (auto-heal on `/run` after #55) |
 | `sites/yeshid/tasks/` | All validated YeshID payloads |
 | `models/` | L1 and L2 knowledge model files |
+
+**Guides — prefill, then review (Mike's rule, 2026-11-03):** Yeshie fills in
+every field whose value is known and is not a secret, then the guide starts on
+a "review these" step. Mike makes only the final click (Register, Save,
+Enable) and pastes secrets himself; Yeshie never reads, logs or stores a
+secret. In a guide file, `prefill: [{selector, value}]` lists the fields
+(`{{KEY}}` in a value comes from `--param KEY=V`), and `{click, waitFor?}`
+items open a panel on the way. `node scripts/guide.mjs` runs the prefill as a
+normal Yeshie chain in a new tab (or `--tab N`), then starts the guide in
+that tab. Example: `sites/github.com/guides/soma-auth-oauth-app.guide.json`.

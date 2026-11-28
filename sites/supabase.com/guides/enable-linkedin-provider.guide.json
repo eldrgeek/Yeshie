@@ -1,0 +1,22 @@
+{
+  "title": "SOMA Auth: enable LinkedIn sign-in",
+  "url": "https://supabase.com/dashboard/project/omfwcodoimjmbrhssvfl/auth/providers",
+  "closeOnDone": true,
+  "_note": "Pass --param CLIENT_ID=<LinkedIn app Client ID> (public). The secret is never prefilled or read; Mike pastes it from LinkedIn's Copy button.",
+  "prefillReady": "button",
+  "prefill": [
+    { "clickText": "LinkedIn (OIDC)Disabled", "waitFor": "input[name=\"EXTERNAL_LINKEDIN_OIDC_CLIENT_ID\"]" },
+    { "selector": "input[name=\"EXTERNAL_LINKEDIN_OIDC_CLIENT_ID\"]", "value": "{{CLIENT_ID}}" }
+  ],
+  "steps": [
+    { "instruction": "Turn on LinkedIn (OIDC) enabled (the first switch at the top of this panel).",
+      "target": "[role=\"dialog\"] button[role=\"switch\"]",
+      "doneWhen": { "selectorAppears": "[role=\"dialog\"] button[role=\"switch\"][data-state=\"checked\"]" } },
+    { "instruction": "Paste the LinkedIn Primary Client Secret from your clipboard into Client Secret.",
+      "target": "input[name=\"EXTERNAL_LINKEDIN_OIDC_SECRET\"]",
+      "doneWhen": { "selectorAppears": "input[name=\"EXTERNAL_LINKEDIN_OIDC_SECRET\"]:not([value=\"\"])" } },
+    { "instruction": "Yeshie filled in the Client ID from your LinkedIn app (it starts 86xlg). Check it, then click Save.",
+      "target": "[role=\"dialog\"] button:has-text(\"Save\")",
+      "doneWhen": { "selectorAppears": "button:has-text(\"LinkedIn (OIDC)Enabled\")", "textAppears": "Successfully updated settings" } }
+  ]
+}

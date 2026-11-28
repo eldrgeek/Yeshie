@@ -1,0 +1,11 @@
+{
+  "title": "SOMA Auth: approve LinkedIn app verification",
+  "url": "https://www.linkedin.com/developers/apps/verification/adbb536a-02b1-4089-ad2b-91daadf7bf5e",
+  "closeOnDone": true,
+  "_note": "The verification link is generated per request on the app's Settings tab (Verify, then Generate URL); this one is for app 264207680 and the Minds Aligned page. A Page admin approves it while signed in as himself, not in LISA (page-acting) mode.",
+  "steps": [
+    { "instruction": "This is the approval page for the SOMA app and the Minds Aligned page. Click Verify. If LinkedIn says you are acting as a company page, switch to yourself in the Me menu first and reload.",
+      "target": "button:has-text(\"Verify\")",
+      "doneWhen": { "textAppears": "verified" } }
+  ]
+}
